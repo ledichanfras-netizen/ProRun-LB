@@ -57,14 +57,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <TrendingUp className="w-6 h-6 text-green-400" />
           <span className="font-bold text-lg">ProRun</span>
         </div>
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1">
           {isSidebarOpen ? <X /> : <Menu />}
         </button>
       </div>
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-10 w-64 bg-blue-900 text-white transform transition-transform duration-200 ease-in-out
+        fixed inset-y-0 left-0 z-30 w-64 bg-blue-900 text-white transform transition-transform duration-200 ease-in-out
         md:relative md:translate-x-0 flex flex-col shadow-2xl no-print
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
@@ -80,7 +80,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -99,11 +99,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-blue-800">
+        <div className="p-4 border-t border-blue-800 bg-blue-950/30">
           {userRole === 'coach' && (
-            <div className="bg-blue-800/50 rounded-lg p-3 mb-2">
-               <p className="text-xs text-blue-200 mb-1">Atleta Selecionado</p>
-               <div className="font-medium text-white truncate">
+            <div className="bg-blue-800/50 rounded-lg p-3 mb-3 border border-blue-700/50">
+               <p className="text-xs text-blue-200 mb-1 uppercase font-bold">Atleta Selecionado</p>
+               <div className="font-medium text-white truncate flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-green-400" />
                   {activeAthlete ? activeAthlete.name : 'Nenhum'}
                </div>
             </div>
@@ -111,7 +112,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-4 py-2 text-red-200 hover:text-white hover:bg-red-900/50 rounded transition"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-200 hover:text-white hover:bg-red-900/50 rounded transition"
           >
             <LogOut className="w-4 h-4" /> Sair
           </button>
@@ -119,8 +120,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <main className="flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-screen">
+        <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
           {children}
         </div>
       </main>
@@ -128,7 +129,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Overlay for mobile */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-0 md:hidden no-print"
+          className="fixed inset-0 bg-black/60 z-20 md:hidden no-print backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}

@@ -3,14 +3,15 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>ProRun AI Coach</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <style>
       body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
-      /* Custom Scrollbar for sleek look */
-      ::-webkit-scrollbar { width: 8px; }
+      
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: #f1f5f9; }
       ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
       ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
@@ -18,52 +19,85 @@
       /* Print Styles for PDF Export */
       @media print {
         @page { 
-          size: landscape; /* Force Landscape for training calendar */
-          margin: 5mm; 
+          size: landscape; /* FORÇA PAISAGEM */
+          margin: 5mm;     /* Margens finas */
         }
         
-        body { 
-          background: white;
-          -webkit-print-color-adjust: exact !important; 
-          print-color-adjust: exact !important;
-          margin: 0;
-          padding: 0;
+        html, body {
+          height: auto !important;
+          min-height: 100% !important;
+          overflow: visible !important; /* Crítico para permitir múltiplas páginas */
+          background: white !important;
+          width: 100%;
+          font-size: 11px;
         }
         
-        /* Hide app UI */
-        #root, .no-print, nav, aside, header, .fixed {
-          display: none !important;
-        }
+        /* Oculta toda a UI da aplicação */
+        #root { display: none !important; }
 
-        /* Show Print Area */
-        #printable-area {
+        /* Configuração do Portal de Impressão */
+        #printable-portal {
           display: block !important;
-          position: absolute;
+          visibility: visible !important;
+          /* CORREÇÃO CRÍTICA: 'absolute' corta o conteúdo em múltiplas páginas. 'relative' permite o fluxo. */
+          position: relative !important; 
           top: 0;
           left: 0;
           width: 100%;
-          margin: 0;
-          padding: 0;
+          height: auto !important;
+          z-index: 9999;
           background: white;
+          overflow: visible !important;
         }
 
-        /* Ensure grids and colors work in print */
-        .grid { display: grid !important; }
+        /* Garante funcionamento do grid na impressão */
+        .print-grid { display: grid !important; }
+        .print-grid-cols-7 { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
         
-        /* Force background colors */
+        /* Força cores de fundo (background graphics) */
+        * {
+          -webkit-print-color-adjust: exact !important; 
+          print-color-adjust: exact !important;
+        }
+        
+        /* Cores Forçadas */
         .bg-blue-50 { background-color: #eff6ff !important; }
         .bg-green-50 { background-color: #f0fdf4 !important; }
         .bg-yellow-50 { background-color: #fefce8 !important; }
         .bg-orange-50 { background-color: #fff7ed !important; }
         .bg-red-50 { background-color: #fef2f2 !important; }
+        .bg-purple-50 { background-color: #faf5ff !important; }
         .bg-slate-50 { background-color: #f8fafc !important; }
         .bg-slate-100 { background-color: #f1f5f9 !important; }
         .bg-slate-800 { background-color: #1e293b !important; color: white !important; }
         
-        /* Avoid breaking weeks across pages if possible */
+        /* Quebra de Página */
         .break-inside-avoid {
           break-inside: avoid;
           page-break-inside: avoid;
+        }
+        
+        .page-break { 
+          page-break-before: always; 
+          break-before: always;
+        }
+        
+        .no-print { display: none !important; }
+      }
+      
+      @media screen {
+        /* 
+           CORREÇÃO: Usar visibility hidden em vez de display none.
+           Display none remove o elemento da árvore de renderização, o que pode causar falhas
+           ao chamar window.print() se o navegador não re-renderizar rápido o suficiente.
+        */
+        #printable-portal { 
+          visibility: hidden;
+          position: absolute;
+          width: 0;
+          height: 0;
+          overflow: hidden;
+          left: -9999px;
         }
       }
     </style>
@@ -75,6 +109,7 @@
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.32.0",
     "react/": "https://aistudiocdn.com/react@^19.2.1/",
     "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.1",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
     "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
     "firebase/": "https://esm.sh/firebase@^12.6.0/"

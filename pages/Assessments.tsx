@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { calculateVDOT, calculatePaces } from '../utils/calculations';
+import { calculateVO2, calculatePaces } from '../utils/calculations';
 import { TrainingPace, Assessment } from '../types';
 import { Calculator, Save, Activity, Wind, Heart, History, Info, ChevronDown, ChevronUp, AlertCircle, TrendingUp, Edit2, Trash2, X, RotateCcw, AlertTriangle } from 'lucide-react';
 
@@ -28,7 +28,7 @@ const Assessments: React.FC = () => {
   const [formFcMax, setFormFcMax] = useState<number | ''>('');
   const [formFcThreshold, setFormFcThreshold] = useState<number | ''>('');
 
-  const [calculatedVdot, setCalculatedVdot] = useState<number | null>(null);
+  const [calculatedVo2, setCalculatedVo2] = useState<number | null>(null);
   const [paces, setPaces] = useState<TrainingPace[]>([]);
   const [showProtocol, setShowProtocol] = useState(false);
 
@@ -55,7 +55,7 @@ const Assessments: React.FC = () => {
       if (activeAthlete.customZones && activeAthlete.customZones.length > 0) {
         setPaces(activeAthlete.customZones);
       } else {
-        // Calculate zones based on stored VDOT and Heart Rate data
+        // Calculate zones based on stored VO2 (VDOT) and Heart Rate data
         setPaces(calculatePaces(
           activeAthlete.metrics.vdot,
           activeAthlete.metrics.fcThreshold,
@@ -70,28 +70,28 @@ const Assessments: React.FC = () => {
   // Handle Simulation for 3k
   const handleSimulate3k = (time: string) => {
     if (!time.includes(':') || time.length < 4) return;
-    const vdot = calculateVDOT(time, 3);
-    setCalculatedVdot(vdot);
+    const vo2 = calculateVO2(time, 3);
+    setCalculatedVo2(vo2);
   };
 
   // Handle Simulation for TRF (variable distance)
   const handleSimulateTrf = (time: string) => {
     if (!time.includes(':') || time.length < 4 || !formTrfDistance) return;
-    const vdot = calculateVDOT(time, formTrfDistance);
-    setCalculatedVdot(vdot);
+    const vo2 = calculateVO2(time, formTrfDistance);
+    setCalculatedVo2(vo2);
   };
 
-  // Handle Simulation for VO2 Lab (Direct VDOT mapping)
+  // Handle Simulation for VO2 Lab (Direct VO2 mapping)
   useEffect(() => {
     if (testType === 'VO2_Lab' && formVo2Max) {
-      // Logic: For practical purposes, we treat Measured VO2Max as the VDOT
-      setCalculatedVdot(Number(formVo2Max));
+      // Logic: For practical purposes, we treat Measured VO2Max as the VDOT/VO2 Score
+      setCalculatedVo2(Number(formVo2Max));
     }
   }, [formVo2Max, testType]);
 
   const handleSaveAssessment = () => {
     if (isReadOnly) return;
-    if (!activeAthlete || !calculatedVdot) {
+    if (!activeAthlete || !calculatedVo2) {
       alert('Dados incompletos.');
       return;
     }
@@ -106,7 +106,7 @@ const Assessments: React.FC = () => {
       date: formDate,
       type: testType,
       resultValue: resultValue,
-      calculatedVdot: calculatedVdot,
+      calculatedVdot: calculatedVo2, // Storing as vdot to keep DB compatibility
       // Optional physiological data
       vo2Max: testType === 'VO2_Lab' ? Number(formVo2Max) : undefined,
       fcMax: formFcMax ? Number(formFcMax) : undefined,
@@ -116,7 +116,6 @@ const Assessments: React.FC = () => {
     
     if (editingId) {
       updateAssessment(activeAthlete.id, assessmentData);
-      // Removed alert for smoother UX
     } else {
       addNewAssessment(activeAthlete.id, assessmentData);
     }
@@ -128,7 +127,7 @@ const Assessments: React.FC = () => {
     setEditingId(assessment.id);
     setTestType(assessment.type);
     setFormDate(assessment.date);
-    setCalculatedVdot(assessment.calculatedVdot);
+    setCalculatedVo2(assessment.calculatedVdot);
     
     setFormFcMax(assessment.fcMax || '');
     setFormFcThreshold(assessment.fcThreshold || '');
@@ -182,7 +181,7 @@ const Assessments: React.FC = () => {
   };
 
   const handleResetZones = async () => {
-    if (activeAthlete && window.confirm('Deseja restaurar os cálculos automáticos baseados no VDOT?')) {
+    if (activeAthlete && window.confirm('Deseja restaurar os cálculos automáticos baseados no VO2?')) {
       await updateAthlete(activeAthlete.id, { customZones: undefined }); // Remove field from DB
       setIsEditingZones(false);
     }
@@ -197,7 +196,7 @@ const Assessments: React.FC = () => {
     setFormVo2Max('');
     setFormFcMax(activeAthlete?.metrics.fcMax || '');
     setFormFcThreshold(activeAthlete?.metrics.fcThreshold || '');
-    setCalculatedVdot(null);
+    setCalculatedVo2(null);
   };
 
   return (
@@ -340,8 +339,8 @@ const Assessments: React.FC = () => {
                            const d = Number(e.target.value);
                            setFormTrfDistance(d);
                            if (formTrfTime.length >= 4 && d > 0) {
-                              const vdot = calculateVDOT(formTrfTime, d);
-                              setCalculatedVdot(vdot);
+                              const vo2 = calculateVO2(formTrfTime, d);
+                              setCalculatedVo2(vo2);
                            }
                         }}
                       />
@@ -417,13 +416,13 @@ const Assessments: React.FC = () => {
                   </p>
                 </div>
 
-                {calculatedVdot && (
+                {calculatedVo2 && (
                   <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg text-center animate-fade-in mt-4">
-                    <p className="text-xs text-blue-600 uppercase font-bold tracking-wider">Novo VDOT Estimado</p>
-                    <p className="text-3xl font-bold text-blue-800">{calculatedVdot}</p>
-                    {calculatedVdot > activeAthlete.metrics.vdot && !editingId && (
+                    <p className="text-xs text-blue-600 uppercase font-bold tracking-wider">Novo VO2 Estimado</p>
+                    <p className="text-3xl font-bold text-blue-800">{calculatedVo2}</p>
+                    {calculatedVo2 > activeAthlete.metrics.vdot && !editingId && (
                        <span className="text-xs text-green-600 flex justify-center items-center gap-1 font-medium mt-1">
-                         <TrendingUp className="w-3 h-3" /> Melhora de {(calculatedVdot - activeAthlete.metrics.vdot).toFixed(1)}
+                         <TrendingUp className="w-3 h-3" /> Melhora de {(calculatedVo2 - activeAthlete.metrics.vdot).toFixed(1)}
                        </span>
                     )}
                   </div>
@@ -441,7 +440,7 @@ const Assessments: React.FC = () => {
                     )}
                     <button 
                       onClick={handleSaveAssessment}
-                      disabled={!calculatedVdot}
+                      disabled={!calculatedVo2}
                       className={`flex-1 text-white py-2 rounded-lg font-medium shadow-sm transition flex justify-center items-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed
                         ${editingId ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'}`}
                     >
@@ -469,7 +468,7 @@ const Assessments: React.FC = () => {
                     {testType === '3k' && (
                       <>
                         <p className="font-bold text-slate-800">Teste de 3km (Campo)</p>
-                        <p>Ideal para estimar o VDOT e zonas de velocidade (I, R).</p>
+                        <p>Ideal para estimar o VO2/VDOT e zonas de velocidade (I, R).</p>
                         <ul className="list-disc pl-4 space-y-1">
                           <li><span className="font-bold">Aquecimento:</span> 15-20 min trote leve + 4x30s ritmo de prova.</li>
                           <li><span className="font-bold">Principal:</span> Correr 3km no menor tempo possível (Ritmo forte e constante).</li>
@@ -510,11 +509,11 @@ const Assessments: React.FC = () => {
             {/* Quick Stats Header */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                <div className="bg-slate-900 text-white p-4 rounded-xl shadow-md">
-                 <p className="text-xs text-slate-400 uppercase font-bold">VDOT</p>
+                 <p className="text-xs text-slate-400 uppercase font-bold">VO2 Score</p>
                  <p className="text-3xl font-bold text-green-400">{activeAthlete.metrics.vdot}</p>
                </div>
                <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-                 <p className="text-xs text-slate-500 uppercase font-bold">VO2Max</p>
+                 <p className="text-xs text-slate-500 uppercase font-bold">VO2Max (Lab)</p>
                  <div className="flex items-end gap-1">
                     <p className="text-2xl font-bold text-slate-800">{activeAthlete.metrics.vo2Max || '-'}</p>
                     <span className="text-xs text-slate-400 mb-1">ml/kg</span>
@@ -548,7 +547,7 @@ const Assessments: React.FC = () => {
                            <th className="p-3">Data</th>
                            <th className="p-3">Tipo</th>
                            <th className="p-3">Resultado</th>
-                           <th className="p-3">VDOT</th>
+                           <th className="p-3">VO2</th>
                            {!isReadOnly && <th className="p-3 text-right">Ações</th>}
                          </tr>
                        </thead>

@@ -27,9 +27,9 @@ const getPercentMax = (t: number) => {
   return 0.8 + 0.1894393 * Math.exp(-0.012778 * t) + 0.2989558 * Math.exp(-0.1932605 * t);
 };
 
-// Calculate VDOT from a race time and distance
+// Calculate VO2 (formerly VDOT) from a race time and distance
 // Defaults to 3km (3000m) if distance not provided
-export const calculateVDOT = (timeStr: string, distanceKm: number = 3): number => {
+export const calculateVO2 = (timeStr: string, distanceKm: number = 3): number => {
   const minutes = parseTime(timeStr);
   const distanceMeters = distanceKm * 1000;
   const velocity = getVelocity(distanceMeters, minutes); // m/min
@@ -38,13 +38,13 @@ export const calculateVDOT = (timeStr: string, distanceKm: number = 3): number =
   return Math.round((vo2 / percentMax) * 10) / 10;
 };
 
-// Calculate Training Paces based on VDOT and optional Heart Rate data
-export const calculatePaces = (vdot: number, fcThreshold?: number, fcMax?: number): TrainingPace[] => {
+// Calculate Training Paces based on VO2 (VDOT) and optional Heart Rate data
+export const calculatePaces = (vo2Score: number, fcThreshold?: number, fcMax?: number): TrainingPace[] => {
   
-  // Helper to get pace (min/km) from intensity % of VDOT
+  // Helper to get pace (min/km) from intensity % of VO2
   const getPaceFromIntensity = (intensity: number) => {
-    // Reversing the VO2 formula slightly to find Velocity for a given VO2 (VDOT * intensity)
-    const targetVO2 = vdot * intensity;
+    // Reversing the VO2 formula slightly to find Velocity for a given VO2 (Score * intensity)
+    const targetVO2 = vo2Score * intensity;
     // Quadratic formula approximation to solve for Velocity v: 0.000104v^2 + 0.182258v - (targetVO2 + 4.6) = 0
     const a = 0.000104;
     const b = 0.182258;

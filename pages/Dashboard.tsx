@@ -24,7 +24,7 @@ const Dashboard: React.FC = () => {
   // Coach Global Stats
   const globalStats = {
     activeAthletes: athletes.length,
-    avgVDOT: athletes.length > 0 ? Math.round(athletes.reduce((acc, curr) => acc + curr.metrics.vdot, 0) / athletes.length) : 0,
+    avgVO2: athletes.length > 0 ? Math.round(athletes.reduce((acc, curr) => acc + curr.metrics.vdot, 0) / athletes.length) : 0,
   };
 
   const intensityData = [
@@ -44,9 +44,9 @@ const Dashboard: React.FC = () => {
 
   if (showIndividual && !activeAthlete) {
     return (
-       <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
+       <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500 text-center p-4">
          <AlertCircle className="w-12 h-12 mb-2" />
-         <p>Selecione um atleta na barra lateral para ver o painel individual.</p>
+         <p>Selecione um atleta na barra lateral (menu) para ver o painel individual.</p>
        </div>
     );
   }
@@ -54,10 +54,10 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold text-slate-800">
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800">
           {showIndividual ? `Painel de ${activeAthlete?.name}` : 'Visão Geral do Treinador'}
         </h1>
-        <p className="text-slate-500">
+        <p className="text-sm md:text-base text-slate-500">
           {showIndividual 
             ? 'Acompanhamento de evolução e conclusão de treinos' 
             : 'Métricas gerais da equipe (Sincronizado na Nuvem)'}
@@ -65,40 +65,40 @@ const Dashboard: React.FC = () => {
       </header>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {showIndividual && metrics ? (
           <>
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Conclusão</p>
-                <p className="text-3xl font-bold text-slate-800">{metrics.completionRate}%</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Conclusão</p>
+                <p className="text-2xl md:text-3xl font-bold text-slate-800">{metrics.completionRate}%</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-full text-blue-600">
                 <Target className="w-6 h-6" />
               </div>
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Vol. Planejado</p>
-                <p className="text-3xl font-bold text-slate-800">{metrics.totalVolumePlanned} <span className="text-sm text-slate-400 font-normal">km</span></p>
+                <p className="text-xs font-bold uppercase text-slate-500">Vol. Planejado</p>
+                <p className="text-2xl md:text-3xl font-bold text-slate-800">{metrics.totalVolumePlanned} <span className="text-sm text-slate-400 font-normal">km</span></p>
               </div>
               <div className="p-3 bg-gray-50 rounded-full text-gray-600">
                 <TrendingUp className="w-6 h-6" />
               </div>
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Vol. Executado</p>
-                <p className="text-3xl font-bold text-green-600">{metrics.totalVolumeCompleted} <span className="text-sm text-slate-400 font-normal">km</span></p>
+                <p className="text-xs font-bold uppercase text-slate-500">Vol. Executado</p>
+                <p className="text-2xl md:text-3xl font-bold text-green-600">{metrics.totalVolumeCompleted} <span className="text-sm text-slate-400 font-normal">km</span></p>
               </div>
               <div className="p-3 bg-green-50 rounded-full text-green-600">
                 <TrendingUp className="w-6 h-6" />
               </div>
             </div>
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">VDOT Atual</p>
-                <p className="text-3xl font-bold text-indigo-600">{activeAthlete?.metrics.vdot}</p>
+                <p className="text-xs font-bold uppercase text-slate-500">VO2 Atual</p>
+                <p className="text-2xl md:text-3xl font-bold text-indigo-600">{activeAthlete?.metrics.vdot}</p>
               </div>
               <div className="p-3 bg-indigo-50 rounded-full text-indigo-600">
                 <Zap className="w-6 h-6" />
@@ -109,7 +109,7 @@ const Dashboard: React.FC = () => {
           <>
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Atletas Ativos</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Atletas Ativos</p>
                 <p className="text-3xl font-bold text-slate-800">{globalStats.activeAthletes}</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-full text-blue-600">
@@ -118,8 +118,8 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">VDOT Médio</p>
-                <p className="text-3xl font-bold text-slate-800">{globalStats.avgVDOT}</p>
+                <p className="text-xs font-bold uppercase text-slate-500">VO2 Médio</p>
+                <p className="text-3xl font-bold text-slate-800">{globalStats.avgVO2}</p>
               </div>
               <div className="p-3 bg-purple-50 rounded-full text-purple-600">
                 <Zap className="w-6 h-6" />
@@ -131,15 +131,15 @@ const Dashboard: React.FC = () => {
 
       {/* Individual Charts */}
       {showIndividual && metrics && metrics.history.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Planned vs Completed Chart */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="xl:col-span-2 bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Volume Semanal: Planejado vs Realizado</h3>
-            <div className="h-72 w-full">
+            <div className="h-64 md:h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={metrics.history}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fontSize: 10}} interval="preserveStartEnd" />
                   <YAxis axisLine={false} tickLine={false} />
                   <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
                   <Legend />
@@ -151,7 +151,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Intensity Distribution (Visual Guide) */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Distribuição Recomendada</h3>
             <div className="h-64 w-full relative">
               <ResponsiveContainer width="100%" height="100%">

@@ -1,20 +1,25 @@
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { calculatePaces } from '../utils/calculations';
-import { Calendar, AlertCircle, CheckCircle, Circle, MapPin, Clock, Trophy, X, MessageSquare, ChevronRight } from 'lucide-react';
+import { Calendar, AlertCircle, CheckCircle, Circle, MapPin, Clock, Trophy, X, MessageSquare, ChevronRight, FileDown, Printer, Info } from 'lucide-react';
 import { WorkoutType } from '../types';
+import { PrintLayout } from '../components/PrintLayout';
 
 const AthletePortal: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, toggleWorkoutCompletion, updateWorkoutFeedback } = useApp();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   
-  // Modal State
+  // Modal State for Details
   const [selectedWorkout, setSelectedWorkout] = useState<{
     weekIndex: number;
     dayIndex: number;
     data: any;
   } | null>(null);
+
+  // Modal State for Print Preview
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   // If no athlete is selected
   if (!activeAthlete) {
@@ -28,6 +33,7 @@ const AthletePortal: React.FC = () => {
   }
 
   const plan = athletePlans[activeAthlete.id] || [];
+  // Filter visible weeks for the athlete view AND for the PDF
   const visiblePlan = plan.filter(w => w.isVisible !== false);
   const paces = calculatePaces(activeAthlete.metrics.vdot);
 
@@ -79,10 +85,41 @@ const AthletePortal: React.FC = () => {
     }
   };
 
+  const handlePrint = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (activeAthlete) {
+      const originalTitle = document.title;
+      const dateStr = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+      document.title = `Treino_${activeAthlete.name.replace(/\s+/g, '_')}_${dateStr}`;
+      
+      // Chamada síncrona
+      window.print();
+
+      // Restaurar título depois
+      setTimeout(() => {
+        document.title = originalTitle;
+      }, 500);
+    }
+  };
+
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-8 pb-10 relative">
+
+      {/* REACT PORTAL FOR PRINTING */}
+      {createPortal(
+        <div id="printable-portal">
+          <PrintLayout 
+              athlete={activeAthlete}
+              plan={visiblePlan}
+              paces={paces}
+              goal="Treino Personalizado" 
+            />
+        </div>,
+        document.body
+      )}
+
       {/* Header Profile Card */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6">
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 no-print">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
             {activeAthlete.name.charAt(0)}
@@ -90,33 +127,45 @@ const AthletePortal: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">{activeAthlete.name}</h1>
             <div className="flex gap-2 text-sm mt-1">
-              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded">VDOT: <b>{activeAthlete.metrics.vdot}</b></span>
+              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded">VO2: <b>{activeAthlete.metrics.vdot}</b></span>
               <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{activeAthlete.experience}</span>
             </div>
           </div>
         </div>
         
-        {/* Quick Pace Reference */}
-        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto">
-          {paces.map(p => (
-            <div key={p.zone} className="flex flex-col items-center bg-slate-50 p-2 rounded-lg min-w-[70px] border border-slate-100">
-              <span className={`text-xs font-bold ${
-                p.zone === 'F' ? 'text-blue-600' : p.zone === 'I' ? 'text-red-600' : 'text-slate-600'
-              }`}>{p.zone}</span>
-              <span className="text-xs font-mono font-medium">{p.minPace}</span>
-            </div>
-          ))}
+        <div className="flex flex-col items-end gap-3 w-full md:w-auto">
+          {/* Export PDF Button */}
+          {visiblePlan.length > 0 && (
+             <button 
+                onClick={() => setShowPrintPreview(true)}
+                className="w-full md:w-auto bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm transition"
+              >
+                <FileDown className="w-4 h-4" /> Baixar Treino PDF
+              </button>
+          )}
+
+          {/* Quick Pace Reference */}
+          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto justify-end">
+            {paces.map(p => (
+              <div key={p.zone} className="flex flex-col items-center bg-slate-50 p-2 rounded-lg min-w-[70px] border border-slate-100">
+                <span className={`text-xs font-bold ${
+                  p.zone === 'F' ? 'text-blue-600' : p.zone === 'I' ? 'text-red-600' : 'text-slate-600'
+                }`}>{p.zone}</span>
+                <span className="text-xs font-mono font-medium">{p.minPace}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Main Calendar View */}
       {visiblePlan.length === 0 ? (
-        <div className="text-center py-20 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+        <div className="text-center py-20 bg-slate-50 rounded-xl border border-dashed border-slate-300 no-print">
            <Trophy className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-           <p className="text-slate-500">Seu treinador ainda não publicou nenhum treino.</p>
+           <p className="text-slate-500">Seu treinador ainda não publicou nenhum treino visível.</p>
         </div>
       ) : (
-        <div className="space-y-12">
+        <div className="space-y-12 no-print">
           {visiblePlan.map((week, wIdx) => (
             <div key={week.weekNumber} className="space-y-4">
               {/* Week Header */}
@@ -186,7 +235,7 @@ const AthletePortal: React.FC = () => {
 
       {/* Detail Modal */}
       {selectedWorkout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedWorkout(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm no-print" onClick={() => setSelectedWorkout(null)}>
           <div 
             className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in-up" 
             onClick={e => e.stopPropagation()}
@@ -255,6 +304,53 @@ const AthletePortal: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Print Preview Modal - Same as Coach but for Athletes */}
+      {showPrintPreview && activeAthlete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-0 md:p-4 overflow-hidden no-print">
+           <div className="bg-slate-200 w-full md:max-w-6xl h-full md:h-[90vh] md:rounded-xl shadow-2xl flex flex-col">
+              {/* Modal Toolbar */}
+              <div className="bg-slate-800 text-white p-4 md:rounded-t-xl flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 gap-4 md:gap-0 shadow-lg">
+                 <div className="flex-1">
+                   <h3 className="font-bold flex items-center gap-2 text-lg">
+                     <Printer className="w-5 h-5" /> Salvar Treino em PDF
+                   </h3>
+                   <div className="flex items-start gap-2 text-xs text-slate-300 mt-1 max-w-lg">
+                      <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-400" />
+                      <span>
+                        Layout configurado para <b>Paisagem</b>. Ao clicar em Imprimir, escolha "Salvar como PDF".
+                      </span>
+                   </div>
+                 </div>
+                 <div className="flex gap-3 w-full md:w-auto mt-2 md:mt-0">
+                   <button 
+                     onClick={() => setShowPrintPreview(false)}
+                     className="px-4 py-2 text-slate-300 hover:text-white transition w-full md:w-auto border border-slate-600 rounded"
+                   >
+                     Cancelar
+                   </button>
+                   <button 
+                     onClick={handlePrint}
+                     className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold shadow flex items-center justify-center gap-2 w-full md:w-auto"
+                   >
+                     <Printer className="w-4 h-4" /> Salvar PDF
+                   </button>
+                 </div>
+              </div>
+              
+              <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-start md:justify-center bg-slate-500/50">
+                  <div className="shadow-2xl bg-white origin-top shrink-0" style={{ width: '297mm', minHeight: '210mm' }}>
+                    <PrintLayout 
+                      athlete={activeAthlete}
+                      plan={visiblePlan}
+                      paces={paces}
+                      goal="Treino Personalizado"
+                    />
+                  </div>
+              </div>
+           </div>
         </div>
       )}
     </div>

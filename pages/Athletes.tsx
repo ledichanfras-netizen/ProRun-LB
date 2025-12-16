@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Athlete, ExperienceLevel } from '../types';
-import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar } from 'lucide-react';
 
 const Athletes: React.FC = () => {
   const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId } = useApp();
@@ -18,7 +18,7 @@ const Athletes: React.FC = () => {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
 
   const [formData, setFormData] = useState<Partial<Athlete>>({
-    name: '', age: 0, weight: 0, height: 0, experience: 'Beginner', email: ''
+    name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Beginner', email: ''
   });
 
   // Filter Athletes
@@ -30,14 +30,29 @@ const Athletes: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Calculate age from birthDate if provided
+    let calculatedAge = formData.age;
+    if (formData.birthDate) {
+      const birth = new Date(formData.birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      calculatedAge = age;
+    }
+
+    const dataToSave = { ...formData, age: calculatedAge };
+
     if (editingId) {
       // Edit Mode
-      updateAthlete(editingId, formData);
+      updateAthlete(editingId, dataToSave);
     } else {
       // Create Mode
-      if (formData.name && formData.age) {
+      if (dataToSave.name) {
         addAthlete({
-          ...formData as Athlete,
+          ...dataToSave as Athlete,
           id: crypto.randomUUID(),
           metrics: { vdot: 30, test3kTime: '00:00' } // Defaults
         });
@@ -47,7 +62,7 @@ const Athletes: React.FC = () => {
     // Reset
     setIsFormOpen(false);
     setEditingId(null);
-    setFormData({ name: '', age: 0, weight: 0, height: 0, experience: 'Beginner', email: '' });
+    setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Beginner', email: '' });
   };
 
   const handleEditClick = (athlete: Athlete) => {
@@ -125,9 +140,9 @@ const Athletes: React.FC = () => {
           onClick={() => {
             setIsFormOpen(true);
             setEditingId(null);
-            setFormData({ name: '', age: 0, weight: 0, height: 0, experience: 'Beginner', email: '' });
+            setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Beginner', email: '' });
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md transition"
+          className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-md transition"
         >
           <Plus className="w-4 h-4" /> Adicionar Atleta
         </button>
@@ -175,16 +190,22 @@ const Athletes: React.FC = () => {
                 onChange={e => setFormData({...formData, email: e.target.value})}
               />
             </div>
+            
+            {/* DATE OF BIRTH FIELD (Used as Password) */}
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Idade</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> Data Nascimento
+              </label>
               <input 
-                type="number"
-                className="w-full p-2 border rounded" 
-                placeholder="Idade" 
-                value={formData.age || ''}
-                onChange={e => setFormData({...formData, age: Number(e.target.value)})}
+                type="date"
+                className="w-full p-2 border rounded border-blue-200 bg-blue-50" 
+                value={formData.birthDate || ''}
+                onChange={e => setFormData({...formData, birthDate: e.target.value})}
+                required
               />
+              <p className="text-[10px] text-blue-600 mt-1">Usada como senha de acesso (DDMMAAAA)</p>
             </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Peso (kg)</label>
               <input 
@@ -237,77 +258,79 @@ const Athletes: React.FC = () => {
         </div>
       )}
 
-      {/* Athlete Table */}
+      {/* Athlete Table with Horizontal Scroll for Mobile */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
-              <th className="p-4 font-semibold">Nome</th>
-              <th className="p-4 font-semibold">Nível</th>
-              <th className="p-4 font-semibold">Métricas</th>
-              <th className="p-4 font-semibold">VDOT</th>
-              <th className="p-4 font-semibold">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredAthletes.map((athlete) => (
-              <tr key={athlete.id} className={`border-b border-slate-100 hover:bg-slate-50 transition ${selectedAthleteId === athlete.id ? 'bg-blue-50/50' : ''}`}>
-                <td className="p-4">
-                  <div className="font-medium text-slate-900">{athlete.name}</div>
-                  <div className="text-xs text-slate-500">{athlete.email}</div>
-                </td>
-                <td className="p-4">
-                  <span className={`
-                    px-2 py-1 rounded-full text-xs font-medium
-                    ${athlete.experience === 'Elite' ? 'bg-purple-100 text-purple-700' : 
-                      athlete.experience === 'Advanced' ? 'bg-blue-100 text-blue-700' : 
-                      athlete.experience === 'Intermediate' ? 'bg-green-100 text-green-700' : 
-                      'bg-slate-100 text-slate-700'}
-                  `}>
-                    {mapExperience(athlete.experience)}
-                  </span>
-                </td>
-                <td className="p-4 text-sm text-slate-600">
-                  {athlete.age} anos • {athlete.weight}kg
-                </td>
-                <td className="p-4 font-bold text-slate-800">
-                  {athlete.metrics.vdot}
-                </td>
-                <td className="p-4 flex gap-2">
-                  <button 
-                    onClick={() => setSelectedAthleteId(athlete.id)}
-                    className={`p-2 rounded transition ${selectedAthleteId === athlete.id ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'}`} 
-                    title={selectedAthleteId === athlete.id ? "Selecionado" : "Selecionar"}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleEditClick(athlete)}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                    title="Editar"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                   <button 
-                    type="button"
-                    onClick={(e) => confirmDelete(e, athlete.id, athlete.name)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
-                    title="Excluir"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                <th className="p-4 font-semibold">Nome</th>
+                <th className="p-4 font-semibold">Nível</th>
+                <th className="p-4 font-semibold">Métricas</th>
+                <th className="p-4 font-semibold">VO2</th>
+                <th className="p-4 font-semibold">Ações</th>
               </tr>
-            ))}
-            {filteredAthletes.length === 0 && (
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-slate-500">
-                  Nenhum atleta encontrado.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredAthletes.map((athlete) => (
+                <tr key={athlete.id} className={`border-b border-slate-100 hover:bg-slate-50 transition ${selectedAthleteId === athlete.id ? 'bg-blue-50/50' : ''}`}>
+                  <td className="p-4">
+                    <div className="font-medium text-slate-900">{athlete.name}</div>
+                    <div className="text-xs text-slate-500">{athlete.email}</div>
+                  </td>
+                  <td className="p-4">
+                    <span className={`
+                      px-2 py-1 rounded-full text-xs font-medium
+                      ${athlete.experience === 'Elite' ? 'bg-purple-100 text-purple-700' : 
+                        athlete.experience === 'Advanced' ? 'bg-blue-100 text-blue-700' : 
+                        athlete.experience === 'Intermediate' ? 'bg-green-100 text-green-700' : 
+                        'bg-slate-100 text-slate-700'}
+                    `}>
+                      {mapExperience(athlete.experience)}
+                    </span>
+                  </td>
+                  <td className="p-4 text-sm text-slate-600">
+                    {athlete.age} anos • {athlete.weight}kg
+                  </td>
+                  <td className="p-4 font-bold text-slate-800">
+                    {athlete.metrics.vdot}
+                  </td>
+                  <td className="p-4 flex gap-2">
+                    <button 
+                      onClick={() => setSelectedAthleteId(athlete.id)}
+                      className={`p-2 rounded transition ${selectedAthleteId === athlete.id ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'}`} 
+                      title={selectedAthleteId === athlete.id ? "Selecionado" : "Selecionar"}
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleEditClick(athlete)}
+                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                      title="Editar"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={(e) => confirmDelete(e, athlete.id, athlete.name)}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filteredAthletes.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-slate-500">
+                    Nenhum atleta encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

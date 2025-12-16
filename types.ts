@@ -30,6 +30,7 @@ export interface Athlete {
   id: string;
   name: string;
   age: number;
+  birthDate?: string; // New: Used for Password (YYYY-MM-DD)
   weight: number; // kg
   height: number; // cm
   experience: ExperienceLevel;

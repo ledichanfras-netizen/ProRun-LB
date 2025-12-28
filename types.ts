@@ -1,78 +1,78 @@
 
-export type ExperienceLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Elite';
+export type ExperienceLevel = 'Iniciante' | 'Intermediário' | 'Avançado' | 'Elite';
 export type UserRole = 'coach' | 'athlete' | null;
 
 export interface Assessment {
   id: string;
   date: string;
-  type: '3k' | 'VO2_Lab' | 'TRF'; // Updated to support TRF (Reference Test)
-  resultValue: string; // "12:30" (Time) or "54" (VO2 Value)
+  type: '3k' | 'VO2_Lab' | 'TRF'; 
+  resultValue: string; 
   calculatedVdot: number;
-  // New Physiological Data
   vo2Max?: number;
-  fcMax?: number; // Max Heart Rate
-  fcThreshold?: number; // Anaerobic Threshold Heart Rate
-  distanceKm?: number; // Distance for TRF (e.g., 5km, 10km)
+  fcMax?: number; 
+  fcThreshold?: number; 
+  distanceKm?: number; 
   notes?: string;
 }
 
+// Added Workout interface for library management
+export interface Workout {
+  id: string;
+  title: string;
+  type: 'Recovery' | 'Long Run' | 'Tempo' | 'Interval' | 'Speed';
+  description: string;
+  durationMinutes: number;
+  distanceKm: number;
+  rpe: number;
+}
+
 export interface TrainingPace {
-  zone: 'F' | 'M' | 'L' | 'I' | 'R'; // Updated: E->F, T->L
+  zone: 'Z1' | 'Z2' | 'Z3' | 'Z4' | 'Z5'; 
   name: string;
   description: string;
-  minPace: string; // min/km
-  maxPace: string; // min/km
-  speedKmh: string; // km/h
-  heartRateRange?: string; // e.g., "140-155 bpm"
+  minPace: string; 
+  maxPace: string; 
+  speedKmh: string; 
+  heartRateRange?: string; 
 }
 
 export interface Athlete {
   id: string;
   name: string;
   age: number;
-  birthDate?: string; // New: Used for Password (YYYY-MM-DD)
-  weight: number; // kg
-  height: number; // cm
+  birthDate?: string; 
+  weight: number; 
+  height: number; 
   experience: ExperienceLevel;
   email: string;
   metrics: {
-    vo2Max?: number; // Measured or Estimated
-    test3kTime?: string; // MM:SS
+    vo2Max?: number; 
+    test3kTime?: string; 
     vdot: number;
     fcMax?: number;
     fcThreshold?: number;
   };
-  customZones?: TrainingPace[]; // Allow manual override of zones
+  customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
 }
 
-export interface Workout {
-  id: string;
-  title: string;
-  type: 'Recovery' | 'Long Run' | 'Tempo' | 'Interval' | 'Speed' | 'Strength';
-  description: string;
-  durationMinutes: number;
-  distanceKm: number;
-  rpe: number; // 1-10
-}
-
-export type WorkoutType = 'Recovery' | 'Long' | 'Tempo' | 'Interval' | 'Rest' | 'Strength';
+export type WorkoutType = 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Descanso' | 'Fortalecimento';
 
 export interface TrainingWeek {
   id: string;
-  phase: 'Base' | 'Build' | 'Peak' | 'Taper';
+  phase: 'Base' | 'Construção' | 'Pico' | 'Polimento';
   weekNumber: number;
   totalVolume: number;
-  isVisible?: boolean; // Controls visibility for the athlete
-  coachNotes?: string; // New: Observations specific to this week
+  isVisible?: boolean; 
+  coachNotes?: string; 
   workouts: {
-    day: string; // Segunda, Terça...
+    day: string; 
     workoutId?: string;
-    type?: WorkoutType; // For color coding
+    type?: WorkoutType; 
     customDescription?: string;
     distance?: number;
     completed?: boolean;
-    feedback?: string; // Observation from athlete
+    feedback?: string; 
   }[];
 }
 

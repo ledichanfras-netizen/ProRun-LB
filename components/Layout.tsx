@@ -52,10 +52,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900">
       {/* Mobile Header */}
-      <div className="md:hidden bg-blue-900 text-white p-4 flex justify-between items-center sticky top-0 z-20 shadow-lg no-print">
+      <div className="md:hidden bg-emerald-950 text-white p-4 flex justify-between items-center sticky top-0 z-20 shadow-lg no-print">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-6 h-6 text-green-400" />
-          <span className="font-bold text-lg">ProRun</span>
+          <TrendingUp className="w-6 h-6 text-emerald-400" />
+          <span className="font-bold text-lg tracking-tighter italic uppercase">ProRun</span>
         </div>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1">
           {isSidebarOpen ? <X /> : <Menu />}
@@ -64,18 +64,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-30 w-64 bg-blue-900 text-white transform transition-transform duration-200 ease-in-out
+        fixed inset-y-0 left-0 z-30 w-64 bg-emerald-950 text-white transform transition-transform duration-200 ease-in-out
         md:relative md:translate-x-0 flex flex-col shadow-2xl no-print
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="p-6 flex items-center gap-3 border-b border-blue-800">
-          <div className="bg-green-500 p-2 rounded-lg">
+        <div className="p-6 flex items-center gap-3 border-b border-emerald-900">
+          <div className="bg-emerald-500 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
              <TrendingUp className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-xl tracking-tight">ProRun</h1>
-            <p className="text-xs text-blue-200 uppercase tracking-wider">
-              {userRole === 'coach' ? 'Área do Treinador' : 'Área do Atleta'}
+            <h1 className="font-black text-xl tracking-tighter italic uppercase">ProRun</h1>
+            <p className="text-[10px] text-emerald-300/60 uppercase font-black tracking-widest leading-none">
+              {userRole === 'coach' ? 'Coach' : 'Athlete'}
             </p>
           </div>
         </div>
@@ -87,24 +87,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               to={item.to}
               onClick={() => setIsSidebarOpen(false)}
               className={({ isActive }) => `
-                flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
+                flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
                 ${isActive 
-                  ? 'bg-blue-700 text-white shadow-lg border-l-4 border-green-400' 
-                  : 'text-blue-100 hover:bg-blue-800 hover:text-white'}
+                  ? 'bg-emerald-600 text-white shadow-xl border-l-4 border-white translate-x-1' 
+                  : 'text-emerald-100/70 hover:bg-emerald-800 hover:text-white'}
               `}
             >
-              <item.icon className="w-5 h-5" />
-              <span className="font-medium">{item.label}</span>
+              <item.icon className={`w-5 h-5 transition-colors ${location.pathname === item.to ? 'text-white' : 'text-emerald-500'}`} />
+              <span className="font-bold text-sm uppercase italic tracking-tight">{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-blue-800 bg-blue-950/30">
+        <div className="p-4 border-t border-emerald-900 bg-emerald-950/30">
           {userRole === 'coach' && (
-            <div className="bg-blue-800/50 rounded-lg p-3 mb-3 border border-blue-700/50">
-               <p className="text-xs text-blue-200 mb-1 uppercase font-bold">Atleta Selecionado</p>
-               <div className="font-medium text-white truncate flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-green-400" />
+            <div className="bg-emerald-900/40 rounded-xl p-3 mb-3 border border-emerald-800/50">
+               <p className="text-[8px] text-emerald-400 mb-1 uppercase font-black tracking-widest">Atleta Selecionado</p>
+               <div className="font-bold text-xs text-white truncate flex items-center gap-2">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
                   {activeAthlete ? activeAthlete.name : 'Nenhum'}
                </div>
             </div>
@@ -112,7 +112,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-200 hover:text-white hover:bg-red-900/50 rounded transition"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 text-red-300 hover:text-white hover:bg-red-900/50 rounded-xl transition font-black text-xs uppercase italic tracking-widest"
           >
             <LogOut className="w-4 h-4" /> Sair
           </button>

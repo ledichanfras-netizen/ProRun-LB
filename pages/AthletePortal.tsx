@@ -1,230 +1,184 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { calculatePaces } from '../utils/calculations';
-import { Calendar, AlertCircle, CheckCircle, Circle, MapPin, Clock, Trophy, X, MessageSquare, ChevronRight, FileDown, Printer, Info } from 'lucide-react';
+import { 
+  AlertCircle, 
+  CheckCircle, 
+  Circle, 
+  MapPin, 
+  Trophy, 
+  X, 
+  Printer, 
+  Activity,
+  Download
+} from 'lucide-react';
 import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 
 const AthletePortal: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, toggleWorkoutCompletion, updateWorkoutFeedback } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, toggleWorkoutCompletion } = useApp();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   
-  // Modal State for Details
   const [selectedWorkout, setSelectedWorkout] = useState<{
     weekIndex: number;
     dayIndex: number;
     data: any;
   } | null>(null);
 
-  // Modal State for Print Preview
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [previewScale, setPreviewScale] = useState(1);
 
-  // If no athlete is selected
+  // Lógica de escala dinâmica para o Preview de Impressão
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      if (width < 1200) {
+        const padding = 32;
+        const scale = (width - padding) / 1122;
+        setPreviewScale(scale);
+      } else {
+        setPreviewScale(0.85);
+      }
+    };
+
+    if (showPrintPreview) {
+      handleResize();
+      window.addEventListener('resize', handleResize);
+    }
+    return () => window.removeEventListener('resize', handleResize);
+  }, [showPrintPreview]);
+
   if (!activeAthlete) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500">
-        <AlertCircle className="w-16 h-16 text-slate-300 mb-4" />
-        <h2 className="text-xl font-bold text-slate-700">Bem-vindo ao Portal do Atleta</h2>
-        <p className="max-w-md text-center mt-2">Nenhum perfil carregado. Por favor, peça ao seu treinador para selecionar o seu perfil no painel principal.</p>
+      <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 animate-fade-in">
+        <AlertCircle className="w-16 h-16 text-slate-200 mb-4" />
+        <h2 className="text-xl font-black text-slate-700 uppercase italic tracking-tighter">Acesso Restrito</h2>
+        <p className="max-w-md text-center mt-2 font-medium">Nenhum perfil carregado. Por favor, faça login.</p>
       </div>
     );
   }
 
   const plan = athletePlans[activeAthlete.id] || [];
-  // Filter visible weeks for the athlete view AND for the PDF
   const visiblePlan = plan.filter(w => w.isVisible !== false);
-  const paces = calculatePaces(activeAthlete.metrics.vdot);
+  const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
 
-  const getPhaseColor = (phase: string) => {
-    switch(phase) {
-      case 'Base': return 'bg-blue-100 text-blue-800';
-      case 'Build': return 'bg-green-100 text-green-800';
-      case 'Peak': return 'bg-purple-100 text-purple-800';
-      case 'Taper': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-slate-100 text-slate-800';
-    }
-  };
+  const goalSummary = `Ciclo de Alta Performance - VDOT ${activeAthlete.metrics.vdot}`;
 
-  const getWorkoutColor = (type?: WorkoutType) => {
+  const getWorkoutColors = (type?: WorkoutType) => {
     switch(type) {
-      case 'Long': return 'border-l-4 border-green-500 bg-green-50';
-      case 'Interval': return 'border-l-4 border-red-500 bg-red-50';
-      case 'Tempo': return 'border-l-4 border-yellow-500 bg-yellow-50';
-      case 'Recovery': return 'border-l-4 border-blue-400 bg-blue-50';
-      case 'Strength': return 'border-l-4 border-purple-500 bg-purple-50';
-      case 'Rest': return 'bg-slate-50 opacity-60';
-      default: return 'border-l-4 border-slate-300 bg-white';
+      case 'Longão': return 'border-l-8 border-emerald-500 bg-emerald-50/50 text-emerald-900';
+      case 'Intervalado': return 'border-l-8 border-red-500 bg-red-50/50 text-red-900';
+      case 'Limiar': return 'border-l-8 border-amber-500 bg-amber-50/50 text-amber-900';
+      case 'Regenerativo': return 'border-l-8 border-emerald-400 bg-emerald-50/50 text-emerald-900';
+      case 'Fortalecimento': return 'border-l-8 border-purple-500 bg-purple-50/50 text-purple-900';
+      case 'Descanso': return 'bg-slate-50 opacity-60 border-slate-200';
+      default: return 'border-l-8 border-slate-300 bg-white';
     }
   };
 
-  const handleFeedbackChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (selectedWorkout && activeAthlete) {
-      updateWorkoutFeedback(
-        activeAthlete.id,
-        selectedWorkout.weekIndex,
-        selectedWorkout.dayIndex,
-        e.target.value
-      );
-      // Update local state to show typing immediately
-      setSelectedWorkout({
-        ...selectedWorkout,
-        data: { ...selectedWorkout.data, feedback: e.target.value }
-      });
+  const translatePhase = (phase: string) => {
+    switch (phase) {
+      case 'Base': return 'BASE';
+      case 'Construção': return 'CONSTRUÇÃO';
+      case 'Pico': return 'PICO';
+      case 'Polimento': return 'POLIMENTO';
+      default: return phase;
     }
   };
 
   const handleToggleComplete = () => {
     if (selectedWorkout && activeAthlete) {
       toggleWorkoutCompletion(activeAthlete.id, selectedWorkout.weekIndex, selectedWorkout.dayIndex);
-      setSelectedWorkout({
-        ...selectedWorkout,
-        data: { ...selectedWorkout.data, completed: !selectedWorkout.data.completed }
-      });
-    }
-  };
-
-  const handlePrint = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (activeAthlete) {
-      const originalTitle = document.title;
-      const dateStr = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
-      document.title = `Treino_${activeAthlete.name.replace(/\s+/g, '_')}_${dateStr}`;
-      
-      // Chamada síncrona
-      window.print();
-
-      // Restaurar título depois
-      setTimeout(() => {
-        document.title = originalTitle;
-      }, 500);
+      setSelectedWorkout({ ...selectedWorkout, data: { ...selectedWorkout.data, completed: !selectedWorkout.data.completed } });
     }
   };
 
   return (
-    <div className="space-y-8 pb-10 relative">
-
-      {/* REACT PORTAL FOR PRINTING */}
+    <div className="space-y-8 pb-20 relative animate-fade-in">
       {createPortal(
         <div id="printable-portal">
-          <PrintLayout 
-              athlete={activeAthlete}
-              plan={visiblePlan}
-              paces={paces}
-              goal="Treino Personalizado" 
-            />
-        </div>,
+          <PrintLayout athlete={activeAthlete} plan={visiblePlan} paces={paces} goal={goalSummary} />
+        </div>, 
         document.body
       )}
 
-      {/* Header Profile Card */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 no-print">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+      <header className="bg-white rounded-3xl p-6 md:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 no-print">
+        <div className="flex items-center gap-6 w-full md:w-auto">
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-emerald-950 rounded-2xl flex items-center justify-center text-white text-2xl md:text-3xl font-black italic shadow-lg shadow-emerald-950/20 transform -rotate-3 flex-shrink-0">
             {activeAthlete.name.charAt(0)}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{activeAthlete.name}</h1>
-            <div className="flex gap-2 text-sm mt-1">
-              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded">VO2: <b>{activeAthlete.metrics.vdot}</b></span>
-              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{activeAthlete.experience}</span>
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 uppercase italic tracking-tighter">{activeAthlete.name}</h1>
+            <div className="flex gap-2 mt-2">
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-lg border border-emerald-100">VDOT: {activeAthlete.metrics.vdot}</span>
+              <span className="px-3 py-1 bg-slate-50 text-slate-600 text-[10px] font-black uppercase rounded-lg border border-slate-100 italic">{activeAthlete.experience}</span>
             </div>
           </div>
         </div>
         
-        <div className="flex flex-col items-end gap-3 w-full md:w-auto">
-          {/* Export PDF Button */}
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
           {visiblePlan.length > 0 && (
-             <button 
-                onClick={() => setShowPrintPreview(true)}
-                className="w-full md:w-auto bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm transition"
-              >
-                <FileDown className="w-4 h-4" /> Baixar Treino PDF
-              </button>
+            <button 
+              onClick={() => setShowPrintPreview(true)} 
+              className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-3"
+            >
+              <Download className="w-4 h-4 text-emerald-200" /> Baixar Planilha PDF
+            </button>
           )}
-
-          {/* Quick Pace Reference */}
-          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto justify-end">
+          <div className="grid grid-cols-5 gap-1 w-full md:w-auto">
             {paces.map(p => (
-              <div key={p.zone} className="flex flex-col items-center bg-slate-50 p-2 rounded-lg min-w-[70px] border border-slate-100">
-                <span className={`text-xs font-bold ${
-                  p.zone === 'F' ? 'text-blue-600' : p.zone === 'I' ? 'text-red-600' : 'text-slate-600'
-                }`}>{p.zone}</span>
-                <span className="text-xs font-mono font-medium">{p.minPace}</span>
+              <div key={p.zone} className={`flex flex-col items-center px-2 py-1.5 rounded-lg border shadow-sm ${p.zone === 'Z1' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : p.zone === 'Z2' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : p.zone === 'Z3' ? 'bg-amber-50 border-amber-200 text-amber-700' : p.zone === 'Z4' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-purple-50 border-purple-200 text-purple-700'}`}>
+                <span className="text-[8px] font-black uppercase">{p.zone}</span>
+                <span className="text-[10px] font-black font-mono">{p.minPace}</span>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Main Calendar View */}
       {visiblePlan.length === 0 ? (
-        <div className="text-center py-20 bg-slate-50 rounded-xl border border-dashed border-slate-300 no-print">
-           <Trophy className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-           <p className="text-slate-500">Seu treinador ainda não publicou nenhum treino visível.</p>
+        <div className="text-center py-32 bg-white rounded-3xl border-2 border-dashed border-slate-200 no-print">
+           <Trophy className="w-16 h-16 text-slate-200 mx-auto mb-4 opacity-20" />
+           <p className="text-slate-400 font-black uppercase tracking-widest italic">Planilha em Preparação...</p>
+           <p className="text-slate-300 text-sm">Seu treinador está ajustando sua próxima fase de treinos.</p>
         </div>
       ) : (
-        <div className="space-y-12 no-print">
+        <div className="space-y-12 md:space-y-16 no-print">
           {visiblePlan.map((week, wIdx) => (
-            <div key={week.weekNumber} className="space-y-4">
-              {/* Week Header */}
-              <div className="flex items-center gap-4 border-b border-slate-200 pb-2">
-                <h2 className="text-xl font-bold text-slate-800">Semana {week.weekNumber}</h2>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getPhaseColor(week.phase)}`}>
-                  {week.phase === 'Build' ? 'Construção' : week.phase === 'Peak' ? 'Pico' : week.phase === 'Taper' ? 'Polimento' : week.phase}
+            <div key={wIdx} className="space-y-6 animate-fade-in-up" style={{ animationDelay: `${wIdx * 0.1}s` }}>
+              <div className="flex items-center gap-4 border-b-2 border-slate-100 pb-4">
+                <span className="px-4 py-1 rounded-full text-[10px] font-black uppercase italic tracking-widest bg-emerald-950 text-white">
+                  SEMANA {week.weekNumber} - {translatePhase(week.phase)}
                 </span>
-                <span className="text-sm text-slate-500 ml-auto flex items-center gap-1">
-                  <MapPin className="w-4 h-4" /> Total: {week.totalVolume} km
+                <span className="text-xs font-black text-slate-400 uppercase ml-auto flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-500" /> {week.totalVolume || 0} KM
                 </span>
               </div>
-
-              {/* Weekly Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                {week.workouts.map((workout, dIdx) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+                {(week.workouts || []).map((workout, dIdx) => (
                   <div 
                     key={dIdx} 
-                    onClick={() => setSelectedWorkout({ weekIndex: wIdx, dayIndex: dIdx, data: workout })}
+                    onClick={() => setSelectedWorkout({ weekIndex: wIdx, dayIndex: dIdx, data: workout })} 
                     className={`
-                      relative flex flex-col justify-between p-4 rounded-xl transition-all duration-200 hover:shadow-lg cursor-pointer transform hover:-translate-y-1
-                      ${getWorkoutColor(workout.type)}
-                      ${workout.completed ? 'opacity-60 grayscale-[0.5]' : 'shadow-sm'}
+                      p-4 rounded-2xl cursor-pointer hover:shadow-xl transition-all group relative border-2
+                      ${getWorkoutColors(workout.type)} 
+                      ${workout.completed ? 'grayscale opacity-60' : 'shadow-sm'}
                     `}
                   >
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{workout.day}</span>
-                        <div className="text-slate-400">
-                          {workout.completed ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Circle className="w-5 h-5" />}
-                        </div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[9px] font-black uppercase text-slate-400 tracking-tighter">{workout.day.split('-')[0]}</span>
+                      {workout.completed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <Circle className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition" />}
+                    </div>
+                    <h4 className="font-bold text-slate-800 text-xs leading-tight mb-2 line-clamp-3 min-h-[3rem]">{workout.customDescription}</h4>
+                    {workout.distance ? (
+                      <div className="flex items-center gap-1 text-[10px] font-black text-slate-900 mt-2 bg-white/50 w-fit px-2 py-0.5 rounded shadow-sm">
+                        <MapPin className="w-3 h-3 text-emerald-500" /> {workout.distance} KM
                       </div>
-                      
-                      <h4 className="font-bold text-slate-800 text-sm mb-1 line-clamp-2 min-h-[2.5rem]">
-                        {workout.type === 'Rest' ? 'Descanso' : workout.customDescription}
-                      </h4>
-                      
-                       {workout.feedback && (
-                         <div className="mt-2 flex items-center gap-1 text-[10px] text-blue-600 font-medium">
-                           <MessageSquare className="w-3 h-3" /> Comentado
-                         </div>
-                       )}
-                    </div>
-
-                    <div className="mt-3 pt-3 border-t border-slate-200/50 flex items-center justify-between text-xs font-medium text-slate-500">
-                      {workout.distance ? (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {workout.distance} km
-                        </span>
-                      ) : <span>-</span>}
-                       {workout.type && workout.type !== 'Rest' && (
-                        <span className={`
-                          px-1.5 py-0.5 rounded text-[10px] uppercase
-                          ${workout.type === 'Long' ? 'bg-green-200 text-green-800' : 'bg-slate-200 text-slate-700'}
-                        `}>
-                          {workout.type}
-                        </span>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="h-5"></div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -233,122 +187,67 @@ const AthletePortal: React.FC = () => {
         </div>
       )}
 
-      {/* Detail Modal */}
       {selectedWorkout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm no-print" onClick={() => setSelectedWorkout(null)}>
-          <div 
-            className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in-up" 
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className={`p-6 border-b flex justify-between items-center ${getWorkoutColor(selectedWorkout.data.type).replace('border-l-4', 'border-l-0')}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md no-print" onClick={() => setSelectedWorkout(null)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up" onClick={e => e.stopPropagation()}>
+            <div className={`p-8 flex justify-between items-start border-b ${getWorkoutColors(selectedWorkout.data.type).split(' ')[0]}`}>
                <div>
-                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    {selectedWorkout.data.day} 
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                    {selectedWorkout.data.type || 'Treino'}
-                  </h3>
-                  <p className="text-slate-500 text-sm">{selectedWorkout.data.distance ? `${selectedWorkout.data.distance} km planejados` : 'Sem distância definida'}</p>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">{selectedWorkout.data.day}</span>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase italic tracking-tighter">{selectedWorkout.data.type || 'Sessão de Treino'}</h3>
                </div>
-               <button onClick={() => setSelectedWorkout(null)} className="p-2 hover:bg-black/10 rounded-full transition">
-                 <X className="w-6 h-6 text-slate-600" />
-               </button>
+               <button onClick={() => setSelectedWorkout(null)} className="p-2 hover:bg-slate-100 rounded-full transition"><X className="w-6 h-6 text-slate-400" /></button>
             </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-6">
-              
-              {/* Main Description (Large Text) */}
-              <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
-                <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">Detalhes do Treino</h4>
-                <p className="text-xl md:text-2xl font-medium text-slate-800 leading-relaxed">
-                  {selectedWorkout.data.customDescription || "Sem descrição."}
-                </p>
-              </div>
-
-              {/* Feedback Section */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-blue-500" />
-                  Observações do Atleta
-                </label>
-                <textarea
-                  className="w-full p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-slate-700"
-                  rows={4}
-                  placeholder="Como foi o treino? Dor, cansaço ou boas sensações? Escreva aqui para seu treinador..."
-                  value={selectedWorkout.data.feedback || ''}
-                  onChange={handleFeedbackChange}
-                />
-                <p className="text-xs text-slate-400 mt-1 text-right">Seu treinador verá essa mensagem.</p>
-              </div>
-
-              {/* Action Button */}
-              <button 
-                onClick={handleToggleComplete}
-                className={`
-                  w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all
-                  ${selectedWorkout.data.completed 
-                    ? 'bg-green-100 text-green-700 border border-green-200' 
-                    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg hover:shadow-xl'}
-                `}
-              >
-                {selectedWorkout.data.completed ? (
-                  <>
-                    <CheckCircle className="w-6 h-6" /> Treino Concluído
-                  </>
-                ) : (
-                  <>
-                    <Circle className="w-6 h-6" /> Marcar como Realizado
-                  </>
+            <div className="p-8 space-y-8">
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                <p className="text-lg font-bold text-slate-800 leading-relaxed italic">"{selectedWorkout.data.customDescription}"</p>
+                {selectedWorkout.data.distance && (
+                  <p className="mt-4 flex items-center gap-2 text-emerald-600 font-black uppercase text-sm">
+                    <MapPin className="w-4 h-4" /> Meta: {selectedWorkout.data.distance} KM
+                  </p>
                 )}
+              </div>
+              <button 
+                onClick={handleToggleComplete} 
+                className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl
+                  ${selectedWorkout.data.completed 
+                    ? 'bg-emerald-100 text-emerald-700 shadow-emerald-200/50' 
+                    : 'bg-emerald-950 text-white shadow-emerald-950/20'}`}
+              >
+                {selectedWorkout.data.completed ? '✓ CONCLUÍDO' : 'CONFIRMAR CONCLUSÃO'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Print Preview Modal - Same as Coach but for Athletes */}
+      {/* PREVIEW DE IMPRESSÃO RESPONSIVO */}
       {showPrintPreview && activeAthlete && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-0 md:p-4 overflow-hidden no-print">
-           <div className="bg-slate-200 w-full md:max-w-6xl h-full md:h-[90vh] md:rounded-xl shadow-2xl flex flex-col">
-              {/* Modal Toolbar */}
-              <div className="bg-slate-800 text-white p-4 md:rounded-t-xl flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 gap-4 md:gap-0 shadow-lg">
-                 <div className="flex-1">
-                   <h3 className="font-bold flex items-center gap-2 text-lg">
-                     <Printer className="w-5 h-5" /> Salvar Treino em PDF
-                   </h3>
-                   <div className="flex items-start gap-2 text-xs text-slate-300 mt-1 max-w-lg">
-                      <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-400" />
-                      <span>
-                        Layout configurado para <b>Paisagem</b>. Ao clicar em Imprimir, escolha "Salvar como PDF".
-                      </span>
-                   </div>
-                 </div>
-                 <div className="flex gap-3 w-full md:w-auto mt-2 md:mt-0">
-                   <button 
-                     onClick={() => setShowPrintPreview(false)}
-                     className="px-4 py-2 text-slate-300 hover:text-white transition w-full md:w-auto border border-slate-600 rounded"
-                   >
-                     Cancelar
-                   </button>
-                   <button 
-                     onClick={handlePrint}
-                     className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold shadow flex items-center justify-center gap-2 w-full md:w-auto"
-                   >
-                     <Printer className="w-4 h-4" /> Salvar PDF
-                   </button>
-                 </div>
+        <div className="fixed inset-0 z-[60] bg-emerald-950/98 backdrop-blur-md flex flex-col no-print animate-fade-in">
+           <div className="bg-emerald-950 border-b border-emerald-900 p-4 md:p-6 flex flex-col md:flex-row justify-between items-center gap-4 text-white">
+              <div className="text-center md:text-left">
+                <h2 className="font-black italic uppercase tracking-tighter flex items-center justify-center md:justify-start gap-3 text-emerald-400">
+                  <Printer className="w-5 h-5 text-emerald-500" /> Exportação de Alta Performance
+                </h2>
+                <p className="text-[10px] text-emerald-200/50 uppercase tracking-widest mt-1 hidden sm:block">Planilha formatada em escala real A4 Paisagem</p>
               </div>
-              
-              <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-start md:justify-center bg-slate-500/50">
-                  <div className="shadow-2xl bg-white origin-top shrink-0" style={{ width: '297mm', minHeight: '210mm' }}>
-                    <PrintLayout 
-                      athlete={activeAthlete}
-                      plan={visiblePlan}
-                      paces={paces}
-                      goal="Treino Personalizado"
-                    />
-                  </div>
+              <div className="flex gap-3 w-full md:w-auto">
+                <button onClick={() => setShowPrintPreview(false)} className="flex-1 md:flex-none border border-emerald-800 px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-emerald-900 transition tracking-widest italic">VOLTAR</button>
+                <button onClick={() => window.print()} className="flex-1 md:flex-none bg-emerald-600 px-8 py-3 rounded-2xl font-black text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition flex items-center justify-center gap-2 tracking-widest italic">
+                  <Printer className="w-4 h-4" /> IMPRIMIR PDF
+                </button>
+              </div>
+           </div>
+           <div className="flex-1 overflow-auto bg-slate-950/50 flex flex-col items-center p-4 md:p-12 relative">
+              <div 
+                className="bg-white shadow-2xl origin-top transition-transform duration-300" 
+                style={{ 
+                  width: '297mm', 
+                  minHeight: '210mm',
+                  transform: `scale(${previewScale})`,
+                  marginBottom: `calc(210mm * ${previewScale} - 210mm)` 
+                }}
+              >
+                 <PrintLayout athlete={activeAthlete} plan={visiblePlan} paces={paces} goal={goalSummary} />
               </div>
            </div>
         </div>

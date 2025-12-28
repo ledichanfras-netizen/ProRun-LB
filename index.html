@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -19,17 +20,17 @@
       /* Print Styles for PDF Export */
       @media print {
         @page { 
-          size: landscape; /* FORÇA PAISAGEM */
-          margin: 5mm;     /* Margens finas */
+          size: A4 landscape;
+          margin: 0;
         }
         
         html, body {
-          height: auto !important;
-          min-height: 100% !important;
-          overflow: visible !important; /* Crítico para permitir múltiplas páginas */
-          background: white !important;
+          height: 100%;
           width: 100%;
-          font-size: 11px;
+          margin: 0;
+          padding: 0;
+          overflow: visible !important;
+          background: white !important;
         }
         
         /* Oculta toda a UI da aplicação */
@@ -39,58 +40,25 @@
         #printable-portal {
           display: block !important;
           visibility: visible !important;
-          /* CORREÇÃO CRÍTICA: 'absolute' corta o conteúdo em múltiplas páginas. 'relative' permite o fluxo. */
-          position: relative !important; 
+          position: absolute !important;
           top: 0;
           left: 0;
-          width: 100%;
-          height: auto !important;
-          z-index: 9999;
+          width: 297mm;
+          height: auto;
           background: white;
-          overflow: visible !important;
+          padding: 10mm;
+          box-sizing: border-box;
         }
 
-        /* Garante funcionamento do grid na impressão */
-        .print-grid { display: grid !important; }
-        .print-grid-cols-7 { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
+        .no-print { display: none !important; }
         
-        /* Força cores de fundo (background graphics) */
         * {
           -webkit-print-color-adjust: exact !important; 
           print-color-adjust: exact !important;
         }
-        
-        /* Cores Forçadas */
-        .bg-blue-50 { background-color: #eff6ff !important; }
-        .bg-green-50 { background-color: #f0fdf4 !important; }
-        .bg-yellow-50 { background-color: #fefce8 !important; }
-        .bg-orange-50 { background-color: #fff7ed !important; }
-        .bg-red-50 { background-color: #fef2f2 !important; }
-        .bg-purple-50 { background-color: #faf5ff !important; }
-        .bg-slate-50 { background-color: #f8fafc !important; }
-        .bg-slate-100 { background-color: #f1f5f9 !important; }
-        .bg-slate-800 { background-color: #1e293b !important; color: white !important; }
-        
-        /* Quebra de Página */
-        .break-inside-avoid {
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-        
-        .page-break { 
-          page-break-before: always; 
-          break-before: always;
-        }
-        
-        .no-print { display: none !important; }
       }
       
       @media screen {
-        /* 
-           CORREÇÃO: Usar visibility hidden em vez de display none.
-           Display none remove o elemento da árvore de renderização, o que pode causar falhas
-           ao chamar window.print() se o navegador não re-renderizar rápido o suficiente.
-        */
         #printable-portal { 
           visibility: hidden;
           position: absolute;
@@ -99,6 +67,16 @@
           overflow: hidden;
           left: -9999px;
         }
+      }
+
+      /* Helper para animações suaves */
+      .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      
+      .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
+      @keyframes fadeInUp { 
+        from { opacity: 0; transform: translateY(10px); } 
+        to { opacity: 1; transform: translateY(0); } 
       }
     </style>
   <script type="importmap">

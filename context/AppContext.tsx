@@ -13,7 +13,7 @@ import {
 
 interface AppContextType {
   userRole: UserRole;
-  login: (role: UserRole, athleteId?: string) => void;
+  login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   
   athletes: Athlete[];
@@ -32,7 +32,6 @@ interface AppContextType {
   selectedAthleteId: string | null;
   setSelectedAthleteId: (id: string | null) => void;
   
-  // Plan Management
   athletePlans: Record<string, TrainingWeek[]>;
   saveAthletePlan: (athleteId: string, plan: TrainingWeek[]) => Promise<void>;
   toggleWorkoutCompletion: (athleteId: string, weekIndex: number, dayIndex: number) => Promise<void>;
@@ -50,7 +49,6 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Utility to remove undefined values for Firestore
 const sanitizeForFirestore = (obj: any): any => {
   if (Array.isArray(obj)) {
     return obj.map(v => sanitizeForFirestore(v));
@@ -67,7 +65,6 @@ const sanitizeForFirestore = (obj: any): any => {
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // PERSISTENCE: Load initial state from localStorage to handle page refreshes
   const [userRole, setUserRole] = useState<UserRole>(() => {
     return (localStorage.getItem('proRun_userRole') as UserRole) || null;
   });
@@ -76,13 +73,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return localStorage.getItem('proRun_selectedAthleteId') || null;
   });
   
-  // Data States (Synced with Firebase)
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [athletePlans, setAthletePlans] = useState<Record<string, TrainingWeek[]>>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  // --- PERSISTENCE EFFECTS ---
   useEffect(() => {
     if (userRole) localStorage.setItem('proRun_userRole', userRole);
     else localStorage.removeItem('proRun_userRole');
@@ -93,10 +88,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     else localStorage.removeItem('proRun_selectedAthleteId');
   }, [selectedAthleteId]);
 
-
-  // --- FIREBASE LISTENERS (REAL-TIME SYNC) ---
-
-  // 1. Sync Athletes
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "athletes"), (snapshot) => {
       const athletesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
@@ -104,12 +95,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsLoading(false);
     }, (error) => {
       console.error("Firebase Athletes Error:", error);
-      setIsLoading(false); // Stop loading even on error
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // 2. Sync Library Workouts
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "workouts"), (snapshot) => {
       const workoutsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Workout));
@@ -118,25 +108,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => unsubscribe();
   }, []);
 
-  // 3. Sync Training Plans
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "plans"), (snapshot) => {
       const plansMap: Record<string, TrainingWeek[]> = {};
       snapshot.docs.forEach(doc => {
-        plansMap[doc.id] = doc.data().weeks as TrainingWeek[];
+        const data = doc.data();
+        plansMap[doc.id] = (data.weeks || []) as TrainingWeek[];
       });
       setAthletePlans(plansMap);
     });
     return () => unsubscribe();
   }, []);
 
-
-  // --- AUTH & NAVIGATION ---
-  const login = (role: UserRole, athleteId?: string) => {
-    setUserRole(role);
-    if (role === 'athlete' && athleteId) {
-      setSelectedAthleteId(athleteId);
+  const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
+    const normalizedUsername = username.trim().toLowerCase();
+    
+    if (normalizedUsername === 'leandro' && password === '1234') {
+      setUserRole('coach');
+      setSelectedAthleteId(null);
+      return { success: true };
     }
+
+    const athlete = athletes.find(a => 
+      a.name.trim().toLowerCase() === normalizedUsername
+    );
+
+    if (athlete) {
+      const inputPass = password.replace(/\D/g, '');
+      const storedPass = (athlete.birthDate || '').replace(/\D/g, '');
+      if (password === athlete.birthDate || (inputPass && inputPass === storedPass)) {
+        setUserRole('athlete');
+        setSelectedAthleteId(athlete.id);
+        return { success: true };
+      } else {
+        return { success: false, message: 'Senha (data de nascimento) incorreta.' };
+      }
+    }
+
+    return { success: false, message: 'Usuário não encontrado.' };
   };
 
   const logout = () => {
@@ -145,14 +154,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.clear();
   };
 
-  // --- ACTIONS (WRITE TO FIREBASE) ---
-
   const addAthlete = async (athlete: Athlete) => {
     try {
       await setDoc(doc(db, "athletes", athlete.id), sanitizeForFirestore(athlete));
     } catch (e) {
       console.error("Erro ao adicionar atleta", e);
-      alert("Erro ao salvar no banco de dados. Verifique a conexão.");
     }
   };
   
@@ -174,57 +180,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  // --- LOGIC HELPERS ---
   const recalculateAthleteMetrics = (athlete: Athlete, history: Assessment[]): Athlete => {
-    const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedHistory = [...(history || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const latest = sortedHistory[0];
-
     const newMetrics = { ...athlete.metrics };
-
     if (latest) {
       newMetrics.vdot = latest.calculatedVdot;
       if (latest.type === '3k') newMetrics.test3kTime = latest.resultValue;
       else if (latest.type === 'VO2_Lab' && latest.vo2Max) newMetrics.vo2Max = latest.vo2Max;
-
       if (latest.fcMax) newMetrics.fcMax = latest.fcMax;
       if (latest.fcThreshold) newMetrics.fcThreshold = latest.fcThreshold;
     } else {
       newMetrics.vdot = 30;
       newMetrics.test3kTime = '00:00';
     }
-
     return { ...athlete, metrics: newMetrics, assessmentHistory: sortedHistory };
   };
 
   const addNewAssessment = async (athleteId: string, assessment: Assessment) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
-
     const newHistory = [assessment, ...(athlete.assessmentHistory || [])];
     const updatedAthlete = recalculateAthleteMetrics(athlete, newHistory);
-    
     await updateDoc(doc(db, "athletes", athleteId), sanitizeForFirestore(updatedAthlete));
   };
 
   const updateAssessment = async (athleteId: string, updatedAssessment: Assessment) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
-
     const newHistory = (athlete.assessmentHistory || []).map(ass => 
       ass.id === updatedAssessment.id ? updatedAssessment : ass
     );
     const updatedAthlete = recalculateAthleteMetrics(athlete, newHistory);
-
     await updateDoc(doc(db, "athletes", athleteId), sanitizeForFirestore(updatedAthlete));
   };
 
   const deleteAssessment = async (athleteId: string, assessmentId: string) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
-
     const newHistory = (athlete.assessmentHistory || []).filter(ass => ass.id !== assessmentId);
     const updatedAthlete = recalculateAthleteMetrics(athlete, newHistory);
-
     await updateDoc(doc(db, "athletes", athleteId), sanitizeForFirestore(updatedAthlete));
   };
 
@@ -241,17 +236,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const saveAthletePlan = async (athleteId: string, plan: TrainingWeek[]) => {
-    await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(plan) });
+    await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(plan || []) });
   };
 
   const toggleWorkoutCompletion = async (athleteId: string, weekIndex: number, dayIndex: number) => {
     const currentPlan = athletePlans[athleteId];
-    if (!currentPlan) return;
-
+    if (!currentPlan || !currentPlan[weekIndex]) return;
     const updatedPlan = [...currentPlan];
     const workout = { ...updatedPlan[weekIndex].workouts[dayIndex] };
     workout.completed = !workout.completed;
-    
     updatedPlan[weekIndex] = {
       ...updatedPlan[weekIndex],
       workouts: [
@@ -260,18 +253,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...updatedPlan[weekIndex].workouts.slice(dayIndex + 1)
       ]
     };
-
     await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(updatedPlan) });
   };
 
   const updateWorkoutFeedback = async (athleteId: string, weekIndex: number, dayIndex: number, feedback: string) => {
     const currentPlan = athletePlans[athleteId];
-    if (!currentPlan) return;
-
+    if (!currentPlan || !currentPlan[weekIndex]) return;
     const updatedPlan = [...currentPlan];
     const workout = { ...updatedPlan[weekIndex].workouts[dayIndex] };
     workout.feedback = feedback;
-    
     updatedPlan[weekIndex] = {
       ...updatedPlan[weekIndex],
       workouts: [
@@ -280,7 +270,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...updatedPlan[weekIndex].workouts.slice(dayIndex + 1)
       ]
     };
-
     await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(updatedPlan) });
   };
 
@@ -290,12 +279,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let completedWorkouts = 0;
     let totalVolumePlanned = 0;
     let totalVolumeCompleted = 0;
-
+    
     const history: HistoryEntry[] = plans.map(week => {
       let weekPlanned = 0;
       let weekCompleted = 0;
-
-      week.workouts.forEach(w => {
+      (week.workouts || []).forEach(w => {
         if (w.distance) {
           weekPlanned += w.distance;
           if (w.completed) {
@@ -307,16 +295,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         totalWorkouts++;
       });
       totalVolumePlanned += weekPlanned;
-
       return {
         label: `Sem ${week.weekNumber}`,
         planned: weekPlanned,
         completed: weekCompleted
       };
     });
-
+    
     const completionRate = totalWorkouts === 0 ? 0 : Math.round((completedWorkouts / totalWorkouts) * 100);
-
     return { history, completionRate, totalVolumePlanned, totalVolumeCompleted };
   };
 

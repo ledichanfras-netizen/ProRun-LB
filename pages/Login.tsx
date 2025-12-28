@@ -2,239 +2,105 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { TrendingUp, User, Users, Lock, ChevronLeft, ArrowRight, AlertCircle, ChevronRight } from 'lucide-react';
+import { Lock, User, ArrowRight, AlertCircle, TrendingUp } from 'lucide-react';
 
-const Login: React.FC = () => {
-  const { login, athletes } = useApp();
-  const navigate = useNavigate();
-  
-  // Navigation Steps
-  const [step, setStep] = useState<'role' | 'password-coach' | 'athlete-select' | 'password-athlete'>('role');
-  
-  // Authentication State
-  const [passwordInput, setPasswordInput] = useState('');
-  const [selectedAthleteIdForLogin, setSelectedAthleteIdForLogin] = useState<string | null>(null);
+export default function Login() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { login } = useApp();
+  const navigate = useNavigate();
 
-  // --- COACH LOGIN LOGIC ---
-  const initiateCoachLogin = () => {
-    setStep('password-coach');
-    setPasswordInput('');
-    setError(null);
-  };
-
-  const verifyCoachPassword = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === '1234') {
-      login('coach');
-      navigate('/');
-    } else {
-      setError('Senha incorreta. Tente novamente.');
-    }
-  };
-
-  // --- ATHLETE LOGIN LOGIC ---
-  const initiateAthleteSelection = () => {
-    setStep('athlete-select');
+    setLoading(true);
     setError(null);
-  };
-
-  const initiateAthletePassword = (athleteId: string) => {
-    setSelectedAthleteIdForLogin(athleteId);
-    setStep('password-athlete');
-    setPasswordInput('');
-    setError(null);
-  };
-
-  const verifyAthletePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    const athlete = athletes.find(a => a.id === selectedAthleteIdForLogin);
-    
-    if (!athlete) {
-      setError('Erro ao identificar atleta.');
-      return;
+    try {
+      const result = await login(username, password);
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.message || "Credenciais incorretas.");
+      }
+    } catch (err: any) {
+      setError("Ocorreu um erro ao tentar acessar.");
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-
-    if (!athlete.birthDate) {
-       setError('Sua Data de Nascimento não está cadastrada. Contate seu treinador.');
-       return;
-    }
-
-    // Expected format: DDMMAAAA (from YYYY-MM-DD)
-    const [year, month, day] = athlete.birthDate.split('-');
-    const expectedPassword = `${day}${month}${year}`;
-
-    if (passwordInput === expectedPassword) {
-      login('athlete', athlete.id);
-      navigate('/');
-    } else {
-      setError('Senha incorreta (Use sua Data de Nascimento: DDMMAAAA).');
-    }
-  };
-
-  const handleBack = () => {
-    if (step === 'password-coach' || step === 'athlete-select') setStep('role');
-    else if (step === 'password-athlete') setStep('athlete-select');
-    setError(null);
-    setPasswordInput('');
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-fade-in-up">
-        
-        {/* Header Logo */}
+    <div className="min-h-screen bg-emerald-950 flex flex-col justify-center items-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 animate-fade-in-up">
         <div className="flex flex-col items-center mb-8">
-          <div className="bg-green-500 p-3 rounded-xl mb-4 shadow-lg shadow-green-500/20">
-            <TrendingUp className="w-8 h-8 text-white" />
+          <div className="bg-emerald-600 p-3 rounded-2xl shadow-lg shadow-emerald-500/30 mb-4 transform -rotate-3">
+            <TrendingUp className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">ProRun Coach</h1>
-          <p className="text-slate-500">Plataforma de Treinamento Inteligente</p>
+          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">ProRun LB</h1>
+          <p className="text-slate-500 font-medium text-center px-4 italic">Performance Integrada</p>
         </div>
 
-        {/* STEP 1: SELECT ROLE */}
-        {step === 'role' && (
-          <div className="space-y-4">
-            <button
-              onClick={initiateCoachLogin}
-              className="w-full group relative flex items-center p-4 bg-slate-50 border-2 border-slate-100 hover:border-blue-500 rounded-xl transition-all"
-            >
-              <div className="p-3 bg-blue-100 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                <Users className="w-6 h-6" />
-              </div>
-              <div className="ml-4 text-left">
-                <h3 className="font-bold text-slate-800">Área do Treinador</h3>
-                <p className="text-sm text-slate-500">Acesso Administrativo</p>
-              </div>
-            </button>
-
-            <button
-              onClick={initiateAthleteSelection}
-              className="w-full group relative flex items-center p-4 bg-slate-50 border-2 border-slate-100 hover:border-green-500 rounded-xl transition-all"
-            >
-              <div className="p-3 bg-green-100 text-green-600 rounded-lg group-hover:bg-green-600 group-hover:text-white transition-colors">
-                <User className="w-6 h-6" />
-              </div>
-              <div className="ml-4 text-left">
-                <h3 className="font-bold text-slate-800">Área do Atleta</h3>
-                <p className="text-sm text-slate-500">Ver meus treinos e stats</p>
-              </div>
-            </button>
+        {error && (
+          <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-xl flex items-center gap-3 text-sm font-medium animate-fade-in border-l-4 border-red-500">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            {error}
           </div>
         )}
 
-        {/* STEP 2a: COACH PASSWORD */}
-        {step === 'password-coach' && (
-          <form onSubmit={verifyCoachPassword} className="space-y-4 animate-fade-in">
-             <div className="flex items-center gap-2 mb-4">
-               <button type="button" onClick={handleBack} className="text-slate-400 hover:text-slate-600"><ChevronLeft/></button>
-               <h3 className="font-bold text-slate-800">Login do Treinador</h3>
-             </div>
-             
-             <div>
-               <label className="block text-sm font-bold text-slate-600 mb-2">Senha de Acesso</label>
-               <div className="relative">
-                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                 <input 
-                    type="password" 
-                    autoFocus
-                    className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="Digite sua senha"
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                 />
-               </div>
-             </div>
-
-             {error && (
-               <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2">
-                 <AlertCircle className="w-4 h-4" /> {error}
-               </div>
-             )}
-
-             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg transition">
-               Entrar no Sistema <ArrowRight className="w-4 h-4" />
-             </button>
-          </form>
-        )}
-
-        {/* STEP 2b: SELECT ATHLETE */}
-        {step === 'athlete-select' && (
-           <div className="space-y-4 animate-fade-in">
-             <div className="flex items-center gap-2 mb-2">
-               <button type="button" onClick={handleBack} className="text-slate-400 hover:text-slate-600"><ChevronLeft/></button>
-               <h3 className="font-bold text-slate-800">Quem é você?</h3>
-             </div>
-             
-             <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-               {athletes.length === 0 ? (
-                 <p className="text-center text-slate-500 py-4 italic">Nenhum atleta cadastrado.</p>
-               ) : (
-                 athletes.map(athlete => (
-                   <button
-                     key={athlete.id}
-                     onClick={() => initiateAthletePassword(athlete.id)}
-                     className="w-full text-left p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200 transition flex items-center justify-between group"
-                   >
-                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-600 font-bold group-hover:bg-green-100 group-hover:text-green-700">
-                          {athlete.name.charAt(0)}
-                        </div>
-                        <span className="font-medium text-slate-700">{athlete.name}</span>
-                     </div>
-                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
-                   </button>
-                 ))
-               )}
-             </div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Identificação</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
+              <input 
+                type="text" 
+                required
+                autoComplete="username"
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition font-bold"
+                placeholder="Nome do Treinador ou Atleta"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+              />
+            </div>
           </div>
-        )}
 
-        {/* STEP 3b: ATHLETE PASSWORD */}
-        {step === 'password-athlete' && (
-           <form onSubmit={verifyAthletePassword} className="space-y-4 animate-fade-in">
-             <div className="flex items-center gap-2 mb-4">
-               <button type="button" onClick={handleBack} className="text-slate-400 hover:text-slate-600"><ChevronLeft/></button>
-               <h3 className="font-bold text-slate-800">Confirmar Identidade</h3>
-             </div>
-             
-             <div className="bg-blue-50 p-4 rounded-lg mb-4 text-center">
-                <p className="text-sm text-blue-800 font-medium">
-                  Atleta: <span className="font-bold">{athletes.find(a => a.id === selectedAthleteIdForLogin)?.name}</span>
-                </p>
-             </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Chave de Acesso</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
+              <input 
+                type="password" 
+                required
+                autoComplete="current-password"
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition font-bold"
+                placeholder="Sua senha exclusiva"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+            </div>
+          </div>
 
-             <div>
-               <label className="block text-sm font-bold text-slate-600 mb-2">Senha (Data de Nascimento)</label>
-               <div className="relative">
-                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                 <input 
-                    type="password"
-                    inputMode="numeric" 
-                    autoFocus
-                    className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-green-500 outline-none"
-                    placeholder="DDMMAAAA"
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                 />
-               </div>
-               <p className="text-xs text-slate-400 mt-1 pl-1">Formato: Dia, Mês e Ano (Ex: 31011990)</p>
-             </div>
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-500/30 flex justify-center items-center gap-2 transition disabled:opacity-50 uppercase italic tracking-widest text-xs"
+          >
+            {loading ? (
+              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <>
+                Acessar Portal <ArrowRight className="w-5 h-5" />
+              </>
+            )}
+          </button>
+        </form>
 
-             {error && (
-               <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2">
-                 <AlertCircle className="w-4 h-4" /> {error}
-               </div>
-             )}
-
-             <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg transition">
-               Acessar Portal <ArrowRight className="w-4 h-4" />
-             </button>
-          </form>
-        )}
+        <div className="mt-8 pt-6 border-t border-slate-50 text-center">
+           <p className="text-[10px] text-slate-300 uppercase font-black tracking-widest">© 2025 LB Sports Performance</p>
+        </div>
       </div>
     </div>
   );
-};
-
-export default Login;
+}

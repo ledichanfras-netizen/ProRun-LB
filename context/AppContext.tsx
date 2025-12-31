@@ -34,8 +34,7 @@ interface AppContextType {
   
   athletePlans: Record<string, TrainingWeek[]>;
   saveAthletePlan: (athleteId: string, plan: TrainingWeek[]) => Promise<void>;
-  toggleWorkoutCompletion: (athleteId: string, weekIndex: number, dayIndex: number) => Promise<void>;
-  updateWorkoutFeedback: (athleteId: string, weekIndex: number, dayIndex: number, feedback: string) => Promise<void>;
+  updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
     history: HistoryEntry[], 
@@ -239,38 +238,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(plan || []) });
   };
 
-  const toggleWorkoutCompletion = async (athleteId: string, weekIndex: number, dayIndex: number) => {
+  const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string) => {
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan || !currentPlan[weekIndex]) return;
-    const updatedPlan = [...currentPlan];
-    const workout = { ...updatedPlan[weekIndex].workouts[dayIndex] };
-    workout.completed = !workout.completed;
-    updatedPlan[weekIndex] = {
-      ...updatedPlan[weekIndex],
-      workouts: [
-        ...updatedPlan[weekIndex].workouts.slice(0, dayIndex),
-        workout,
-        ...updatedPlan[weekIndex].workouts.slice(dayIndex + 1)
-      ]
-    };
-    await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(updatedPlan) });
-  };
-
-  const updateWorkoutFeedback = async (athleteId: string, weekIndex: number, dayIndex: number, feedback: string) => {
-    const currentPlan = athletePlans[athleteId];
-    if (!currentPlan || !currentPlan[weekIndex]) return;
-    const updatedPlan = [...currentPlan];
-    const workout = { ...updatedPlan[weekIndex].workouts[dayIndex] };
-    workout.feedback = feedback;
-    updatedPlan[weekIndex] = {
-      ...updatedPlan[weekIndex],
-      workouts: [
-        ...updatedPlan[weekIndex].workouts.slice(0, dayIndex),
-        workout,
-        ...updatedPlan[weekIndex].workouts.slice(dayIndex + 1)
-      ]
-    };
-    await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(updatedPlan) });
+    
+    // Criamos uma cópia profunda para garantir a imutabilidade antes do salvamento
+    const updatedPlan = JSON.parse(JSON.stringify(currentPlan));
+    updatedPlan[weekIndex].workouts[dayIndex].completed = completed;
+    updatedPlan[weekIndex].workouts[dayIndex].feedback = feedback;
+    
+    // Atualização atômica do documento no Firestore
+    try {
+      await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(updatedPlan) });
+    } catch (e) {
+      console.error("Erro ao atualizar status do treino:", e);
+    }
   };
 
   const getAthleteMetrics = (athleteId: string) => {
@@ -288,13 +270,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           weekPlanned += w.distance;
           if (w.completed) {
             weekCompleted += w.distance;
-            completedWorkouts++;
-            totalVolumeCompleted += w.distance;
           }
         }
-        totalWorkouts++;
+        if (w.completed) completedWorkouts++;
+        if (w.type !== 'Descanso') totalWorkouts++;
       });
       totalVolumePlanned += weekPlanned;
+      totalVolumeCompleted += weekCompleted;
       return {
         label: `Sem ${week.weekNumber}`,
         planned: weekPlanned,
@@ -313,7 +295,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addNewAssessment, updateAssessment, deleteAssessment,
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
-      athletePlans, saveAthletePlan, toggleWorkoutCompletion, updateWorkoutFeedback,
+      athletePlans, saveAthletePlan, updateWorkoutStatus,
       getAthleteMetrics, isLoading
     }}>
       {children}

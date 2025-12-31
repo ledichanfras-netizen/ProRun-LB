@@ -19,8 +19,7 @@ import {
   Unlock,
   Calendar,
   Target,
-  FileText,
-  ChevronRight
+  FileText
 } from 'lucide-react';
 import { calculatePaces } from '../utils/calculations';
 
@@ -227,7 +226,7 @@ const Periodization: React.FC = () => {
                 </label>
                 <textarea 
                   className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-medium h-32 focus:ring-2 focus:ring-emerald-500 outline-none resize-none shadow-inner" 
-                  placeholder="Ex: Sub 4h na Maratona de SP. Focar em fortalecimento de joelhos e rodagens em subidas."
+                  placeholder="Instrua a IA sobre metas específicas, lesões ou terrenos (ex: 'Focar em subidas para prova trail', 'Atleta voltando de lesão no joelho')."
                   value={goalDescription}
                   onChange={e => setGoalDescription(e.target.value)}
                 />

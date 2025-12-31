@@ -69,19 +69,19 @@ export const calculatePaces = (vo2Score: number, fcThreshold?: number, fcMax?: n
       fcMaxMin: 0.76, fcMaxMax: 0.84
     },
     { 
-      zone: 'Z3', name: 'Ritmo de Limiar (T)', desc: 'Esforço confortavelmente difícil, limiar anaeróbio.', 
+      zone: 'Z3', name: 'Ritmo de Limiar (L)', desc: 'Esforço confortavelmente difícil, limiar anaeróbio.', 
       minInt: 0.88, maxInt: 0.92,
       fclaMin: 0.95, fclaMax: 1.05,
       fcMaxMin: 0.85, fcMaxMax: 0.90
     },
     { 
-      zone: 'Z4', name: 'Intervalado (V)', desc: 'Treino de tiros para desenvolvimento de VO2max.', 
+      zone: 'Z4', name: 'Intervalado (I)', desc: 'Treino de tiros para desenvolvimento de VO2max.', 
       minInt: 0.96, maxInt: 1.0,
       fclaMin: 1.06, fclaMax: 1.20,
       fcMaxMin: 0.91, fcMaxMax: 0.98
     },
     { 
-      zone: 'Z5', name: 'Velocidade (S)', desc: 'Velocidade pura, economia e potência.', 
+      zone: 'Z5', name: 'Velocidade (V)', desc: 'Velocidade pura, economia e potência.', 
       minInt: 1.05, maxInt: 1.15,
       fclaMin: 0, fclaMax: 0,
       fcMaxMin: 0, fcMaxMax: 0

@@ -1,12 +1,12 @@
-// Modular Firebase v9+ imports
-// Fixed: Ensuring correct named import for initializeApp from 'firebase/app'
+
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 /**
- * Configuração centralizada do Firebase.
- * O SDK de IA e o Firebase compartilham a mesma chave de API neste ambiente.
+ * Configuração do Firebase.
+ * Chave de API injetada via ambiente.
+ * Para resolver o erro de conexão, habilitamos experimentalForceLongPolling.
  */
 const firebaseConfig = {
   apiKey: process.env.API_KEY,
@@ -20,4 +20,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// initializeFirestore permite configurações específicas para evitar erros de rede gRPC/timeout
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});

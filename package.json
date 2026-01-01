@@ -14,13 +14,14 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "recharts": "^3.5.1",
-    "lucide-react": "0.556.0",
     "@google/genai": "1.33.0",
+    "express": "^5.2.1",
+    "firebase": "^12.6.0",
+    "lucide-react": "0.556.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-router-dom": "^7.10.1",
-    "firebase": "^12.6.0"
+    "recharts": "^3.5.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

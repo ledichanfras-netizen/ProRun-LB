@@ -8,6 +8,14 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          // Proxy API requests to local dev API server to protect keys during development
+          '/api': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+            secure: false
+          }
+        }
       },
       plugins: [react()],
       // Prefer using `import.meta.env.VITE_GEMINI_API_KEY` (available in app code).

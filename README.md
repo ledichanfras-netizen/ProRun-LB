@@ -20,3 +20,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1tPht8fUTcY5xfjU2h3Em5W
 > For production (Vercel), add the same key in the Vercel Environment Variables (prefer `GEMINI_API_KEY` or `VITE_GEMINI_API_KEY`). The project includes a server-side endpoint at `/api/gemini` that proxies requests to Gemini so your key stays server-side and is not exposed in the client bundle.
 3. Run the app:
    `npm run dev`
+
+Local dev proxy for `/api` (recommended):
+- Start the test API server: `npm run dev:api` (reads `.env.local` automatically)
+- The Vite dev server is configured to proxy `/api` to `http://localhost:3001`, so frontend calls to `/api/gemini` will be forwarded to the local test server.

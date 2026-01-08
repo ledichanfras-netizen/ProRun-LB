@@ -287,7 +287,15 @@ const AthletePortal: React.FC = () => {
               </div>
               <div className="flex gap-3 w-full md:w-auto">
                 <button onClick={() => setShowPrintPreview(false)} className="flex-1 md:flex-none border border-emerald-800 px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-emerald-900 transition tracking-widest italic">VOLTAR</button>
-                <button onClick={() => window.print()} className="flex-1 md:flex-none bg-emerald-600 px-8 py-3 rounded-2xl font-black text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition flex items-center justify-center gap-2 tracking-widest italic">
+                <button onClick={async () => {
+                  const { PDFExporter } = await import('../utils/pdfExporter');
+                  const printElement = document.getElementById('printable-portal');
+                  if (printElement) {
+                    PDFExporter.exportElementAsPdf(printElement, `planilha-${activeAthlete?.name}-${new Date().toISOString().slice(0, 10)}`);
+                  } else {
+                    window.print();
+                  }
+                }} className="flex-1 md:flex-none bg-emerald-600 px-8 py-3 rounded-2xl font-black text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition flex items-center justify-center gap-2 tracking-widest italic">
                   <Printer className="w-4 h-4" /> IMPRIMIR PDF
                 </button>
               </div>

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { calculatePaces } from '../utils/calculations';
+import { exportToPDF } from '../utils/pdfExporter';
 import { 
   AlertCircle, 
   CheckCircle, 
@@ -22,6 +23,7 @@ import { PrintLayout } from '../components/PrintLayout';
 const AthletePortal: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus } = useApp();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
+  const portalRoot = document.getElementById('printable-portal');
   
   const [selectedWorkout, setSelectedWorkout] = useState<{
     weekIndex: number;
@@ -31,6 +33,7 @@ const AthletePortal: React.FC = () => {
 
   const [feedbackText, setFeedbackText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
 
@@ -104,7 +107,6 @@ const AthletePortal: React.FC = () => {
     if (selectedWorkout && activeAthlete) {
       setIsSaving(true);
       try {
-        // Alternamos o estado atual
         const newStatus = !selectedWorkout.data.completed;
         await updateWorkoutStatus(
           activeAthlete.id, 
@@ -128,13 +130,21 @@ const AthletePortal: React.FC = () => {
     setFeedbackText(workout.feedback || '');
   };
 
+  const handleGeneratePDF = async () => {
+    if (!activeAthlete) return;
+    setPdfLoading(true);
+    const filename = `Minha_Planilha_LB_${activeAthlete.name.replace(/\s+/g, '_')}`;
+    await exportToPDF('printable-portal', filename);
+    setPdfLoading(false);
+    setShowPrintPreview(false);
+  };
+
   return (
     <div className="space-y-8 pb-20 relative animate-fade-in">
-      {createPortal(
-        <div id="printable-portal">
-          <PrintLayout athlete={activeAthlete} plan={visiblePlan} paces={paces} goal={goalSummary} />
-        </div>, 
-        document.body
+      {/* Portal dedicado no index.html */}
+      {activeAthlete && portalRoot && createPortal(
+        <PrintLayout athlete={activeAthlete} plan={visiblePlan} paces={paces} goal={goalSummary} />,
+        portalRoot
       )}
 
       <header className="bg-white rounded-3xl p-6 md:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 no-print">
@@ -286,9 +296,14 @@ const AthletePortal: React.FC = () => {
                 <p className="text-[10px] text-emerald-200/50 uppercase tracking-widest mt-1 hidden sm:block">Fuso Horário Local: São Paulo (BR)</p>
               </div>
               <div className="flex gap-3 w-full md:w-auto">
-                <button onClick={() => setShowPrintPreview(false)} className="flex-1 md:flex-none border border-emerald-800 px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-emerald-900 transition tracking-widest italic">VOLTAR</button>
-                <button onClick={() => window.print()} className="flex-1 md:flex-none bg-emerald-600 px-8 py-3 rounded-2xl font-black text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition flex items-center justify-center gap-2 tracking-widest italic">
-                  <Printer className="w-4 h-4" /> IMPRIMIR PDF
+                <button disabled={pdfLoading} onClick={() => setShowPrintPreview(false)} className="flex-1 md:flex-none border border-emerald-800 px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-emerald-900 transition tracking-widest italic disabled:opacity-30">VOLTAR</button>
+                <button 
+                  onClick={handleGeneratePDF} 
+                  disabled={pdfLoading}
+                  className="flex-1 md:flex-none bg-emerald-600 px-8 py-3 rounded-2xl font-black text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition flex items-center justify-center gap-2 tracking-widest italic disabled:bg-emerald-900"
+                >
+                  {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                  {pdfLoading ? 'GERANDO ARQUIVO...' : 'SALVAR PLANILHA AGORA'}
                 </button>
               </div>
            </div>

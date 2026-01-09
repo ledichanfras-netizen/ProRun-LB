@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   Trophy, 
@@ -26,31 +26,40 @@ import {
 
 export default function Dashboard() {
   const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics } = useApp();
-  
+  const [currentTime, setCurrentTime] = useState('');
+
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
   const activeAthlete = athletes.find(a => a.id === currentAthleteId);
   
   const metrics = currentAthleteId ? getAthleteMetrics(currentAthleteId) : {
     history: [],
     completionRate: 0,
-    totalVolumePlanned: 0,
-    totalVolumeCompleted: 0
+    totalVolumeCompleted: 0,
+    totalVolumePlanned: 0
   };
 
   const plan = currentAthleteId ? (athletePlans[currentAthleteId] || []) : [];
   const nextWorkout = (plan || []).flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso');
 
-  // Obtém a data e hora atual em São Paulo
-  const getSaoPauloTime = () => {
-    return new Date().toLocaleString('pt-BR', { 
-      timeZone: 'America/Sao_Paulo',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
+  // Atualiza relógio de SP a cada minuto
+  useEffect(() => {
+    const updateTime = () => {
+      const spTime = new Date().toLocaleString('pt-BR', { 
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      setCurrentTime(spTime);
+    };
 
-  // Coleta feedbacks de todos os atletas para o Treinador
+    updateTime();
+    const interval = setInterval(updateTime, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const allFeedbacks = athletes.flatMap(athlete => {
     const athletePlan = athletePlans[athlete.id] || [];
     return athletePlan.flatMap(week => (week.workouts || []).filter(w => w.completed && w.feedback).map(w => ({
@@ -58,7 +67,7 @@ export default function Dashboard() {
       day: w.day,
       type: w.type,
       feedback: w.feedback,
-      date: getSaoPauloTime()
+      date: currentTime.split(',')[0]
     })));
   }).slice(-8).reverse();
 
@@ -76,9 +85,9 @@ export default function Dashboard() {
           </p>
         </div>
         
-        <div className="flex items-center gap-3 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
-           <Calendar className="w-4 h-4 text-emerald-600" />
-           <span className="text-xs font-black text-emerald-800 uppercase italic tracking-widest">{getSaoPauloTime()}</span>
+        <div className="flex items-center gap-3 bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 shadow-sm">
+           <Clock className="w-5 h-5 text-emerald-600 animate-pulse" />
+           <span className="text-xs font-black text-emerald-800 uppercase italic tracking-widest">{currentTime} (SP)</span>
         </div>
       </header>
 

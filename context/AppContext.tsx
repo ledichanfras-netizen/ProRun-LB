@@ -43,6 +43,7 @@ interface AppContextType {
     totalVolumePlanned: number 
   };
   
+  generateTestAthletes: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -242,17 +243,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan || !currentPlan[weekIndex]) return;
     
-    // Criamos uma cópia profunda para garantir a imutabilidade antes do salvamento
     const updatedPlan = JSON.parse(JSON.stringify(currentPlan));
     updatedPlan[weekIndex].workouts[dayIndex].completed = completed;
     updatedPlan[weekIndex].workouts[dayIndex].feedback = feedback;
     
-    // Atualização atômica do documento no Firestore
     try {
       await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(updatedPlan) });
     } catch (e) {
       console.error("Erro ao atualizar status do treino:", e);
     }
+  };
+
+  const generateTestAthletes = async () => {
+    const testAthletes: Athlete[] = [
+      {
+        id: "test-athlete-1",
+        name: "Marcos Silva",
+        age: 32,
+        birthDate: "1992-05-15",
+        weight: 78,
+        height: 180,
+        experience: "Avançado",
+        email: "marcos@teste.com",
+        metrics: { vdot: 48.5, test3kTime: "11:45", fcMax: 192, fcThreshold: 172 },
+        assessmentHistory: []
+      },
+      {
+        id: "test-athlete-2",
+        name: "Ana Costa",
+        age: 28,
+        birthDate: "1996-10-20",
+        weight: 62,
+        height: 165,
+        experience: "Iniciante",
+        email: "ana@teste.com",
+        metrics: { vdot: 38.2, test3kTime: "14:10", fcMax: 188, fcThreshold: 165 },
+        assessmentHistory: []
+      }
+    ];
+
+    for (const athlete of testAthletes) {
+      await addAthlete(athlete);
+    }
+    alert("2 Atletas de teste criados com sucesso!");
   };
 
   const getAthleteMetrics = (athleteId: string) => {
@@ -296,7 +329,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, isLoading
+      getAthleteMetrics, generateTestAthletes, isLoading
     }}>
       {children}
     </AppContext.Provider>

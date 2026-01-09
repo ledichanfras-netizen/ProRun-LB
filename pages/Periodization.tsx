@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
+import { exportToPDF } from '../utils/pdfExporter';
 import { 
   Sparkles, 
   Loader2, 
@@ -19,7 +20,8 @@ import {
   Unlock,
   Calendar,
   Target,
-  FileText
+  FileText,
+  Check
 } from 'lucide-react';
 import { calculatePaces } from '../utils/calculations';
 
@@ -45,12 +47,14 @@ const Periodization: React.FC = () => {
   const [runningDays, setRunningDays] = useState(4);
   const [gymDays, setGymDays] = useState(2);
   const [loading, setLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [plan, setPlan] = useState<TrainingWeek[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
 
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
+  const portalRoot = document.getElementById('printable-portal');
 
   useEffect(() => {
     const handleResize = () => {
@@ -140,6 +144,20 @@ const Periodization: React.FC = () => {
     setPlan(newPlan);
   };
 
+  const handleGeneratePDF = async () => {
+    if (!activeAthlete) return;
+    setPdfLoading(true);
+    
+    // Pequeno atraso técnico para garantir que o React finalizou o portal no DOM antes do html2canvas iniciar
+    await new Promise(resolve => setTimeout(resolve, 600));
+    
+    const filename = `Planilha_${activeAthlete.name.replace(/\s+/g, '_')}_${raceDistance}`;
+    const success = await exportToPDF('printable-portal', filename);
+    
+    setPdfLoading(false);
+    if (success) setShowPrintPreview(false);
+  };
+
   const athletePaces = activeAthlete ? (activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax)) : [];
   const printablePlan = plan.filter(w => w.isVisible !== false);
   const goalText = raceDate ? `${raceDistance} | ${goalDescription || 'Estratégia de Performance'}` : (goalDescription || 'Estratégia de Performance');
@@ -149,11 +167,10 @@ const Periodization: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20 no-print animate-fade-in">
-      {activeAthlete && createPortal(
-        <div id="printable-portal">
-          <PrintLayout athlete={activeAthlete} plan={printablePlan} paces={athletePaces} goal={goalText} />
-        </div>,
-        document.body
+      {/* Portal de Impressão sempre ativo se houver atleta */}
+      {activeAthlete && portalRoot && createPortal(
+        <PrintLayout athlete={activeAthlete} plan={printablePlan} paces={athletePaces} goal={goalText} />,
+        portalRoot
       )}
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -405,9 +422,14 @@ const Periodization: React.FC = () => {
                 <p className="text-[10px] text-emerald-200/50 uppercase tracking-widest mt-1 hidden sm:block">Foco: {raceDistance} • Objetivo: {goalDescription || 'Geral'}</p>
               </div>
               <div className="flex gap-3 w-full md:w-auto">
-                <button onClick={() => setShowPrintPreview(false)} className="flex-1 md:flex-none border border-emerald-700 px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-emerald-900 transition tracking-widest italic tracking-widest">FECHAR</button>
-                <button onClick={() => window.print()} className="flex-1 md:flex-none bg-emerald-600 px-8 py-3 rounded-2xl font-black text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition flex items-center justify-center gap-2 tracking-widest italic">
-                  <Printer className="w-4 h-4" /> GERAR PDF
+                <button disabled={pdfLoading} onClick={() => setShowPrintPreview(false)} className="flex-1 md:flex-none border border-emerald-700 px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-emerald-900 transition tracking-widest italic tracking-widest disabled:opacity-30">FECHAR</button>
+                <button 
+                  onClick={handleGeneratePDF} 
+                  disabled={pdfLoading}
+                  className="flex-1 md:flex-none bg-emerald-600 px-8 py-3 rounded-2xl font-black text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition flex items-center justify-center gap-2 tracking-widest italic disabled:bg-emerald-900"
+                >
+                  {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                  {pdfLoading ? 'SALVANDO...' : 'SALVAR PDF AGORA'}
                 </button>
               </div>
            </div>

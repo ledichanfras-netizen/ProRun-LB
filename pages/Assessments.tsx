@@ -11,12 +11,18 @@ const Assessments: React.FC = () => {
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const isReadOnly = userRole === 'athlete';
 
+  // Helper para obter data atual em SP formatada para input[type="date"]
+  const getSaoPauloDate = () => {
+    const d = new Date();
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); // en-CA retorna YYYY-MM-DD
+  };
+
   // Toggle between Test Types
   const [testType, setTestType] = useState<'3k' | 'VO2_Lab' | 'TRF'>('3k');
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [formDate, setFormDate] = useState(getSaoPauloDate());
   const [formTime3k, setFormTime3k] = useState('');
   
   // TRF State
@@ -175,7 +181,7 @@ const Assessments: React.FC = () => {
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setFormDate(new Date().toISOString().split('T')[0]);
+    setFormDate(getSaoPauloDate());
     setFormTime3k('');
     setFormTrfTime('');
     setFormTrfDistance(5);
@@ -205,7 +211,7 @@ const Assessments: React.FC = () => {
 
       <header>
         <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Avaliações & Zonas</h1>
-        <p className="text-slate-500 font-medium">Calibração técnica e fisiológica.</p>
+        <p className="text-slate-500 font-medium">Calibração técnica e fisiológica (Fuso: SP).</p>
       </header>
 
       {!activeAthlete ? (

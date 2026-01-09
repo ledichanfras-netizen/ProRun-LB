@@ -94,16 +94,24 @@ export const generateTrainingPlan = async (
       config: {
         responseMimeType: "application/json",
         responseSchema: schema,
+        // Configurações para garantir que o JSON não seja cortado (Unterminated string error)
+        maxOutputTokens: 12000, 
+        thinkingConfig: { thinkingBudget: 4000 }
       }
     });
 
     const textOutput = response.text;
     if (textOutput) {
-      return JSON.parse(textOutput.trim()) as TrainingWeek[];
+      // Limpeza de possíveis caracteres extras ou blocos de código markdown que o modelo possa retornar mesmo com mimeType json
+      const cleanedJson = textOutput.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+      return JSON.parse(cleanedJson) as TrainingWeek[];
     }
     return [];
   } catch (error: any) {
     console.error("Gemini API Error:", error);
+    if (error.message?.includes("Unterminated string")) {
+       throw new Error("O plano gerado foi muito longo para o limite de texto da IA. Tente reduzir o número de semanas.");
+    }
     throw new Error("Falha na geração do plano via IA. Verifique sua conexão e tente novamente.");
   }
 };

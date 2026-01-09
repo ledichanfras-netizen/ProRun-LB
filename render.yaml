@@ -1,0 +1,9 @@
+services:
+  - type: static_site
+    name: prorun-ai-coach
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

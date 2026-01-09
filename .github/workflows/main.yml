@@ -1,0 +1,18 @@
+- name: 'notify vercel'
+  uses: 'vercel/repository-dispatch/actions/status@v1'
+  with:
+    name: Vercel - pro-run-lb: Vercel - pro-run-lb   
+                - nome: Revisor de código Gemini AI
+  Você pode fixar o commit exato ou a versão.
+  # usa: truongnh1992/gemini-ai-code-reviewer@7c4b01afa073e48a44c72cdc1d010f9e3b95686f
+  utiliza: truongnh1992/gemini-ai-code-reviewer@v9.2.1
+  com:
+    # Token do GitHub para interagir com o repositório
+    GITHUB_TOKEN:
+    # Chave da API do Google Gemini
+    GEMINI_API_KEY:
+    # O modelo Gemini para revisão de código
+    GEMINI_MODEL: # opcional, o padrão é gemini-2.5-flash
+    # Lista de padrões de arquivo a serem excluídos, separados por vírgulas
+    EXCLUIR: # opcional, o padrão é
+          

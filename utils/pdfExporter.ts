@@ -1,5 +1,5 @@
 
-import html2pdfModule from 'html2pdf';
+import html2pdf from 'html2pdf.js';
 
 /**
  * Exporta um elemento HTML para PDF e inicia o download automaticamente.
@@ -15,65 +15,53 @@ export const exportToPDF = async (elementId: string, filename: string) => {
   }
 
   // Sincronização: Aguarda o React montar o conteúdo no Portal
+  // Aumentamos a verificação para garantir que o conteúdo não seja apenas estrutural
   let attempts = 0;
-  const minContentLength = 1200; // Um relatório completo tem pelo menos esse tamanho de HTML
-  while ((!element.innerHTML || element.innerHTML.trim().length < minContentLength) && attempts < 30) {
-    await new Promise(resolve => setTimeout(resolve, 100));
+  const minContentLength = 1500; 
+  while ((!element.innerHTML || element.innerHTML.trim().length < minContentLength) && attempts < 40) {
+    await new Promise(resolve => setTimeout(resolve, 150));
     attempts++;
   }
 
   if (!element.innerHTML.trim() || element.innerHTML.trim().length < minContentLength) {
-    console.warn("AVISO: Conteúdo do portal parece incompleto. Tentando exportar assim mesmo...");
+    console.warn("AVISO: Conteúdo do portal parece incompleto ou muito curto.");
   }
 
-  let html2pdf: any = html2pdfModule;
-  if (html2pdf && typeof html2pdf !== 'function' && html2pdf.default) {
-    html2pdf = html2pdf.default;
-  }
-  if (typeof html2pdf !== 'function') {
-    html2pdf = (window as any).html2pdf;
-  }
-
-  if (typeof html2pdf !== 'function') {
-    console.error("ERRO: Função html2pdf não encontrada.");
-    window.print();
-    return false;
-  }
-
-  // Forçamos o scroll para o topo para evitar que o html2canvas capture a área errada
+  // Forçamos o scroll para o topo para evitar deslocamentos do html2canvas
   window.scrollTo(0, 0);
 
   const options = {
-    margin: [0, 0, 0, 0], // Margens tratadas internamente pelo layout
+    margin: 0,
     filename: filename.endsWith('.pdf') ? filename : `${filename}.pdf`,
     image: { type: 'jpeg', quality: 1.0 },
     pagebreak: { mode: ['css', 'legacy'], avoid: '.print-week-block' },
     html2canvas: { 
-      scale: 2, // Resolução 2x para nitidez de texto
+      scale: 3, // Escala 3x para máxima nitidez em fontes pequenas
       useCORS: true, 
       logging: false,
       backgroundColor: '#ffffff',
       letterRendering: true,
-      allowTaint: true,
+      allowTaint: false, // Taint true pode causar o PDF em branco se houver imagens externas
       onclone: (clonedDoc: Document) => {
         const el = clonedDoc.getElementById(elementId);
         if (el) {
-          // No documento clonado para captura, tornamos o portal totalmente visível e posicionado
+          // No documento clonado, o portal deve estar perfeitamente visível e posicionado
           el.style.position = 'static';
-          el.style.left = '0';
-          el.style.top = '0';
+          el.style.transform = 'none';
           el.style.opacity = '1';
           el.style.visibility = 'visible';
           el.style.display = 'block';
           el.style.width = '297mm';
+          el.style.margin = '0';
+          el.style.padding = '30px'; // Padding de segurança interno
           
-          // Remove animações para evitar borrões na captura
-          const animatedElements = el.querySelectorAll('.animate-fade-in, .animate-fade-in-up');
-          animatedElements.forEach((node: any) => {
-            node.style.animation = 'none';
-            node.style.opacity = '1';
-            node.style.transform = 'none';
-          });
+          // Desativa animações globalmente no clone para captura estática pura
+          const style = clonedDoc.createElement('style');
+          style.innerHTML = `
+            * { transition: none !important; animation: none !important; }
+            .animate-fade-in, .animate-fade-in-up { opacity: 1 !important; transform: none !important; }
+          `;
+          clonedDoc.head.appendChild(style);
         }
       }
     },
@@ -81,18 +69,19 @@ export const exportToPDF = async (elementId: string, filename: string) => {
       unit: 'mm', 
       format: 'a4', 
       orientation: 'landscape',
-      compress: true
+      compress: true,
+      precision: 2
     }
   };
 
   try {
-    // Geração do PDF
-    const worker = html2pdf().set(options).from(element);
-    await worker.save();
+    // Inicia o worker do html2pdf
+    await html2pdf().set(options).from(element).save();
     return true;
   } catch (error) {
     console.error("Erro crítico na geração do PDF:", error);
-    alert("Erro ao processar o PDF. Abrindo painel de impressão como alternativa.");
+    // Fallback para o usuário caso o browser bloqueie o canvas
+    alert("O sistema detectou uma instabilidade na geração do arquivo. Tentaremos abrir o modo de impressão do navegador como alternativa.");
     window.print();
     return false;
   }

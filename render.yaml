@@ -1,7 +1,8 @@
 services:
   - type: static_site
     name: prorun-ai-coach
-    env: static
+    env: node
+    nodeVersion: "20"
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     routes:

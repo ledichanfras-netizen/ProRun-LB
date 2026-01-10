@@ -11,6 +11,7 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: false,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       plugins: [nodePolyfills()],
       output: {

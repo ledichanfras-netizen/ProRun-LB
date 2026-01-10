@@ -16,10 +16,11 @@ export default defineConfig({
       plugins: [nodePolyfills()],
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          utils: ['html2pdf.js', 'recharts']
-        }
-      }
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          'recharts': ['recharts'],
+          'vendor': ['react', 'react-dom', 'react-router-dom', 'lucide-react', 'html2pdf.js'],
+        },
+      },
     }
   },
   server: {

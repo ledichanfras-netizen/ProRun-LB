@@ -47,22 +47,20 @@
       }
       
       @media screen {
-        /* Portal de exportação: Visível para o renderizador de pixels mas oculto do usuário.
-           Usamos transform para tirar da tela e pointer-events para não bloquear cliques. */
-        #printable-portal { 
+        /*
+          Portal de exportação: Oculto do usuário, mas acessível ao html2canvas.
+          - 'position: fixed' e 'left: -9999px' movem o elemento para fora da tela sem usar 'display: none'.
+          - 'visibility: hidden' garante que não interfira na interação do usuário.
+        */
+        #printable-portal {
           position: fixed;
+          left: -9999px; /* Joga para fora da tela */
+          top: 0;
           width: 297mm;
           height: auto;
-          min-height: 210mm;
-          left: 0;
-          top: 0;
           background: white;
-          visibility: visible;
-          opacity: 0.001;
-          pointer-events: none;
+          visibility: hidden; /* Oculta sem quebrar o render */
           z-index: -9999;
-          overflow: hidden;
-          transform: translateY(-200%); /* Move para cima fora do viewport */
         }
       }
 

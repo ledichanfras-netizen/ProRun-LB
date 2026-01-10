@@ -14,54 +14,34 @@ export const exportToPDF = async (elementId: string, filename: string) => {
     return false;
   }
 
-  // Sincronização: Aguarda o React montar o conteúdo no Portal
-  // Aumentamos a verificação para garantir que o conteúdo não seja apenas estrutural
-  let attempts = 0;
-  const minContentLength = 1500; 
-  while ((!element.innerHTML || element.innerHTML.trim().length < minContentLength) && attempts < 40) {
-    await new Promise(resolve => setTimeout(resolve, 150));
-    attempts++;
-  }
-
-  if (!element.innerHTML.trim() || element.innerHTML.trim().length < minContentLength) {
-    console.warn("AVISO: Conteúdo do portal parece incompleto ou muito curto.");
-  }
-
-  // Forçamos o scroll para o topo para evitar deslocamentos do html2canvas
-  window.scrollTo(0, 0);
-
   const options = {
     margin: 0,
     filename: filename.endsWith('.pdf') ? filename : `${filename}.pdf`,
-    image: { type: 'jpeg', quality: 1.0 },
+    image: { type: 'jpeg', quality: 0.98 },
     pagebreak: { mode: ['css', 'legacy'], avoid: '.print-week-block' },
-    html2canvas: { 
-      scale: 3, // Escala 3x para máxima nitidez em fontes pequenas
-      useCORS: true, 
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
-      letterRendering: true,
-      allowTaint: false, // Taint true pode causar o PDF em branco se houver imagens externas
       onclone: (clonedDoc: Document) => {
-        const el = clonedDoc.getElementById(elementId);
-        if (el) {
-          // No documento clonado, o portal deve estar perfeitamente visível e posicionado
-          el.style.position = 'static';
-          el.style.transform = 'none';
-          el.style.opacity = '1';
-          el.style.visibility = 'visible';
-          el.style.display = 'block';
-          el.style.width = '297mm';
-          el.style.margin = '0';
-          el.style.padding = '30px'; // Padding de segurança interno
-          
-          // Desativa animações globalmente no clone para captura estática pura
-          const style = clonedDoc.createElement('style');
-          style.innerHTML = `
-            * { transition: none !important; animation: none !important; }
-            .animate-fade-in, .animate-fade-in-up { opacity: 1 !important; transform: none !important; }
-          `;
-          clonedDoc.head.appendChild(style);
+        const originalElement = document.getElementById(elementId);
+        const clonedElement = clonedDoc.getElementById(elementId);
+
+        if (originalElement && clonedElement) {
+          // Garante que o conteúdo do portal seja totalmente renderizado antes da captura
+          clonedElement.innerHTML = originalElement.innerHTML;
+
+          // Prepara o elemento clonado para a captura
+          clonedElement.style.position = 'relative';
+          clonedElement.style.left = '0';
+          clonedElement.style.top = '0';
+          clonedElement.style.visibility = 'visible';
+          clonedElement.style.display = 'block';
+          clonedElement.style.width = '297mm';
+          clonedElement.style.height = 'auto';
+          clonedElement.style.padding = '20px'; // Adiciona margem interna
+          clonedDoc.body.innerHTML = clonedElement.outerHTML; // Substitui o corpo do documento pelo portal
         }
       }
     },

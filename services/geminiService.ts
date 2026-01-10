@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google-ai/generativelanguage";
 import { Athlete, TrainingWeek } from "../types";
 
 export const generateTrainingPlan = async (
@@ -11,16 +11,11 @@ export const generateTrainingPlan = async (
   raceDistance: string,
   raceDate?: string
 ): Promise<TrainingWeek[]> => {
-  
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = "gemini-3-pro-preview";
+  const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY as string);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  if (!process.env.API_KEY) {
-    throw new Error("Chave de API não configurada.");
-  }
-
-  const raceInfo = raceDate 
-    ? `PROVA ALVO: ${raceDistance} em ${new Date(raceDate).toLocaleDateString('pt-BR')}.` 
+  const raceInfo = raceDate
+    ? `PROVA ALVO: ${raceDistance} em ${new Date(raceDate).toLocaleDateString('pt-BR')}.`
     : `Distância Alvo: ${raceDistance}`;
 
   const prompt = `
@@ -35,7 +30,7 @@ export const generateTrainingPlan = async (
     - Distância: ${raceDistance}
     - ${raceInfo}
     
-    OBJETIVO DETALHADO:
+    OBJETIVO DETALhado:
     "${goalDescription}"
 
     NOMENCLATURA OBRIGATÓRIA DE ZONAS E RITMOS:
@@ -59,50 +54,32 @@ export const generateTrainingPlan = async (
     - descriptions: Use a terminologia de corrida brasileira e as siglas (L), (I), (V).
   `;
 
-  const schema = {
-    type: Type.ARRAY,
-    items: {
-      type: Type.OBJECT,
-      properties: {
-        id: { type: Type.STRING },
-        phase: { type: Type.STRING, enum: ['Base', 'Construção', 'Pico', 'Polimento'] },
-        weekNumber: { type: Type.INTEGER },
-        totalVolume: { type: Type.INTEGER },
-        coachNotes: { type: Type.STRING },
-        workouts: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              day: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ['Regenerativo', 'Longão', 'Limiar', 'Intervalado', 'Descanso', 'Fortalecimento'] },
-              customDescription: { type: Type.STRING },
-              distance: { type: Type.NUMBER },
-            },
-            required: ["day", "type", "customDescription"]
-          }
-        },
-      },
-      propertyOrdering: ["id", "phase", "weekNumber", "totalVolume", "workouts", "coachNotes"],
-    }
+  const generationConfig = {
+    temperature: 0.3,
+    topK: 1,
+    topP: 1,
+    maxOutputTokens: 8192,
+    responseMimeType: "application/json",
   };
 
+  const safetySettings = [
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  ];
+
   try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: schema,
-        // Configurações para garantir que o JSON não seja cortado (Unterminated string error)
-        maxOutputTokens: 12000, 
-        thinkingConfig: { thinkingBudget: 4000 }
-      }
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig,
+      safetySettings,
     });
 
-    const textOutput = response.text;
+    const response = result.response;
+    const textOutput = response.text();
+
     if (textOutput) {
-      // Limpeza de possíveis caracteres extras ou blocos de código markdown que o modelo possa retornar mesmo com mimeType json
       const cleanedJson = textOutput.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
       return JSON.parse(cleanedJson) as TrainingWeek[];
     }
@@ -110,7 +87,7 @@ export const generateTrainingPlan = async (
   } catch (error: any) {
     console.error("Gemini API Error:", error);
     if (error.message?.includes("Unterminated string")) {
-       throw new Error("O plano gerado foi muito longo para o limite de texto da IA. Tente reduzir o número de semanas.");
+      throw new Error("O plano gerado foi muito longo para o limite de texto da IA. Tente reduzir o número de semanas.");
     }
     throw new Error("Falha na geração do plano via IA. Verifique sua conexão e tente novamente.");
   }

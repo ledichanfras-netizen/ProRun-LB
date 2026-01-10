@@ -1,5 +1,5 @@
 
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google-ai/generativelanguage";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { Athlete, TrainingWeek } from "../types";
 
 export const generateTrainingPlan = async (
@@ -11,7 +11,11 @@ export const generateTrainingPlan = async (
   raceDistance: string,
   raceDate?: string
 ): Promise<TrainingWeek[]> => {
-  const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY as string);
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("VITE_GEMINI_API_KEY is not set in the environment.");
+  }
+  const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   const raceInfo = raceDate

@@ -1,14 +1,18 @@
 
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import nodePolyfills from 'rollup-plugin-polyfill-node';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+  ],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: false,
     rollupOptions: {
+      plugins: [nodePolyfills()],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],

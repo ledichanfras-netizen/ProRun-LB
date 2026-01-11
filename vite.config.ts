@@ -28,6 +28,6 @@ export default defineConfig({
     host: true
   },
   preview: {
-    allowedHosts: ["prorun-lb.onrender.com"]
+    allowedHosts: ["prorun-lb.onrender.com", "prorun-lb-ouqk.onrender.com"]
   }
 });

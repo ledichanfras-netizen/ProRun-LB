@@ -9,7 +9,7 @@ import { getAuth } from 'firebase/auth';
  * Para resolver o erro de conexão, habilitamos experimentalForceLongPolling.
  */
 const firebaseConfig = {
-  apiKey: process.env.API_KEY,
+  apiKey: import.meta.env.VITE_API_KEY,
   authDomain: "prorun-lb.firebaseapp.com",
   projectId: "prorun-lb",
   storageBucket: "prorun-lb.appspot.com",

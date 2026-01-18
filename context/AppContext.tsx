@@ -10,6 +10,7 @@ import {
   deleteDoc, 
   onSnapshot
 } from 'firebase/firestore';
+import { getHrRangeString } from '../utils/calculations';
 
 interface AppContextType {
   userRole: UserRole;
@@ -49,19 +50,18 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const sanitizeForFirestore = (obj: any): any => {
-  if (Array.isArray(obj)) {
-    return obj.map(v => sanitizeForFirestore(v));
-  } else if (obj !== null && typeof obj === 'object') {
-    return Object.keys(obj).reduce((acc, key) => {
-      const value = obj[key];
-      if (value !== undefined) {
-        acc[key] = sanitizeForFirestore(value);
-      }
-      return acc;
-    }, {} as any);
-  }
-  return obj;
+const sanitizeData = (data: any): any => {
+  return JSON.parse(JSON.stringify(data, (key, value) => 
+    value === undefined ? null : value
+  ));
+};
+
+// Timeout aumentado para 15 segundos para evitar erros em conexões oscilantes
+const withTimeout = (promise: Promise<any>, ms: number = 15000) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout de conexão")), ms))
+  ]);
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -93,10 +93,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const athletesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
       setAthletes(athletesData);
       setIsLoading(false);
-    }, (error) => {
-      console.error("Firebase Athletes Error:", error);
-      setIsLoading(false);
-    });
+    }, () => setIsLoading(false));
     return () => unsubscribe();
   }, []);
 
@@ -122,30 +119,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     const normalizedUsername = username.trim().toLowerCase();
-    
     if (normalizedUsername === 'leandro' && password === '1234') {
       setUserRole('coach');
       setSelectedAthleteId(null);
       return { success: true };
     }
-
-    const athlete = athletes.find(a => 
-      a.name.trim().toLowerCase() === normalizedUsername
-    );
-
+    const athlete = athletes.find(a => a.name.trim().toLowerCase() === normalizedUsername);
     if (athlete) {
       const inputPass = password.replace(/\D/g, '');
-      const storedPass = (athlete.birthDate || '').replace(/\D/g, '');
-      if (password === athlete.birthDate || (inputPass && inputPass === storedPass)) {
+      let storedPass = '';
+      if (athlete.birthDate) {
+        const [year, month, day] = athlete.birthDate.split('-');
+        storedPass = `${day}${month}${year}`;
+      }
+      if (inputPass === storedPass || password === athlete.birthDate) {
         setUserRole('athlete');
         setSelectedAthleteId(athlete.id);
         return { success: true };
-      } else {
-        return { success: false, message: 'Senha (data de nascimento) incorreta.' };
       }
+      return { success: false, message: 'Senha incorreta.' };
     }
-
-    return { success: false, message: 'Usuário não encontrado.' };
+    return { success: false, message: 'Atleta não encontrado.' };
   };
 
   const logout = () => {
@@ -155,166 +149,168 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAthlete = async (athlete: Athlete) => {
-    try {
-      await setDoc(doc(db, "athletes", athlete.id), sanitizeForFirestore(athlete));
-    } catch (e) {
-      console.error("Erro ao adicionar atleta", e);
-    }
+    await withTimeout(setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete)));
   };
   
   const updateAthlete = async (id: string, data: Partial<Athlete>) => {
-    try {
-      await updateDoc(doc(db, "athletes", id), sanitizeForFirestore(data));
-    } catch (e) {
-      console.error("Erro ao atualizar atleta", e);
-    }
+    await withTimeout(updateDoc(doc(db, "athletes", id), sanitizeData(data)));
   };
 
   const deleteAthlete = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "athletes", id));
-      await deleteDoc(doc(db, "plans", id));
-      if (selectedAthleteId === id) setSelectedAthleteId(null);
-    } catch (e) {
-      console.error("Erro ao excluir atleta", e);
-    }
-  };
-
-  const recalculateAthleteMetrics = (athlete: Athlete, history: Assessment[]): Athlete => {
-    const sortedHistory = [...(history || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    const latest = sortedHistory[0];
-    const newMetrics = { ...athlete.metrics };
-    if (latest) {
-      newMetrics.vdot = latest.calculatedVdot;
-      if (latest.type === '3k') newMetrics.test3kTime = latest.resultValue;
-      else if (latest.type === 'VO2_Lab' && latest.vo2Max) newMetrics.vo2Max = latest.vo2Max;
-      if (latest.fcMax) newMetrics.fcMax = latest.fcMax;
-      if (latest.fcThreshold) newMetrics.fcThreshold = latest.fcThreshold;
-    } else {
-      newMetrics.vdot = 30;
-      newMetrics.test3kTime = '00:00';
-    }
-    return { ...athlete, metrics: newMetrics, assessmentHistory: sortedHistory };
+    await withTimeout(deleteDoc(doc(db, "athletes", id)));
+    await withTimeout(deleteDoc(doc(db, "plans", id)));
   };
 
   const addNewAssessment = async (athleteId: string, assessment: Assessment) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
+
     const newHistory = [assessment, ...(athlete.assessmentHistory || [])];
-    const updatedAthlete = recalculateAthleteMetrics(athlete, newHistory);
-    await updateDoc(doc(db, "athletes", athleteId), sanitizeForFirestore(updatedAthlete));
+    const newFcMax = assessment.fcMax || athlete.metrics.fcMax;
+    const newFcThreshold = assessment.fcThreshold || athlete.metrics.fcThreshold;
+
+    const updatedMetrics = {
+      ...athlete.metrics,
+      vdot: assessment.calculatedVdot,
+      fcMax: newFcMax,
+      fcThreshold: newFcThreshold
+    };
+
+    let updatedCustomZones = athlete.customZones;
+    if (updatedCustomZones && updatedCustomZones.length > 0) {
+      updatedCustomZones = updatedCustomZones.map(zone => ({
+        ...zone,
+        heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax)
+      }));
+    }
+
+    const updatePayload = {
+      assessmentHistory: newHistory,
+      metrics: updatedMetrics,
+      customZones: updatedCustomZones
+    };
+
+    await withTimeout(updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload)));
   };
 
   const updateAssessment = async (athleteId: string, updatedAssessment: Assessment) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
+
     const newHistory = (athlete.assessmentHistory || []).map(ass => 
       ass.id === updatedAssessment.id ? updatedAssessment : ass
     );
-    const updatedAthlete = recalculateAthleteMetrics(athlete, newHistory);
-    await updateDoc(doc(db, "athletes", athleteId), sanitizeForFirestore(updatedAthlete));
+
+    const isMostRecent = athlete.assessmentHistory?.[0]?.id === updatedAssessment.id;
+    const updatePayload: any = { assessmentHistory: newHistory };
+
+    if (isMostRecent) {
+      const newFcMax = updatedAssessment.fcMax || athlete.metrics.fcMax;
+      const newFcThreshold = updatedAssessment.fcThreshold || athlete.metrics.fcThreshold;
+
+      updatePayload.metrics = {
+        ...athlete.metrics,
+        vdot: updatedAssessment.calculatedVdot,
+        fcMax: newFcMax,
+        fcThreshold: newFcThreshold
+      };
+
+      if (athlete.customZones && athlete.customZones.length > 0) {
+        updatePayload.customZones = athlete.customZones.map(zone => ({
+          ...zone,
+          heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax)
+        }));
+      }
+    }
+
+    await withTimeout(updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload)));
   };
 
   const deleteAssessment = async (athleteId: string, assessmentId: string) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).filter(ass => ass.id !== assessmentId);
-    const updatedAthlete = recalculateAthleteMetrics(athlete, newHistory);
-    await updateDoc(doc(db, "athletes", athleteId), sanitizeForFirestore(updatedAthlete));
+    await withTimeout(updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory })));
   };
 
   const addWorkout = async (workout: Workout) => {
-    await setDoc(doc(db, "workouts", workout.id), sanitizeForFirestore(workout));
+    await withTimeout(setDoc(doc(db, "workouts", workout.id), sanitizeData(workout)));
   };
 
   const updateLibraryWorkout = async (id: string, data: Partial<Workout>) => {
-    await updateDoc(doc(db, "workouts", id), sanitizeForFirestore(data));
+    await withTimeout(updateDoc(doc(db, "workouts", id), sanitizeData(data)));
   };
 
   const deleteLibraryWorkout = async (id: string) => {
-    await deleteDoc(doc(db, "workouts", id));
+    await withTimeout(deleteDoc(doc(db, "workouts", id)));
   };
 
   const saveAthletePlan = async (athleteId: string, plan: TrainingWeek[]) => {
-    await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(plan || []) });
+    await withTimeout(setDoc(doc(db, "plans", athleteId), { weeks: sanitizeData(plan) }));
   };
 
   const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string) => {
     const currentPlan = athletePlans[athleteId];
-    if (!currentPlan || !currentPlan[weekIndex]) return;
+    if (!currentPlan) throw new Error("Plano inexistente.");
     
-    const updatedPlan = JSON.parse(JSON.stringify(currentPlan));
-    updatedPlan[weekIndex].workouts[dayIndex].completed = completed;
-    updatedPlan[weekIndex].workouts[dayIndex].feedback = feedback;
+    const updatedPlan = [...currentPlan];
+    const updatedWeek = { ...updatedPlan[weekIndex] };
+    const updatedWorkouts = [...updatedWeek.workouts];
     
-    try {
-      await setDoc(doc(db, "plans", athleteId), { weeks: sanitizeForFirestore(updatedPlan) });
-    } catch (e) {
-      console.error("Erro ao atualizar status do treino:", e);
-    }
+    updatedWorkouts[dayIndex] = {
+      ...updatedWorkouts[dayIndex],
+      completed,
+      feedback: feedback || ""
+    };
+    
+    updatedWeek.workouts = updatedWorkouts;
+    updatedPlan[weekIndex] = updatedWeek;
+    
+    const docRef = doc(db, "plans", athleteId);
+    const dataToSave = { weeks: sanitizeData(updatedPlan) };
+
+    await withTimeout(setDoc(docRef, dataToSave, { merge: true }), 15000);
   };
 
   const generateTestAthletes = async () => {
-    const testAthletes: Athlete[] = [
-      {
-        id: "test-athlete-1",
-        name: "Marcos Silva",
-        age: 32,
-        birthDate: "1992-05-15",
-        weight: 78,
-        height: 180,
-        experience: "Avançado",
-        email: "marcos@teste.com",
-        metrics: { vdot: 48.5, test3kTime: "11:45", fcMax: 192, fcThreshold: 172 },
-        assessmentHistory: []
-      },
-      {
-        id: "test-athlete-2",
-        name: "Ana Costa",
-        age: 28,
-        birthDate: "1996-10-20",
-        weight: 62,
-        height: 165,
-        experience: "Iniciante",
-        email: "ana@teste.com",
-        metrics: { vdot: 38.2, test3kTime: "14:10", fcMax: 188, fcThreshold: 165 },
-        assessmentHistory: []
-      }
-    ];
-
-    for (const athlete of testAthletes) {
-      await addAthlete(athlete);
-    }
-    alert("2 Atletas de teste criados com sucesso!");
+    const testAthlete: Athlete = {
+      id: "test-athlete-1",
+      name: "Marcos Silva",
+      age: 32,
+      birthDate: "1992-05-15",
+      weight: 78,
+      height: 180,
+      experience: "Avançado",
+      email: "marcos@teste.com",
+      metrics: { vdot: 48.5, test3kTime: "11:45", fcMax: 192, fcThreshold: 172 },
+      assessmentHistory: []
+    };
+    await addAthlete(testAthlete);
+    alert("Atleta de teste criado!");
   };
 
   const getAthleteMetrics = (athleteId: string) => {
-    const plans = athletePlans[athleteId] || [];
+    const allWeeks = athletePlans[athleteId] || [];
+    const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
     let totalWorkouts = 0;
     let completedWorkouts = 0;
     let totalVolumePlanned = 0;
     let totalVolumeCompleted = 0;
     
-    const history: HistoryEntry[] = plans.map(week => {
+    const history: HistoryEntry[] = visibleWeeks.map(week => {
       let weekPlanned = 0;
       let weekCompleted = 0;
       (week.workouts || []).forEach(w => {
         if (w.distance) {
           weekPlanned += w.distance;
-          if (w.completed) {
-            weekCompleted += w.distance;
-          }
+          if (w.completed) weekCompleted += w.distance;
         }
         if (w.completed) completedWorkouts++;
         if (w.type !== 'Descanso') totalWorkouts++;
       });
       totalVolumePlanned += weekPlanned;
       totalVolumeCompleted += weekCompleted;
-      return {
-        label: `Sem ${week.weekNumber}`,
-        planned: weekPlanned,
-        completed: weekCompleted
-      };
+      return { label: `Sem ${week.weekNumber}`, planned: weekPlanned, completed: weekCompleted };
     });
     
     const completionRate = totalWorkouts === 0 ? 0 : Math.round((completedWorkouts / totalWorkouts) * 100);

@@ -169,7 +169,7 @@ const AthletePortal: React.FC = () => {
                           {workout.completed ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <Circle className="w-5 h-5 text-slate-300" />}
                         </div>
                         <h4 className="font-bold text-slate-800 text-[11px] leading-snug line-clamp-4 min-h-[3.5rem]">{workout.customDescription}</h4>
-                        {workout.distance > 0 && (
+                        {(workout.distance || 0) > 0 && (
                           <div className="mt-3 flex items-center gap-1.5 text-[9px] font-black text-slate-900 bg-slate-50 px-2 py-1 rounded-lg w-fit">
                             <MapPin className="w-3 h-3 text-emerald-500" /> {workout.distance}KM
                           </div>

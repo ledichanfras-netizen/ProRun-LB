@@ -31,20 +31,38 @@ export const calculateVO2 = (timeStr: string, distanceKm: number = 3): number =>
   return Math.round((vo2 / percentMax) * 10) / 10;
 };
 
+// Configurações de zonas de FC (Percentuais padrão)
+export const ZONE_HR_CONFIGS = {
+  Z1: { fclaMin: 0.65, fclaMax: 0.85, fcMaxMin: 0.60, fcMaxMax: 0.75 },
+  Z2: { fclaMin: 0.86, fclaMax: 0.94, fcMaxMin: 0.76, fcMaxMax: 0.84 },
+  Z3: { fclaMin: 0.95, fclaMax: 1.05, fcMaxMin: 0.85, fcMaxMax: 0.90 },
+  Z4: { fclaMin: 1.06, fclaMax: 1.20, fcMaxMin: 0.91, fcMaxMax: 0.98 },
+  Z5: { fclaMin: 0, fclaMax: 0, fcMaxMin: 0, fcMaxMax: 0 } 
+};
+
+export const getHrRangeString = (zone: string, fcThreshold?: number, fcMax?: number) => {
+  const config = ZONE_HR_CONFIGS[zone as keyof typeof ZONE_HR_CONFIGS];
+  if (!config || zone === 'Z5') return 'N/A';
+  
+  if (fcThreshold && fcThreshold > 0) {
+    return `${Math.round(fcThreshold * config.fclaMin)} - ${Math.round(fcThreshold * config.fclaMax)} bpm`;
+  }
+  if (fcMax && fcMax > 0) {
+    return `${Math.round(fcMax * config.fcMaxMin)} - ${Math.round(fcMax * config.fcMaxMax)} bpm`;
+  }
+  return '---'; 
+};
+
 export const calculatePaces = (vo2Score: number, fcThreshold?: number, fcMax?: number): TrainingPace[] => {
+  const vdotToUse = vo2Score || 30; // Valor base mínimo para evitar cálculos nulos
+
   const getPaceFromIntensity = (intensity: number) => {
-    const targetVO2 = vo2Score * intensity;
+    const targetVO2 = vdotToUse * intensity;
     const a = 0.000104;
     const b = 0.182258;
     const c = -(targetVO2 + 4.6);
     const v = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
     return 1000 / v;
-  };
-
-  const getHrRange = (minPctFcla: number, maxPctFcla: number, minPctMax: number, maxPctMax: number) => {
-    if (fcThreshold) return `${Math.round(fcThreshold * minPctFcla)} - ${Math.round(fcThreshold * maxPctFcla)} bpm`;
-    if (fcMax) return `${Math.round(fcMax * minPctMax)} - ${Math.round(fcMax * maxPctMax)} bpm`;
-    return '-';
   };
 
   const zones: { 
@@ -53,39 +71,12 @@ export const calculatePaces = (vo2Score: number, fcThreshold?: number, fcMax?: n
     desc: string; 
     minInt: number; 
     maxInt: number;
-    fclaMin: number; fclaMax: number;
-    fcMaxMin: number; fcMaxMax: number;
   }[] = [
-    { 
-      zone: 'Z1', name: 'Leve / Regenerativo', desc: 'Rodagem leve, aquecimento e regeneração.',
-      minInt: 0.65, maxInt: 0.78,
-      fclaMin: 0.65, fclaMax: 0.85,
-      fcMaxMin: 0.60, fcMaxMax: 0.75
-    },
-    { 
-      zone: 'Z2', name: 'Ritmo de Maratona', desc: 'Ritmo moderado e estável para endurance.', 
-      minInt: 0.79, maxInt: 0.87,
-      fclaMin: 0.86, fclaMax: 0.94,
-      fcMaxMin: 0.76, fcMaxMax: 0.84
-    },
-    { 
-      zone: 'Z3', name: 'Ritmo de Limiar (L)', desc: 'Esforço confortavelmente difícil, limiar anaeróbio.', 
-      minInt: 0.88, maxInt: 0.92,
-      fclaMin: 0.95, fclaMax: 1.05,
-      fcMaxMin: 0.85, fcMaxMax: 0.90
-    },
-    { 
-      zone: 'Z4', name: 'Intervalado (I)', desc: 'Treino de tiros para desenvolvimento de VO2max.', 
-      minInt: 0.96, maxInt: 1.0,
-      fclaMin: 1.06, fclaMax: 1.20,
-      fcMaxMin: 0.91, fcMaxMax: 0.98
-    },
-    { 
-      zone: 'Z5', name: 'Velocidade (V)', desc: 'Velocidade pura, economia e potência.', 
-      minInt: 1.05, maxInt: 1.15,
-      fclaMin: 0, fclaMax: 0,
-      fcMaxMin: 0, fcMaxMax: 0
-    },
+    { zone: 'Z1', name: 'Leve / Regenerativo', desc: 'Rodagem leve, aquecimento e regeneração.', minInt: 0.65, maxInt: 0.78 },
+    { zone: 'Z2', name: 'Ritmo de Maratona', desc: 'Ritmo moderado e estável para endurance.', minInt: 0.79, maxInt: 0.87 },
+    { zone: 'Z3', name: 'Ritmo de Limiar (L)', desc: 'Esforço confortavelmente difícil, limiar anaeróbio.', minInt: 0.88, maxInt: 0.92 },
+    { zone: 'Z4', name: 'Intervalado (I)', desc: 'Treino de tiros para desenvolvimento de VO2max.', minInt: 0.96, maxInt: 1.0 },
+    { zone: 'Z5', name: 'Velocidade (V)', desc: 'Velocidade pura, economia e potência.', minInt: 1.05, maxInt: 1.15 },
   ];
 
   return zones.map((z) => {
@@ -94,8 +85,7 @@ export const calculatePaces = (vo2Score: number, fcThreshold?: number, fcMax?: n
     const minPaceVal = p2; 
     const maxPaceVal = p1;
     const speedKmh = (60 / minPaceVal).toFixed(1) + ' - ' + (60 / maxPaceVal).toFixed(1);
-    const hrRange = z.zone === 'Z5' ? 'N/A' : getHrRange(z.fclaMin, z.fclaMax, z.fcMaxMin, z.fcMaxMax);
-
+    
     return {
       zone: z.zone,
       name: z.name,
@@ -103,7 +93,7 @@ export const calculatePaces = (vo2Score: number, fcThreshold?: number, fcMax?: n
       minPace: formatTime(minPaceVal),
       maxPace: formatTime(maxPaceVal),
       speedKmh: speedKmh,
-      heartRateRange: hrRange
+      heartRateRange: getHrRangeString(z.zone, fcThreshold, fcMax)
     };
   });
 };

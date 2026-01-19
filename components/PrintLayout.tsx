@@ -4,14 +4,14 @@ import { Athlete, TrainingWeek, TrainingPace } from '../types';
 
 export const LBSportsLogo = () => (
   <div className="flex items-center gap-4">
-    <div className="bg-emerald-950 p-3 rounded-2xl shadow-lg transform -rotate-3">
-       <svg viewBox="0 0 24 24" className="w-10 h-10 fill-none stroke-emerald-400" strokeWidth="3">
+    <div className="bg-emerald-950 p-2.5 rounded-xl shadow-lg transform -rotate-3">
+       <svg viewBox="0 0 24 24" className="w-8 h-8 fill-none stroke-emerald-400" strokeWidth="3">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
        </svg>
     </div>
     <div>
-      <h1 className="text-2xl font-black tracking-tighter text-slate-900 leading-none italic">PRORUN LB</h1>
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 mt-1">Performance Integrada</p>
+      <h1 className="text-xl font-black tracking-tighter text-slate-900 leading-none italic">PRORUN LB</h1>
+      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-emerald-600 mt-1">Prof. Leandro Barbosa</p>
     </div>
   </div>
 );
@@ -24,14 +24,22 @@ interface PrintLayoutProps {
 }
 
 export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, goal }) => {
-  const daysOrder = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
+  const daysOrder = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
 
-  const getSortedWorkouts = (workouts: any[]) => {
-    if (!workouts) return [];
-    return [...workouts].sort((a, b) => {
-      const dayA = daysOrder.findIndex(d => a?.day?.toLowerCase().includes(d));
-      const dayB = daysOrder.findIndex(d => b?.day?.toLowerCase().includes(d));
-      return (dayA === -1 ? 99 : dayA) - (dayB === -1 ? 99 : dayB);
+  const getFullWeek = (workouts: any[]) => {
+    return daysOrder.map(dayName => {
+      const found = (workouts || []).find(w => 
+        w.day.toLowerCase().includes(dayName.split('-')[0].toLowerCase())
+      );
+      
+      if (found) return found;
+      
+      return {
+        day: dayName,
+        type: 'Descanso',
+        customDescription: 'Descanso total (Day Off).',
+        distance: 0
+      };
     });
   };
 
@@ -58,115 +66,158 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
     }
   };
 
+  const totalWeeks = plan.length;
+
   return (
     <div 
       id="print-layout-root" 
-      className="bg-white w-full text-slate-900 font-sans p-8 print:p-8" 
-      style={{ width: '297mm', minHeight: '210mm', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+      className="bg-white w-full text-slate-900 font-sans p-6 print:p-6" 
+      style={{ width: '297mm', minHeight: 'auto', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
     >
-      {/* CABEÇALHO PROFISSIONAL */}
-      <div className="flex justify-between items-center border-b-8 border-emerald-950 pb-6 mb-6 bg-white">
+      {/* HEADER - IDENTIDADE LIMPA */}
+      <div className="flex justify-between items-end border-b-4 border-emerald-950 pb-2 mb-3 bg-white">
         <LBSportsLogo />
         <div className="text-right">
-          <h2 className="text-xl font-black uppercase italic tracking-tighter text-slate-900">RELATÓRIO DE PERFORMANCE</h2>
-          <div className="mt-1 text-[9px] font-black text-slate-400 uppercase tracking-widest italic">SP - Brasil | Emissão: {new Date().toLocaleDateString('pt-BR')}</div>
+          <h2 className="text-lg font-black uppercase italic tracking-tighter text-slate-900 leading-none">RELATÓRIO DE PERFORMANCE</h2>
         </div>
       </div>
 
-      {/* PAINEL DO ATLETA - COMPACTO */}
-      <div className="grid grid-cols-4 gap-4 bg-slate-950 text-white p-5 rounded-[1.2rem] mb-6 shadow-xl">
-         <div>
-           <p className="text-[8px] uppercase font-black text-emerald-400 mb-1 tracking-widest">Atleta</p>
-           <p className="font-black text-lg truncate italic uppercase tracking-tighter leading-none">{athlete.name}</p>
+      {/* DASHBOARD BAR */}
+      <div className="grid grid-cols-12 bg-slate-950 text-white py-2 px-6 rounded-xl mb-5 shadow-lg overflow-hidden min-h-[70px]">
+         {/* ATLETA */}
+         <div className="col-span-3 flex flex-col items-center justify-center border-r border-white/10 px-2 text-center">
+           <p className="text-[7px] uppercase font-black text-emerald-400 mb-0.5 tracking-[0.2em] opacity-80">Atleta</p>
+           <p className="font-black text-[15px] italic uppercase tracking-tighter leading-tight w-full text-white break-words">
+             {athlete.name}
+           </p>
          </div>
-         <div className="col-span-2">
-           <p className="text-[8px] uppercase font-black text-emerald-400 mb-1 tracking-widest">Estratégia do Ciclo</p>
-           <p className="font-bold text-sm italic uppercase leading-tight text-slate-200 truncate">{goal}</p>
+
+         {/* ESTRATÉGIA - OBJETIVOS DA PROVA */}
+         <div className="col-span-5 flex flex-col items-center justify-center border-r border-white/10 px-6 text-center">
+           <p className="text-[7px] uppercase font-black text-emerald-400 mb-0.5 tracking-[0.2em] opacity-80">Estratégia do Ciclo</p>
+           <p className="font-black text-[12px] italic uppercase text-slate-100 leading-tight w-full break-words">
+             {goal || 'Performance Integrada'}
+           </p>
          </div>
-         <div className="text-right">
-           <p className="text-[8px] uppercase font-black text-emerald-400 mb-1 tracking-widest">VDOT Atual</p>
-           <p className="font-black text-3xl leading-none italic text-emerald-400">{athlete.metrics.vdot}</p>
+
+         {/* PERFORMANCE (VDOT + CICLO) */}
+         <div className="col-span-4 flex items-center justify-center gap-6 px-4">
+            <div className="text-center">
+              <p className="text-[7px] uppercase font-black text-emerald-400 mb-0.5 tracking-[0.2em] opacity-80">VDOT Alvo</p>
+              <p className="font-black text-3xl leading-none italic text-emerald-400 tracking-tighter">{athlete.metrics.vdot}</p>
+            </div>
+            
+            <div className="h-10 w-[1px] bg-white/10"></div>
+            
+            <div className="text-center">
+              <p className="text-[7px] uppercase font-black text-slate-400 mb-0.5 tracking-[0.2em]">Duração</p>
+              <p className="font-black text-xl leading-none italic text-white tracking-tighter uppercase whitespace-nowrap">
+                {totalWeeks} {totalWeeks === 1 ? 'Semana' : 'Semanas'}
+              </p>
+            </div>
          </div>
       </div>
 
-      {/* ZONAS COMPACTAS (HORIZONTAL GRID) */}
-      <div className="mb-6 grid grid-cols-5 gap-2 bg-white">
+      {/* ZONAS FISIOLÓGICAS */}
+      <div className="mb-5 grid grid-cols-5 gap-3 bg-white">
         {paces.map((p) => (
-          <div key={p.zone} className="border border-slate-100 rounded-2xl p-3 flex flex-col justify-between bg-slate-50/50">
-            <div className="flex items-center justify-between mb-2">
-               <span className={`px-2 py-0.5 rounded-lg font-black text-[10px] ${getZoneColors(p.zone)}`}>{p.zone}</span>
-               <span className="text-[8px] font-black text-slate-400 uppercase italic">Ritmo Alvo</span>
+          <div key={p.zone} className="border-2 border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-between bg-slate-50/20 shadow-sm min-h-[95px]">
+            <div className="w-full flex items-center justify-between mb-1">
+               <span className={`w-8 h-8 flex items-center justify-center rounded-lg font-black text-[11px] shadow-sm text-center ${getZoneColors(p.zone)}`}>
+                 {p.zone}
+               </span>
+               <span className="text-[6px] font-black text-slate-400 uppercase italic tracking-widest">Ritmo Alvo</span>
             </div>
-            <div className="font-black text-lg text-slate-900 tracking-tighter italic leading-none mb-1">
-              {p.minPace} — {p.maxPace}
+            
+            <div className="flex-1 flex flex-col items-center justify-center py-1 w-full text-center">
+              <div className="font-black text-[18px] text-slate-900 tracking-tighter italic leading-none mb-0.5">
+                {p.minPace}-{p.maxPace}
+              </div>
+              <div className="text-[7px] font-black text-slate-500 uppercase italic leading-tight">
+                {p.name}
+              </div>
             </div>
-            <div className="text-[9px] font-bold text-slate-500 uppercase italic truncate">{p.name}</div>
-            <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
-               <span className="text-[8px] font-black text-red-600 italic">{p.heartRateRange}</span>
-               <span className="text-[8px] font-black text-slate-400">{p.speedKmh} km/h</span>
+
+            <div className="w-full mt-1.5 flex items-center justify-between border-t border-slate-200 pt-1.5">
+               <span className="text-[7px] font-black text-red-600 italic">{p.heartRateRange}</span>
+               <span className="text-[6px] font-black text-slate-400">{p.speedKmh} km/h</span>
             </div>
           </div>
         ))}
       </div>
 
-      {/* CALENDÁRIO DE TREINAMENTO */}
-      <div className="space-y-6 bg-white">
-        {(plan || []).map((week, wIdx) => (
-          <div key={wIdx} className="print-week-block bg-white border-b-2 border-slate-100 pb-6 last:border-0" style={{ pageBreakInside: 'avoid' }}>
-            <div className="flex justify-between items-center mb-4 bg-white">
-               <div className="flex items-center gap-4">
-                 <div className="bg-slate-900 text-white px-5 py-1.5 rounded-xl font-black uppercase italic text-sm shadow-md tracking-tighter">
-                   SEMANA {week.weekNumber}
+      {/* CALENDÁRIO DE TREINO */}
+      <div className="space-y-5 bg-white">
+        {(plan || []).map((week, wIdx) => {
+          const isLastWeek = wIdx === plan.length - 1;
+          
+          return (
+            <div key={wIdx} 
+                 className="print-week-block bg-white border-b-2 border-slate-100 pb-6 last:border-0" 
+                 style={{ pageBreakInside: 'avoid' }}>
+              <div className="flex justify-between items-center mb-3 bg-white px-2">
+                 <div className="flex items-center gap-4">
+                   <div className="bg-slate-900 text-white px-5 py-1.5 rounded-xl font-black uppercase italic text-[10px] shadow-md tracking-tighter min-w-[110px] flex justify-center items-center">
+                     SEMANA {week.weekNumber}
+                   </div>
+                   <div className="text-[8px] font-black uppercase text-emerald-700 tracking-[0.2em] italic bg-emerald-50 px-4 py-1.5 rounded-lg border border-emerald-100 shadow-sm flex justify-center items-center">
+                     {week.phase}
+                   </div>
                  </div>
-                 <div className="text-[9px] font-black uppercase text-emerald-700 tracking-[0.2em] italic bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
-                   {week.phase}
+                 <div className="text-right">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-2 italic">Volume Semanal:</span>
+                    <span className="font-black text-xl text-slate-900 italic tracking-tighter">{week.totalVolume || 0} KM</span>
                  </div>
-               </div>
-               <div className="text-right">
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-2 italic">Volume Previsto:</span>
-                  <span className="font-black text-xl text-slate-900 italic tracking-tighter">{week.totalVolume || 0} KM</span>
-               </div>
-            </div>
-            
-            <div className="grid grid-cols-7 gap-2 bg-white">
-              {getSortedWorkouts(week.workouts).map((workout, idx) => (
-                <div key={idx} className={`p-3 rounded-2xl min-h-[140px] flex flex-col justify-between border-2 border-slate-50 shadow-sm bg-white ${getWorkoutCardStyle(workout.type)}`}>
-                   <div>
-                     <div className="flex justify-between items-center mb-2 bg-transparent">
-                       <span className="text-[8px] font-black uppercase text-slate-400 tracking-tighter">{workout.day.substring(0, 3)}</span>
-                       <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md bg-white border border-slate-100">
+              </div>
+              
+              <div className="grid grid-cols-7 gap-2 bg-white" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                {getFullWeek(week.workouts).map((workout, idx) => (
+                  <div key={idx} className={`p-4 rounded-[1.5rem] h-full min-h-[170px] flex flex-col justify-between border-2 border-slate-100 shadow-sm bg-white transition-all ${getWorkoutCardStyle(workout.type)}`}>
+                     <div className="flex justify-between items-center mb-2">
+                       <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.1em]">{workout.day.substring(0, 3)}</span>
+                       <span className="text-[7px] font-black uppercase px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-500 shadow-sm text-center min-w-[30px]">
                           {workout.type?.substring(0, 3).toUpperCase() || 'TRN'}
                        </span>
                      </div>
-                     <div className="text-[9px] leading-tight font-bold text-slate-800 italic bg-transparent line-clamp-6">
-                       {workout.customDescription}
-                     </div>
-                   </div>
-                   {workout.distance ? (
-                     <div className="mt-2 text-[8px] font-black text-right text-emerald-800 bg-white/60 px-2 py-1 rounded-lg border border-white">
-                       {workout.distance} KM
-                     </div>
-                   ) : null}
-                </div>
-              ))}
-            </div>
 
-            {week.coachNotes && (
-              <div className="mt-3 p-3 bg-slate-50 rounded-xl border-l-4 border-emerald-600 shadow-sm">
-                <p className="text-[9px] font-bold text-slate-600 italic leading-relaxed">
-                  <span className="font-black uppercase text-slate-900 mr-2 not-italic tracking-widest text-[7px]">Nota do Coach:</span>
-                  "{week.coachNotes}"
-                </p>
+                     <div className="flex-1 flex flex-col items-center justify-center text-center px-1 py-2">
+                       <div className="text-[10px] leading-[1.3] font-black text-slate-800 italic bg-transparent max-w-full break-words text-center">
+                         {workout.customDescription}
+                       </div>
+                     </div>
+
+                     <div className="mt-2 pt-2 border-t border-slate-200/50 flex justify-center items-center">
+                       {workout.distance && workout.distance > 0 ? (
+                         <span className="text-[9px] font-black text-emerald-900 bg-emerald-50 px-3 py-0.5 rounded-lg border border-emerald-100 italic shadow-sm">
+                           {workout.distance} KM
+                         </span>
+                       ) : (
+                         <span className="text-[7px] font-black text-slate-300 italic uppercase">OFF</span>
+                       )}
+                     </div>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
-      
-      {/* RODAPÉ */}
-      <div className="mt-8 pt-4 border-t border-slate-100 flex justify-between items-center opacity-30 text-[7px] font-black uppercase italic tracking-[0.3em] bg-white">
-        <p>© 2025 PRORUN LB SPORTS - PERFORMANCE ENGINE</p>
-        <p>A disciplina é a base da evolução.</p>
+
+              {week.coachNotes && (
+                <div className="mt-3 p-3 bg-slate-50 rounded-xl border-l-4 border-emerald-600 shadow-sm">
+                  <p className="text-[9px] font-bold text-slate-700 italic leading-relaxed">
+                    <span className="font-black uppercase text-slate-950 mr-2 not-italic tracking-widest text-[8px]">Nota:</span>
+                    "{week.coachNotes}"
+                  </p>
+                </div>
+              )}
+
+              {/* RODAPÉ ACOPLADO À ÚLTIMA SEMANA PARA EVITAR PÁGINA VAZIA */}
+              {isLastWeek && (
+                <div className="mt-10 pt-4 border-t border-slate-100 flex justify-between items-center opacity-70 text-[7px] font-black uppercase italic tracking-[0.5em] bg-white text-slate-400">
+                  <p>PRORUN LB SPORTS - PERFORMANCE & PREVENÇÃO</p>
+                  <p>A constância gera o resultado.</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

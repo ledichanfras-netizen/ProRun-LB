@@ -23,6 +23,5 @@ export const auth = getAuth(app);
 
 // Configuração robusta para evitar o status 'Sincronizando...' infinito
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  useFetchStreams: false
+  experimentalForceLongPolling: true
 });

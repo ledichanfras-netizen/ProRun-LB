@@ -9,7 +9,7 @@ import { getAuth } from 'firebase/auth';
  * Forçamos o Long Polling para garantir compatibilidade máxima.
  */
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || process.env.API_KEY,
+  apiKey: import.meta.env.VITE_API_KEY,
   authDomain: "prorun-lb.firebaseapp.com",
   projectId: "prorun-lb",
   storageBucket: "prorun-lb.appspot.com",
@@ -23,6 +23,5 @@ export const auth = getAuth(app);
 
 // Configuração robusta para evitar o status 'Sincronizando...' infinito
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  useFetchStreams: false
+  experimentalForceLongPolling: true
 });

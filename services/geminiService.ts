@@ -102,6 +102,9 @@ export const generateTrainingPlan = async (
     return [];
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    throw new Error("Erro na comunicação com a IA. Verifique sua conexão e tente novamente.");
+    if (error.message?.includes("Unterminated string")) {
+      throw new Error("O plano gerado foi muito longo para o limite de texto da IA. Tente reduzir o número de semanas.");
+    }
+    throw new Error(`Falha na geração do plano via IA: ${error.message}`);
   }
 };

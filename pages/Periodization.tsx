@@ -11,17 +11,15 @@ import {
   Loader2, 
   AlertCircle, 
   Save, 
-  Printer, 
-  Eye, 
-  EyeOff, 
-  Plus, 
-  Trash2, 
   Lock,
   Unlock,
-  Calendar,
   Target,
-  FileText,
-  Check
+  MessageSquare,
+  Download,
+  ClipboardList,
+  Eye,
+  EyeOff,
+  Calendar
 } from 'lucide-react';
 import { calculatePaces } from '../utils/calculations';
 
@@ -42,7 +40,8 @@ const Periodization: React.FC = () => {
   
   const [raceDate, setRaceDate] = useState('');
   const [raceDistance, setRaceDistance] = useState('10km');
-  const [goalDescription, setGoalDescription] = useState(''); 
+  const [raceGoal, setRaceGoal] = useState('');
+  const [goalDescription, setGoalDescription] = useState('');
   const [weeks, setWeeks] = useState(8);
   const [runningDays, setRunningDays] = useState(4);
   const [gymDays, setGymDays] = useState(2);
@@ -50,29 +49,12 @@ const Periodization: React.FC = () => {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [plan, setPlan] = useState<TrainingWeek[]>([]);
   const [isEditing, setIsEditing] = useState(false);
-  const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [previewScale, setPreviewScale] = useState(1);
 
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
 
-  useEffect(() => {
-    const handleResize = () => {
-      const width = window.innerWidth;
-      if (width < 1200) {
-        const padding = 40;
-        const scale = (width - padding) / 1122;
-        setPreviewScale(scale);
-      } else {
-        setPreviewScale(0.8);
-      }
-    };
-    if (showPrintPreview) {
-      handleResize();
-      window.addEventListener('resize', handleResize);
-    }
-    return () => window.removeEventListener('resize', handleResize);
-  }, [showPrintPreview]);
+  const diasSemanaFull = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+  const tiposTreino: WorkoutType[] = ['Regenerativo', 'Longão', 'Limiar', 'Intervalado', 'Fortalecimento', 'Descanso'];
 
   useEffect(() => {
     if (activeAthlete && athletePlans[activeAthlete.id]) {
@@ -88,13 +70,22 @@ const Periodization: React.FC = () => {
       today.setHours(0, 0, 0, 0);
       const race = new Date(raceDate);
       race.setHours(0, 0, 0, 0);
-      const diffTime = race.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      if (diffDays > 0) {
-        let calculatedWeeks = Math.ceil(diffDays / 7);
-        if (calculatedWeeks < 1) calculatedWeeks = 1;
-        if (calculatedWeeks > 32) calculatedWeeks = 32;
-        setWeeks(calculatedWeeks);
+
+      if (race > today) {
+        const day = today.getDay();
+        const diffToMonday = day === 0 ? -6 : 1 - day;
+        const startOfCurrentWeek = new Date(today);
+        startOfCurrentWeek.setDate(today.getDate() + diffToMonday);
+
+        const raceDay = race.getDay();
+        const diffToRaceMonday = raceDay === 0 ? -6 : 1 - raceDay;
+        const startOfRaceWeek = new Date(race);
+        startOfRaceWeek.setDate(race.getDate() + diffToRaceMonday);
+
+        const diffTime = startOfRaceWeek.getTime() - startOfCurrentWeek.getTime();
+        const diffWeeks = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7)) + 1;
+
+        setWeeks(Math.min(32, Math.max(1, diffWeeks)));
       }
     }
   }, [raceDate]);
@@ -106,22 +97,27 @@ const Periodization: React.FC = () => {
     }
     setLoading(true);
     try {
+      const finalInstructions = `${raceGoal}. ${goalDescription}`;
       const generatedPlan = await generateTrainingPlan(
         activeAthlete, 
-        goalDescription || "Melhora de performance geral.", 
+        finalInstructions || "Melhora de performance geral.", 
         weeks, 
         runningDays,
         gymDays,
         raceDistance,
         raceDate
       );
-      const formatted = (generatedPlan || []).map(w => ({ 
-        ...w, 
-        isVisible: true, 
-        workouts: w.workouts || [] 
-      }));
-      setPlan(formatted);
-      saveAthletePlan(activeAthlete.id, formatted);
+      
+      const normalized = (generatedPlan || []).map(w => {
+        const workoutsWithDescanso = diasSemanaFull.map(dayName => {
+           const found = w.workouts.find(work => work.day.toLowerCase().includes(dayName.split('-')[0].toLowerCase()));
+           return found || { day: dayName, type: 'Descanso' as WorkoutType, customDescription: 'Descanso total (Day Off).', distance: 0 };
+        });
+        return { ...w, isVisible: false, workouts: workoutsWithDescanso };
+      });
+
+      setPlan(normalized);
+      saveAthletePlan(activeAthlete.id, normalized);
       setIsEditing(true);
     } catch (e: any) {
       alert("Erro ao gerar prescrição: " + e.message);
@@ -134,7 +130,18 @@ const Periodization: React.FC = () => {
     if (activeAthlete) {
       saveAthletePlan(activeAthlete.id, plan);
       setIsEditing(false);
-      alert('Planilha publicada para o portal do atleta!');
+      alert('Planilha publicada com sucesso!');
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (pdfLoading) return;
+    setPdfLoading(true);
+    try {
+      const fileName = `Planilha_ProRun_${activeAthlete?.name.replace(/\s+/g, '_')}`;
+      await exportToPDF('print-layout-root', fileName);
+    } finally {
+      setPdfLoading(false);
     }
   };
 
@@ -144,41 +151,24 @@ const Periodization: React.FC = () => {
     setPlan(newPlan);
   };
 
-  const handleGeneratePDF = async () => {
-    if (!activeAthlete) return;
-    setPdfLoading(true);
-    
-    // Pequeno atraso técnico para garantir que o React finalizou o portal no DOM antes do html2canvas iniciar
-    await new Promise(resolve => setTimeout(resolve, 600));
-    
-    const filename = `Planilha_${activeAthlete.name.replace(/\s+/g, '_')}_${raceDistance}`;
-    const success = await exportToPDF('printable-portal', filename);
-    
-    setPdfLoading(false);
-    if (success) setShowPrintPreview(false);
-  };
-
   const athletePaces = activeAthlete ? (activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax)) : [];
-  const printablePlan = plan.filter(w => w.isVisible !== false);
-  const goalText = raceDate ? `${raceDistance} | ${goalDescription || 'Estratégia de Performance'}` : (goalDescription || 'Estratégia de Performance');
-
-  const diasSemana = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
-  const tiposTreino: WorkoutType[] = ['Regenerativo', 'Longão', 'Limiar', 'Intervalado', 'Fortalecimento', 'Descanso'];
+  const printablePlan = plan.filter(w => w.isVisible === true);
+  
+  const goalTextForPDF = raceGoal || (raceDate ? `${raceDistance} | ${goalDescription.substring(0, 30)}...` : 'Estratégia de Performance');
 
   return (
     <div className="space-y-6 pb-20 no-print animate-fade-in">
-      {/* Portal de Impressão sempre ativo se houver atleta */}
       {activeAthlete && portalRoot && createPortal(
-        <PrintLayout athlete={activeAthlete} plan={printablePlan} paces={athletePaces} goal={goalText} />,
+        <PrintLayout athlete={activeAthlete} plan={printablePlan} paces={athletePaces} goal={goalTextForPDF} />,
         portalRoot
       )}
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 uppercase italic flex items-center gap-2 tracking-tighter">
-            <Sparkles className="text-emerald-600" /> Prescrição de Performance
+            <Sparkles className="text-emerald-600" /> Prescrição de Treino
           </h1>
-          <p className="text-slate-500 font-medium italic text-sm">IA treinadora calibrada pela distância e seu objetivo livre.</p>
+          <p className="text-slate-500 font-medium italic text-sm">IA Generativa e Fisiologia Aplicada.</p>
         </div>
         
         <div className="flex gap-2 w-full md:w-auto">
@@ -189,9 +179,16 @@ const Periodization: React.FC = () => {
                 className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition border-2 ${isEditing ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-300'}`}
                >
                  {isEditing ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-                 <span className="hidden sm:inline">{isEditing ? 'Travar Plano' : 'Edição Manual'}</span>
+                 <span className="hidden sm:inline">{isEditing ? 'Travar' : 'Editar'}</span>
                </button>
-               <button onClick={() => setShowPrintPreview(true)} className="flex-1 md:flex-none bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition shadow-lg"><Printer className="w-4 h-4" /> PDF</button>
+               <button 
+                onClick={handleDownloadPDF} 
+                disabled={pdfLoading || printablePlan.length === 0}
+                className="flex-1 md:flex-none bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition disabled:opacity-50"
+               >
+                 {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                 PDF
+               </button>
                <button onClick={handleSave} className="flex-1 md:flex-none bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 shadow-lg"><Save className="w-4 h-4" /> Publicar</button>
              </>
            )}
@@ -201,7 +198,7 @@ const Periodization: React.FC = () => {
       {!activeAthlete ? (
          <div className="bg-white p-16 rounded-3xl text-center border-2 border-dashed border-slate-200">
             <AlertCircle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500 font-black uppercase text-xs tracking-widest">Escolha um atleta para começar a prescrição</p>
+            <p className="text-slate-500 font-black uppercase text-xs tracking-widest">Escolha um atleta para começar</p>
           </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
@@ -209,124 +206,128 @@ const Periodization: React.FC = () => {
             <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 space-y-5">
               <div className="flex items-center gap-2 border-b pb-2">
                 <Target className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-black text-[10px] uppercase tracking-widest text-slate-400">Configuração de Prova</h3>
+                <h3 className="font-black text-[10px] uppercase tracking-widest text-slate-400">Dados da Prova</h3>
               </div>
               
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Distância da Prova</label>
-                <select 
-                  className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={raceDistance}
-                  onChange={e => setRaceDistance(e.target.value)}
-                >
-                  <option value="5km">5km - Velocidade</option>
-                  <option value="10km">10km - Limiar</option>
-                  <option value="21km">21km (Meia Maratona)</option>
-                  <option value="42km">42km (Maratona)</option>
-                  <option value="Ultra">Ultramaratona</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-1">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Distância</label>
+                  <select 
+                    className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold outline-none"
+                    value={raceDistance}
+                    onChange={e => setRaceDistance(e.target.value)}
+                  >
+                    <option value="5km">5km</option>
+                    <option value="10km">10km</option>
+                    <option value="15km">15km</option>
+                    <option value="21km">21km</option>
+                    <option value="42km">42km</option>
+                    <option value="50km">50km</option>
+                    <option value="Ultramaratona">Ultramaratona</option>
+                  </select>
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Data</label>
+                  <input 
+                    type="date" 
+                    className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold outline-none" 
+                    value={raceDate} 
+                    onChange={e => setRaceDate(e.target.value)} 
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Data do Evento</label>
-                <input 
-                  type="date" 
-                  className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none" 
-                  value={raceDate} 
-                  onChange={e => setRaceDate(e.target.value)} 
-                />
-              </div>
+              {raceDate && (
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <Calendar className="w-4 h-4 text-emerald-600" />
+                     <span className="text-[10px] font-black text-emerald-800 uppercase italic">Ciclo Calculado</span>
+                   </div>
+                   <span className="font-black text-emerald-900 italic text-sm">{weeks} Semanas</span>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                  <FileText className="w-3 h-3" /> Objetivo (Descrição Livre)
+                  <Target className="w-3 h-3 text-emerald-500" /> Objetivo da Prova (PDF)
+                </label>
+                <input 
+                  type="text"
+                  className="w-full bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-xs font-bold text-emerald-900 outline-none" 
+                  placeholder="Ex: Sub 45min nos 10km"
+                  value={raceGoal}
+                  onChange={e => setRaceGoal(e.target.value)}
+                />
+              </div>
+
+              <div className="pt-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                  <ClipboardList className="w-3 h-3 text-slate-500" /> Instruções (IA)
                 </label>
                 <textarea 
-                  className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-medium h-32 focus:ring-2 focus:ring-emerald-500 outline-none resize-none shadow-inner" 
-                  placeholder="Instrua a IA sobre metas específicas, lesões ou terrenos (ex: 'Focar em subidas para prova trail', 'Atleta voltando de lesão no joelho')."
+                  className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-medium outline-none resize-none" 
+                  rows={4}
+                  placeholder="Instruções específicas para a IA..."
                   value={goalDescription}
                   onChange={e => setGoalDescription(e.target.value)}
                 />
               </div>
 
-              <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-                <label className="block text-[9px] font-black text-emerald-600 uppercase mb-1 tracking-widest">Ciclo Calculado</label>
-                <div className="flex items-end gap-1">
-                  <span className="text-3xl font-black text-emerald-950 leading-none">{weeks}</span>
-                  <span className="text-xs font-bold text-emerald-600 uppercase italic">Semanas</span>
-                </div>
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Corridas/Sem</label>
-                  <input type="number" className="w-full bg-slate-50 rounded-xl p-2 text-center font-bold" value={runningDays} onChange={e => setRunningDays(Number(e.target.value))} />
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Dias Corrida</label>
+                  <input type="number" min="1" max="7" className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold" value={runningDays} onChange={e => setRunningDays(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Gym/Sem</label>
-                  <input type="number" className="w-full bg-slate-50 rounded-xl p-2 text-center font-bold" value={gymDays} onChange={e => setGymDays(Number(e.target.value))} />
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Fortalec.</label>
+                  <input type="number" min="0" max="7" className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold" value={gymDays} onChange={e => setGymDays(Number(e.target.value))} />
                 </div>
               </div>
 
               <button 
                 onClick={handleGenerate} 
                 disabled={loading || !raceDate} 
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl shadow-emerald-600/20 flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest"
               >
                 {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} 
-                {loading ? 'GERANDO...' : 'REGERAR COM IA'}
+                {loading ? 'CALCULANDO...' : 'Gerar Periodização'}
               </button>
             </div>
           </div>
 
           <div className="xl:col-span-3 space-y-8">
             {plan.length > 0 ? plan.map((week, weekIndex) => (
-              <div key={weekIndex} className={`bg-white rounded-3xl shadow-sm border-2 ${isEditing ? 'border-emerald-100' : 'border-slate-100'} overflow-hidden transition-all ${week.isVisible === false ? 'opacity-40' : ''}`}>
-                <div className="bg-slate-50 px-6 py-4 border-b flex justify-between items-center">
+              <div key={weekIndex} className={`bg-white rounded-3xl shadow-sm border-2 ${isEditing ? 'border-emerald-100' : 'border-slate-100'} overflow-hidden transition-all ${week.isVisible === false ? 'opacity-40 border-slate-200 bg-slate-50' : ''}`}>
+                <div className="bg-white px-6 py-4 border-b flex justify-between items-center">
                   <div className="flex items-center gap-4">
                     <span className="font-black text-emerald-600 text-[10px] uppercase tracking-widest border border-emerald-200 px-3 py-1 rounded-lg bg-white italic">{week.phase}</span>
                     <span className="text-slate-400 text-[10px] font-black uppercase tracking-tighter">Semana {week.weekNumber}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                     <button onClick={() => {
-                        const newPlan = JSON.parse(JSON.stringify(plan));
-                        newPlan[weekIndex].isVisible = !newPlan[weekIndex].isVisible;
-                        setPlan(newPlan);
-                     }} className="text-slate-400 hover:text-emerald-600 transition p-1.5 rounded-lg hover:bg-white">{week.isVisible !== false ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}</button>
-                  </div>
+                  <button onClick={() => {
+                      const newPlan = JSON.parse(JSON.stringify(plan));
+                      newPlan[weekIndex].isVisible = !newPlan[weekIndex].isVisible;
+                      setPlan(newPlan);
+                  }} className={`transition p-1.5 rounded-lg border ${week.isVisible === true ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-slate-300 bg-white border-slate-200 hover:text-emerald-500'}`}>
+                    {week.isVisible === true ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                  </button>
                 </div>
 
                 <div className="divide-y divide-slate-100">
                   {week.workouts.map((workout, dayIndex) => (
                     <div 
                       key={dayIndex} 
-                      className={`p-4 flex flex-col md:flex-row gap-4 items-center group transition-colors border-l-8 ${getZoneColorClasses(workout.type || 'Regenerativo').split(' ')[2]}`}
+                      className={`p-4 flex flex-col md:flex-row gap-4 items-center group transition-colors border-l-8 ${getZoneColorClasses(workout.type || 'Descanso').split(' ')[2]}`}
                     >
                       <div className="w-full md:w-40 flex-shrink-0">
-                         {isEditing ? (
-                            <select 
-                              className="text-[10px] font-black uppercase w-full bg-slate-50 border border-slate-200 rounded p-1 mb-1" 
-                              value={workout.day} 
-                              onChange={e => updateWorkout(weekIndex, dayIndex, 'day', e.target.value)}
-                            >
-                              {diasSemana.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                         ) : (
-                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">{workout.day}</p>
-                         )}
-                         {isEditing ? (
-                            <select 
-                              className={`text-[10px] font-black uppercase w-full border rounded p-1 ${getZoneColorClasses(workout.type || 'Regenerativo')}`} 
-                              value={workout.type} 
-                              onChange={e => updateWorkout(weekIndex, dayIndex, 'type', e.target.value as any)}
-                            >
-                              {tiposTreino.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                         ) : (
-                           <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase italic ${getZoneColorClasses(workout.type || 'Regenerativo')}`}>
-                             {workout.type}
-                           </span>
-                         )}
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">{workout.day}</p>
+                         <select 
+                            className={`text-[10px] font-black uppercase w-full border rounded p-1 ${getZoneColorClasses(workout.type || 'Descanso')}`} 
+                            value={workout.type} 
+                            disabled={!isEditing}
+                            onChange={e => updateWorkout(weekIndex, dayIndex, 'type', e.target.value as any)}
+                          >
+                            {tiposTreino.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
                       </div>
                       <div className="flex-1 w-full">
                         {isEditing ? (
@@ -337,7 +338,7 @@ const Periodization: React.FC = () => {
                             rows={2} 
                           />
                         ) : (
-                          <p className="text-sm font-bold text-slate-700 leading-snug">{workout.customDescription}</p>
+                          <p className={`text-sm font-bold leading-snug ${workout.type === 'Descanso' ? 'text-slate-400 italic' : 'text-slate-700'}`}>{workout.customDescription}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-3">
@@ -352,101 +353,20 @@ const Periodization: React.FC = () => {
                              <span className="text-[10px] font-black text-slate-400 uppercase italic">KM</span>
                            </div>
                          ) : (
-                           workout.distance ? <p className="font-black text-slate-900 text-sm whitespace-nowrap bg-slate-100 px-3 py-1 rounded-full">{workout.distance} KM</p> : null
-                         )}
-                         {isEditing && (
-                           <button 
-                             onClick={() => {
-                               const newPlan = JSON.parse(JSON.stringify(plan));
-                               newPlan[weekIndex].workouts.splice(dayIndex, 1);
-                               setPlan(newPlan);
-                             }} 
-                             className="text-slate-300 hover:text-red-500 transition p-2 hover:bg-red-50 rounded-full"
-                           >
-                            <Trash2 className="w-4 h-4" />
-                           </button>
+                           workout.distance && workout.distance > 0 ? <p className="font-black text-slate-900 text-sm whitespace-nowrap bg-slate-100 px-3 py-1 rounded-full">{workout.distance} KM</p> : null
                          )}
                       </div>
                     </div>
                   ))}
-                  {isEditing && (
-                    <div className="p-3 bg-emerald-50/20 flex justify-center">
-                       <button 
-                        onClick={() => {
-                          const newPlan = JSON.parse(JSON.stringify(plan));
-                          newPlan[weekIndex].workouts.push({ day: 'Segunda-feira', type: 'Regenerativo', customDescription: 'Sessão Adicional' });
-                          setPlan(newPlan);
-                        }} 
-                        className="text-[10px] font-black text-emerald-600 flex items-center gap-1 hover:underline p-2"
-                       >
-                         <Plus className="w-3 h-3" /> ADICIONAR SESSÃO
-                       </button>
-                    </div>
-                  )}
-                </div>
-                <div className="px-6 py-4 bg-slate-50/30 border-t">
-                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1 italic tracking-widest">Estratégia Semanal</p>
-                  {isEditing ? (
-                    <input 
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" 
-                      value={week.coachNotes} 
-                      onChange={e => {
-                        const newPlan = JSON.parse(JSON.stringify(plan));
-                        newPlan[weekIndex].coachNotes = e.target.value;
-                        setPlan(newPlan);
-                      }} 
-                    />
-                  ) : (
-                    <p className="text-xs font-bold text-slate-600 italic">"{week.coachNotes || 'Execução perfeita.'}"</p>
-                  )}
                 </div>
               </div>
             )) : (
               <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-100">
                 <Target className="w-12 h-12 mb-4 opacity-10" />
-                <p className="font-bold text-sm uppercase tracking-widest italic">Nenhuma planilha ativa</p>
-                <p className="text-xs">Defina os parâmetros ao lado para gerar o ciclo com IA.</p>
+                <p className="font-bold text-sm uppercase tracking-widest italic">Planilha em Branco</p>
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {showPrintPreview && activeAthlete && (
-        <div className="fixed inset-0 z-[60] bg-emerald-950/98 backdrop-blur-md flex flex-col no-print animate-fade-in">
-           <div className="bg-emerald-950 border-b border-emerald-900 p-4 md:p-6 flex flex-col md:flex-row justify-between items-center gap-4 text-white">
-              <div className="text-center md:text-left">
-                <h2 className="font-black italic uppercase tracking-tighter flex items-center justify-center md:justify-start gap-3 text-emerald-400">
-                  <Printer className="w-5 h-5 text-emerald-500" /> Exportação de Alta Performance
-                </h2>
-                <p className="text-[10px] text-emerald-200/50 uppercase tracking-widest mt-1 hidden sm:block">Foco: {raceDistance} • Objetivo: {goalDescription || 'Geral'}</p>
-              </div>
-              <div className="flex gap-3 w-full md:w-auto">
-                <button disabled={pdfLoading} onClick={() => setShowPrintPreview(false)} className="flex-1 md:flex-none border border-emerald-700 px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-emerald-900 transition tracking-widest italic tracking-widest disabled:opacity-30">FECHAR</button>
-                <button 
-                  onClick={handleGeneratePDF} 
-                  disabled={pdfLoading}
-                  className="flex-1 md:flex-none bg-emerald-600 px-8 py-3 rounded-2xl font-black text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition flex items-center justify-center gap-2 tracking-widest italic disabled:bg-emerald-900"
-                >
-                  {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                  {pdfLoading ? 'SALVANDO...' : 'SALVAR PDF AGORA'}
-                </button>
-              </div>
-           </div>
-
-           <div className="flex-1 overflow-auto bg-slate-950/50 flex flex-col items-center p-4 md:p-12 relative">
-              <div 
-                className="bg-white shadow-2xl origin-top transition-transform duration-300" 
-                style={{ 
-                  width: '297mm', 
-                  minHeight: '210mm',
-                  transform: `scale(${previewScale})`,
-                  marginBottom: `calc(210mm * ${previewScale} - 210mm)` 
-                }}
-              >
-                 <PrintLayout athlete={activeAthlete} plan={printablePlan} paces={athletePaces} goal={goalText} />
-              </div>
-           </div>
         </div>
       )}
     </div>

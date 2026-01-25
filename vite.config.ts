@@ -1,26 +1,24 @@
 
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import nodePolyfills from 'rollup-plugin-polyfill-node';
 
 export default defineConfig({
-  plugins: [
-    react(),
-  ],
+  plugins: [react()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: false,
-    chunkSizeWarningLimit: 1500,
+    minify: 'esbuild',
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
-      plugins: [nodePolyfills()],
       output: {
         manualChunks: {
-          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-          'recharts': ['recharts'],
-          'vendor': ['react', 'react-dom', 'react-router-dom', 'lucide-react', 'html2pdf.js'],
-        },
-      },
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['lucide-react', 'recharts'],
+          'pdf-vendor': ['html2pdf.js'],
+          'ai-vendor': ['@google/genai']
+        }
+      }
     }
   },
   server: {

@@ -93,6 +93,6 @@ export const generateTrainingPlan = async (
     if (error.message?.includes("Unterminated string")) {
       throw new Error("O plano gerado foi muito longo para o limite de texto da IA. Tente reduzir o número de semanas.");
     }
-    throw new Error("Falha na geração do plano via IA. Verifique sua conexão e tente novamente.");
+    throw new Error(`Falha na geração do plano via IA: ${error.message}`);
   }
 };

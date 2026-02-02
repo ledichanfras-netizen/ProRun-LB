@@ -9,12 +9,12 @@ import { getAuth } from 'firebase/auth';
  * Forçamos o Long Polling para garantir compatibilidade máxima.
  */
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_API_KEY,
-  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_APP_ID
+  apiKey: process.env.FIREBASE_API_KEY || process.env.API_KEY,
+  authDomain: "prorun-lb.firebaseapp.com",
+  projectId: "prorun-lb",
+  storageBucket: "prorun-lb.appspot.com",
+  messagingSenderId: "458712548963",
+  appId: "1:458712548963:web:7f8e9a0b1c2d3e4f5"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -23,5 +23,6 @@ export const auth = getAuth(app);
 
 // Configuração robusta para evitar o status 'Sincronizando...' infinito
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
+  experimentalForceLongPolling: true,
+  useFetchStreams: false
 });

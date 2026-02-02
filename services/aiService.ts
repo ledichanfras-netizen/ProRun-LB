@@ -43,12 +43,13 @@ export interface WorkoutPlan {
 
 class AIService {
   async generateWorkout(params: WorkoutParams): Promise<WorkoutPlan> {
+    // Fix: Always use process.env.API_KEY directly in the GoogleGenAI constructor
     if (!process.env.API_KEY) {
-      throw new Error("Configuração de API pendente no servidor.");
+      throw new Error("Configuração de API pendente no servidor (Render).");
     }
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Crie um treino de fortalecimento para corredor: ${params.studentName}, foco em ${params.primaryGoal}.`;
+    const prompt = `Crie um treino de fortalecimento específico para corredor: ${params.studentName}. Nível: ${params.fitnessLevel}. Foco: ${params.primaryGoal}. Disponibilidade: ${params.sessionTime}min.`;
     
     try {
       const response = await ai.models.generateContent({
@@ -102,7 +103,7 @@ class AIService {
       return JSON.parse(textOutput) as WorkoutPlan;
     } catch (error: any) {
       console.error("Erro no AIService:", error);
-      throw new Error("Não foi possível gerar o treino. Verifique a chave de API no painel do Render.");
+      throw new Error("Falha na geração do treino. Verifique a chave de API.");
     }
   }
 }

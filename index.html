@@ -4,99 +4,89 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>ProRun AI Coach | Planilhas de Corrida Inteligentes</title>
-    <meta name="description" content="Receba planilhas de corrida personalizadas e inteligentes com o ProRun AI Coach. Otimize seu treinamento para 5km, 10km, meia maratona e maratona com a ajuda da inteligência artificial.">
+    <meta name="description" content="ProRun LB - Plataforma de Performance Integrada. Treinamento de corrida inteligente com IA, métricas VDOT e periodização profissional." />
+    <meta name="theme-color" content="#022c22" />
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ProRun LB - Performance Integrada" />
+    <meta property="og:description" content="Evolua sua corrida com inteligência artificial e ciência do esporte." />
+    <meta property="og:image" content="https://prorun-lb.vercel.app/og-image.jpg" />
+
+    <title>ProRun LB | Performance Integrada</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+
     <style>
-      body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+      body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; -webkit-font-smoothing: antialiased; }
       
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: #f1f5f9; }
-      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-      /* CONFIGURAÇÃO DE IMPRESSÃO NATIVA (Fallback) */
-      @media print {
-        @page { 
-          size: A4 landscape;
-          margin: 0;
-        }
-        
-        html, body {
-          height: auto;
-          width: 100%;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: white !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-        
-        #root { display: none !important; }
-
-        #printable-portal {
-          display: block !important;
-          visibility: visible !important;
-          position: relative !important;
-          width: 100% !important;
-          background: white !important;
-          z-index: 9999;
-        }
-
-        .no-print { display: none !important; }
+      /* Otimização de Scroll - Visibilidade Reforçada */
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb {
+        background: #10b981;
+        border-radius: 10px;
+        border: 3px solid #f1f5f9;
+        box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
       }
-      
+      ::-webkit-scrollbar-thumb:hover { background: #059669; }
+
+      /* Classe específica para scrollbars em elementos escuros ou modais */
+      .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-color: transparent; }
+
+      /* Portal de Impressão Otimizado para Produção */
       @media screen {
-        /*
-          Portal de exportação: Oculto do usuário, mas acessível ao html2canvas.
-          - 'position: fixed' e 'left: -9999px' movem o elemento para fora da tela sem usar 'display: none'.
-          - 'visibility: hidden' garante que não interfira na interação do usuário.
-        */
         #printable-portal {
           position: fixed;
-          left: -9999px; /* Joga para fora da tela */
-          top: 0;
           width: 297mm;
           height: auto;
+          left: 0;
+          top: 0;
           background: white;
-          visibility: hidden; /* Oculta sem quebrar o render */
+          visibility: visible;
+          opacity: 0.0001;
+          pointer-events: none;
           z-index: -9999;
+          transform: translateY(-200%);
+          contain: paint;
         }
       }
 
-      .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      
-      .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
-      @keyframes fadeInUp { 
-        from { opacity: 0; transform: translateY(10px); } 
-        to { opacity: 1; transform: translateY(0); } 
+      @media print {
+        #root { display: none !important; }
+        #printable-portal {
+          display: block !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          position: static !important;
+          transform: none !important;
+        }
       }
     </style>
   <script type="importmap">
 {
   "imports": {
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "firebase/": "https://esm.sh/firebase@^12.7.0/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.12.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "recharts": "https://esm.sh/recharts@^3.6.0",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
     "react-dom": "https://esm.sh/react-dom@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.12.0",
-    "html2pdf.js": "https://esm.sh/html2pdf.js@^0.13.0",
-    "firebase/": "https://esm.sh/firebase@^12.7.0/"
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "html2pdf.js": "https://esm.sh/html2pdf.js@^0.13.0"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
-    <!-- O Portal do React será montado aqui -->
-    <div id="printable-portal"></div>
+    <div id="printable-portal" aria-hidden="true"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

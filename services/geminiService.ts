@@ -1,6 +1,11 @@
 
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { GoogleGenerativeAI, GenerationConfig, GenerateContentRequest } from "@google/generative-ai";
 import { Athlete, TrainingWeek } from "../types";
+
+// Helper function to create a deep copy
+const deepCopy = <T>(obj: T): T => {
+  return JSON.parse(JSON.stringify(obj));
+};
 
 export const generateTrainingPlan = async (
   athlete: Athlete,
@@ -11,20 +16,25 @@ export const generateTrainingPlan = async (
   raceDistance: string,
   raceDate?: string
 ): Promise<TrainingWeek[]> => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("VITE_GEMINI_API_KEY is not set in the environment.");
-  }
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+  if (!apiKey) {
+    console.error("DEBUG: Chave da API do Gemini não encontrada nas variáveis de ambiente.");
+    throw new Error("A chave da API para o serviço de IA não foi configurada. Por favor, adicione VITE_GEMINI_API_KEY às suas variáveis de ambiente.");
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+
+  const todayStr = new Date().toLocaleDateString('pt-BR');
   const raceInfo = raceDate
     ? `PROVA ALVO: ${raceDistance} em ${new Date(raceDate).toLocaleDateString('pt-BR')}.`
     : `Distância Alvo: ${raceDistance}`;
 
   const prompt = `
-    Atue como um Treinador de Corrida de Elite brasileiro (Metodologia Jack Daniels / VDOT / Periodização Linear e Ondulatória).
-    Idioma: PORTUGUÊS (BRASIL) - Use terminologia técnica local (ex: "rodagem", "tiros", "fortalecimento", "soltura").
+    Atue como um Treinador de Corrida de Elite (Metodologia Jack Daniels / VDOT).
+    Idioma: PORTUGUÊS (BRASIL).
 
     CONTEXTO DO ATLETA:
     Nome: ${athlete.name} | VDOT Atual: ${athlete.metrics.vdot} | Nível: ${athlete.experience}
@@ -33,66 +43,87 @@ export const generateTrainingPlan = async (
     DADOS DA PROVA:
     - Distância: ${raceDistance}
     - ${raceInfo}
-    
-    OBJETIVO DETALhado:
-    "${goalDescription}"
+    - OBJETIVO DO CICLO: "${goalDescription}"
 
-    NOMENCLATURA OBRIGATÓRIA DE ZONAS E RITMOS:
-    Ao prescrever os treinos e descrever intensidades, use EXCLUSIVAMENTE estas siglas:
-    - Z1: Leve / Regenerativo
-    - Z2: Ritmo de Maratona
-    - Z3: Ritmo de Limiar (L)
-    - Z4: Intervalado (I)
-    - Z5: Velocidade (V)
+    REGRAS DE TERMINOLOGIA TÉCNICA (OBRIGATÓRIO):
+    Nas descrições das sessões, você deve usar obrigatoriamente estas siglas:
+    - 'Ritmo L' para treinos de Limiar (Z3/Threshold).
+    - 'Ritmo I' para treinos Intervalados (Z4/VO2Max).
+    - 'Ritmo R' para treinos de Repetição/Velocidade (Z5/Repetition).
+    - 'Ritmo Leve' para Z1/Z2 (Regenerativo e Rodagem).
 
-    INSTRUÇÕES TÉCNICAS:
-    1. GERAR: ${weeks} semanas de treinamento terminando exatamente na data da prova.
-    2. PERIODIZAÇÃO: Divida o ciclo em 'Base', 'Construção', 'Pico' e 'Polimento'.
-    3. FOCO ESTRATÉGICO: Use o "Objetivo Detalhado" para personalizar a planilha.
-    4. VOLUME: Ajuste o volume semanal médio de acordo com o VDOT ${athlete.metrics.vdot}.
-    5. DESCRIÇÕES: Seja específico. Ex: "15min Z1 + 5x 1000m Ritmo de Limiar (L) + 10min Z1".
+    EXEMPLO DE FORMATO DE PRESCRIÇÃO:
+    - "10x400m em Ritmo R c/ 1min descanso"
+    - "5x1000m em Ritmo I c/ 2min trote leve"
+    - "Rodagem 40min em Ritmo Leve"
 
-    REGRAS DE RETORNO (JSON):
-    - fases: 'Base', 'Construção', 'Pico', 'Polimento'.
-    - tipos: 'Regenerativo', 'Longão', 'Limiar', 'Intervalado', 'Descanso', 'Fortalecimento'.
-    - descriptions: Use a terminologia de corrida brasileira e as siglas (L), (I), (V).
+    ESTRUTURA:
+    Gere exatamente ${weeks} semanas, começando hoje (${todayStr}).
+    Cada semana deve ter 7 dias (Segunda a Domingo).
+    Use 'Descanso' para dias sem treino. Retorne o JSON em uma única linha, sem newlines.
   `;
 
-  const generationConfig = {
-    temperature: 0.3,
-    topK: 1,
-    topP: 1,
-    maxOutputTokens: 8192,
-    responseMimeType: "application/json",
+  const trainingPlanSchema = {
+    type: "ARRAY",
+    items: {
+      type: "OBJECT",
+      properties: {
+        phase: { type: "STRING", enum: ['Base', 'Construção', 'Pico', 'Polimento'] },
+        weekNumber: { type: "INTEGER" },
+        totalVolume: { type: "NUMBER" },
+        coachNotes: { type: "STRING" },
+        workouts: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              day: { type: "STRING" },
+              type: { type: "STRING", enum: ['Regenerativo', 'Longão', 'Limiar', 'Intervalado', 'Descanso', 'Fortalecimento', 'Ritmo de Prova'] },
+              customDescription: { type: "STRING" },
+              distance: { type: "NUMBER" },
+              isVisible: { type: "BOOLEAN", description: "Sempre true para novos treinos."}
+            },
+            required: ["day", "type", "customDescription", "isVisible"]
+          }
+        },
+      },
+      required: ["phase", "weekNumber", "workouts"],
+    }
   };
 
-  const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  ];
+  // FIX: Corrected property names to camelCase to match the SDK's type definition.
+  const generationConfig: GenerationConfig = {
+    responseMimeType: "application/json",
+    // @ts-ignore - The SDK's type for responseSchema is generic, but this structure is correct for the API.
+    responseSchema: deepCopy(trainingPlanSchema),
+  };
 
   try {
-    const result = await model.generateContent({
+    // FIX: Pass a single GenerateContentRequest object to the generateContent method.
+    const request: GenerateContentRequest = {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig,
-      safetySettings,
-    });
+    };
 
+    const result = await model.generateContent(request);
     const response = result.response;
-    const textOutput = response.text();
+    const text = response.text();
 
-    if (textOutput) {
-      const cleanedJson = textOutput.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-      return JSON.parse(cleanedJson) as TrainingWeek[];
+    if (text) {
+      // Adicionar IDs únicos para cada semana para uso no React
+      return JSON.parse(text).map((week: TrainingWeek) => ({ ...week, id: `week_${week.weekNumber}_${Date.now()}` }));
     }
     return [];
+
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    if (error.message?.includes("Unterminated string")) {
-      throw new Error("O plano gerado foi muito longo para o limite de texto da IA. Tente reduzir o número de semanas.");
+
+    if (error.message?.includes('SAFETY')) {
+      throw new Error("O conteúdo gerado foi bloqueado por políticas de segurança. Tente reformular seu objetivo.");
     }
-    throw new Error(`Falha na geração do plano via IA: ${error.message}`);
+    if (error.message?.includes('SCHEMA_VIOLATION') || error.message?.includes('Unterminated string')) {
+      throw new Error("A IA gerou uma resposta com formato inválido. Isso pode ser um bug. Tente novamente ou ajuste o número de semanas.");
+    }
+    throw new Error(`Falha na geração do plano via IA. Causa: ${error.message || 'Erro desconhecido'}`);
   }
 };

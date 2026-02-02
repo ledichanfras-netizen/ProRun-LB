@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Lock, User, ArrowRight, AlertCircle, TrendingUp } from 'lucide-react';
+import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -51,7 +51,7 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Identificação</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Usuário Registrado</label>
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
               <input 
@@ -59,7 +59,7 @@ export default function Login() {
                 required
                 autoComplete="username"
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition font-bold"
-                placeholder="Nome do Treinador ou Atleta"
+                placeholder="Ex: Leandro Barbosa"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
               />
@@ -75,11 +75,17 @@ export default function Login() {
                 required
                 autoComplete="current-password"
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition font-bold"
-                placeholder="Sua senha exclusiva"
+                placeholder="Data de Nascimento (DDMMAAAA)"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
               />
             </div>
+            {username.length > 3 && (
+              <div className="mt-2 flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase italic tracking-tight animate-fade-in">
+                <Info className="w-3 h-3" />
+                Dica: Use sua data de nascimento sem barras (ex: 29121981)
+              </div>
+            )}
           </div>
 
           <button 
@@ -91,7 +97,7 @@ export default function Login() {
               <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <>
-                Acessar Portal <ArrowRight className="w-5 h-5" />
+                Entrar no Sistema <ArrowRight className="w-5 h-5" />
               </>
             )}
           </button>

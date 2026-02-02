@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Athlete, ExperienceLevel } from '../types';
-import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info, ChevronDown } from 'lucide-react';
 
 const Athletes: React.FC = () => {
   const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId, generateTestAthletes } = useApp();
@@ -82,8 +82,12 @@ const Athletes: React.FC = () => {
     }
   };
 
+  const handleLevelChange = (athleteId: string, level: ExperienceLevel) => {
+    updateAthlete(athleteId, { experience: level });
+  };
+
   return (
-    <div className="space-y-6 relative animate-fade-in">
+    <div className="space-y-6 relative animate-fade-in custom-scrollbar">
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-md w-full animate-fade-in-up border-l-8 border-red-500">
@@ -112,7 +116,7 @@ const Athletes: React.FC = () => {
               </h3>
               <button onClick={() => setShowLevelGuide(false)} className="text-slate-400 hover:bg-slate-50 p-2 rounded-full transition"><X /></button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
               <div className="p-4 bg-slate-50 rounded-2xl border-l-4 border-slate-300">
                 <p className="font-black text-xs uppercase text-slate-900 mb-1">Iniciante</p>
                 <p className="text-xs text-slate-600">Começou a correr recentemente ou corre de forma irregular. Foco em adaptação e constância.</p>
@@ -137,7 +141,7 @@ const Athletes: React.FC = () => {
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Gestão de Elenco</h1>
+          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Gestão de Atletas</h1>
           <p className="text-slate-500 font-medium">Controle biométrico e acesso dos atletas.</p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
@@ -175,14 +179,14 @@ const Athletes: React.FC = () => {
         <div className="bg-white p-8 rounded-[2rem] shadow-2xl border border-slate-100 animate-fade-in-up">
           <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-4">
             <h2 className="text-xl font-black uppercase italic tracking-tighter text-slate-900">
-              {editingId ? 'Editar Cadastro' : 'Novo Recrutamento'}
+              {editingId ? 'Editar Cadastro' : 'Novo Atleta'}
             </h2>
             <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:bg-slate-50 p-2 rounded-full transition">
                <X className="w-6 h-6" />
             </button>
           </div>
           
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
             <div className="md:col-span-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nome Completo</label>
               <input 
@@ -224,17 +228,20 @@ const Athletes: React.FC = () => {
                    <Info className="w-3 h-3" /> <span className="text-[8px]">IDENTIFICAR</span>
                 </button>
               </label>
-              <select 
-                className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none appearance-none" 
-                value={formData.experience}
-                onChange={e => setFormData({...formData, experience: e.target.value as ExperienceLevel})}
-                required
-              >
-                <option value="Iniciante">Iniciante</option>
-                <option value="Intermediário">Intermediário</option>
-                <option value="Avançado">Avançado</option>
-                <option value="Elite">Elite</option>
-              </select>
+              <div className="relative">
+                <select
+                    className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
+                    value={formData.experience}
+                    onChange={e => setFormData({...formData, experience: e.target.value as ExperienceLevel})}
+                    required
+                >
+                    <option value="Iniciante">Iniciante</option>
+                    <option value="Intermediário">Intermediário</option>
+                    <option value="Avançado">Avançado</option>
+                    <option value="Elite">Elite</option>
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
             </div>
 
             <div>
@@ -269,12 +276,12 @@ const Athletes: React.FC = () => {
       )}
 
       <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
                 <th className="p-6">Identificação</th>
-                <th className="p-6">Nível Técnico</th>
+                <th className="p-6">Nível Técnico (Trocar)</th>
                 <th className="p-6">Biometria</th>
                 <th className="p-6">VDOT (Pro)</th>
                 <th className="p-6 text-center">Ações de Gestão</th>
@@ -295,15 +302,25 @@ const Athletes: React.FC = () => {
                     </div>
                   </td>
                   <td className="p-6">
-                    <span className={`
-                      px-4 py-1.5 rounded-full text-[10px] font-black uppercase italic tracking-widest border
-                      ${athlete.experience === 'Elite' ? 'bg-purple-50 text-purple-700 border-purple-200' : 
-                        athlete.experience === 'Avançado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                        athlete.experience === 'Intermediário' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                        'bg-slate-50 text-slate-700 border-slate-200'}
-                    `}>
-                      {athlete.experience}
-                    </span>
+                    <div className="relative flex items-center max-w-[160px]">
+                      <select
+                        className={`
+                          appearance-none w-full px-4 py-2 pr-8 rounded-xl text-[10px] font-black uppercase italic tracking-widest border transition-all cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm
+                          ${athlete.experience === 'Elite' ? 'bg-purple-50 text-purple-700 border-purple-300' :
+                            athlete.experience === 'Avançado' ? 'bg-blue-50 text-blue-700 border-blue-300' :
+                            athlete.experience === 'Intermediário' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
+                            'bg-slate-50 text-slate-700 border-slate-300'}
+                        `}
+                        value={athlete.experience}
+                        onChange={(e) => handleLevelChange(athlete.id, e.target.value as ExperienceLevel)}
+                      >
+                        <option value="Iniciante">Iniciante</option>
+                        <option value="Intermediário">Intermediário</option>
+                        <option value="Avançado">Avançado</option>
+                        <option value="Elite">Elite</option>
+                      </select>
+                      <ChevronDown className="w-3 h-3 absolute right-3 pointer-events-none opacity-60 text-slate-900" />
+                    </div>
                   </td>
                   <td className="p-6 text-[11px] font-black text-slate-500 uppercase italic">
                     {athlete.age} anos • {athlete.weight}kg • {athlete.height}cm

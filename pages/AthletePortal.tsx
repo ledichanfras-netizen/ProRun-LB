@@ -220,14 +220,14 @@ const AthletePortal: React.FC = () => {
                         {workout.completed ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <Circle className="w-5 h-5 text-slate-300 group-hover:text-emerald-500 transition" />}
                       </div>
                       <h4 className="font-bold text-slate-800 text-[11px] leading-snug mb-3 line-clamp-4 min-h-[4rem]">{workout.customDescription}</h4>
-                      {workout.distance ? (
+                      {typeof workout.distance === 'number' && (
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-900 bg-white/70 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-white">
                             <MapPin className="w-3.5 h-3.5 text-emerald-500" /> {workout.distance} KM
                           </div>
                           {workout.feedback && <MessageSquare className="w-4 h-4 text-emerald-600 animate-pulse" />}
                         </div>
-                      ) : null}
+                      )}
                     </div>
                   ))}
                 </div>

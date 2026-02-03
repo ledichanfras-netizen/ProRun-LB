@@ -16,15 +16,13 @@ export interface WorkoutPlan {
 
 class AIService {
   async generateWorkout(params: WorkoutParams): Promise<WorkoutPlan> {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("Configuração de API pendente.");
-
-    const ai = new GoogleGenAI({ apiKey });
-    const prompt = `Crie um treino de fortalecimento para corredor: ${params.studentName}. Nível: ${params.fitnessLevel}. Foco: ${params.primaryGoal}. Tempo: ${params.sessionTime}min.`;
+    // Inicialização direta com process.env.API_KEY seguindo as diretrizes do SDK @google/genai
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Crie um plano de exercícios de fortalecimento funcional para o corredor ${params.studentName}. Nível: ${params.fitnessLevel}. Objetivo: ${params.primaryGoal}. Tempo disponível: ${params.sessionTime} minutos por sessão.`;
     
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -58,11 +56,11 @@ class AIService {
       });
 
       const textOutput = response.text;
-      if (!textOutput) throw new Error("IA não retornou conteúdo.");
+      if (!textOutput) throw new Error("Sem resposta da IA.");
       return JSON.parse(textOutput) as WorkoutPlan;
     } catch (error: any) {
       console.error("AIService Error:", error);
-      throw new Error("Falha ao gerar treino de fortalecimento.");
+      throw new Error(`Erro ao gerar fortalecimento: ${error.message}`);
     }
   }
 }

@@ -22,7 +22,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Configuração robusta para evitar o status 'Sincronizando...' infinito
+// Corrigido: Removido 'useFetchStreams' que não existe no tipo FirestoreSettings do SDK modular v9+
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  useFetchStreams: false
+  experimentalForceLongPolling: true
 });

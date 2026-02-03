@@ -12,27 +12,21 @@ export const generateTrainingPlan = async (
   raceDate?: string
 ): Promise<TrainingWeek[]> => {
   
-  // No Vite, process.env.API_KEY será injetado pelo define do vite.config.ts
-  const apiKey = process.env.API_KEY;
+  // Use a API key diretamente conforme as diretrizes do SDK @google/genai
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Mudança para Flash: Mais estável para JSON e menos propenso a erros de cota
+  const modelName = "gemini-3-flash-preview";
 
-  if (!apiKey) {
-    throw new Error("API_KEY não encontrada. Certifique-se de configurar a variável de ambiente no Render ANTES de fazer o deploy.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-  const modelName = "gemini-3-pro-preview";
-
-  const todayStr = new Date().toLocaleDateString('pt-BR');
   const raceInfo = raceDate 
     ? `PROVA ALVO: ${raceDistance} em ${new Date(raceDate).toLocaleDateString('pt-BR')}.` 
     : `Distância Alvo: ${raceDistance}`;
 
   const prompt = `
-    Você é um Treinador de Corrida de Elite (Metodologia VDOT).
-    Gere uma periodização para o atleta ${athlete.name} (VDOT: ${athlete.metrics.vdot}).
+    Aja como um Treinador de Corrida de Elite (Metodologia VDOT).
+    Gere uma periodização para o atleta ${athlete.name} com VDOT ${athlete.metrics.vdot}.
     Objetivo: ${goalDescription}. ${raceInfo}.
-    Disponibilidade: ${runningDays} dias de corrida e ${gymDays} dias de fortalecimento.
-    Gere exatamente ${weeks} semanas.
+    Disponibilidade: ${runningDays} dias de corrida e ${gymDays} dias de fortalecimento por semana.
+    Instrução: Gere exatamente ${weeks} semanas de treino detalhadas.
   `;
 
   try {
@@ -40,6 +34,7 @@ export const generateTrainingPlan = async (
       model: modelName,
       contents: prompt,
       config: {
+        systemInstruction: "Você é um especialista em fisiologia do exercício focado em corrida de rua.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -67,16 +62,19 @@ export const generateTrainingPlan = async (
             },
             required: ["phase", "weekNumber", "workouts"],
           }
-        },
-        thinkingConfig: { thinkingBudget: 2000 }
-      }
+        }
+        // Removido thinkingConfig para evitar conflitos com responseSchema em chaves free
+      },
     });
 
     const text = response.text;
-    if (!text) throw new Error("Resposta da IA vazia.");
+    if (!text) throw new Error("A IA retornou uma resposta vazia.");
+    
     return JSON.parse(text) as TrainingWeek[];
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    throw new Error("Erro na comunicação com a IA. Verifique as quotas e a chave de API.");
+    console.error("Erro Detalhado Gemini:", error);
+    // Exibe o erro real para facilitar o diagnóstico
+    const errorMessage = error?.message || "Erro desconhecido";
+    throw new Error(`Falha na IA: ${errorMessage}. Verifique se sua chave tem acesso ao modelo Gemini 3 Flash.`);
   }
 };

@@ -38,15 +38,19 @@ export default function Dashboard() {
     totalVolumePlanned: 0
   };
 
-  const plan = currentAthleteId ? (athletePlans[currentAthleteId] || []) : [];
+  // Fix: Access .weeks from AthletePlan object and handle potential null/undefined
+  const athletePlan = currentAthleteId ? athletePlans[currentAthleteId] : null;
   // FILTRO RIGOROSO: Apenas o que está visível (Publicado)
-  const visibleWeeks = plan.filter(w => w.isVisible === true);
+  const visibleWeeks = athletePlan?.weeks?.filter(w => w.isVisible === true) || [];
   const nextWorkout = visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso');
 
   const allFeedbacks = athletes.flatMap(athlete => {
-    const athletePlan = athletePlans[athlete.id] || [];
+    // Fix: Access .weeks from AthletePlan and ensure it's an array before filtering
+    const aPlan = athletePlans[athlete.id];
+    if (!aPlan || !aPlan.weeks) return [];
+    
     // Feedbacks também respeitam visibilidade para o treinador ver o histórico real do que o atleta viu
-    return athletePlan.filter(w => w.isVisible === true).flatMap(week => (week.workouts || []).filter(w => w.completed && w.feedback).map(w => ({
+    return aPlan.weeks.filter(w => w.isVisible === true).flatMap(week => (week.workouts || []).filter(w => w.completed && w.feedback).map(w => ({
       athleteName: athlete.name,
       day: w.day,
       type: w.type,

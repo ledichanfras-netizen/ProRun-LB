@@ -15,7 +15,9 @@ import {
   Download,
   MessageSquare,
   Loader2,
-  Check
+  Check,
+  TrendingUp,
+  Sparkles
 } from 'lucide-react';
 import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
@@ -46,8 +48,9 @@ const AthletePortal: React.FC = () => {
     );
   }
 
-  const plan = athletePlans[activeAthlete.id] || [];
-  const visiblePlan = plan.filter(w => w.isVisible === true);
+  const athletePlan = athletePlans[activeAthlete.id];
+  const allWeeks = athletePlan?.weeks || [];
+  const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
   const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
 
   const handleDownloadPDF = async () => {
@@ -69,8 +72,6 @@ const AthletePortal: React.FC = () => {
     
     try {
       const newStatus = !selectedWorkout.data.completed;
-      
-      // Chamada assíncrona para o Context -> Firebase com safety timeout já implementado no AppContext
       await updateWorkoutStatus(
         activeAthlete.id, 
         selectedWorkout.weekIndex, 
@@ -79,21 +80,18 @@ const AthletePortal: React.FC = () => {
         feedbackText
       );
       
-      // Feedback visual de sucesso antes de fechar
       setSaveSuccess(true);
-      
-      // Aguarda um breve momento para o usuário ver o check verde antes de fechar o modal
+      // Fecha o modal e volta para a tela de treinos após curto delay
       setTimeout(() => {
         setSelectedWorkout(null);
         setFeedbackText('');
         setSaveSuccess(false);
         setIsSaving(false);
-      }, 800);
-
+      }, 700);
     } catch (err) {
       console.error("Erro ao salvar treino:", err);
       setIsSaving(false);
-      alert("Erro ao sincronizar. O treino foi salvo localmente e será enviado assim que a conexão estabilizar.");
+      alert("Erro ao sincronizar. Tente novamente.");
     }
   };
 
@@ -107,7 +105,7 @@ const AthletePortal: React.FC = () => {
   return (
     <div className="space-y-8 pb-20 relative animate-fade-in">
       {activeAthlete && portalRoot && createPortal(
-        <PrintLayout athlete={activeAthlete} plan={visiblePlan} paces={paces} goal={`VDOT ${activeAthlete.metrics.vdot}`} />,
+        <PrintLayout athlete={activeAthlete} plan={visibleWeeks} paces={paces} goal={athletePlan?.specificGoal || `Ciclo VDOT ${activeAthlete.metrics.vdot}`} />,
         portalRoot
       )}
 
@@ -118,33 +116,46 @@ const AthletePortal: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">{activeAthlete.name}</h1>
-            <p className="text-slate-500 text-sm font-bold uppercase tracking-widest italic">Performance Integrada</p>
+            <p className="text-emerald-600 text-xs font-black uppercase tracking-widest italic flex items-center gap-2">
+              <Sparkles className="w-3 h-3" /> {athletePlan?.specificGoal || 'Ciclo de Performance'}
+            </p>
           </div>
         </div>
         
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-          <button 
-            onClick={handleDownloadPDF} 
-            disabled={pdfLoading || visiblePlan.length === 0}
-            className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-          >
+          <button onClick={handleDownloadPDF} disabled={pdfLoading || visibleWeeks.length === 0} className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50">
             {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 text-emerald-200" />} 
             {pdfLoading ? 'GERANDO...' : 'PDF OFICIAL'}
           </button>
         </div>
       </header>
 
+      {athletePlan?.raceStrategy && (
+        <div className="bg-emerald-950 text-white p-6 rounded-3xl shadow-xl space-y-3 no-print">
+           <h3 className="font-black text-emerald-400 uppercase italic text-sm tracking-widest flex items-center gap-2">
+             <Trophy className="w-5 h-5" /> Estratégia da Prova Alvo
+           </h3>
+           <p className="text-sm font-medium italic text-emerald-50 leading-relaxed border-l-2 border-emerald-500 pl-4">
+             "{athletePlan.raceStrategy}"
+           </p>
+           {athletePlan.motivationalMessage && (
+             <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 text-right">
+                {athletePlan.motivationalMessage}
+             </p>
+           )}
+        </div>
+      )}
+
       <div className="no-print">
-        {visiblePlan.length === 0 ? (
+        {visibleWeeks.length === 0 ? (
           <div className="text-center py-32 bg-white rounded-3xl border-2 border-dashed border-slate-200">
              <Trophy className="w-16 h-16 text-slate-200 mx-auto mb-4 opacity-20" />
-             <p className="text-slate-400 font-black uppercase tracking-widest italic">Aguardando Liberação do Treino</p>
-             <p className="text-slate-300 text-sm italic">Seu treinador está ajustando seu próximo ciclo.</p>
+             <p className="text-slate-400 font-black uppercase tracking-widest italic">Treino em preparação...</p>
           </div>
         ) : (
           <div className="space-y-12">
-            {visiblePlan.map((week, wIdx) => {
-              const originalWeekIndex = plan.findIndex(p => p.weekNumber === week.weekNumber);
+            {visibleWeeks.map((week, wIdx) => {
+              const originalWeekIndex = allWeeks.findIndex(p => p.weekNumber === week.weekNumber);
               return (
                 <div key={wIdx} className="space-y-6 animate-fade-in-up" style={{ animationDelay: `${wIdx * 0.1}s` }}>
                   <div className="flex items-center gap-4 border-b pb-4">
@@ -152,7 +163,7 @@ const AthletePortal: React.FC = () => {
                       SEMANA {week.weekNumber} - {week.phase.toUpperCase()}
                     </span>
                     <span className="text-xs font-black text-slate-400 uppercase ml-auto flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-emerald-500" /> {week.totalVolume || 0} KM
+                      <TrendingUp className="w-4 h-4 text-emerald-500" /> {week.totalVolume || 0} KM TOTAL
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
@@ -169,11 +180,6 @@ const AthletePortal: React.FC = () => {
                           {workout.completed ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <Circle className="w-5 h-5 text-slate-300" />}
                         </div>
                         <h4 className="font-bold text-slate-800 text-[11px] leading-snug line-clamp-4 min-h-[3.5rem]">{workout.customDescription}</h4>
-                        {workout.distance > 0 && (
-                          <div className="mt-3 flex items-center gap-1.5 text-[9px] font-black text-slate-900 bg-slate-50 px-2 py-1 rounded-lg w-fit">
-                            <MapPin className="w-3 h-3 text-emerald-500" /> {workout.distance}KM
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -198,7 +204,6 @@ const AthletePortal: React.FC = () => {
               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center italic font-bold text-slate-800 shadow-inner">
                 "{selectedWorkout.data.customDescription}"
               </div>
-
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
                   <MessageSquare className="w-3 h-3 text-emerald-500" /> Feedback do Treino
@@ -207,12 +212,11 @@ const AthletePortal: React.FC = () => {
                   disabled={isSaving}
                   className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-emerald-500/10 focus:bg-white focus:border-emerald-500 outline-none transition-all resize-none italic shadow-sm"
                   rows={4}
-                  placeholder="Como foi o treino? Alguma dor ou cansaço excessivo?"
+                  placeholder="Como foi o treino?"
                   value={feedbackText}
                   onChange={e => setFeedbackText(e.target.value)}
                 />
               </div>
-
               <button 
                 onClick={handleToggleComplete} 
                 disabled={isSaving}
@@ -222,11 +226,11 @@ const AthletePortal: React.FC = () => {
               >
                 {isSaving ? (
                   <div className="flex items-center gap-2">
-                    {saveSuccess ? <Check className="w-5 h-5 animate-bounce" /> : <Loader2 className="w-5 h-5 animate-spin" />}
-                    <span>{saveSuccess ? 'SINCRONIZADO!' : 'SINCRONIZANDO...'}</span>
+                    {saveSuccess ? <Check className="w-5 h-5" /> : <Loader2 className="w-5 h-5 animate-spin" />}
+                    <span>{saveSuccess ? 'SALVO!' : 'SINCRONIZANDO...'}</span>
                   </div>
                 ) : (
-                  selectedWorkout.data.completed ? 'Desmarcar Conclusão' : 'Confirmar Treino Feito'
+                  selectedWorkout.data.completed ? 'Desmarcar' : 'Salvar Treino e Concluir'
                 )}
               </button>
             </div>

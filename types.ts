@@ -15,7 +15,6 @@ export interface Assessment {
   notes?: string;
 }
 
-// Added Workout interface for library management
 export interface Workout {
   id: string;
   title: string;
@@ -74,6 +73,13 @@ export interface TrainingWeek {
     completed?: boolean;
     feedback?: string; 
   }[];
+}
+
+export interface AthletePlan {
+  weeks: TrainingWeek[];
+  raceStrategy?: string;
+  motivationalMessage?: string;
+  specificGoal?: string; // Armazena a meta definida no momento da geração
 }
 
 export interface HistoryEntry {

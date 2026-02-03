@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment } from '../types';
+import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan } from '../types';
 import { db } from '../services/firebase';
 import { 
   collection, 
@@ -33,8 +33,8 @@ interface AppContextType {
   selectedAthleteId: string | null;
   setSelectedAthleteId: (id: string | null) => void;
   
-  athletePlans: Record<string, TrainingWeek[]>;
-  saveAthletePlan: (athleteId: string, plan: TrainingWeek[]) => Promise<void>;
+  athletePlans: Record<string, AthletePlan>;
+  saveAthletePlan: (athleteId: string, plan: AthletePlan) => Promise<void>;
   updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
@@ -56,8 +56,7 @@ const sanitizeData = (data: any): any => {
   ));
 };
 
-// Timeout aumentado para 15 segundos para evitar erros em conexões oscilantes
-const withTimeout = (promise: Promise<any>, ms: number = 15000) => {
+const withTimeout = (promise: Promise<any>, ms: number = 30000) => {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout de conexão")), ms))
@@ -75,7 +74,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
-  const [athletePlans, setAthletePlans] = useState<Record<string, TrainingWeek[]>>({});
+  const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -93,7 +92,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const athletesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
       setAthletes(athletesData);
       setIsLoading(false);
-    }, () => setIsLoading(false));
+    }, (error) => {
+      console.error("Firestore Error (Athletes):", error);
+      setIsLoading(false);
+    });
     return () => unsubscribe();
   }, []);
 
@@ -101,19 +103,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const unsubscribe = onSnapshot(collection(db, "workouts"), (snapshot) => {
       const workoutsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Workout));
       setWorkouts(workoutsData);
-    });
+    }, (error) => console.error("Firestore Error (Workouts):", error));
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "plans"), (snapshot) => {
-      const plansMap: Record<string, TrainingWeek[]> = {};
+      const plansMap: Record<string, AthletePlan> = {};
       snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        plansMap[doc.id] = (data.weeks || []) as TrainingWeek[];
+        plansMap[doc.id] = doc.data() as AthletePlan;
       });
       setAthletePlans(plansMap);
-    });
+    }, (error) => console.error("Firestore Error (Plans):", error));
     return () => unsubscribe();
   }, []);
 
@@ -164,65 +165,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addNewAssessment = async (athleteId: string, assessment: Assessment) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
-
     const newHistory = [assessment, ...(athlete.assessmentHistory || [])];
     const newFcMax = assessment.fcMax || athlete.metrics.fcMax;
     const newFcThreshold = assessment.fcThreshold || athlete.metrics.fcThreshold;
-
-    const updatedMetrics = {
-      ...athlete.metrics,
-      vdot: assessment.calculatedVdot,
-      fcMax: newFcMax,
-      fcThreshold: newFcThreshold
-    };
-
+    const updatedMetrics = { ...athlete.metrics, vdot: assessment.calculatedVdot, fcMax: newFcMax, fcThreshold: newFcThreshold };
     let updatedCustomZones = athlete.customZones;
     if (updatedCustomZones && updatedCustomZones.length > 0) {
-      updatedCustomZones = updatedCustomZones.map(zone => ({
-        ...zone,
-        heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax)
-      }));
+      updatedCustomZones = updatedCustomZones.map(zone => ({ ...zone, heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax) }));
     }
-
-    const updatePayload = {
-      assessmentHistory: newHistory,
-      metrics: updatedMetrics,
-      customZones: updatedCustomZones
-    };
-
+    const updatePayload = { assessmentHistory: newHistory, metrics: updatedMetrics, customZones: updatedCustomZones };
     await withTimeout(updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload)));
   };
 
   const updateAssessment = async (athleteId: string, updatedAssessment: Assessment) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
-
-    const newHistory = (athlete.assessmentHistory || []).map(ass => 
-      ass.id === updatedAssessment.id ? updatedAssessment : ass
-    );
-
+    const newHistory = (athlete.assessmentHistory || []).map(ass => ass.id === updatedAssessment.id ? updatedAssessment : ass);
     const isMostRecent = athlete.assessmentHistory?.[0]?.id === updatedAssessment.id;
     const updatePayload: any = { assessmentHistory: newHistory };
-
     if (isMostRecent) {
       const newFcMax = updatedAssessment.fcMax || athlete.metrics.fcMax;
       const newFcThreshold = updatedAssessment.fcThreshold || athlete.metrics.fcThreshold;
-
-      updatePayload.metrics = {
-        ...athlete.metrics,
-        vdot: updatedAssessment.calculatedVdot,
-        fcMax: newFcMax,
-        fcThreshold: newFcThreshold
-      };
-
+      updatePayload.metrics = { ...athlete.metrics, vdot: updatedAssessment.calculatedVdot, fcMax: newFcMax, fcThreshold: newFcThreshold };
       if (athlete.customZones && athlete.customZones.length > 0) {
-        updatePayload.customZones = athlete.customZones.map(zone => ({
-          ...zone,
-          heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax)
-        }));
+        updatePayload.customZones = athlete.customZones.map(zone => ({ ...zone, heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax) }));
       }
     }
-
     await withTimeout(updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload)));
   };
 
@@ -245,31 +213,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await withTimeout(deleteDoc(doc(db, "workouts", id)));
   };
 
-  const saveAthletePlan = async (athleteId: string, plan: TrainingWeek[]) => {
-    await withTimeout(setDoc(doc(db, "plans", athleteId), { weeks: sanitizeData(plan) }));
+  const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
+    await withTimeout(setDoc(doc(db, "plans", athleteId), sanitizeData(plan)));
   };
 
   const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string) => {
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
-    
-    const updatedPlan = [...currentPlan];
-    const updatedWeek = { ...updatedPlan[weekIndex] };
+    const updatedPlan = { ...currentPlan };
+    const updatedWeeks = [...updatedPlan.weeks];
+    const updatedWeek = { ...updatedWeeks[weekIndex] };
     const updatedWorkouts = [...updatedWeek.workouts];
-    
-    updatedWorkouts[dayIndex] = {
-      ...updatedWorkouts[dayIndex],
-      completed,
-      feedback: feedback || ""
-    };
-    
+    updatedWorkouts[dayIndex] = { ...updatedWorkouts[dayIndex], completed, feedback: feedback || "" };
     updatedWeek.workouts = updatedWorkouts;
-    updatedPlan[weekIndex] = updatedWeek;
-    
-    const docRef = doc(db, "plans", athleteId);
-    const dataToSave = { weeks: sanitizeData(updatedPlan) };
-
-    await withTimeout(setDoc(docRef, dataToSave, { merge: true }), 15000);
+    updatedWeeks[weekIndex] = updatedWeek;
+    updatedPlan.weeks = updatedWeeks;
+    await withTimeout(setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan), { merge: true }));
   };
 
   const generateTestAthletes = async () => {
@@ -290,13 +249,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const getAthleteMetrics = (athleteId: string) => {
-    const allWeeks = athletePlans[athleteId] || [];
+    const plan = athletePlans[athleteId];
+    const allWeeks = plan?.weeks || [];
     const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
     let totalWorkouts = 0;
     let completedWorkouts = 0;
     let totalVolumePlanned = 0;
     let totalVolumeCompleted = 0;
-    
     const history: HistoryEntry[] = visibleWeeks.map(week => {
       let weekPlanned = 0;
       let weekCompleted = 0;
@@ -312,7 +271,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       totalVolumeCompleted += weekCompleted;
       return { label: `Sem ${week.weekNumber}`, planned: weekPlanned, completed: weekCompleted };
     });
-    
     const completionRate = totalWorkouts === 0 ? 0 : Math.round((completedWorkouts / totalWorkouts) * 100);
     return { history, completionRate, totalVolumePlanned, totalVolumeCompleted };
   };

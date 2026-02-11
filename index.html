@@ -5,7 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="description" content="ProRun LB - Plataforma de Performance Integrada. Treinamento de corrida inteligente com IA, métricas VDOT e periodização profissional." />
-    <meta name="theme-color" content="#022c22" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#000000" />
     
     <!-- Open Graph / Social Media -->
     <meta property="og:type" content="website" />
@@ -91,5 +92,12 @@
     <div id="root"></div>
     <div id="printable-portal" aria-hidden="true"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js");
+      });
+    }
+    </script>
   </body>
 </html>

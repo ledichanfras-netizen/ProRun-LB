@@ -213,19 +213,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => {
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
+
+    // Validação de segurança para os índices
+    if (weekIndex < 0 || weekIndex >= currentPlan.weeks.length) {
+      throw new Error("Semana inválida.");
+    }
+
+    const targetWeek = currentPlan.weeks[weekIndex];
+    if (!targetWeek.workouts || dayIndex < 0 || dayIndex >= targetWeek.workouts.length) {
+      throw new Error("Treino inválido.");
+    }
+
     const updatedPlan = { ...currentPlan };
     const updatedWeeks = [...updatedPlan.weeks];
     const updatedWeek = { ...updatedWeeks[weekIndex] };
     const updatedWorkouts = [...updatedWeek.workouts];
+
     updatedWorkouts[dayIndex] = { 
       ...updatedWorkouts[dayIndex], 
       completed, 
       feedback: feedback || "",
       rpe: rpe !== undefined ? rpe : (updatedWorkouts[dayIndex].rpe || 0)
     };
+
     updatedWeek.workouts = updatedWorkouts;
     updatedWeeks[weekIndex] = updatedWeek;
     updatedPlan.weeks = updatedWeeks;
+
+    // Persistência no Firestore
     await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
   };
 

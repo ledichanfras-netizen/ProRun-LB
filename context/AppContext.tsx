@@ -81,6 +81,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [selectedAthleteId]);
 
   useEffect(() => {
+    if (!db) {
+      console.warn("Firestore 'db' não inicializado. Atletas não serão carregados.");
+      setIsLoading(false);
+      return;
+    }
     const unsubscribe = onSnapshot(collection(db, "athletes"), (snapshot) => {
       const athletesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
       setAthletes(athletesData);
@@ -93,6 +98,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
+    if (!db) return;
     const unsubscribe = onSnapshot(collection(db, "workouts"), (snapshot) => {
       const workoutsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Workout));
       setWorkouts(workoutsData);
@@ -101,6 +107,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
+    if (!db) return;
     const unsubscribe = onSnapshot(collection(db, "plans"), (snapshot) => {
       const plansMap: Record<string, AthletePlan> = {};
       snapshot.docs.forEach(doc => {
@@ -143,19 +150,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAthlete = async (athlete: Athlete) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete));
   };
   
   const updateAthlete = async (id: string, data: Partial<Athlete>) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await updateDoc(doc(db, "athletes", id), sanitizeData(data));
   };
 
   const deleteAthlete = async (id: string) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await deleteDoc(doc(db, "athletes", id));
     await deleteDoc(doc(db, "plans", id));
   };
 
   const addNewAssessment = async (athleteId: string, assessment: Assessment) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = [assessment, ...(athlete.assessmentHistory || [])];
@@ -171,6 +182,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateAssessment = async (athleteId: string, updatedAssessment: Assessment) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).map(ass => ass.id === updatedAssessment.id ? updatedAssessment : ass);
@@ -188,6 +200,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteAssessment = async (athleteId: string, assessmentId: string) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).filter(ass => ass.id !== assessmentId);
@@ -195,18 +208,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addWorkout = async (workout: Workout) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await setDoc(doc(db, "workouts", workout.id), sanitizeData(workout));
   };
 
   const updateLibraryWorkout = async (id: string, data: Partial<Workout>) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await updateDoc(doc(db, "workouts", id), sanitizeData(data));
   };
 
   const deleteLibraryWorkout = async (id: string) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await deleteDoc(doc(db, "workouts", id));
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await setDoc(doc(db, "plans", athleteId), sanitizeData(plan));
   };
 
@@ -241,6 +258,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updatedPlan.weeks = updatedWeeks;
 
     // Persistência no Firestore
+    if (!db) throw new Error("Firestore não inicializado.");
     await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
   };
 

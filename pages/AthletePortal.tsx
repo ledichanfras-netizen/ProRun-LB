@@ -63,8 +63,9 @@ const AthletePortal: React.FC = () => {
     try {
       const newStatus = !selectedWorkout.data.completed;
       
-      // Chamada persistente ao Firebase
-      await updateWorkoutStatus(
+      // Timeout de segurança: Se o Firebase demorar mais de 6 segundos,
+      // prosseguimos para não travar a UI do usuário, confiando no cache offline.
+      const savePromise = updateWorkoutStatus(
         activeAthlete.id, 
         selectedWorkout.weekIndex, 
         selectedWorkout.dayIndex, 
@@ -72,9 +73,26 @@ const AthletePortal: React.FC = () => {
         feedbackText,
         rpeValue
       );
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT_SYNC')), 6000)
+      );
+
+      // Race entre a gravação e o timeout
+      await Promise.race([savePromise, timeoutPromise]);
       
       setSaveSuccess(true);
-      
+    } catch (err: any) {
+      console.error("Erro ou Timeout ao salvar:", err);
+      if (err.message === 'TIMEOUT_SYNC') {
+        // No caso de timeout, consideramos "sucesso" para a UI,
+        // pois o Firebase continuará tentando sincronizar em background.
+        setSaveSuccess(true);
+      } else {
+        alert("Aviso: O treino será sincronizado assim que houver conexão.");
+        setSaveSuccess(true); // Mantemos a fluidez
+      }
+    } finally {
       // FECHAMENTO GARANTIDO: Resetamos o estado local e fechamos a janela após um breve feedback
       setTimeout(() => {
         setIsSaving(false);
@@ -82,12 +100,7 @@ const AthletePortal: React.FC = () => {
         setSelectedWorkout(null); // Fecha o modal
         setFeedbackText('');
         setRpeValue(0);
-      }, 800);
-
-    } catch (err) {
-      console.error("Erro ao salvar:", err);
-      alert("Erro de conexão. O treino foi salvo localmente e será sincronizado em breve.");
-      setIsSaving(false);
+      }, 1000);
     }
   };
 

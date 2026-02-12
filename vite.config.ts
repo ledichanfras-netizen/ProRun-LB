@@ -1,4 +1,3 @@
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -9,17 +8,19 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    define: {
-      // Importante: Isso substitui process.env.API_KEY no código pelo valor real no momento do build
-      'process.env.API_KEY': JSON.stringify(env.API_KEY || '')
-    },
+    // Removido o bloco 'define' para process.env pois o Vite recomenda import.meta.env
+    // e o uso de define estava causando falhas na injeção das chaves em produção.
     build: {
       outDir: 'dist',
       emptyOutDir: true,
-      sourcemap: false
+      sourcemap: false,
+      chunkSizeWarningLimit: 1000 // Aumentado para evitar alertas comuns em projetos com Recharts/Firebase
     },
     server: {
       port: 3000
+    },
+    preview: {
+      allowedHosts: ['.onrender.com'] // Permite subdomínios do Render no preview
     }
   };
 });

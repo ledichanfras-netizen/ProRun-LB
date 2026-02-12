@@ -14,7 +14,7 @@ export const generateTrainingPlan = async (
 ): Promise<AthletePlan> => {
   
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const modelName = "gemini-3-flash-preview";
+  const modelName = 'gemini-3-flash-preview';
 
   const paces = athlete.customZones || calculatePaces(athlete.metrics.vdot, athlete.metrics.fcThreshold, athlete.metrics.fcMax);
   const pacesContext = paces.map(p => {
@@ -28,26 +28,26 @@ export const generateTrainingPlan = async (
   }).join(", ");
 
   const raceInfo = raceDate 
-    ? `A prova de ${raceDistance} será no dia ${new Date(raceDate).toLocaleDateString('pt-BR')}. O plano deve terminar exatamente nesta data com a estratégia para o dia.` 
+    ? `A prova de ${raceDistance} será no dia ${new Date(raceDate).toLocaleDateString('pt-BR')}.` 
     : `Objetivo: ${raceDistance}.`;
 
   const prompt = `
-    Aja como um Treinador de Corrida de Elite.
+    Aja como um Treinador de Corrida de Elite (Metodologia VDOT).
     ATLETA: ${athlete.name} | NÍVEL: ${athlete.experience} | VDOT: ${athlete.metrics.vdot}.
-    REFERÊNCIA DE RITMOS: ${pacesContext}.
+    RITMOS ALVO PARA REFERÊNCIA: ${pacesContext}.
 
-    OBJETIVO: ${goalDescription}. ${raceInfo}.
-    DURAÇÃO: ${weeks} semanas.
+    ESTRUTURA SEMANAL OBRIGATÓRIA:
+    - Dias de Corrida: ${runningDays} dias.
+    - Dias de Academia (Fortalecimento): ${gymDays} dias.
+    - Total de Semanas: ${weeks}.
 
-    REGRAS DE NOMENCLATURA:
-    1. Use: "[Distância] em Ritmo [Sigla] ([Nome])".
-    2. Siglas: F (Fácil), M (Moderado), L (Limiar), I (Intervalado), V (Velocidade).
+    REGRAS DE PRESCRIÇÃO PARA O CAMPO 'customDescription':
+    1. Para CORRIDA: O campo 'customDescription' deve detalhar: [Aquecimento] + [Parte Principal com repetições e ritmos F, M, L, I ou V] + [Desaquecimento].
+    2. EXEMPLO CORRIDA: "15min F + 5x1000m em Ritmo I c/ 2min repouso caminhando + 10min F".
+    3. Para ACADEMIA: O campo 'customDescription' deve detalhar o foco (ex: "Fortalecimento Funcional: Foco em estabilidade de core e potência de membros inferiores").
+    4. Para DESCANSO: Use "Descanso Total (Day Off)".
 
-    ESTRATÉGIA DE PERIODIZAÇÃO:
-    - Termine o ciclo na data da prova com Polimento.
-    - No final do JSON, crie uma "raceStrategy" (como ele deve correr a prova baseada nos paces) e uma "motivationalMessage" curta.
-
-    Gere o JSON conforme o esquema definido.
+    OBJETIVO ADICIONAL: ${goalDescription}. ${raceInfo}.
   `;
 
   try {
@@ -55,8 +55,9 @@ export const generateTrainingPlan = async (
       model: modelName,
       contents: prompt,
       config: {
-        systemInstruction: "Você é um treinador focado em performance e ciência. Use terminologia F, M, L, I, V.",
+        systemInstruction: "Você é o Treinador Leandro Barbosa. Suas prescrições são técnicas e detalhadas.",
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 4000 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -77,16 +78,19 @@ export const generateTrainingPlan = async (
                       type: Type.OBJECT,
                       properties: {
                         day: { type: Type.STRING },
-                        type: { type: Type.STRING },
+                        type: { type: Type.STRING, enum: ["Regenerativo", "Longão", "Limiar", "Intervalado", "Fortalecimento", "Descanso"] },
                         customDescription: { type: Type.STRING },
                         distance: { type: Type.NUMBER }
-                      }
+                      },
+                      required: ["day", "type", "customDescription"]
                     }
                   }
-                }
+                },
+                required: ["phase", "weekNumber", "workouts"]
               }
             }
-          }
+          },
+          required: ["weeks", "raceStrategy"]
         }
       },
     });
@@ -95,6 +99,6 @@ export const generateTrainingPlan = async (
     return parsed as AthletePlan;
   } catch (error: any) {
     console.error("Erro Gemini:", error);
-    throw new Error(`IA Error: ${error?.message}`);
+    throw new Error(`Falha na IA: ${error?.message || "Erro desconhecido"}`);
   }
 };

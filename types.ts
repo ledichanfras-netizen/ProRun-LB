@@ -72,6 +72,7 @@ export interface TrainingWeek {
     distance?: number;
     completed?: boolean;
     feedback?: string; 
+    rpe?: number;
   }[];
 }
 
@@ -79,7 +80,7 @@ export interface AthletePlan {
   weeks: TrainingWeek[];
   raceStrategy?: string;
   motivationalMessage?: string;
-  specificGoal?: string; // Armazena a meta definida no momento da geração
+  specificGoal?: string; 
 }
 
 export interface HistoryEntry {

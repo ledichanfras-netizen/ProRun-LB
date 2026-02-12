@@ -35,7 +35,7 @@ interface AppContextType {
   
   athletePlans: Record<string, AthletePlan>;
   saveAthletePlan: (athleteId: string, plan: AthletePlan) => Promise<void>;
-  updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string) => Promise<void>;
+  updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
     history: HistoryEntry[], 
@@ -54,13 +54,6 @@ const sanitizeData = (data: any): any => {
   return JSON.parse(JSON.stringify(data, (key, value) => 
     value === undefined ? null : value
   ));
-};
-
-const withTimeout = (promise: Promise<any>, ms: number = 30000) => {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout de conexão")), ms))
-  ]);
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -150,16 +143,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAthlete = async (athlete: Athlete) => {
-    await withTimeout(setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete)));
+    await setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete));
   };
   
   const updateAthlete = async (id: string, data: Partial<Athlete>) => {
-    await withTimeout(updateDoc(doc(db, "athletes", id), sanitizeData(data)));
+    await updateDoc(doc(db, "athletes", id), sanitizeData(data));
   };
 
   const deleteAthlete = async (id: string) => {
-    await withTimeout(deleteDoc(doc(db, "athletes", id)));
-    await withTimeout(deleteDoc(doc(db, "plans", id)));
+    await deleteDoc(doc(db, "athletes", id));
+    await deleteDoc(doc(db, "plans", id));
   };
 
   const addNewAssessment = async (athleteId: string, assessment: Assessment) => {
@@ -174,7 +167,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updatedCustomZones = updatedCustomZones.map(zone => ({ ...zone, heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax) }));
     }
     const updatePayload = { assessmentHistory: newHistory, metrics: updatedMetrics, customZones: updatedCustomZones };
-    await withTimeout(updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload)));
+    await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
   };
 
   const updateAssessment = async (athleteId: string, updatedAssessment: Assessment) => {
@@ -191,44 +184,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updatePayload.customZones = athlete.customZones.map(zone => ({ ...zone, heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax) }));
       }
     }
-    await withTimeout(updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload)));
+    await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
   };
 
   const deleteAssessment = async (athleteId: string, assessmentId: string) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).filter(ass => ass.id !== assessmentId);
-    await withTimeout(updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory })));
+    await updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory }));
   };
 
   const addWorkout = async (workout: Workout) => {
-    await withTimeout(setDoc(doc(db, "workouts", workout.id), sanitizeData(workout)));
+    await setDoc(doc(db, "workouts", workout.id), sanitizeData(workout));
   };
 
   const updateLibraryWorkout = async (id: string, data: Partial<Workout>) => {
-    await withTimeout(updateDoc(doc(db, "workouts", id), sanitizeData(data)));
+    await updateDoc(doc(db, "workouts", id), sanitizeData(data));
   };
 
   const deleteLibraryWorkout = async (id: string) => {
-    await withTimeout(deleteDoc(doc(db, "workouts", id)));
+    await deleteDoc(doc(db, "workouts", id));
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
-    await withTimeout(setDoc(doc(db, "plans", athleteId), sanitizeData(plan)));
+    await setDoc(doc(db, "plans", athleteId), sanitizeData(plan));
   };
 
-  const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string) => {
+  const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => {
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
     const updatedPlan = { ...currentPlan };
     const updatedWeeks = [...updatedPlan.weeks];
     const updatedWeek = { ...updatedWeeks[weekIndex] };
     const updatedWorkouts = [...updatedWeek.workouts];
-    updatedWorkouts[dayIndex] = { ...updatedWorkouts[dayIndex], completed, feedback: feedback || "" };
+    updatedWorkouts[dayIndex] = { 
+      ...updatedWorkouts[dayIndex], 
+      completed, 
+      feedback: feedback || "",
+      rpe: rpe !== undefined ? rpe : (updatedWorkouts[dayIndex].rpe || 0)
+    };
     updatedWeek.workouts = updatedWorkouts;
     updatedWeeks[weekIndex] = updatedWeek;
     updatedPlan.weeks = updatedWeeks;
-    await withTimeout(setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan), { merge: true }));
+    await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
   };
 
   const generateTestAthletes = async () => {
@@ -245,7 +243,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       assessmentHistory: []
     };
     await addAthlete(testAthlete);
-    alert("Atleta de teste criado!");
   };
 
   const getAthleteMetrics = (athleteId: string) => {

@@ -1,13 +1,8 @@
 
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
-/**
- * Configuração do Firebase.
- * O erro 'unavailable' geralmente indica bloqueio de WebSockets ou falta de conectividade.
- * Forçamos o Long Polling para garantir compatibilidade máxima.
- */
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY || process.env.API_KEY,
   authDomain: "prorun-lb.firebaseapp.com",
@@ -18,11 +13,11 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
 export const auth = getAuth(app);
 
-// Configuração robusta para evitar o status 'Sincronizando...' infinito
-// Corrigido: Removido 'useFetchStreams' que não existe no tipo FirestoreSettings do SDK modular v9+
+// Inicializa o Firestore com cache persistente para evitar timeouts e permitir uso offline
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
 });

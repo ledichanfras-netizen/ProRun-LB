@@ -80,7 +80,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     else localStorage.removeItem('proRun_selectedAthleteId');
   }, [selectedAthleteId]);
 
+  // Failsafe para o estado de carregamento
   useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoading) {
+        console.warn("Failsafe: Finalizando carregamento por timeout.");
+        setIsLoading(false);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (!db) {
+      console.warn("Firestore 'db' não inicializado. Atletas não serão carregados.");
+      setIsLoading(false);
+      return;
+    }
     const unsubscribe = onSnapshot(collection(db, "athletes"), (snapshot) => {
       const athletesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
       setAthletes(athletesData);
@@ -93,6 +109,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
+    if (!db) return;
     const unsubscribe = onSnapshot(collection(db, "workouts"), (snapshot) => {
       const workoutsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Workout));
       setWorkouts(workoutsData);
@@ -101,6 +118,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
+    if (!db) return;
     const unsubscribe = onSnapshot(collection(db, "plans"), (snapshot) => {
       const plansMap: Record<string, AthletePlan> = {};
       snapshot.docs.forEach(doc => {
@@ -143,19 +161,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAthlete = async (athlete: Athlete) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete));
   };
   
   const updateAthlete = async (id: string, data: Partial<Athlete>) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await updateDoc(doc(db, "athletes", id), sanitizeData(data));
   };
 
   const deleteAthlete = async (id: string) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await deleteDoc(doc(db, "athletes", id));
     await deleteDoc(doc(db, "plans", id));
   };
 
   const addNewAssessment = async (athleteId: string, assessment: Assessment) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = [assessment, ...(athlete.assessmentHistory || [])];
@@ -171,6 +193,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateAssessment = async (athleteId: string, updatedAssessment: Assessment) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).map(ass => ass.id === updatedAssessment.id ? updatedAssessment : ass);
@@ -188,6 +211,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteAssessment = async (athleteId: string, assessmentId: string) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).filter(ass => ass.id !== assessmentId);
@@ -195,38 +219,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addWorkout = async (workout: Workout) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await setDoc(doc(db, "workouts", workout.id), sanitizeData(workout));
   };
 
   const updateLibraryWorkout = async (id: string, data: Partial<Workout>) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await updateDoc(doc(db, "workouts", id), sanitizeData(data));
   };
 
   const deleteLibraryWorkout = async (id: string) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await deleteDoc(doc(db, "workouts", id));
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
+    if (!db) throw new Error("Firestore não inicializado.");
     await setDoc(doc(db, "plans", athleteId), sanitizeData(plan));
   };
 
   const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => {
-    const currentPlan = athletePlans[athleteId];
-    if (!currentPlan) throw new Error("Plano inexistente.");
-    const updatedPlan = { ...currentPlan };
-    const updatedWeeks = [...updatedPlan.weeks];
-    const updatedWeek = { ...updatedWeeks[weekIndex] };
-    const updatedWorkouts = [...updatedWeek.workouts];
-    updatedWorkouts[dayIndex] = { 
-      ...updatedWorkouts[dayIndex], 
-      completed, 
-      feedback: feedback || "",
-      rpe: rpe !== undefined ? rpe : (updatedWorkouts[dayIndex].rpe || 0)
-    };
-    updatedWeek.workouts = updatedWorkouts;
-    updatedWeeks[weekIndex] = updatedWeek;
-    updatedPlan.weeks = updatedWeeks;
-    await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
+    try {
+      const currentPlan = athletePlans[athleteId];
+      if (!currentPlan) throw new Error("Plano inexistente.");
+
+      // Validação de segurança para os índices
+      if (weekIndex < 0 || weekIndex >= currentPlan.weeks.length) {
+        throw new Error("Semana inválida.");
+      }
+
+      const targetWeek = currentPlan.weeks[weekIndex];
+      if (!targetWeek.workouts || dayIndex < 0 || dayIndex >= targetWeek.workouts.length) {
+        throw new Error("Treino inválido.");
+      }
+
+      const updatedPlan = { ...currentPlan };
+      const updatedWeeks = [...updatedPlan.weeks];
+      const updatedWeek = { ...updatedWeeks[weekIndex] };
+      const updatedWorkouts = [...updatedWeek.workouts];
+
+      updatedWorkouts[dayIndex] = {
+        ...updatedWorkouts[dayIndex],
+        completed,
+        feedback: feedback || "",
+        rpe: rpe !== undefined ? rpe : (updatedWorkouts[dayIndex].rpe || 0)
+      };
+
+      updatedWeek.workouts = updatedWorkouts;
+      updatedWeeks[weekIndex] = updatedWeek;
+      updatedPlan.weeks = updatedWeeks;
+
+      // Persistência no Firestore
+      if (!db) throw new Error("Firestore não inicializado.");
+      await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
+    } catch (error) {
+      console.error("Erro em updateWorkoutStatus:", error);
+      throw error; // Re-throw para o chamador tratar, mas agora está logado
+    }
   };
 
   const generateTestAthletes = async () => {

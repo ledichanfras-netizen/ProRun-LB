@@ -191,17 +191,25 @@ const Assessments: React.FC = () => {
       setIsSavingZones(true);
       try {
         await updateAthlete(activeAthlete.id, { customZones: editablePaces });
+        setIsEditingZones(false);
+      } catch (err) {
+        console.error("Erro ao salvar zonas:", err);
+        alert("Erro ao salvar zonas personalizadas.");
       } finally {
         setIsSavingZones(false);
-        setIsEditingZones(false);
       }
     }
   };
 
   const handleResetZones = async () => {
     if (activeAthlete && window.confirm('Remover zonas personalizadas e voltar ao cálculo automático?')) {
-      await updateAthlete(activeAthlete.id, { customZones: undefined });
-      setIsEditingZones(false);
+      try {
+        await updateAthlete(activeAthlete.id, { customZones: undefined });
+        setIsEditingZones(false);
+      } catch (err) {
+        console.error("Erro ao resetar zonas:", err);
+        alert("Erro ao resetar zonas.");
+      }
     }
   };
 

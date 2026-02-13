@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
@@ -17,13 +18,15 @@ import {
   Check,
   TrendingUp,
   Sparkles,
-  Zap
+  Zap,
+  Flag
 } from 'lucide-react';
 import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 
 const AthletePortal: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus } = useApp();
+  const navigate = useNavigate();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
   
@@ -53,6 +56,11 @@ const AthletePortal: React.FC = () => {
   const allWeeks = athletePlan?.weeks || [];
   const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
   const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
+
+  // Determina se o treino selecionado é o último do ciclo para o feedback especial
+  const isFinalWorkout = selectedWorkout && 
+    selectedWorkout.weekIndex === (allWeeks.length - 1) && 
+    (selectedWorkout.data.type === 'Longão' || selectedWorkout.data.customDescription?.toLowerCase().includes('prova'));
 
   const handleToggleComplete = async () => {
     if (!selectedWorkout || !activeAthlete || isSaving) return;
@@ -88,6 +96,7 @@ const AthletePortal: React.FC = () => {
     } finally {
       // FECHAMENTO GARANTIDO: Resetamos e fechamos após um breve delay para feedback visual
       setTimeout(() => {
+        setSelectedWorkout(null); 
         setIsSaving(false);
         setSaveSuccess(false);
         setSelectedWorkout(null);
@@ -114,7 +123,7 @@ const AthletePortal: React.FC = () => {
   };
 
   const getRPELabel = (val: number) => {
-    const labels = ["Não avaliado", "Muito Leve", "Leve", "Moderado", "Um pouco Forte", "Forte", "Muito Forte", "Exaustivo", "Quase Máximo", "Máximo", "Exaustão Total"];
+    const labels = ["Não avaliado", "Muito Leve", "Leve", "Leve/Moderado", "Moderado", "Moderado/Forte", "Muito Forte", "Exaustivo", "Quase Máximo", "Máximo", "Exaustão Total"];
     return labels[val] || "Selecione";
   };
 
@@ -138,8 +147,13 @@ const AthletePortal: React.FC = () => {
           </div>
         </div>
         
-        <button onClick={() => exportToImage('print-layout-root', `Planilha_${activeAthlete.name}`)} disabled={exportLoading || visibleWeeks.length === 0} className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase italic tracking-widest shadow-xl transition-all flex items-center justify-center gap-3">
-          <ImageIcon className="w-4 h-4 text-emerald-200" /> BAIXAR IMAGEM
+        <button 
+          onClick={() => exportToImage('print-layout-root', `Planilha_${activeAthlete.name}`)} 
+          disabled={exportLoading || visibleWeeks.length === 0} 
+          className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase italic tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+        >
+          {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-emerald-200" />} 
+          BAIXAR IMAGEM
         </button>
       </header>
 
@@ -169,20 +183,22 @@ const AthletePortal: React.FC = () => {
                         key={dIdx} 
                         onClick={() => openWorkoutModal(originalWeekIndex, dIdx, workout)} 
                         className={`p-5 rounded-[1.5rem] cursor-pointer hover:shadow-2xl transition-all border-2 flex flex-col justify-between h-full min-h-[160px]
-                          ${workout.completed ? 'grayscale opacity-60 border-emerald-100 bg-emerald-50' : 'bg-white shadow-md border-slate-100 hover:border-emerald-300'}
+                          ${workout.completed ? 'border-emerald-500 bg-emerald-50 shadow-inner' : 'bg-white shadow-md border-slate-100 hover:border-emerald-300'}
                         `}
                       >
                         <div>
                           <div className="flex justify-between items-start mb-3">
                             <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">{workout.day.split('-')[0]}</span>
-                            {workout.completed ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <Circle className="w-5 h-5 text-slate-300" />}
+                            {workout.completed ? <CheckCircle className="w-5 h-5 text-emerald-600 drop-shadow-sm" /> : <Circle className="w-5 h-5 text-slate-300" />}
                           </div>
-                          <h4 className="font-bold text-slate-800 text-[11px] leading-snug line-clamp-3 mb-2 uppercase italic tracking-tighter">{workout.type || 'Treino'}</h4>
+                          <h4 className={`font-bold text-[11px] leading-snug line-clamp-3 mb-2 uppercase italic tracking-tighter ${workout.completed ? 'text-emerald-900' : 'text-slate-800'}`}>
+                            {workout.type || 'Treino'}
+                          </h4>
                         </div>
                         
-                        <div className="mt-3 flex items-center justify-between border-t pt-3 border-slate-50">
+                        <div className={`mt-3 flex items-center justify-between border-t pt-3 ${workout.completed ? 'border-emerald-100' : 'border-slate-50'}`}>
                              {workout.distance && workout.distance > 0 ? (
-                                <span className="text-[10px] font-black text-emerald-950 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 italic">
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border italic ${workout.completed ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-emerald-50 text-emerald-950 border-emerald-100'}`}>
                                   {workout.distance} KM
                                 </span>
                              ) : <span className="text-[10px] font-black text-slate-300 uppercase italic">OFF</span>}
@@ -190,7 +206,7 @@ const AthletePortal: React.FC = () => {
                           {workout.completed && (
                             <div className="flex items-center gap-1">
                                <Zap className={`w-3 h-3 ${getRPEColor(workout.rpe || 0)}`} />
-                               <span className="text-[9px] font-black text-slate-700">PSE {workout.rpe || '-'}</span>
+                               <span className="text-[9px] font-black text-emerald-800">PSE {workout.rpe || '-'}</span>
                             </div>
                           )}
                         </div>
@@ -207,25 +223,35 @@ const AthletePortal: React.FC = () => {
       {selectedWorkout && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md no-print" onClick={() => !isSaving && setSelectedWorkout(null)}>
           <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
-            <div className="p-6 md:p-8 border-b bg-slate-50 flex justify-between items-start flex-shrink-0">
+            <div className={`p-6 md:p-8 border-b flex justify-between items-start flex-shrink-0 ${isFinalWorkout ? 'bg-emerald-950 text-white' : 'bg-slate-50'}`}>
                <div className="flex flex-col">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">{selectedWorkout.data.day}</span>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 italic ${isFinalWorkout ? 'text-emerald-400' : 'text-slate-400'}`}>{selectedWorkout.data.day}</span>
                   <div className="flex items-center gap-3">
-                    <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">{selectedWorkout.data.type || 'Treino'}</h3>
+                    <h3 className="text-2xl font-black uppercase italic tracking-tighter">{isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}</h3>
                     {selectedWorkout.data.distance > 0 && (
-                      <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-xl text-[11px] font-black italic border border-emerald-200">
+                      <span className={`${isFinalWorkout ? 'bg-emerald-500/20 border-emerald-500/30 text-white' : 'bg-emerald-100 text-emerald-700 border-emerald-200'} px-3 py-1 rounded-xl text-[11px] font-black italic border`}>
                         {selectedWorkout.data.distance} KM
                       </span>
                     )}
                   </div>
                </div>
-               <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className="p-3 bg-slate-200/50 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
+               <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200/50 hover:bg-slate-200'}`}><X className="w-5 h-5" /></button>
             </div>
             
             <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
-              <div className="bg-emerald-50/30 p-6 rounded-3xl border border-emerald-100 text-center italic font-bold text-emerald-950 shadow-sm leading-relaxed">
+              <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white' : 'bg-emerald-50/30 border-emerald-100 text-emerald-950'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
                 "{selectedWorkout.data.customDescription}"
               </div>
+
+              {isFinalWorkout && (
+                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex items-center gap-4">
+                   <Trophy className="w-10 h-10 text-amber-500 flex-shrink-0" />
+                   <div>
+                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Missão Cumprida!</p>
+                      <p className="text-xs font-bold text-amber-900 italic">Chegou a hora. Relate cada detalhe da sua conquista abaixo.</p>
+                   </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
@@ -253,21 +279,20 @@ const AthletePortal: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <div className="flex justify-between px-1">
-                   <span className="text-[8px] font-black text-emerald-600 uppercase">Muito Leve</span>
-                   <span className="text-[8px] font-black text-red-600 uppercase">Esforço Máximo</span>
-                </div>
               </div>
 
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-emerald-500" /> Feedback do Treino
+                  {isFinalWorkout ? <Flag className="w-4 h-4 text-emerald-500" /> : <MessageSquare className="w-4 h-4 text-emerald-500" />} 
+                  {isFinalWorkout ? 'Relatório de Prova (Tempo, Sensação e Metas)' : 'Feedback do Treino'}
                 </label>
                 <textarea 
                   disabled={isSaving}
-                  className="w-full p-5 bg-slate-50 border border-slate-200 rounded-[1.5rem] text-sm font-medium focus:ring-4 focus:ring-emerald-500/10 focus:bg-white focus:border-emerald-500 outline-none transition-all resize-none italic"
-                  rows={4}
-                  placeholder="Ex: Me senti forte, ritmo controlado..."
+                  className={`w-full p-5 border rounded-[1.5rem] text-sm font-medium focus:ring-4 focus:ring-emerald-500/10 focus:bg-white focus:border-emerald-500 outline-none transition-all resize-none italic shadow-sm
+                    ${isFinalWorkout ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}
+                  `}
+                  rows={isFinalWorkout ? 6 : 4}
+                  placeholder={isFinalWorkout ? "Descreva como foi a prova. Bateu seu tempo alvo? Como se sentiu no trecho final? Está pronto para o próximo objetivo?" : "Ex: Me senti bem! Ritmo confortável..."}
                   value={feedbackText}
                   onChange={e => setFeedbackText(e.target.value)}
                 />
@@ -278,17 +303,17 @@ const AthletePortal: React.FC = () => {
               <button 
                 onClick={handleToggleComplete} 
                 disabled={isSaving}
-                className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 
+                className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 
                   ${saveSuccess ? 'bg-emerald-500 text-white' : 'bg-emerald-950 text-white hover:bg-black active:scale-95'} 
                   disabled:opacity-50`}
               >
                 {isSaving ? (
                   <div className="flex items-center gap-3">
-                    {saveSuccess ? <Check className="w-6 h-6" /> : <Loader2 className="w-6 h-6 animate-spin" />}
-                    <span>{saveSuccess ? 'CONCLUÍDO!' : 'SINCRONIZANDO...'}</span>
+                    {saveSuccess ? <Check className="w-6 h-6 animate-fade-in" /> : <Loader2 className="w-6 h-6 animate-spin" />}
+                    <span>{saveSuccess ? 'SINCRONIZADO!' : 'SINCRONIZANDO...'}</span>
                   </div>
                 ) : (
-                  selectedWorkout.data.completed ? 'Desmarcar Treino' : 'Finalizar e Salvar'
+                  selectedWorkout.data.completed ? 'DESMARCAR CONCLUÍDO' : (isFinalWorkout ? 'FINALIZAR CICLO E PROVA' : 'CONCLUIR TREINO')
                 )}
               </button>
             </div>

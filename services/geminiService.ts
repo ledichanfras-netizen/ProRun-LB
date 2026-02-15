@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Athlete, AthletePlan } from "../types";
 import { calculatePaces } from "../utils/calculations";
@@ -13,8 +12,16 @@ export const generateTrainingPlan = async (
   raceDate?: string
 ): Promise<AthletePlan> => {
   
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const modelName = 'gemini-3-flash-preview';
+  // Fix: Use import.meta.env for Vite environment variables
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Erro na IA: Chave de API (GEMINI_API_KEY) não configurada no ambiente.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  // Fix: Use a valid model name
+  const modelName = 'gemini-1.5-flash';
 
   const paces = athlete.customZones || calculatePaces(athlete.metrics.vdot, athlete.metrics.fcThreshold, athlete.metrics.fcMax);
   const pacesContext = paces.map(p => {
@@ -57,7 +64,7 @@ export const generateTrainingPlan = async (
       config: {
         systemInstruction: "Você é o Treinador Leandro Barbosa. Suas prescrições são técnicas e detalhadas.",
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 4000 },
+        // remove thinkingConfig as gemini-1.5-flash doesn't support it or it's not needed here
         responseSchema: {
           type: Type.OBJECT,
           properties: {

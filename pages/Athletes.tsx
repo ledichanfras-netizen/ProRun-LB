@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Athlete, ExperienceLevel } from '../types';
-import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info, ChevronDown } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info, ChevronDown, RefreshCw } from 'lucide-react';
 
 const Athletes: React.FC = () => {
   const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId, generateTestAthletes } = useApp();
@@ -14,6 +14,8 @@ const Athletes: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showLevelGuide, setShowLevelGuide] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   // Delete Modal State
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
@@ -28,40 +30,48 @@ const Athletes: React.FC = () => {
     a.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
     
-    // Calculate age from birthDate if provided
-    let calculatedAge = formData.age;
-    if (formData.birthDate) {
-      const birth = new Date(formData.birthDate);
-      const today = new Date();
-      let age = today.getFullYear() - birth.getFullYear();
-      const m = today.getMonth() - birth.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-        age--;
+    try {
+      // Calculate age from birthDate if provided
+      let calculatedAge = formData.age;
+      if (formData.birthDate) {
+        const birth = new Date(formData.birthDate);
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+          age--;
+        }
+        calculatedAge = age;
       }
-      calculatedAge = age;
-    }
 
-    const dataToSave = { ...formData, age: calculatedAge };
+      const dataToSave = { ...formData, age: calculatedAge };
 
-    if (editingId) {
-      updateAthlete(editingId, dataToSave);
-    } else {
-      if (dataToSave.name) {
-        addAthlete({
-          ...dataToSave as Athlete,
-          id: crypto.randomUUID(),
-          metrics: { vdot: 30, test3kTime: '00:00' },
-          assessmentHistory: []
-        });
+      if (editingId) {
+        await updateAthlete(editingId, dataToSave);
+      } else {
+        if (dataToSave.name) {
+          await addAthlete({
+            ...dataToSave as Athlete,
+            id: crypto.randomUUID(),
+            metrics: { vdot: 30, test3kTime: '00:00' },
+            assessmentHistory: []
+          });
+        }
       }
+
+      setIsFormOpen(false);
+      setEditingId(null);
+      setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '' });
+    } catch (err: any) {
+      console.error("Erro ao salvar atleta:", err);
+      alert("Falha ao salvar atleta. Verifique a conexão.");
+    } finally {
+      setIsSaving(false);
     }
-    
-    setIsFormOpen(false);
-    setEditingId(null);
-    setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '' });
   };
 
   const handleEditClick = (athlete: Athlete) => {
@@ -82,8 +92,13 @@ const Athletes: React.FC = () => {
     }
   };
 
-  const handleLevelChange = (athleteId: string, level: ExperienceLevel) => {
-    updateAthlete(athleteId, { experience: level });
+  const handleLevelChange = async (athleteId: string, level: ExperienceLevel) => {
+    try {
+      await updateAthlete(athleteId, { experience: level });
+    } catch (err) {
+      console.error("Erro ao trocar nível:", err);
+      alert("Erro ao atualizar nível.");
+    }
   };
 
   return (
@@ -146,10 +161,23 @@ const Athletes: React.FC = () => {
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <button 
-            onClick={generateTestAthletes}
-            className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest transition shadow-sm border border-emerald-200"
+            onClick={async () => {
+              setIsGenerating(true);
+              try {
+                await generateTestAthletes();
+                alert("Atletas de teste gerados!");
+              } catch (err) {
+                console.error("Erro ao gerar testes:", err);
+                alert("Erro de conexão ao gerar testes.");
+              } finally {
+                setIsGenerating(false);
+              }
+            }}
+            disabled={isGenerating}
+            className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest transition shadow-sm border border-emerald-200 disabled:opacity-50"
           >
-            <UserPlus className="w-4 h-4" /> GERAR TESTES
+            {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            {isGenerating ? 'GERANDO...' : 'GERAR TESTES'}
           </button>
           <button 
             onClick={() => {
@@ -266,9 +294,10 @@ const Athletes: React.FC = () => {
               />
             </div>
             <div className="md:col-span-3 flex justify-end gap-4 mt-6">
-              <button type="button" onClick={() => setIsFormOpen(false)} className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-slate-600 transition">CANCELAR</button>
-              <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105">
-                {editingId ? '✓ ATUALIZAR DADOS' : '✓ SALVAR ATLETA'}
+              <button type="button" disabled={isSaving} onClick={() => setIsFormOpen(false)} className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-slate-600 transition">CANCELAR</button>
+              <button type="submit" disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105 disabled:opacity-50 flex items-center gap-2">
+                {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : '✓'}
+                {isSaving ? 'SALVANDO...' : (editingId ? 'ATUALIZAR DADOS' : 'SALVAR ATLETA')}
               </button>
             </div>
           </form>

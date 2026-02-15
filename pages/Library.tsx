@@ -17,19 +17,24 @@ const Library: React.FC = () => {
     title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (editingId) {
-      updateLibraryWorkout(editingId, formWorkout);
-    } else {
-      addWorkout({ ...formWorkout as Workout, id: crypto.randomUUID() });
+    try {
+      if (editingId) {
+        await updateLibraryWorkout(editingId, formWorkout);
+      } else {
+        await addWorkout({ ...formWorkout as Workout, id: crypto.randomUUID() });
+      }
+
+      // Reset
+      setShowForm(false);
+      setEditingId(null);
+      setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
+    } catch (err) {
+      console.error("Erro ao salvar treino:", err);
+      alert("Erro ao salvar treino na biblioteca.");
     }
-    
-    // Reset
-    setShowForm(false);
-    setEditingId(null);
-    setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
   };
 
   const handleEdit = (workout: Workout) => {

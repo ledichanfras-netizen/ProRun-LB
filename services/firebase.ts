@@ -3,6 +3,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getAuth } from 'firebase/auth';
 
 // Configuração robusta para Vite e Render.com
+// As chaves devem estar no Render.com com o prefixo VITE_
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY || "",
   authDomain: import.meta.env.VITE_AUTH_DOMAIN || "prorun-lb.firebaseapp.com",
@@ -11,6 +12,11 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID || "458712548963",
   appId: import.meta.env.VITE_APP_ID || "1:458712548963:web:7f8e9a0b1c2d3e4f5"
 };
+
+// Validação mínima para evitar crash em inicialização
+if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "") {
+  console.error("Firebase Error: VITE_API_KEY não encontrada nas variáveis de ambiente.");
+}
 
 let app: any = null;
 let auth: any = null;

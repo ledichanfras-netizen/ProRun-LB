@@ -17,7 +17,12 @@ export interface WorkoutPlan {
 class AIService {
   async generateWorkout(params: WorkoutParams): Promise<WorkoutPlan> {
     // Fix: Use import.meta.env for Vite compatibility
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY || "";
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
+
+    if (!apiKey) {
+      throw new Error("Chave de API da IA não encontrada.");
+    }
+
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `Crie um plano de exercícios de fortalecimento funcional para o corredor ${params.studentName}. Nível: ${params.fitnessLevel}. Objetivo: ${params.primaryGoal}. Tempo disponível: ${params.sessionTime} minutos por sessão.`;
     

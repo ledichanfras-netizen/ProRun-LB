@@ -14,6 +14,11 @@ export const generateTrainingPlan = async (
   
   // Fix: Use import.meta.env for Vite environment variables
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Erro na IA: Chave de API (GEMINI_API_KEY) não configurada no ambiente.");
+  }
+
   const ai = new GoogleGenAI({ apiKey });
   // Fix: Use a valid model name
   const modelName = 'gemini-1.5-flash';

@@ -34,27 +34,25 @@ export const generateTrainingPlan = async (
     return `${sigla}: Pace ${p.minPace}-${p.maxPace}`;
   }).join(", ");
 
-  const raceInfo = raceDate 
-    ? `A prova de ${raceDistance} será no dia ${new Date(raceDate).toLocaleDateString('pt-BR')}.` 
-    : `Objetivo: ${raceDistance}.`;
+  const raceWeekday = raceDate 
+    ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(raceDate))
+    : 'Domingo';
 
   const prompt = `
     Aja como um Treinador de Corrida de Elite (Metodologia VDOT).
     ATLETA: ${athlete.name} | NÍVEL: ${athlete.experience} | VDOT: ${athlete.metrics.vdot}.
-    RITMOS ALVO PARA REFERÊNCIA: ${pacesContext}.
+    RITMOS ALVO: ${pacesContext}.
 
-    ESTRUTURA SEMANAL OBRIGATÓRIA:
-    - Dias de Corrida: ${runningDays} dias.
-    - Dias de Academia (Fortalecimento): ${gymDays} dias.
-    - Total de Semanas: ${weeks}.
+    DISTRIBUIÇÃO DE CALENDÁRIO:
+    1. O treino do tipo "Longão" deve ser realizado OBRIGATORIAMENTE aos DOMINGOS.
+    2. A PROVA ALVO de ${raceDistance} deve ser o último evento da última semana, preferencialmente no domingo (ou na data: ${raceWeekday}).
 
-    REGRAS DE PRESCRIÇÃO PARA O CAMPO 'customDescription':
-    1. Para CORRIDA: O campo 'customDescription' deve detalhar: [Aquecimento] + [Parte Principal com repetições e ritmos F, M, L, I ou V] + [Desaquecimento].
-    2. EXEMPLO CORRIDA: "15min F + 5x1000m em Ritmo I c/ 2min repouso caminhando + 10min F".
-    3. Para ACADEMIA: O campo 'customDescription' deve detalhar o foco (ex: "Fortalecimento Funcional: Foco em estabilidade de core e potência de membros inferiores").
-    4. Para DESCANSO: Use "Descanso Total (Day Off)".
+    INSTRUÇÕES DE FINAL DE CICLO (POLIMENTO / TAPERING):
+    1. ÚLTIMA SEMANA: Redução drástica de volume (60%). Foco em frescor físico e ativações neurais curtas.
+    2. ORIENTAÇÃO DE FEEDBACK FINAL: No treino da PROVA ALVO, encerre a descrição com: "PARABÉNS! Após cruzar a linha de chegada, use o campo de feedback para descrever como foi sua prova, se atingiu seus objetivos de tempo e como se sentiu. Isso é essencial para planejarmos seu próximo desafio!"
 
-    OBJETIVO ADICIONAL: ${goalDescription}. ${raceInfo}.
+    ESTRATÉGIA DE PROVA (campo raceStrategy):
+    - Detalhe a divisão de esforço para ${raceDistance} (Ex: Split Negativo, hidratação a cada 3km, ritmo inicial e final).
   `;
 
   try {
@@ -62,7 +60,7 @@ export const generateTrainingPlan = async (
       model: modelName,
       contents: prompt,
       config: {
-        systemInstruction: "Você é o Treinador Leandro Barbosa. Suas prescrições são técnicas e detalhadas.",
+        systemInstruction: `Você é o Treinador Leandro Barbosa. Especialista em Periodização. O objetivo é levar o atleta ao pico de forma no domingo da prova. Priorize Longões aos domingos.`,
         responseMimeType: "application/json",
         // remove thinkingConfig as gemini-1.5-flash doesn't support it or it's not needed here
         responseSchema: {

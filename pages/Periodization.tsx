@@ -20,7 +20,8 @@ import {
   EyeOff,
   Dumbbell,
   Activity,
-  CalendarDays
+  CalendarDays,
+  Flag
 } from 'lucide-react';
 import { calculatePaces } from '../utils/calculations';
 
@@ -109,14 +110,14 @@ const Periodization: React.FC = () => {
              return {
                ...found,
                day: dayName,
-               customDescription: found.customDescription || "Treino sem descrição detalhada pela IA."
+               customDescription: found.customDescription || "Treino sem descrição detalhada."
              };
            }
            
            return { 
              day: dayName, 
              type: 'Descanso' as WorkoutType, 
-             customDescription: 'Descanso total (Day Off).', 
+             customDescription: 'Descanso total.', 
              distance: 0
            };
         });
@@ -126,14 +127,14 @@ const Periodization: React.FC = () => {
       const newPlan: AthletePlan = {
         ...generated,
         weeks: normalizedWeeks,
-        specificGoal: raceGoal || `${raceDistance} | Foco Performance`
+        specificGoal: raceGoal || `${raceDistance} | Performance`
       };
 
       setFullPlan(newPlan);
       saveAthletePlan(activeAthlete.id, newPlan);
       setIsEditing(true);
     } catch (e: any) {
-      alert("Erro ao gerar prescrição: " + e.message);
+      alert("Erro na IA: " + e.message);
     } finally {
       setLoading(false);
     }
@@ -182,9 +183,9 @@ const Periodization: React.FC = () => {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
-            <Sparkles className="text-emerald-600 w-6 h-6" /> Periodização IA
+            <Sparkles className="text-emerald-600 w-6 h-6" /> Ciclo de Performance
           </h1>
-          <p className="text-slate-500 font-medium italic text-sm">Prescrição técnica baseada em VDOT e frequência semanal.</p>
+          <p className="text-slate-500 font-medium italic text-sm">IA treinada para polimento (tapering) e estratégia de prova.</p>
         </div>
         
         <div className="flex gap-2 w-full md:w-auto">
@@ -206,7 +207,7 @@ const Periodization: React.FC = () => {
       {!activeAthlete ? (
          <div className="bg-white p-16 rounded-3xl text-center border-2 border-dashed border-slate-200">
             <AlertCircle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500 font-black uppercase text-xs tracking-widest">Selecione um atleta para começar</p>
+            <p className="text-slate-500 font-black uppercase text-xs tracking-widest">Aguardando seleção de atleta...</p>
           </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
@@ -214,13 +215,13 @@ const Periodization: React.FC = () => {
             <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 space-y-5">
               <div className="flex items-center justify-between border-b pb-2">
                 <Target className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-black text-[10px] uppercase tracking-widest text-slate-400">Configurações do Ciclo</h3>
+                <h3 className="font-black text-[10px] uppercase tracking-widest text-slate-400">Parâmetros do Ciclo</h3>
               </div>
               
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Dias Corrida</label>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Corrida (Semana)</label>
                     <div className="relative">
                       <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-emerald-500" />
                       <select className="w-full bg-slate-50 border-none rounded-xl pl-8 pr-3 py-3 text-sm font-bold outline-none" value={runningDays} onChange={e => setRunningDays(Number(e.target.value))}>
@@ -229,7 +230,7 @@ const Periodization: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Dias Academia</label>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Força (Semana)</label>
                     <div className="relative">
                       <Dumbbell className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-purple-500" />
                       <select className="w-full bg-slate-50 border-none rounded-xl pl-8 pr-3 py-3 text-sm font-bold outline-none" value={gymDays} onChange={e => setGymDays(Number(e.target.value))}>
@@ -245,8 +246,8 @@ const Periodization: React.FC = () => {
                     <select className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold outline-none" value={raceDistance} onChange={e => setRaceDistance(e.target.value)}>
                       <option value="5km">5km</option>
                       <option value="10km">10km</option>
-                      <option value="21km">Meia Maratona</option>
-                      <option value="42km">Maratona</option>
+                      <option value="21km">21km</option>
+                      <option value="42km">42km</option>
                     </select>
                   </div>
                   <div>
@@ -255,7 +256,7 @@ const Periodization: React.FC = () => {
                     {raceDate && (
                       <div className="mt-1 flex items-center gap-1.5 text-emerald-600 animate-fade-in">
                         <CalendarDays className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-black uppercase tracking-tighter italic">Total: {weeks} Semanas de Ciclo</span>
+                        <span className="text-[10px] font-black uppercase tracking-tighter italic">{weeks} Semanas Restantes</span>
                       </div>
                     )}
                   </div>
@@ -263,19 +264,29 @@ const Periodization: React.FC = () => {
 
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Meta Específica</label>
-                  <input type="text" className="w-full bg-emerald-50 border-none rounded-xl p-3 text-xs font-bold text-emerald-900 outline-none" placeholder="Ex: Sub 50min" value={raceGoal} onChange={e => setRaceGoal(e.target.value)} />
+                  <input type="text" className="w-full bg-emerald-50 border-none rounded-xl p-3 text-xs font-bold text-emerald-900 outline-none" placeholder="Ex: Sub 45min" value={raceGoal} onChange={e => setRaceGoal(e.target.value)} />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Notas do Treinador</label>
-                  <textarea className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-medium outline-none resize-none" rows={4} placeholder="Instruções para a IA..." value={goalDescription} onChange={e => setGoalDescription(e.target.value)} />
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Direcionamento da IA</label>
+                  <textarea className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-medium outline-none resize-none" rows={4} placeholder="Ex: Atleta saindo de lesão, priorizar rodagem..." value={goalDescription} onChange={e => setGoalDescription(e.target.value)} />
                 </div>
 
                 <button onClick={handleGenerate} disabled={loading || !raceDate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
-                  {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} {loading ? 'GERANDO PLANILHA...' : 'Gerar com IA'}
+                  {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} {loading ? 'PROCESSANDO...' : 'Gerar Planilha'}
                 </button>
               </div>
             </div>
+            
+            {fullPlan?.raceStrategy && (
+              <div className="bg-emerald-950 p-6 rounded-3xl shadow-xl text-white border border-emerald-800 animate-fade-in">
+                 <div className="flex items-center gap-2 mb-4 border-b border-emerald-800 pb-2">
+                   <Flag className="w-4 h-4 text-emerald-400" />
+                   <h3 className="font-black text-[10px] uppercase tracking-widest">Estratégia de Prova IA</h3>
+                 </div>
+                 <p className="text-[11px] leading-relaxed italic opacity-90">{fullPlan.raceStrategy}</p>
+              </div>
+            )}
           </div>
 
           <div className="xl:col-span-3 space-y-8">
@@ -311,12 +322,11 @@ const Periodization: React.FC = () => {
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none transition-all" 
                                 value={workout.customDescription || ''} 
                                 onChange={e => updateWorkout(weekIndex, dayIndex, 'customDescription', e.target.value)} 
-                                rows={4}
-                                placeholder="Descreva o treino detalhadamente..."
+                                rows={2}
                               />
                             ) : (
                               <p className={`text-sm font-bold leading-relaxed whitespace-pre-line ${workout.type === 'Descanso' ? 'text-slate-400 italic' : 'text-slate-700'}`}>
-                                {workout.customDescription || "Treino sem descrição."}
+                                {workout.customDescription || "Sessão sem descrição."}
                               </p>
                             )}
                           </div>
@@ -325,7 +335,7 @@ const Periodization: React.FC = () => {
                               <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
                                 <input 
                                   type="number"
-                                  step="0.5"
+                                  step="0.1"
                                   className="w-16 bg-transparent text-right font-black text-slate-900 text-sm outline-none"
                                   value={workout.distance || 0}
                                   onChange={e => updateWorkout(weekIndex, dayIndex, 'distance', parseFloat(e.target.value) || 0)}
@@ -347,7 +357,7 @@ const Periodization: React.FC = () => {
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-100">
                 <Target className="w-12 h-12 mb-4 opacity-10" />
-                <p className="font-bold text-sm uppercase tracking-widest italic">Aguardando definição do ciclo...</p>
+                <p className="font-bold text-sm uppercase tracking-widest italic">Nenhum ciclo ativo.</p>
               </div>
             )}
           </div>

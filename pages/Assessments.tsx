@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../contexts/AppContext';
 import { calculateVO2, calculatePaces } from '../utils/calculations';
 import { TrainingPace, Assessment } from '../types';
 import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
@@ -191,25 +191,17 @@ const Assessments: React.FC = () => {
       setIsSavingZones(true);
       try {
         await updateAthlete(activeAthlete.id, { customZones: editablePaces });
-        setIsEditingZones(false);
-      } catch (err) {
-        console.error("Erro ao salvar zonas:", err);
-        alert("Erro ao salvar zonas personalizadas.");
       } finally {
         setIsSavingZones(false);
+        setIsEditingZones(false);
       }
     }
   };
 
   const handleResetZones = async () => {
     if (activeAthlete && window.confirm('Remover zonas personalizadas e voltar ao cálculo automático?')) {
-      try {
-        await updateAthlete(activeAthlete.id, { customZones: undefined });
-        setIsEditingZones(false);
-      } catch (err) {
-        console.error("Erro ao resetar zonas:", err);
-        alert("Erro ao resetar zonas.");
-      }
+      await updateAthlete(activeAthlete.id, { customZones: undefined });
+      setIsEditingZones(false);
     }
   };
 

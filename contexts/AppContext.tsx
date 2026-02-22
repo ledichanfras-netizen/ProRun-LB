@@ -211,33 +211,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => {
-    console.log(`Atualizando status: Atleta=${athleteId}, Semana=${weekIndex}, Dia=${dayIndex}`);
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
-    
     const updatedPlan = { ...currentPlan };
     const updatedWeeks = [...updatedPlan.weeks];
     const updatedWeek = { ...updatedWeeks[weekIndex] };
     const updatedWorkouts = [...updatedWeek.workouts];
-    
     updatedWorkouts[dayIndex] = { 
       ...updatedWorkouts[dayIndex], 
       completed, 
       feedback: feedback || "",
       rpe: rpe !== undefined ? rpe : (updatedWorkouts[dayIndex].rpe || 0)
     };
-    
     updatedWeek.workouts = updatedWorkouts;
     updatedWeeks[weekIndex] = updatedWeek;
     updatedPlan.weeks = updatedWeeks;
-    
-    try {
-      await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
-      console.log("Status atualizado com sucesso no Firestore");
-    } catch (error) {
-      console.error("Erro ao atualizar status no Firestore:", error);
-      throw error;
-    }
+    await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
   };
 
   const generateTestAthletes = async () => {

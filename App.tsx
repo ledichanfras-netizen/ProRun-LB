@@ -1,7 +1,7 @@
 
 import React, { Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AppProvider, useApp } from './context/AppContext';
+import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
 
 // Lazy loading das páginas para performance

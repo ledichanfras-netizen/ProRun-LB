@@ -57,7 +57,6 @@ const AthletePortal: React.FC = () => {
   const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
   const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
 
-  // Determina se o treino selecionado é o último do ciclo para o feedback especial
   const isFinalWorkout = selectedWorkout && 
     selectedWorkout.weekIndex === (allWeeks.length - 1) && 
     (selectedWorkout.data.type === 'Longão' || selectedWorkout.data.customDescription?.toLowerCase().includes('prova'));
@@ -71,9 +70,7 @@ const AthletePortal: React.FC = () => {
     try {
       const newStatus = !selectedWorkout.data.completed;
       
-      // Execução da atualização com timeout de 5 segundos
-      // Se estourar o timeout, prosseguimos para não travar o usuário (offline-first)
-      const savePromise = updateWorkoutStatus(
+      await updateWorkoutStatus(
         activeAthlete.id, 
         selectedWorkout.weekIndex, 
         selectedWorkout.dayIndex, 
@@ -81,28 +78,24 @@ const AthletePortal: React.FC = () => {
         feedbackText,
         rpeValue
       );
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('TIMEOUT')), 5000)
-      );
-
-      await Promise.race([savePromise, timeoutPromise]);
+      
       setSaveSuccess(true);
-    } catch (err: any) {
-      console.warn("Update workout status - Handled exception or timeout:", err);
-      // Mesmo com erro/timeout, damos feedback de sucesso ao usuário para não travar a tela
-      // O Firestore cuidará da sincronização em background.
-      setSaveSuccess(true);
-    } finally {
-      // FECHAMENTO GARANTIDO: Resetamos e fechamos após um breve delay para feedback visual
+      
+      // Aguarda um pouco para mostrar o feedback visual de sucesso
       setTimeout(() => {
         setSelectedWorkout(null); 
         setIsSaving(false);
         setSaveSuccess(false);
-        setSelectedWorkout(null);
         setFeedbackText('');
         setRpeValue(0);
+        // Removido navigate('/') para manter o atleta no portal e ver o progresso
       }, 800);
+
+    } catch (err) {
+      console.error("Erro ao salvar:", err);
+      alert("Erro ao sincronizar. Verifique sua conexão com o banco de dados.");
+      setIsSaving(false);
+      setSaveSuccess(false);
     }
   };
 
@@ -130,7 +123,13 @@ const AthletePortal: React.FC = () => {
   return (
     <div className="space-y-8 pb-20 relative animate-fade-in">
       {activeAthlete && athletePlan && portalRoot && createPortal(
-        <PrintLayout athlete={activeAthlete} plan={visibleWeeks} paces={paces} goal={athletePlan.specificGoal || 'Ciclo de Performance'} />,
+        <PrintLayout 
+          athlete={activeAthlete} 
+          plan={visibleWeeks} 
+          paces={paces} 
+          goal={athletePlan.specificGoal || 'Ciclo de Performance'} 
+          totalWeeks={allWeeks.length}
+        />,
         portalRoot
       )}
 
@@ -183,20 +182,24 @@ const AthletePortal: React.FC = () => {
                         key={dIdx} 
                         onClick={() => openWorkoutModal(originalWeekIndex, dIdx, workout)} 
                         className={`p-5 rounded-[1.5rem] cursor-pointer hover:shadow-2xl transition-all border-2 flex flex-col justify-between h-full min-h-[160px]
-                          ${workout.completed ? 'border-emerald-500 bg-emerald-50 shadow-inner' : 'bg-white shadow-md border-slate-100 hover:border-emerald-300'}
+                          ${workout.completed ? 'border-emerald-500 bg-emerald-50/50' : 'bg-white shadow-md border-slate-100 hover:border-emerald-300'}
                         `}
                       >
                         <div>
                           <div className="flex justify-between items-start mb-3">
                             <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">{workout.day.split('-')[0]}</span>
-                            {workout.completed ? <CheckCircle className="w-5 h-5 text-emerald-600 drop-shadow-sm" /> : <Circle className="w-5 h-5 text-slate-300" />}
+                            {workout.completed ? (
+                              <CheckCircle className="w-6 h-6 text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                            ) : (
+                              <Circle className="w-6 h-6 text-slate-200" />
+                            )}
                           </div>
-                          <h4 className={`font-bold text-[11px] leading-snug line-clamp-3 mb-2 uppercase italic tracking-tighter ${workout.completed ? 'text-emerald-900' : 'text-slate-800'}`}>
+                          <h4 className={`font-bold text-[11px] leading-snug line-clamp-3 mb-2 uppercase italic tracking-tighter ${workout.completed ? 'text-emerald-900 opacity-70' : 'text-slate-800'}`}>
                             {workout.type || 'Treino'}
                           </h4>
                         </div>
                         
-                        <div className={`mt-3 flex items-center justify-between border-t pt-3 ${workout.completed ? 'border-emerald-100' : 'border-slate-50'}`}>
+                        <div className={`mt-3 flex items-center justify-between border-t pt-3 ${workout.completed ? 'border-emerald-200' : 'border-slate-50'}`}>
                              {workout.distance && workout.distance > 0 ? (
                                 <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border italic ${workout.completed ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-emerald-50 text-emerald-950 border-emerald-100'}`}>
                                   {workout.distance} KM
@@ -228,11 +231,6 @@ const AthletePortal: React.FC = () => {
                   <span className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 italic ${isFinalWorkout ? 'text-emerald-400' : 'text-slate-400'}`}>{selectedWorkout.data.day}</span>
                   <div className="flex items-center gap-3">
                     <h3 className="text-2xl font-black uppercase italic tracking-tighter">{isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}</h3>
-                    {selectedWorkout.data.distance > 0 && (
-                      <span className={`${isFinalWorkout ? 'bg-emerald-500/20 border-emerald-500/30 text-white' : 'bg-emerald-100 text-emerald-700 border-emerald-200'} px-3 py-1 rounded-xl text-[11px] font-black italic border`}>
-                        {selectedWorkout.data.distance} KM
-                      </span>
-                    )}
                   </div>
                </div>
                <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200/50 hover:bg-slate-200'}`}><X className="w-5 h-5" /></button>
@@ -242,16 +240,6 @@ const AthletePortal: React.FC = () => {
               <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white' : 'bg-emerald-50/30 border-emerald-100 text-emerald-950'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
                 "{selectedWorkout.data.customDescription}"
               </div>
-
-              {isFinalWorkout && (
-                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex items-center gap-4">
-                   <Trophy className="w-10 h-10 text-amber-500 flex-shrink-0" />
-                   <div>
-                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Missão Cumprida!</p>
-                      <p className="text-xs font-bold text-amber-900 italic">Chegou a hora. Relate cada detalhe da sua conquista abaixo.</p>
-                   </div>
-                </div>
-              )}
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
@@ -282,17 +270,11 @@ const AthletePortal: React.FC = () => {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
-                  {isFinalWorkout ? <Flag className="w-4 h-4 text-emerald-500" /> : <MessageSquare className="w-4 h-4 text-emerald-500" />} 
-                  {isFinalWorkout ? 'Relatório de Prova (Tempo, Sensação e Metas)' : 'Feedback do Treino'}
-                </label>
                 <textarea 
                   disabled={isSaving}
-                  className={`w-full p-5 border rounded-[1.5rem] text-sm font-medium focus:ring-4 focus:ring-emerald-500/10 focus:bg-white focus:border-emerald-500 outline-none transition-all resize-none italic shadow-sm
-                    ${isFinalWorkout ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}
-                  `}
-                  rows={isFinalWorkout ? 6 : 4}
-                  placeholder={isFinalWorkout ? "Descreva como foi a prova. Bateu seu tempo alvo? Como se sentiu no trecho final? Está pronto para o próximo objetivo?" : "Ex: Me senti bem! Ritmo confortável..."}
+                  className="w-full p-5 border border-slate-200 rounded-[1.5rem] text-sm font-medium focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all resize-none italic shadow-sm bg-slate-50"
+                  rows={4}
+                  placeholder="Relate sensações, dores ou conquistas..."
                   value={feedbackText}
                   onChange={e => setFeedbackText(e.target.value)}
                 />
@@ -313,7 +295,7 @@ const AthletePortal: React.FC = () => {
                     <span>{saveSuccess ? 'SINCRONIZADO!' : 'SINCRONIZANDO...'}</span>
                   </div>
                 ) : (
-                  selectedWorkout.data.completed ? 'DESMARCAR CONCLUÍDO' : (isFinalWorkout ? 'FINALIZAR CICLO E PROVA' : 'CONCLUIR TREINO')
+                  selectedWorkout.data.completed ? 'DESMARCAR CONCLUÍDO' : 'CONCLUIR TREINO'
                 )}
               </button>
             </div>

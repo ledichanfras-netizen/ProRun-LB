@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../contexts/AppContext';
 import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info } from 'lucide-react';
 
 export default function Login() {
@@ -14,32 +14,18 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
-
     setLoading(true);
     setError(null);
-
     try {
-      // Implementação de timeout para o login (5 segundos)
-      const loginPromise = login(username, password);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('TIMEOUT')), 5000)
-      );
-
-      const result = (await Promise.race([loginPromise, timeoutPromise])) as { success: boolean; message?: string };
-
+      const result = await login(username, password);
       if (result.success) {
         navigate('/');
       } else {
         setError(result.message || "Credenciais incorretas.");
       }
     } catch (err: any) {
-      console.error("Erro no login:", err);
-      if (err.message === 'TIMEOUT') {
-        setError("O servidor demorou a responder. Verifique sua conexão e tente novamente.");
-      } else {
-        setError("Ocorreu um erro ao tentar acessar o sistema.");
-      }
+      setError("Ocorreu um erro ao tentar acessar.");
+      console.error(err);
     } finally {
       setLoading(false);
     }

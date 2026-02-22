@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Athlete, AthletePlan } from "../types";
 import { calculatePaces } from "../utils/calculations";
@@ -9,19 +10,12 @@ export const generateTrainingPlan = async (
   runningDays: number,
   gymDays: number,
   raceDistance: string,
-  raceDate?: string
+  raceDate?: string,
+  raceGoal?: string
 ): Promise<AthletePlan> => {
   
-  // Fix: Use import.meta.env for Vite environment variables
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Erro na IA: Chave de API (GEMINI_API_KEY) não configurada no ambiente.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-  // Fix: Use a valid model name
-  const modelName = 'gemini-1.5-flash';
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const modelName = 'gemini-3-flash-preview';
 
   const paces = athlete.customZones || calculatePaces(athlete.metrics.vdot, athlete.metrics.fcThreshold, athlete.metrics.fcMax);
   const pacesContext = paces.map(p => {
@@ -41,18 +35,21 @@ export const generateTrainingPlan = async (
   const prompt = `
     Aja como um Treinador de Corrida de Elite (Metodologia VDOT).
     ATLETA: ${athlete.name} | NÍVEL: ${athlete.experience} | VDOT: ${athlete.metrics.vdot}.
+    META ESPECÍFICA: ${raceGoal || raceDistance} na distância de ${raceDistance}.
+    DURAÇÃO DO CICLO: ${weeks} semanas.
+    FREQUÊNCIA: ${runningDays} dias de corrida e ${gymDays} dias de fortalecimento/academia por semana.
+    CONTEXTO ADICIONAL: ${goalDescription}.
     RITMOS ALVO: ${pacesContext}.
 
-    DISTRIBUIÇÃO DE CALENDÁRIO:
-    1. O treino do tipo "Longão" deve ser realizado OBRIGATORIAMENTE aos DOMINGOS.
-    2. A PROVA ALVO de ${raceDistance} deve ser o último evento da última semana, preferencialmente no domingo (ou na data: ${raceWeekday}).
+    REGRAS DE OURO DA PERIODIZAÇÃO:
+    1. A PROVA ALVO (${raceDistance}) é o evento FINAL absoluto do plano, na semana ${weeks}, no dia: ${raceWeekday}.
+    2. O treino "Longão" deve ser OBRIGATORIAMENTE aos DOMINGOS.
+    3. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.
+    4. DISTRIBUIÇÃO: Distribua os ${runningDays} treinos de corrida e ${gymDays} de academia de forma equilibrada. Não coloque treinos intensos em dias seguidos.
+    5. POLIMENTO: A última semana deve ter uma redução drástica de volume (Tapering) para chegar descansado na prova.
 
-    INSTRUÇÕES DE FINAL DE CICLO (POLIMENTO / TAPERING):
-    1. ÚLTIMA SEMANA: Redução drástica de volume (60%). Foco em frescor físico e ativações neurais curtas.
-    2. ORIENTAÇÃO DE FEEDBACK FINAL: No treino da PROVA ALVO, encerre a descrição com: "PARABÉNS! Após cruzar a linha de chegada, use o campo de feedback para descrever como foi sua prova, se atingiu seus objetivos de tempo e como se sentiu. Isso é essencial para planejarmos seu próximo desafio!"
-
-    ESTRATÉGIA DE PROVA (campo raceStrategy):
-    - Detalhe a divisão de esforço para ${raceDistance} (Ex: Split Negativo, hidratação a cada 3km, ritmo inicial e final).
+    ESTRATÉGIA DE PROVA (raceStrategy):
+    - Detalhe o plano de ritmos e tática para atingir a meta "${raceGoal}".
   `;
 
   try {
@@ -60,9 +57,9 @@ export const generateTrainingPlan = async (
       model: modelName,
       contents: prompt,
       config: {
-        systemInstruction: `Você é o Treinador Leandro Barbosa. Especialista em Periodização. O objetivo é levar o atleta ao pico de forma no domingo da prova. Priorize Longões aos domingos.`,
+        systemInstruction: "Você é o Treinador Leandro Barbosa. Especialista em Performance Humana. Suas planilhas são precisas e respeitam as restrições de tempo de vida do atleta. Você sempre termina a periodização no dia da prova.",
         responseMimeType: "application/json",
-        // remove thinkingConfig as gemini-1.5-flash doesn't support it or it's not needed here
+        thinkingConfig: { thinkingBudget: 4000 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -104,6 +101,6 @@ export const generateTrainingPlan = async (
     return parsed as AthletePlan;
   } catch (error: any) {
     console.error("Erro Gemini:", error);
-    throw new Error(`Falha na IA: ${error?.message || "Erro desconhecido"}`);
+    throw new Error(`IA Falhou: ${error?.message || "Erro desconhecido"}`);
   }
 };

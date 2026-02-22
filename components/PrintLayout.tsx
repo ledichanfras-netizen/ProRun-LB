@@ -21,9 +21,10 @@ interface PrintLayoutProps {
   plan: TrainingWeek[];
   paces: TrainingPace[];
   goal: string; 
+  totalWeeks?: number;
 }
 
-export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, goal }) => {
+export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, goal, totalWeeks }) => {
   const daysOrder = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
 
   const getFullWeek = (workouts: any[]) => {
@@ -86,7 +87,7 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
             <div className="h-12 w-[1px] bg-white/10"></div>
             <div className="text-center">
               <p className="text-[8px] uppercase font-black text-emerald-400 mb-1 tracking-[0.2em] opacity-80">Ciclo Total</p>
-              <p className="font-black text-4xl leading-none italic text-white tracking-tighter uppercase">{plan.length}<span className="text-[12px] ml-1">Sem</span></p>
+              <p className="font-black text-4xl leading-none italic text-white tracking-tighter uppercase">{totalWeeks || plan.length}<span className="text-[12px] ml-1">Sem</span></p>
             </div>
          </div>
       </div>

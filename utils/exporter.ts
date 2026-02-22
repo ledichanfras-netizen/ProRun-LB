@@ -1,5 +1,5 @@
 
-import html2canvas from 'https://esm.sh/html2canvas@1.4.1';
+import html2canvas from 'html2canvas';
 
 /**
  * Exporta um elemento HTML para Imagem JPEG com alta fidelidade.

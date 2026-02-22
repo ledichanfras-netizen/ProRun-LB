@@ -13,7 +13,7 @@ import {
   UserCheck,
   LogOut
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../contexts/AppContext';
 
 interface LayoutProps {
   children: React.ReactNode;

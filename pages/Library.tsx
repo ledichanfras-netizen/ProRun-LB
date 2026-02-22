@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../contexts/AppContext';
 import { Workout } from '../types';
 import { Book, Plus, Clock, Zap, Info, Trash2, Edit2, Save, X, AlertTriangle } from 'lucide-react';
 
@@ -17,24 +17,19 @@ const Library: React.FC = () => {
     title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    try {
-      if (editingId) {
-        await updateLibraryWorkout(editingId, formWorkout);
-      } else {
-        await addWorkout({ ...formWorkout as Workout, id: crypto.randomUUID() });
-      }
-
-      // Reset
-      setShowForm(false);
-      setEditingId(null);
-      setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
-    } catch (err) {
-      console.error("Erro ao salvar treino:", err);
-      alert("Erro ao salvar treino na biblioteca.");
+    if (editingId) {
+      updateLibraryWorkout(editingId, formWorkout);
+    } else {
+      addWorkout({ ...formWorkout as Workout, id: crypto.randomUUID() });
     }
+    
+    // Reset
+    setShowForm(false);
+    setEditingId(null);
+    setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
   };
 
   const handleEdit = (workout: Workout) => {

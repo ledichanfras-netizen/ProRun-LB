@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Users, 
@@ -23,6 +23,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const { athletes, selectedAthleteId, userRole, logout } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
 

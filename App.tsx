@@ -34,7 +34,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="h-full">
       <Suspense fallback={<LoadingFallback />}>
         {userRole ? (
           <Layout>

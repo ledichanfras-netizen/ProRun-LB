@@ -51,7 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   if (!userRole) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900">
+    <div className="h-full bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900">
       {/* Mobile Header */}
       <div className="md:hidden bg-emerald-950 text-white p-4 flex justify-between items-center sticky top-0 z-20 shadow-lg no-print">
         <div className="flex items-center gap-2">
@@ -121,7 +121,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-screen">
+      <main className="flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-full">
         <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
           {children}
         </div>

@@ -27,13 +27,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth || !auth.app) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
         try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data());
+          if (db) {
+            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+            if (userDoc.exists()) {
+              setUserData(userDoc.data());
+            }
           }
         } catch (error) {
           console.error("Erro ao carregar dados do usuário:", error);
@@ -49,10 +56,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    if (!auth || !auth.app) {
+      throw new Error("Firebase não configurado.");
+    }
     await signInWithEmailAndPassword(auth, email, password);
   };
 
   const register = async (email: string, password: string, additionalData: any) => {
+    if (!auth || !auth.app) {
+      throw new Error("Firebase não configurado.");
+    }
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     const newUser = credential.user;
     
@@ -63,11 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...additionalData
     };
 
-    await setDoc(doc(db, 'users', newUser.uid), userPayload);
+    if (db) {
+      await setDoc(doc(db, 'users', newUser.uid), userPayload);
+    }
     setUserData(userPayload);
   };
 
   const logout = async () => {
+    if (!auth || !auth.app) return;
     await signOut(auth);
   };
 

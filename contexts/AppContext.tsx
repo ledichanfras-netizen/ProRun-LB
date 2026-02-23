@@ -81,6 +81,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [selectedAthleteId]);
 
   useEffect(() => {
+    if (!db) {
+      setIsLoading(false);
+      return;
+    }
     const unsubscribe = onSnapshot(collection(db, "athletes"), (snapshot) => {
       const athletesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
       setAthletes(athletesData);
@@ -93,6 +97,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
+    if (!db) return;
     const unsubscribe = onSnapshot(collection(db, "workouts"), (snapshot) => {
       const workoutsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Workout));
       setWorkouts(workoutsData);
@@ -101,6 +106,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
+    if (!db) return;
     const unsubscribe = onSnapshot(collection(db, "plans"), (snapshot) => {
       const plansMap: Record<string, AthletePlan> = {};
       snapshot.docs.forEach(doc => {
@@ -143,14 +149,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAthlete = async (athlete: Athlete) => {
+    if (!db) return;
     await setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete));
   };
   
   const updateAthlete = async (id: string, data: Partial<Athlete>) => {
+    if (!db) return;
     await updateDoc(doc(db, "athletes", id), sanitizeData(data));
   };
 
   const deleteAthlete = async (id: string) => {
+    if (!db) return;
     await deleteDoc(doc(db, "athletes", id));
     await deleteDoc(doc(db, "plans", id));
   };
@@ -167,7 +176,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updatedCustomZones = updatedCustomZones.map(zone => ({ ...zone, heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax) }));
     }
     const updatePayload = { assessmentHistory: newHistory, metrics: updatedMetrics, customZones: updatedCustomZones };
-    await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+    if (db) {
+      await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+    }
   };
 
   const updateAssessment = async (athleteId: string, updatedAssessment: Assessment) => {
@@ -184,30 +195,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updatePayload.customZones = athlete.customZones.map(zone => ({ ...zone, heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax) }));
       }
     }
-    await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+    if (db) {
+      await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+    }
   };
 
   const deleteAssessment = async (athleteId: string, assessmentId: string) => {
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).filter(ass => ass.id !== assessmentId);
-    await updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory }));
+    if (db) {
+      await updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory }));
+    }
   };
 
   const addWorkout = async (workout: Workout) => {
-    await setDoc(doc(db, "workouts", workout.id), sanitizeData(workout));
+    if (db) {
+      await setDoc(doc(db, "workouts", workout.id), sanitizeData(workout));
+    }
   };
 
   const updateLibraryWorkout = async (id: string, data: Partial<Workout>) => {
-    await updateDoc(doc(db, "workouts", id), sanitizeData(data));
+    if (db) {
+      await updateDoc(doc(db, "workouts", id), sanitizeData(data));
+    }
   };
 
   const deleteLibraryWorkout = async (id: string) => {
-    await deleteDoc(doc(db, "workouts", id));
+    if (db) {
+      await deleteDoc(doc(db, "workouts", id));
+    }
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
-    await setDoc(doc(db, "plans", athleteId), sanitizeData(plan));
+    if (db) {
+      await setDoc(doc(db, "plans", athleteId), sanitizeData(plan));
+    }
   };
 
   const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => {
@@ -226,7 +249,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updatedWeek.workouts = updatedWorkouts;
     updatedWeeks[weekIndex] = updatedWeek;
     updatedPlan.weeks = updatedWeeks;
-    await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
+    if (db) {
+      await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
+    }
   };
 
   const generateTestAthletes = async () => {

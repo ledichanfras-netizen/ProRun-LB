@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../contexts/AppContext';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
 import { 

@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 
 export interface WorkoutParams {
   studentName: string;
@@ -26,6 +26,7 @@ class AIService {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           responseSchema: {
             type: Type.OBJECT,
             properties: {

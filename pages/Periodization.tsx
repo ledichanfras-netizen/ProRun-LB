@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType, AthletePlan } from '../types';
 import { PrintLayout } from '../components/PrintLayout';

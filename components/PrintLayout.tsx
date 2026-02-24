@@ -50,14 +50,14 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
 
   const getWorkoutCardStyle = (type?: string) => {
     switch (type) {
-      case 'Regenerativo': return 'border-l-4 border-emerald-400 bg-emerald-50';
-      case 'Longão': return 'border-l-4 border-emerald-600 bg-emerald-50';
-      case 'Limiar': return 'border-l-4 border-amber-500 bg-amber-50';
-      case 'Intervalado': return 'border-l-4 border-red-500 bg-red-50';
-      case 'Velocidade': return 'border-l-4 border-purple-500 bg-purple-50';
-      case 'Fortalecimento': return 'border-l-4 border-purple-500 bg-purple-50';
-      case 'Descanso': return 'border-l-4 border-slate-200 bg-slate-50 opacity-50';
-      default: return 'border-l-4 border-slate-300 bg-white';
+      case 'Regenerativo': return 'border-emerald-500 bg-emerald-50/30';
+      case 'Longão': return 'border-emerald-600 bg-emerald-50/50';
+      case 'Limiar': return 'border-amber-500 bg-amber-50/50';
+      case 'Intervalado': return 'border-red-500 bg-red-50/50';
+      case 'Velocidade': return 'border-purple-600 bg-purple-50/50';
+      case 'Fortalecimento': return 'border-indigo-500 bg-indigo-50/30';
+      case 'Descanso': return 'border-slate-200 bg-slate-50/50 opacity-40';
+      default: return 'border-slate-200 bg-white';
     }
   };
 
@@ -127,7 +127,10 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
             </div>
             <div className="grid grid-cols-7 gap-3 bg-white">
               {getFullWeek(week.workouts).map((workout, idx) => (
-                <div key={idx} className={`p-4 rounded-[2rem] h-full min-h-[200px] flex flex-col justify-between border-2 border-slate-100 shadow-md bg-white transition-all ${getWorkoutCardStyle(workout.type)}`}>
+                <div 
+                  key={idx} 
+                  className={`p-4 rounded-[2rem] h-full min-h-[200px] flex flex-col justify-between border-2 shadow-sm transition-all ${getWorkoutCardStyle(workout.type)}`}
+                >
                    <div className="flex justify-between items-center mb-3">
                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">{workout.day.substring(0, 3)}</span>
                      <span className="text-[8px] font-black uppercase px-3 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 shadow-sm text-center">{workout.type?.substring(0, 3).toUpperCase() || 'TRN'}</span>

@@ -1,5 +1,5 @@
 
-import html2canvas from 'html2canvas';
+import { toJpeg } from 'html-to-image';
 
 /**
  * Exporta um elemento HTML para Imagem JPEG com alta fidelidade.
@@ -21,26 +21,38 @@ export const exportToImage = async (elementId: string, filename: string) => {
   }
 
   try {
-    const canvas = await html2canvas(element, {
-      scale: 2, // Escala 2x para nitidez em telas retina
-      useCORS: true,
-      logging: false,
+    // html-to-image é mais compatível com CSS moderno (oklch, grid, etc)
+    // cacheBust ajuda a evitar problemas de CORS com fontes cacheadas
+    const dataUrl = await toJpeg(element, {
+      quality: 0.95,
+      pixelRatio: 2,
       backgroundColor: '#ffffff',
-      windowWidth: 1200,
-      onclone: (clonedDoc: Document) => {
-        const el = clonedDoc.getElementById(elementId);
-        if (el) {
-          el.style.opacity = '1';
-          el.style.visibility = 'visible';
-          el.style.display = 'block';
-          el.style.width = '1200px'; // Largura fixa para consistência da imagem
-          el.style.height = 'auto';
+      cacheBust: true,
+      style: {
+        visibility: 'visible',
+        opacity: '1',
+        display: 'block',
+        margin: '0',
+      },
+      width: 1200,
+      skipFonts: false, // Garante que tentamos carregar as fontes
+      filter: (node: Node) => {
+        // Se for um link de CSS, verifica se temos acesso às regras (CORS)
+        if (node instanceof HTMLElement && node.tagName === 'LINK' && (node as HTMLLinkElement).rel === 'stylesheet') {
+          try {
+            const sheet = (node as HTMLLinkElement).sheet;
+            if (sheet) {
+              // Tentar acessar cssRules dispara o erro de CORS se houver problema
+              const _rules = sheet.cssRules;
+            }
+          } catch (e) {
+            console.warn("Pulando folha de estilo externa devido a restrições de CORS:", (node as HTMLLinkElement).href);
+            return false;
+          }
         }
+        return true;
       }
     });
-
-    // Converte canvas para JPEG
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     
     // Trigger download
     const link = document.createElement('a');

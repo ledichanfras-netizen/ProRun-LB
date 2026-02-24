@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
+import { safeDeepClone } from '../utils/helpers';
 
 const Periodization: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, saveAthletePlan } = useApp();
@@ -140,7 +141,7 @@ const Periodization: React.FC = () => {
 
   const updateWorkout = (wIdx: number, dIdx: number, field: string, value: any) => {
     if (!fullPlan) return;
-    const newPlan = JSON.parse(JSON.stringify(fullPlan));
+    const newPlan = safeDeepClone(fullPlan);
     newPlan.weeks[wIdx].workouts[dIdx][field] = value;
     
     // Recalcular volume total da semana se a distância mudou
@@ -150,6 +151,24 @@ const Periodization: React.FC = () => {
     }
     
     setFullPlan(newPlan);
+  };
+
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleDownloadImage = async () => {
+    if (exportLoading || !activeAthlete) return;
+    
+    setExportLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      const success = await exportToImage('print-layout-root', `Periodizacao_${activeAthlete.name.replace(/\s+/g, '_')}`);
+      if (success) console.log("Imagem exportada");
+    } catch (err) {
+      console.error("Erro no download:", err);
+      alert("Erro ao gerar imagem.");
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   const athletePaces = activeAthlete ? (activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax)) : [];
@@ -180,10 +199,12 @@ const Periodization: React.FC = () => {
            {fullPlan && (
              <>
                <button 
-                 onClick={() => exportToImage('print-layout-root', `Periodizacao_${activeAthlete?.name || 'Atleta'}`)} 
-                 className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-black transition shadow-lg uppercase text-[10px] italic tracking-widest"
+                 onClick={handleDownloadImage} 
+                 disabled={exportLoading}
+                 className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-black transition shadow-lg uppercase text-[10px] italic tracking-widest disabled:opacity-50"
                >
-                 <Download className="w-4 h-4" /> Baixar
+                 {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                 {exportLoading ? 'GERANDO...' : 'Baixar'}
                </button>
                <button onClick={() => setIsEditing(!isEditing)} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition border-2 ${isEditing ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200'}`}>
                  {isEditing ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />} {isEditing ? 'Travar' : 'Editar'}
@@ -303,7 +324,7 @@ const Periodization: React.FC = () => {
                       </span>
                     </div>
                     <button onClick={() => {
-                        const newPlan = JSON.parse(JSON.stringify(fullPlan));
+                        const newPlan = safeDeepClone(fullPlan);
                         newPlan.weeks[weekIndex].isVisible = !newPlan.weeks[weekIndex].isVisible;
                         setFullPlan(newPlan);
                     }} className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-emerald-500 transition-colors">
@@ -322,7 +343,7 @@ const Periodization: React.FC = () => {
                                   value={workout.type}
                                   onChange={e => updateWorkout(weekIndex, dayIndex, 'type', e.target.value)}
                                 >
-                                  {["Regenerativo", "Longão", "Limiar", "Intervalado", "Descanso", "Fortalecimento"].map(t => (
+                                  {["Regenerativo", "Longão", "Limiar", "Intervalado", "Velocidade", "Descanso", "Fortalecimento"].map(t => (
                                     <option key={t} value={t}>{t}</option>
                                   ))}
                                 </select>

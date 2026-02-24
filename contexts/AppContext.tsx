@@ -11,6 +11,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { getHrRangeString } from '../utils/calculations';
+import { safeDeepClone } from '../utils/helpers';
 
 interface AppContextType {
   userRole: UserRole;
@@ -51,9 +52,33 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const sanitizeData = (data: any): any => {
-  return JSON.parse(JSON.stringify(data, (key, value) => 
-    value === undefined ? null : value
-  ));
+  const seen = new WeakMap();
+  
+  const clean = (val: any): any => {
+    if (val === null || typeof val !== 'object') {
+      return val === undefined ? null : val;
+    }
+    
+    if (seen.has(val)) return null; // Circular reference found
+    seen.set(val, true);
+    
+    if (Array.isArray(val)) {
+      return val.map(clean);
+    }
+    
+    const result: any = {};
+    for (const key in val) {
+      if (Object.prototype.hasOwnProperty.call(val, key)) {
+        const cleaned = clean(val[key]);
+        if (cleaned !== undefined) {
+          result[key] = cleaned;
+        }
+      }
+    }
+    return result;
+  };
+  
+  return clean(data);
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -236,21 +261,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => {
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
-    const updatedPlan = { ...currentPlan };
-    const updatedWeeks = [...updatedPlan.weeks];
-    const updatedWeek = { ...updatedWeeks[weekIndex] };
-    const updatedWorkouts = [...updatedWeek.workouts];
-    updatedWorkouts[dayIndex] = { 
-      ...updatedWorkouts[dayIndex], 
-      completed, 
-      feedback: feedback || "",
-      rpe: rpe !== undefined ? rpe : (updatedWorkouts[dayIndex].rpe || 0)
-    };
-    updatedWeek.workouts = updatedWorkouts;
-    updatedWeeks[weekIndex] = updatedWeek;
-    updatedPlan.weeks = updatedWeeks;
+    
+    // Deep clone and update
+    const updatedPlan = safeDeepClone(currentPlan);
+    const workout = updatedPlan.weeks[weekIndex].workouts[dayIndex];
+    
+    workout.completed = completed;
+    workout.feedback = feedback || "";
+    workout.rpe = rpe !== undefined ? rpe : (workout.rpe || 0);
+    
+    // Optimistic Update: Atualiza o estado local imediatamente
+    setAthletePlans(prev => ({
+      ...prev,
+      [athleteId]: updatedPlan
+    }));
+
+    // Background Sync: Não bloqueia a UI esperando o Firestore
     if (db) {
-      await setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan));
+      setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan))
+        .catch(err => console.error("Erro ao sincronizar plano com Firestore:", err));
     }
   };
 

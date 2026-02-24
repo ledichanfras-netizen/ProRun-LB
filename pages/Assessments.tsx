@@ -1,15 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../contexts/AppContext';
 import { calculateVO2, calculatePaces } from '../utils/calculations';
 import { TrainingPace, Assessment } from '../types';
-import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2, Download } from 'lucide-react';
+import { PrintLayout } from '../components/PrintLayout';
+import { exportToImage } from '../utils/exporter';
 
 const Assessments: React.FC = () => {
   const { athletes, selectedAthleteId, addNewAssessment, updateAssessment, deleteAssessment, updateAthlete, userRole } = useApp();
   
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const isReadOnly = userRole === 'athlete';
+  const portalRoot = document.getElementById('printable-portal');
 
   const getSaoPauloDate = () => {
     const d = new Date();
@@ -205,6 +209,24 @@ const Assessments: React.FC = () => {
     }
   };
 
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleDownloadImage = async () => {
+    if (exportLoading || !activeAthlete) return;
+    
+    setExportLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      const success = await exportToImage('print-layout-root', `Zonas_${activeAthlete.name.replace(/\s+/g, '_')}`);
+      if (success) console.log("Zonas exportadas");
+    } catch (err) {
+      console.error("Erro no download:", err);
+      alert("Erro ao gerar imagem.");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormDate(getSaoPauloDate());
@@ -221,6 +243,16 @@ const Assessments: React.FC = () => {
 
   return (
     <div className="space-y-6 relative animate-fade-in custom-scrollbar">
+      {activeAthlete && portalRoot && createPortal(
+        <PrintLayout 
+          athlete={activeAthlete} 
+          plan={[]} 
+          paces={paces} 
+          goal="Zonas de Treinamento e Performance" 
+          totalWeeks={0}
+        />,
+        portalRoot
+      )}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full animate-fade-in-up border-l-8 border-red-500">
@@ -237,9 +269,21 @@ const Assessments: React.FC = () => {
         </div>
       )}
 
-      <header>
-        <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Avaliações & Zonas</h1>
-        <p className="text-slate-500 font-medium">Configuração técnica personalizada (Fuso SP).</p>
+      <header className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Avaliações & Zonas</h1>
+          <p className="text-slate-500 font-medium">Configuração técnica personalizada (Fuso SP).</p>
+        </div>
+        {activeAthlete && (
+          <button 
+            onClick={handleDownloadImage}
+            disabled={exportLoading}
+            className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-black transition shadow-lg uppercase text-[10px] italic tracking-widest disabled:opacity-50"
+          >
+            {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {exportLoading ? 'GERANDO...' : 'Baixar Zonas'}
+          </button>
+        )}
       </header>
 
       {!activeAthlete ? (

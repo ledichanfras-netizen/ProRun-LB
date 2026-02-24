@@ -55,7 +55,7 @@ export interface Athlete {
   assessmentHistory: Assessment[];
 }
 
-export type WorkoutType = 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Descanso' | 'Fortalecimento';
+export type WorkoutType = 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Descanso' | 'Fortalecimento' | 'Velocidade';
 
 export interface TrainingWeek {
   id: string;

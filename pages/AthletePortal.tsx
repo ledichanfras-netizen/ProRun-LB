@@ -120,6 +120,40 @@ const AthletePortal: React.FC = () => {
     return labels[val] || "Selecione";
   };
 
+  const getWorkoutBorderColor = (type?: string) => {
+    switch (type) {
+      case 'Regenerativo': return 'border-emerald-400';
+      case 'Longão': return 'border-emerald-600';
+      case 'Limiar': return 'border-amber-500';
+      case 'Intervalado': return 'border-red-500';
+      case 'Velocidade': return 'border-purple-500';
+      case 'Fortalecimento': return 'border-purple-500';
+      case 'Descanso': return 'border-slate-200';
+      default: return 'border-slate-100';
+    }
+  };
+
+  const handleDownloadImage = async () => {
+    if (exportLoading || !activeAthlete) return;
+    
+    setExportLoading(true);
+    try {
+      // Pequeno delay para garantir que o portal está montado e renderizado no DOM oculto
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      const success = await exportToImage('print-layout-root', `Planilha_${activeAthlete.name.replace(/\s+/g, '_')}`);
+      
+      if (success) {
+        console.log("Imagem exportada com sucesso");
+      }
+    } catch (err) {
+      console.error("Erro no download:", err);
+      alert("Erro ao gerar imagem. Tente novamente.");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8 pb-20 relative animate-fade-in">
       {activeAthlete && athletePlan && portalRoot && createPortal(
@@ -147,12 +181,12 @@ const AthletePortal: React.FC = () => {
         </div>
         
         <button 
-          onClick={() => exportToImage('print-layout-root', `Planilha_${activeAthlete.name}`)} 
+          onClick={handleDownloadImage} 
           disabled={exportLoading || visibleWeeks.length === 0} 
           className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase italic tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50"
         >
           {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-emerald-200" />} 
-          BAIXAR IMAGEM
+          {exportLoading ? 'GERANDO...' : 'BAIXAR IMAGEM'}
         </button>
       </header>
 
@@ -182,7 +216,7 @@ const AthletePortal: React.FC = () => {
                         key={dIdx} 
                         onClick={() => openWorkoutModal(originalWeekIndex, dIdx, workout)} 
                         className={`p-5 rounded-[1.5rem] cursor-pointer hover:shadow-2xl transition-all border-2 flex flex-col justify-between h-full min-h-[160px]
-                          ${workout.completed ? 'border-emerald-500 bg-emerald-50/50' : 'bg-white shadow-md border-slate-100 hover:border-emerald-300'}
+                          ${workout.completed ? 'border-emerald-500 bg-emerald-50/50' : `bg-white shadow-md ${getWorkoutBorderColor(workout.type)} hover:border-emerald-300`}
                         `}
                       >
                         <div>

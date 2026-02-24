@@ -80,7 +80,7 @@ export const generateTrainingPlan = async (
                       type: Type.OBJECT,
                       properties: {
                         day: { type: Type.STRING },
-                        type: { type: Type.STRING, enum: ["Regenerativo", "Longão", "Limiar", "Intervalado", "Fortalecimento", "Descanso"] },
+                        type: { type: Type.STRING, enum: ["Regenerativo", "Longão", "Limiar", "Intervalado", "Fortalecimento", "Descanso", "Velocidade"] },
                         customDescription: { type: Type.STRING },
                         distance: { type: Type.NUMBER }
                       },

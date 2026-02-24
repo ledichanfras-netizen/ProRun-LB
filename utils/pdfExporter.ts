@@ -1,8 +1,10 @@
 
-import html2pdf from 'html2pdf.js';
+import { jsPDF } from 'jspdf';
+import { toJpeg } from 'html-to-image';
 
 /**
  * Exporta um elemento HTML para PDF com máxima fidelidade visual.
+ * Usa html-to-image para renderização e jsPDF para geração do arquivo.
  */
 export const exportToPDF = async (elementId: string, filename: string) => {
   const element = document.getElementById(elementId);
@@ -20,53 +22,51 @@ export const exportToPDF = async (elementId: string, filename: string) => {
     attempts++;
   }
 
-  const options = {
-    margin: [5, 5, 5, 5], // Adicionado pequena margem de segurança
-    filename: filename.endsWith('.pdf') ? filename : `${filename}.pdf`,
-    image: { type: 'jpeg', quality: 1.0 },
-    pagebreak: { mode: ['css', 'legacy'], avoid: ['.print-week-block', '.grid'] },
-    html2canvas: { 
-      scale: 3, // Aumentado para 3x para nitidez máxima em textos pequenos
-      useCORS: true, 
-      logging: false,
-      backgroundColor: '#ffffff',
-      letterRendering: true,
-      windowWidth: 1200,
-      onclone: (clonedDoc: Document) => {
-        const el = clonedDoc.getElementById(elementId);
-        if (el) {
-          el.style.opacity = '1';
-          el.style.visibility = 'visible';
-          el.style.display = 'block';
-          el.style.width = '297mm';
-          el.style.height = 'auto'; // Garante altura automática para conteúdo longo
-          
-          const style = clonedDoc.createElement('style');
-          style.innerHTML = `
-            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            .print-week-block { margin-bottom: 20px !important; }
-            #print-layout-root { padding: 10mm !important; }
-          `;
-          clonedDoc.head.appendChild(style);
-        }
-      }
-    },
-    jsPDF: { 
-      unit: 'mm', 
-      format: 'a4', 
-      orientation: 'landscape',
-      compress: true
-    }
-  };
-
   try {
-    // Usamos o motor do html2pdf para salvar o arquivo
-    await html2pdf().set(options).from(element).save();
+    // 1. Gera imagem de alta qualidade do elemento
+    const dataUrl = await toJpeg(element, {
+      quality: 0.95,
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+      style: {
+        visibility: 'visible',
+        opacity: '1',
+        display: 'block',
+      },
+      width: 1200,
+      filter: (node: Node) => {
+        if (node instanceof HTMLElement && node.tagName === 'LINK' && (node as HTMLLinkElement).rel === 'stylesheet') {
+          try {
+            const sheet = (node as HTMLLinkElement).sheet;
+            if (sheet) { const _r = sheet.cssRules; }
+          } catch (e) { return false; }
+        }
+        return true;
+      }
+    });
+
+    // 2. Cria o PDF em modo paisagem (landscape) para acomodar a largura de 1200px
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const imgProps = pdf.getImageProperties(dataUrl);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+    // Se a altura da imagem for maior que a do PDF, ela será redimensionada proporcionalmente
+    // Para relatórios longos, poderíamos adicionar múltiplas páginas, mas para este layout fixo de 1200px,
+    // o ajuste proporcional é o ideal.
+    pdf.addImage(dataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
+    
     return true;
   } catch (error) {
     console.error("Falha na exportação PDF:", error);
-    alert("Houve um problema na geração do arquivo. O modo de impressão do sistema será aberto como alternativa.");
-    window.print();
+    alert("Houve um problema na geração do PDF. Tente novamente ou use a opção de baixar imagem.");
     return false;
   }
 };

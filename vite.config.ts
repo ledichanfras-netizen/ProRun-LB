@@ -1,26 +1,23 @@
 
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-
+export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.API_KEY || ''),
-      'process.env': '{}'
-    },
     build: {
       outDir: 'dist',
       emptyOutDir: true,
-      sourcemap: false
+      sourcemap: false,
+      chunkSizeWarningLimit: 1000
     },
     server: {
       port: 3000,
       host: '0.0.0.0'
+    },
+    preview: {
+      allowedHosts: ['.onrender.com']
     }
   };
 });

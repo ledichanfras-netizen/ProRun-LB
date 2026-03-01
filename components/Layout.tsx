@@ -13,7 +13,8 @@ import {
   UserCheck,
   LogOut,
   Cloud,
-  CloudOff
+  CloudOff,
+  Info
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 

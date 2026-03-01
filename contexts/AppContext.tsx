@@ -129,8 +129,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [athletePlans]);
 
   useEffect(() => {
+    // Se o Firebase não estiver configurado, liberamos o loading imediatamente
+    if (!db) {
+      setIsLoading(false);
+      return;
+    }
+
     // Failsafe para o estado de loading caso o Firestore demore muito
     const timeout = setTimeout(() => {
+      console.warn("⏳ Sincronização em nuvem demorando. Liberando interface (Failsafe 4s)...");
       setIsLoading(false);
     }, 4000);
     return () => clearTimeout(timeout);
@@ -440,7 +447,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, generateTestAthletes, isLoading,
+      getAthleteMetrics, isLoading,
       isCloudSyncEnabled: !!db
     }}>
       {children}

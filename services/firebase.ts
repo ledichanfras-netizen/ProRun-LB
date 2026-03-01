@@ -14,6 +14,7 @@ const getFirebaseConfig = () => {
   
   // Verificação básica: se não houver API Key ou Project ID, o Firebase não funcionará na nuvem
   if (!apiKey || !projectId) {
+    console.warn("⚠️ Firebase: Configuração incompleta. Verifique as variáveis de ambiente (VITE_API_KEY, VITE_PROJECT_ID). O app funcionará apenas localmente.");
     return null;
   }
 

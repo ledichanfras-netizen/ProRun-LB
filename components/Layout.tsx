@@ -11,7 +11,9 @@ import {
   X,
   TrendingUp,
   UserCheck,
-  LogOut
+  LogOut,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -21,7 +23,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const { athletes, selectedAthleteId, userRole, logout } = useApp();
+  const { athletes, selectedAthleteId, userRole, logout, isCloudSyncEnabled } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -82,6 +84,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </div>
 
+          <div className={`
+            flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest
+            ${isCloudSyncEnabled
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'}
+          `}>
+            {isCloudSyncEnabled ? (
+              <><Cloud className="w-3 h-3" /> Nuvem Ativa</>
+            ) : (
+              <><CloudOff className="w-3 h-3" /> Apenas Local</>
+            )}
+          </div>
+
+          {!isCloudSyncEnabled && userRole === 'coach' && (
+            <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-3 animate-pulse">
+               <p className="text-[8px] text-orange-400 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+                 <Info className="w-2.5 h-2.5" /> Atenção
+               </p>
+               <p className="text-[9px] text-orange-200/60 leading-tight">
+                 Dados salvos apenas neste aparelho. Para sincronizar, configure as chaves do Firebase no painel da Render.
+               </p>
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

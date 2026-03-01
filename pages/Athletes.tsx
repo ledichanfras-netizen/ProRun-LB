@@ -5,7 +5,7 @@ import { Athlete, ExperienceLevel } from '../types';
 import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info, ChevronDown } from 'lucide-react';
 
 const Athletes: React.FC = () => {
-  const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId, generateTestAthletes } = useApp();
+  const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId } = useApp();
   
   // Search State
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,12 +154,6 @@ const Athletes: React.FC = () => {
           <p className="text-slate-500 font-medium">Controle biométrico e acesso dos atletas.</p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
-          <button 
-            onClick={generateTestAthletes}
-            className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest transition shadow-sm border border-emerald-200"
-          >
-            <UserPlus className="w-4 h-4" /> GERAR TESTES
-          </button>
           <button 
             onClick={() => {
               setIsFormOpen(true);

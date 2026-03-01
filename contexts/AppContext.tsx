@@ -45,7 +45,6 @@ interface AppContextType {
     totalVolumePlanned: number 
   };
   
-  generateTestAthletes: () => Promise<void>;
   isLoading: boolean;
   isCloudSyncEnabled: boolean;
 }
@@ -406,22 +405,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const generateTestAthletes = async () => {
-    const testAthlete: Athlete = {
-      id: "test-athlete-1",
-      name: "Marcos Silva",
-      age: 32,
-      birthDate: "1992-05-15",
-      weight: 78,
-      height: 180,
-      experience: "Avançado",
-      email: "marcos@teste.com",
-      metrics: { vdot: 48.5, test3kTime: "11:45", fcMax: 192, fcThreshold: 172 },
-      assessmentHistory: []
-    };
-    await addAthlete(testAthlete);
-  };
-
   const getAthleteMetrics = (athleteId: string) => {
     const plan = athletePlans[athleteId];
     const allWeeks = plan?.weeks || [];
@@ -457,7 +440,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, generateTestAthletes, isLoading,
+      getAthleteMetrics, isLoading,
       isCloudSyncEnabled: !!db
     }}>
       {children}

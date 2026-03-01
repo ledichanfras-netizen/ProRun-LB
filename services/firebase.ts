@@ -14,13 +14,6 @@ const getFirebaseConfig = () => {
   
   // Verificação básica: se não houver API Key ou Project ID, o Firebase não funcionará na nuvem
   if (!apiKey || !projectId) {
-    const missing = [];
-    if (!apiKey) missing.push("VITE_API_KEY");
-    if (!projectId) missing.push("VITE_PROJECT_ID");
-
-    console.warn(`⚠️ Configuração do Firebase incompleta (Faltando: ${missing.join(", ")}).`);
-    console.warn("O aplicativo funcionará apenas LOCALMENTE. Os dados não serão salvos na nuvem e não serão compartilhados entre dispositivos.");
-    console.warn("Para corrigir, configure as variáveis de ambiente no seu serviço de hospedagem (ex: Render).");
     return null;
   }
 
@@ -57,8 +50,3 @@ export const db = app ? initializeFirestore(app, {
   })
 }) : null;
 
-if (db) {
-  console.log("✅ Conexão com Firebase Cloud estabelecida com sucesso.");
-} else {
-  console.warn("⚠️ Firestore desativado. O aplicativo salvará os dados apenas no navegador (localStorage).");
-}

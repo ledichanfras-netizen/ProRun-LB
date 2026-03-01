@@ -47,6 +47,7 @@ interface AppContextType {
   
   generateTestAthletes: () => Promise<void>;
   isLoading: boolean;
+  isCloudSyncEnabled: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -456,7 +457,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, generateTestAthletes, isLoading
+      getAthleteMetrics, generateTestAthletes, isLoading,
+      isCloudSyncEnabled: !!db
     }}>
       {children}
     </AppContext.Provider>

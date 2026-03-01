@@ -45,8 +45,8 @@ interface AppContextType {
     totalVolumePlanned: number 
   };
   
-  generateTestAthletes: () => Promise<void>;
   isLoading: boolean;
+  isCloudSyncEnabled: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -90,9 +90,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return localStorage.getItem('proRun_selectedAthleteId') || null;
   });
   
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [workouts, setWorkouts] = useState<Workout[]>([]);
-  const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>({});
+  const [athletes, setAthletes] = useState<Athlete[]>(() => {
+    const saved = localStorage.getItem('proRun_athletes');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [workouts, setWorkouts] = useState<Workout[]>(() => {
+    const saved = localStorage.getItem('proRun_workouts');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>(() => {
+    const saved = localStorage.getItem('proRun_athletePlans');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -104,6 +115,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (selectedAthleteId) localStorage.setItem('proRun_selectedAthleteId', selectedAthleteId);
     else localStorage.removeItem('proRun_selectedAthleteId');
   }, [selectedAthleteId]);
+
+  useEffect(() => {
+    localStorage.setItem('proRun_athletes', JSON.stringify(athletes));
+  }, [athletes]);
+
+  useEffect(() => {
+    localStorage.setItem('proRun_workouts', JSON.stringify(workouts));
+  }, [workouts]);
+
+  useEffect(() => {
+    localStorage.setItem('proRun_athletePlans', JSON.stringify(athletePlans));
+  }, [athletePlans]);
+
+  useEffect(() => {
+    // Failsafe para o estado de loading caso o Firestore demore muito
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 4000);
+    return () => clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     if (!db) {
@@ -174,19 +205,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAthlete = async (athlete: Athlete) => {
-    if (!db) return;
-    await setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete));
+    // Atualização Otimista Local
+    setAthletes(prev => [...prev, athlete]);
+
+    if (db) {
+      try {
+        await setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete));
+      } catch (error) {
+        console.error("Erro ao salvar atleta no Firestore:", error);
+        throw error;
+      }
+    }
   };
   
   const updateAthlete = async (id: string, data: Partial<Athlete>) => {
-    if (!db) return;
-    await updateDoc(doc(db, "athletes", id), sanitizeData(data));
+    // Atualização Otimista Local
+    setAthletes(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
+
+    if (db) {
+      try {
+        await updateDoc(doc(db, "athletes", id), sanitizeData(data));
+      } catch (error) {
+        console.error("Erro ao atualizar atleta no Firestore:", error);
+        throw error;
+      }
+    }
   };
 
   const deleteAthlete = async (id: string) => {
-    if (!db) return;
-    await deleteDoc(doc(db, "athletes", id));
-    await deleteDoc(doc(db, "plans", id));
+    // Atualização Otimista Local
+    setAthletes(prev => prev.filter(a => a.id !== id));
+    setAthletePlans(prev => {
+      const newPlans = { ...prev };
+      delete newPlans[id];
+      return newPlans;
+    });
+
+    if (db) {
+      try {
+        await deleteDoc(doc(db, "athletes", id));
+        await deleteDoc(doc(db, "plans", id));
+      } catch (error) {
+        console.error("Erro ao remover atleta do Firestore:", error);
+        throw error;
+      }
+    }
   };
 
   const addNewAssessment = async (athleteId: string, assessment: Assessment) => {
@@ -201,8 +264,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updatedCustomZones = updatedCustomZones.map(zone => ({ ...zone, heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax) }));
     }
     const updatePayload = { assessmentHistory: newHistory, metrics: updatedMetrics, customZones: updatedCustomZones };
+
+    // Atualização Otimista Local
+    setAthletes(prev => prev.map(a => a.id === athleteId ? { ...a, ...updatePayload } : a));
+
     if (db) {
-      await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+      try {
+        await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+      } catch (error) {
+        console.error("Erro ao salvar avaliação no Firestore:", error);
+        throw error;
+      }
     }
   };
 
@@ -220,8 +292,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updatePayload.customZones = athlete.customZones.map(zone => ({ ...zone, heartRateRange: getHrRangeString(zone.zone, newFcThreshold, newFcMax) }));
       }
     }
+
+    // Atualização Otimista Local
+    setAthletes(prev => prev.map(a => a.id === athleteId ? { ...a, ...updatePayload } : a));
+
     if (db) {
-      await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+      try {
+        await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+      } catch (error) {
+        console.error("Erro ao atualizar avaliação no Firestore:", error);
+        throw error;
+      }
     }
   };
 
@@ -229,32 +310,73 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).filter(ass => ass.id !== assessmentId);
+
+    // Atualização Otimista Local
+    setAthletes(prev => prev.map(a => a.id === athleteId ? { ...a, assessmentHistory: newHistory } : a));
+
     if (db) {
-      await updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory }));
+      try {
+        await updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory }));
+      } catch (error) {
+        console.error("Erro ao remover avaliação no Firestore:", error);
+        throw error;
+      }
     }
   };
 
   const addWorkout = async (workout: Workout) => {
+    // Atualização Otimista Local
+    setWorkouts(prev => [...prev, workout]);
+
     if (db) {
-      await setDoc(doc(db, "workouts", workout.id), sanitizeData(workout));
+      try {
+        await setDoc(doc(db, "workouts", workout.id), sanitizeData(workout));
+      } catch (error) {
+        console.error("Erro ao salvar treino no Firestore:", error);
+        throw error;
+      }
     }
   };
 
   const updateLibraryWorkout = async (id: string, data: Partial<Workout>) => {
+    // Atualização Otimista Local
+    setWorkouts(prev => prev.map(w => w.id === id ? { ...w, ...data } : w));
+
     if (db) {
-      await updateDoc(doc(db, "workouts", id), sanitizeData(data));
+      try {
+        await updateDoc(doc(db, "workouts", id), sanitizeData(data));
+      } catch (error) {
+        console.error("Erro ao atualizar treino no Firestore:", error);
+        throw error;
+      }
     }
   };
 
   const deleteLibraryWorkout = async (id: string) => {
+    // Atualização Otimista Local
+    setWorkouts(prev => prev.filter(w => w.id !== id));
+
     if (db) {
-      await deleteDoc(doc(db, "workouts", id));
+      try {
+        await deleteDoc(doc(db, "workouts", id));
+      } catch (error) {
+        console.error("Erro ao remover treino do Firestore:", error);
+        throw error;
+      }
     }
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
+    // Atualização Otimista Local
+    setAthletePlans(prev => ({ ...prev, [athleteId]: plan }));
+
     if (db) {
-      await setDoc(doc(db, "plans", athleteId), sanitizeData(plan));
+      try {
+        await setDoc(doc(db, "plans", athleteId), sanitizeData(plan));
+      } catch (error) {
+        console.error("Erro ao salvar plano no Firestore:", error);
+        throw error;
+      }
     }
   };
 
@@ -281,22 +403,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan))
         .catch(err => console.error("Erro ao sincronizar plano com Firestore:", err));
     }
-  };
-
-  const generateTestAthletes = async () => {
-    const testAthlete: Athlete = {
-      id: "test-athlete-1",
-      name: "Marcos Silva",
-      age: 32,
-      birthDate: "1992-05-15",
-      weight: 78,
-      height: 180,
-      experience: "Avançado",
-      email: "marcos@teste.com",
-      metrics: { vdot: 48.5, test3kTime: "11:45", fcMax: 192, fcThreshold: 172 },
-      assessmentHistory: []
-    };
-    await addAthlete(testAthlete);
   };
 
   const getAthleteMetrics = (athleteId: string) => {
@@ -334,7 +440,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, generateTestAthletes, isLoading
+      getAthleteMetrics, isLoading,
+      isCloudSyncEnabled: !!db
     }}>
       {children}
     </AppContext.Provider>

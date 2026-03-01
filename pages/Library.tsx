@@ -8,6 +8,7 @@ const Library: React.FC = () => {
   const { workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout } = useApp();
   
   const [showForm, setShowForm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
   // Delete Modal State
@@ -17,19 +18,27 @@ const Library: React.FC = () => {
     title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
     
-    if (editingId) {
-      updateLibraryWorkout(editingId, formWorkout);
-    } else {
-      addWorkout({ ...formWorkout as Workout, id: crypto.randomUUID() });
+    try {
+      if (editingId) {
+        await updateLibraryWorkout(editingId, formWorkout);
+      } else {
+        await addWorkout({ ...formWorkout as Workout, id: crypto.randomUUID() });
+      }
+
+      // Reset
+      setShowForm(false);
+      setEditingId(null);
+      setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
+    } catch (error) {
+      console.error("Erro ao salvar treino:", error);
+      alert("Erro ao salvar dados na biblioteca. Verifique sua conexão ou configurações.");
+    } finally {
+      setIsSaving(false);
     }
-    
-    // Reset
-    setShowForm(false);
-    setEditingId(null);
-    setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
   };
 
   const handleEdit = (workout: Workout) => {
@@ -215,14 +224,28 @@ const Library: React.FC = () => {
             <div className="md:col-span-2 flex justify-end gap-3 pt-2">
                <button 
                 type="button"
+                disabled={isSaving}
                 onClick={() => setShowForm(false)}
-                className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium"
+                className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium disabled:opacity-50"
                >
                  Cancelar
                </button>
-               <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold shadow-sm flex items-center gap-2">
-                 {editingId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />} 
-                 {editingId ? 'Salvar Alterações' : 'Adicionar à Biblioteca'}
+               <button
+                type="submit"
+                disabled={isSaving}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+               >
+                 {isSaving ? (
+                   <>
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Salvando...
+                   </>
+                 ) : (
+                   <>
+                    {editingId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    {editingId ? 'Salvar Alterações' : 'Adicionar à Biblioteca'}
+                   </>
+                 )}
                </button>
             </div>
           </form>

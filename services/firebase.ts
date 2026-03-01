@@ -14,9 +14,13 @@ const getFirebaseConfig = () => {
   
   // Verificação básica: se não houver API Key ou Project ID, o Firebase não funcionará na nuvem
   if (!apiKey || !projectId) {
-    console.warn("⚠️ Configuração do Firebase incompleta (Faltando API Key ou Project ID).");
+    const missing = [];
+    if (!apiKey) missing.push("VITE_API_KEY");
+    if (!projectId) missing.push("VITE_PROJECT_ID");
+
+    console.warn(`⚠️ Configuração do Firebase incompleta (Faltando: ${missing.join(", ")}).`);
     console.warn("O aplicativo funcionará apenas LOCALMENTE. Os dados não serão salvos na nuvem e não serão compartilhados entre dispositivos.");
-    console.warn("Para corrigir, configure as variáveis de ambiente (VITE_API_KEY, etc.) no seu serviço de hospedagem (ex: Render).");
+    console.warn("Para corrigir, configure as variáveis de ambiente no seu serviço de hospedagem (ex: Render).");
     return null;
   }
 
@@ -32,8 +36,18 @@ const getFirebaseConfig = () => {
 
 const firebaseConfig = getFirebaseConfig();
 
-// Inicializa o Firebase apenas se houver configuração
-export const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
+// Inicializa o Firebase com proteção contra falhas de configuração
+const getApp = () => {
+  if (!firebaseConfig) return null;
+  try {
+    return initializeApp(firebaseConfig);
+  } catch (error) {
+    console.error("❌ Erro ao inicializar Firebase (Verifique se as chaves são válidas):", error);
+    return null;
+  }
+};
+
+export const app = getApp();
 export const auth = app ? getAuth(app) : null;
 
 // Inicializa o Firestore com cache persistente
@@ -45,4 +59,6 @@ export const db = app ? initializeFirestore(app, {
 
 if (db) {
   console.log("✅ Conexão com Firebase Cloud estabelecida com sucesso.");
+} else {
+  console.warn("⚠️ Firestore desativado. O aplicativo salvará os dados apenas no navegador (localStorage).");
 }

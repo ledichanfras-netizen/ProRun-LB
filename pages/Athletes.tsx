@@ -12,6 +12,7 @@ const Athletes: React.FC = () => {
 
   // Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showLevelGuide, setShowLevelGuide] = useState(false);
   
@@ -28,9 +29,11 @@ const Athletes: React.FC = () => {
     a.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
     
+    try {
     // Calculate age from birthDate if provided
     let calculatedAge = formData.age;
     if (formData.birthDate) {
@@ -47,10 +50,10 @@ const Athletes: React.FC = () => {
     const dataToSave = { ...formData, age: calculatedAge };
 
     if (editingId) {
-      updateAthlete(editingId, dataToSave);
+      await updateAthlete(editingId, dataToSave);
     } else {
       if (dataToSave.name) {
-        addAthlete({
+        await addAthlete({
           ...dataToSave as Athlete,
           id: crypto.randomUUID(),
           metrics: { vdot: 30, test3kTime: '00:00' },
@@ -62,6 +65,12 @@ const Athletes: React.FC = () => {
     setIsFormOpen(false);
     setEditingId(null);
     setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '' });
+    } catch (error) {
+      console.error("Erro ao salvar atleta:", error);
+      alert("Erro ao salvar dados. Verifique sua conexão ou as configurações do Firebase.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleEditClick = (athlete: Athlete) => {
@@ -266,9 +275,27 @@ const Athletes: React.FC = () => {
               />
             </div>
             <div className="md:col-span-3 flex justify-end gap-4 mt-6">
-              <button type="button" onClick={() => setIsFormOpen(false)} className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-slate-600 transition">CANCELAR</button>
-              <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105">
-                {editingId ? '✓ ATUALIZAR DADOS' : '✓ SALVAR ATLETA'}
+              <button
+                type="button"
+                onClick={() => setIsFormOpen(false)}
+                className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-slate-600 transition"
+                disabled={isSaving}
+              >
+                CANCELAR
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105 disabled:opacity-50 disabled:scale-100"
+              >
+                {isSaving ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    SALVANDO...
+                  </span>
+                ) : (
+                  editingId ? '✓ ATUALIZAR DADOS' : '✓ SALVAR ATLETA'
+                )}
               </button>
             </div>
           </form>

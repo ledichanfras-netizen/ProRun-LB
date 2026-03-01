@@ -11,7 +11,9 @@ import {
   X,
   TrendingUp,
   UserCheck,
-  LogOut
+  LogOut,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -21,7 +23,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const { athletes, selectedAthleteId, userRole, logout } = useApp();
+  const { athletes, selectedAthleteId, userRole, logout, isCloudSyncEnabled } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -69,15 +71,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         md:relative md:translate-x-0 flex flex-col shadow-2xl no-print
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="p-6 flex items-center gap-3 border-b border-emerald-900">
-          <div className="bg-emerald-500 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
-             <TrendingUp className="w-6 h-6 text-white" />
+        <div className="p-6 flex flex-col gap-4 border-b border-emerald-900">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-500 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
+               <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-black text-xl tracking-tighter italic uppercase">ProRun</h1>
+              <p className="text-[10px] text-emerald-300/60 uppercase font-black tracking-widest leading-none">
+                {userRole === 'coach' ? 'Coach' : 'Athlete'}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-black text-xl tracking-tighter italic uppercase">ProRun</h1>
-            <p className="text-[10px] text-emerald-300/60 uppercase font-black tracking-widest leading-none">
-              {userRole === 'coach' ? 'Coach' : 'Athlete'}
-            </p>
+
+          <div className={`
+            flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest
+            ${isCloudSyncEnabled
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'}
+          `}>
+            {isCloudSyncEnabled ? (
+              <><Cloud className="w-3 h-3" /> Nuvem Ativa</>
+            ) : (
+              <><CloudOff className="w-3 h-3" /> Apenas Local</>
+            )}
           </div>
         </div>
 

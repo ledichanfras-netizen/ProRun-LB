@@ -440,7 +440,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, isLoading,
+      getAthleteMetrics, generateTestAthletes, isLoading,
       isCloudSyncEnabled: !!db
     }}>
       {children}

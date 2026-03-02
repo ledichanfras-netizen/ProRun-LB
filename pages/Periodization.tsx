@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../contexts/AppContext';
@@ -452,10 +451,6 @@ const Periodization: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
 
       {showLibraryModal && libraryTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowLibraryModal(false)}>
@@ -522,5 +517,8 @@ const Periodization: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
 
 export default Periodization;

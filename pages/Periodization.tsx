@@ -6,6 +6,10 @@ import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType, AthletePlan } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 import { 
+  Book,
+  Search,
+  X,
+  Edit2,
   Sparkles, 
   Loader2, 
   Save, 
@@ -29,7 +33,7 @@ import { exportToImage } from '../utils/exporter';
 import { safeDeepClone } from '../utils/helpers';
 
 const Periodization: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, workouts } = useApp();
   
   const [raceDate, setRaceDate] = useState('');
   const [raceDistance, setRaceDistance] = useState('10km');
@@ -41,6 +45,9 @@ const Periodization: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [fullPlan, setFullPlan] = useState<AthletePlan | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showLibraryModal, setShowLibraryModal] = useState(false);
+  const [libraryTarget, setLibraryTarget] = useState<{wIdx: number, dIdx: number} | null>(null);
+  const [librarySearch, setLibrarySearch] = useState('');
 
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
@@ -129,6 +136,44 @@ const Periodization: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleManualStart = () => {
+    if (!activeAthlete || !raceDate) {
+      alert("Defina a data da prova para iniciar a periodização.");
+      return;
+    }
+
+    const manualWeeks: TrainingWeek[] = [];
+    for (let i = 1; i <= weeks; i++) {
+      const phase: any = i <= Math.ceil(weeks * 0.4) ? "Base" :
+                    i <= Math.ceil(weeks * 0.7) ? "Construção" :
+                    i <= weeks - 1 ? "Pico" : "Polimento";
+
+      manualWeeks.push({
+        id: crypto.randomUUID(),
+        weekNumber: i,
+        phase,
+        totalVolume: 0,
+        isVisible: false,
+        workouts: diasSemanaFull.map(day => ({
+          day,
+          type: "Descanso",
+          customDescription: "Descanso total.",
+          distance: 0
+        }))
+      });
+    }
+
+    const newPlan: AthletePlan = {
+      weeks: manualWeeks,
+      specificGoal: raceGoal || raceDistance,
+      raceStrategy: "Defina sua estratégia de prova aqui."
+    };
+
+    setFullPlan(newPlan);
+    saveAthletePlan(activeAthlete.id, newPlan);
+    setIsEditing(true);
   };
 
   const handleSave = () => {
@@ -297,6 +342,9 @@ const Periodization: React.FC = () => {
                 <button onClick={handleGenerate} disabled={loading || !raceDate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest mt-4">
                   {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} {loading ? 'GERANDO...' : 'Gerar Periodização'}
                 </button>
+                <button onClick={handleManualStart} disabled={loading || !raceDate} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-2xl font-black flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-[10px] italic tracking-widest mt-2">
+                  <Edit2 className="w-4 h-4" /> Prescrever Manualmente
+                </button>
               </div>
             </div>
             
@@ -379,6 +427,17 @@ const Periodization: React.FC = () => {
                               ) : <span className="text-[9px] font-black text-slate-200 uppercase italic">--</span>
                            )}
                         </div>
+                        <div className="flex items-center gap-2">
+                           {isEditing && (
+                              <button
+                                onClick={() => { setLibraryTarget({wIdx: weekIndex, dIdx: dayIndex}); setShowLibraryModal(true); }}
+                                className="p-2 bg-slate-100 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-xl transition-all flex items-center justify-center gap-2 text-[9px] font-black uppercase italic"
+                                title="Buscar na Biblioteca"
+                              >
+                                <Book className="w-3.5 h-3.5" /> Biblioteca
+                              </button>
+                           )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -396,5 +455,72 @@ const Periodization: React.FC = () => {
     </div>
   );
 };
+
+
+      {showLibraryModal && libraryTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowLibraryModal(false)}>
+          <div className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-3">
+                <Book className="w-6 h-6 text-emerald-600" />
+                <h3 className="font-black text-slate-900 uppercase italic tracking-tighter">Biblioteca de Treinos</h3>
+              </div>
+              <button onClick={() => setShowLibraryModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="p-4 border-b">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar treino por nome..."
+                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-xl font-bold italic outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={librarySearch}
+                  onChange={e => setLibrarySearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+              {workouts
+                .filter(w => w.title.toLowerCase().includes(librarySearch.toLowerCase()))
+                .map(workout => (
+                <button
+                  key={workout.id}
+                  onClick={() => {
+                    const mappedType = workout.type === 'Recovery' ? 'Regenerativo' :
+                                     workout.type === 'Long Run' ? 'Longão' :
+                                     workout.type === 'Tempo' ? 'Limiar' :
+                                     workout.type === 'Interval' ? 'Intervalado' :
+                                     workout.type === 'Speed' ? 'Velocidade' :
+                                     workout.type === 'Strength' ? 'Fortalecimento' : 'Regenerativo';
+
+                    updateWorkout(libraryTarget.wIdx, libraryTarget.dIdx, 'type', mappedType);
+                    updateWorkout(libraryTarget.wIdx, libraryTarget.dIdx, 'customDescription', workout.description);
+                    updateWorkout(libraryTarget.wIdx, libraryTarget.dIdx, 'distance', workout.distanceKm || 0);
+                    setShowLibraryModal(false);
+                    setLibraryTarget(null);
+                    setLibrarySearch("");
+                  }}
+                  className="w-full text-left p-4 rounded-2xl border border-slate-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-black text-slate-900 uppercase italic tracking-tighter group-hover:text-emerald-700">{workout.title}</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase italic">{workout.type}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 line-clamp-1 italic">{workout.description}</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-[10px] font-black bg-slate-100 px-2 py-0.5 rounded text-slate-600 uppercase">{workout.distanceKm} KM</span>
+                    <span className="text-[10px] font-black bg-slate-100 px-2 py-0.5 rounded text-slate-600 uppercase">{workout.durationMinutes} MIN</span>
+                  </div>
+                </button>
+              ))}
+              {workouts.length === 0 && (
+                <div className="text-center py-10 text-slate-400 italic">Nenhum treino na biblioteca.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
 export default Periodization;

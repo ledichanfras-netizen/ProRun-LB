@@ -1,0 +1,5 @@
+I have fixed a "white screen" issue in the Periodization page. The cause was a misplaced code block (the library modal) that was outside the component's main return statement, leading to syntax/runtime errors.
+
+I have also verified that the fix allows the page to render correctly when an athlete is selected, as shown in the attached screenshot.
+
+Please review the changes in pages/Periodization.tsx.

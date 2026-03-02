@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan } from '../types';
 import { db } from '../services/firebase';
@@ -8,7 +7,10 @@ import {
   setDoc, 
   updateDoc, 
   deleteDoc, 
-  onSnapshot
+  onSnapshot,
+  getDocs,
+  writeBatch,
+  Firestore
 } from 'firebase/firestore';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
@@ -106,6 +108,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  // Sync state to localStorage
   useEffect(() => {
     if (userRole) localStorage.setItem('proRun_userRole', userRole);
     else localStorage.removeItem('proRun_userRole');
@@ -128,56 +131,75 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('proRun_athletePlans', JSON.stringify(athletePlans));
   }, [athletePlans]);
 
-  useEffect(() => {
-    // Se o Firebase não estiver configurado, liberamos o loading imediatamente
-    if (!db) {
-      setIsLoading(false);
-      return;
-    }
-
-    // Failsafe para o estado de loading caso o Firestore demore muito
-    const timeout = setTimeout(() => {
-      console.warn("⏳ Sincronização em nuvem demorando. Liberando interface (Failsafe 4s)...");
-      setIsLoading(false);
-    }, 4000);
-    return () => clearTimeout(timeout);
-  }, []);
-
+  // Initial Sync Strategy: Local -> Cloud (if Cloud empty) and Cloud -> Local (Listen)
   useEffect(() => {
     if (!db) {
       setIsLoading(false);
       return;
     }
-    const unsubscribe = onSnapshot(collection(db, "athletes"), (snapshot) => {
-      const athletesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
-      setAthletes(athletesData);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Firestore Error (Athletes):", error);
-      setIsLoading(false);
+
+    const firestore = db as Firestore;
+
+    const performInitialSync = async () => {
+      try {
+        // 1. Check if Cloud has data
+        const athletesSnap = await getDocs(collection(firestore, "athletes"));
+
+        if (athletesSnap.empty && athletes.length > 0) {
+          console.log("☁️ Cloud empty, uploading local data...");
+          const batch = writeBatch(firestore);
+
+          // Upload Athletes
+          athletes.forEach(a => {
+            batch.set(doc(firestore, "athletes", a.id), sanitizeData(a));
+          });
+
+          // Upload Workouts
+          workouts.forEach(w => {
+            batch.set(doc(firestore, "workouts", w.id), sanitizeData(w));
+          });
+
+          // Upload Plans
+          Object.entries(athletePlans).forEach(([id, plan]) => {
+            batch.set(doc(firestore, "plans", id), sanitizeData(plan));
+          });
+
+          await batch.commit();
+          console.log("✅ Local data synced to Cloud.");
+        }
+      } catch (err) {
+        console.error("❌ Error during initial cloud sync:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    performInitialSync();
+
+    // Setup Listeners for Cloud Updates
+    const unsubAthletes = onSnapshot(collection(firestore, "athletes"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
+      if (data.length > 0) setAthletes(data);
     });
-    return () => unsubscribe();
-  }, []);
 
-  useEffect(() => {
-    if (!db) return;
-    const unsubscribe = onSnapshot(collection(db, "workouts"), (snapshot) => {
-      const workoutsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Workout));
-      setWorkouts(workoutsData);
-    }, (error) => console.error("Firestore Error (Workouts):", error));
-    return () => unsubscribe();
-  }, []);
+    const unsubWorkouts = onSnapshot(collection(firestore, "workouts"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Workout));
+      if (data.length > 0) setWorkouts(data);
+    });
 
-  useEffect(() => {
-    if (!db) return;
-    const unsubscribe = onSnapshot(collection(db, "plans"), (snapshot) => {
+    const unsubPlans = onSnapshot(collection(firestore, "plans"), (snapshot) => {
       const plansMap: Record<string, AthletePlan> = {};
       snapshot.docs.forEach(doc => {
         plansMap[doc.id] = doc.data() as AthletePlan;
       });
-      setAthletePlans(plansMap);
-    }, (error) => console.error("Firestore Error (Plans):", error));
-    return () => unsubscribe();
+      if (Object.keys(plansMap).length > 0) setAthletePlans(plansMap);
+    });
+
+    return () => {
+      unsubAthletes();
+      unsubWorkouts();
+      unsubPlans();
+    };
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
@@ -212,12 +234,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAthlete = async (athlete: Athlete) => {
-    // Atualização Otimista Local
     setAthletes(prev => [...prev, athlete]);
-
     if (db) {
       try {
-        await setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete));
+        await setDoc(doc(db as Firestore, "athletes", athlete.id), sanitizeData(athlete));
       } catch (error) {
         console.error("Erro ao salvar atleta no Firestore:", error);
         throw error;
@@ -226,12 +246,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   
   const updateAthlete = async (id: string, data: Partial<Athlete>) => {
-    // Atualização Otimista Local
     setAthletes(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
-
     if (db) {
       try {
-        await updateDoc(doc(db, "athletes", id), sanitizeData(data));
+        await updateDoc(doc(db as Firestore, "athletes", id), sanitizeData(data));
       } catch (error) {
         console.error("Erro ao atualizar atleta no Firestore:", error);
         throw error;
@@ -240,18 +258,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteAthlete = async (id: string) => {
-    // Atualização Otimista Local
     setAthletes(prev => prev.filter(a => a.id !== id));
     setAthletePlans(prev => {
       const newPlans = { ...prev };
       delete newPlans[id];
       return newPlans;
     });
-
     if (db) {
       try {
-        await deleteDoc(doc(db, "athletes", id));
-        await deleteDoc(doc(db, "plans", id));
+        await deleteDoc(doc(db as Firestore, "athletes", id));
+        await deleteDoc(doc(db as Firestore, "plans", id));
       } catch (error) {
         console.error("Erro ao remover atleta do Firestore:", error);
         throw error;
@@ -272,12 +288,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const updatePayload = { assessmentHistory: newHistory, metrics: updatedMetrics, customZones: updatedCustomZones };
 
-    // Atualização Otimista Local
     setAthletes(prev => prev.map(a => a.id === athleteId ? { ...a, ...updatePayload } : a));
-
     if (db) {
       try {
-        await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+        await updateDoc(doc(db as Firestore, "athletes", athleteId), sanitizeData(updatePayload));
       } catch (error) {
         console.error("Erro ao salvar avaliação no Firestore:", error);
         throw error;
@@ -300,12 +314,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
 
-    // Atualização Otimista Local
     setAthletes(prev => prev.map(a => a.id === athleteId ? { ...a, ...updatePayload } : a));
-
     if (db) {
       try {
-        await updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload));
+        await updateDoc(doc(db as Firestore, "athletes", athleteId), sanitizeData(updatePayload));
       } catch (error) {
         console.error("Erro ao atualizar avaliação no Firestore:", error);
         throw error;
@@ -318,12 +330,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!athlete) return;
     const newHistory = (athlete.assessmentHistory || []).filter(ass => ass.id !== assessmentId);
 
-    // Atualização Otimista Local
     setAthletes(prev => prev.map(a => a.id === athleteId ? { ...a, assessmentHistory: newHistory } : a));
-
     if (db) {
       try {
-        await updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory }));
+        await updateDoc(doc(db as Firestore, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory }));
       } catch (error) {
         console.error("Erro ao remover avaliação no Firestore:", error);
         throw error;
@@ -332,12 +342,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addWorkout = async (workout: Workout) => {
-    // Atualização Otimista Local
     setWorkouts(prev => [...prev, workout]);
-
     if (db) {
       try {
-        await setDoc(doc(db, "workouts", workout.id), sanitizeData(workout));
+        await setDoc(doc(db as Firestore, "workouts", workout.id), sanitizeData(workout));
       } catch (error) {
         console.error("Erro ao salvar treino no Firestore:", error);
         throw error;
@@ -346,12 +354,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateLibraryWorkout = async (id: string, data: Partial<Workout>) => {
-    // Atualização Otimista Local
     setWorkouts(prev => prev.map(w => w.id === id ? { ...w, ...data } : w));
-
     if (db) {
       try {
-        await updateDoc(doc(db, "workouts", id), sanitizeData(data));
+        await updateDoc(doc(db as Firestore, "workouts", id), sanitizeData(data));
       } catch (error) {
         console.error("Erro ao atualizar treino no Firestore:", error);
         throw error;
@@ -360,12 +366,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteLibraryWorkout = async (id: string) => {
-    // Atualização Otimista Local
     setWorkouts(prev => prev.filter(w => w.id !== id));
-
     if (db) {
       try {
-        await deleteDoc(doc(db, "workouts", id));
+        await deleteDoc(doc(db as Firestore, "workouts", id));
       } catch (error) {
         console.error("Erro ao remover treino do Firestore:", error);
         throw error;
@@ -374,12 +378,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
-    // Atualização Otimista Local
     setAthletePlans(prev => ({ ...prev, [athleteId]: plan }));
-
     if (db) {
       try {
-        await setDoc(doc(db, "plans", athleteId), sanitizeData(plan));
+        await setDoc(doc(db as Firestore, "plans", athleteId), sanitizeData(plan));
       } catch (error) {
         console.error("Erro ao salvar plano no Firestore:", error);
         throw error;
@@ -391,7 +393,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
     
-    // Deep clone and update
     const updatedPlan = safeDeepClone(currentPlan);
     const workout = updatedPlan.weeks[weekIndex].workouts[dayIndex];
     
@@ -399,15 +400,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     workout.feedback = feedback || "";
     workout.rpe = rpe !== undefined ? rpe : (workout.rpe || 0);
     
-    // Optimistic Update: Atualiza o estado local imediatamente
     setAthletePlans(prev => ({
       ...prev,
       [athleteId]: updatedPlan
     }));
 
-    // Background Sync: Não bloqueia a UI esperando o Firestore
     if (db) {
-      setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan))
+      setDoc(doc(db as Firestore, "plans", athleteId), sanitizeData(updatedPlan))
         .catch(err => console.error("Erro ao sincronizar plano com Firestore:", err));
     }
   };

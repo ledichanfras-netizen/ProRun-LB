@@ -1,99 +1,67 @@
+
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { Athlete, ExperienceLevel } from '../types';
-import {
-  Plus,
-  Search,
-  Trash2,
-  Edit2,
-  CheckCircle,
-  X,
-  AlertTriangle,
-  Calendar,
-  UserPlus,
-  TrendingUp,
-  Award,
-  Info,
-  ChevronDown,
-  Users
-} from 'lucide-react';
-import { withTimeout } from '../utils/helpers';
+import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info, ChevronDown } from 'lucide-react';
 
 const Athletes: React.FC = () => {
-  const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId } = useApp();
+  const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId, generateTestAthletes } = useApp();
   
   // Search State
   const [searchTerm, setSearchTerm] = useState('');
 
   // Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showLevelGuide, setShowLevelGuide] = useState(false);
   
   // Delete Modal State
-  const [deleteModal, setDeleteModal] = useState<{isOpen: boolean, id: string | null, name: string}>({
-    isOpen: false,
-    id: null,
-    name: ''
-  });
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
 
   const [formData, setFormData] = useState<Partial<Athlete>>({
-    name: '',
-    age: 0,
-    birthDate: '',
-    weight: 0,
-    height: 0,
-    experience: 'Iniciante',
-    email: ''
+    name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: ''
   });
 
-  const filteredAthletes = athletes.filter(athlete =>
-    athlete.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (athlete.email && athlete.email.toLowerCase().includes(searchTerm.toLowerCase()))
+  // Filter Athletes
+  const filteredAthletes = athletes.filter(a => 
+    a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    a.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
-
-    try {
-      let calculatedAge = formData.age || 0;
-      if (formData.birthDate) {
-        const today = new Date();
-        const birth = new Date(formData.birthDate);
-        let age = today.getFullYear() - birth.getFullYear();
-        const m = today.getMonth() - birth.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-          age--;
-        }
-        calculatedAge = age;
+    
+    // Calculate age from birthDate if provided
+    let calculatedAge = formData.age;
+    if (formData.birthDate) {
+      const birth = new Date(formData.birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
       }
-
-      const dataToSave = { ...formData, age: calculatedAge };
-
-      if (editingId) {
-        await withTimeout(updateAthlete(editingId, dataToSave));
-      } else {
-        if (dataToSave.name) {
-          await withTimeout(addAthlete({
-            ...dataToSave as Athlete,
-            id: crypto.randomUUID(),
-            metrics: { vdot: 30, test3kTime: '00:00' },
-            assessmentHistory: [],
-            customZones: []
-          }));
-        }
-      }
-
-      setIsFormOpen(false);
-      setEditingId(null);
-      setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '' });
-    } catch (error) {
-      console.error("Erro ao salvar atleta:", error);
-    } finally {
-      setIsSaving(false);
+      calculatedAge = age;
     }
+
+    const dataToSave = { ...formData, age: calculatedAge };
+
+    if (editingId) {
+      updateAthlete(editingId, dataToSave);
+    } else {
+      if (dataToSave.name) {
+        addAthlete({
+          ...dataToSave as Athlete,
+          id: crypto.randomUUID(),
+          metrics: { vdot: 30, test3kTime: '00:00' },
+          assessmentHistory: []
+        });
+      }
+    }
+    
+    setIsFormOpen(false);
+    setEditingId(null);
+    setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '' });
   };
 
   const handleEditClick = (athlete: Athlete) => {
@@ -109,21 +77,13 @@ const Athletes: React.FC = () => {
 
   const executeDelete = async () => {
     if (deleteModal.id) {
-      try {
-        await withTimeout(deleteAthlete(deleteModal.id));
-        setDeleteModal({ isOpen: false, id: null, name: '' });
-      } catch (error) {
-        console.error("Erro ao excluir atleta:", error);
-      }
+      await deleteAthlete(deleteModal.id);
+      setDeleteModal({ isOpen: false, id: null, name: '' });
     }
   };
 
-  const handleLevelChange = async (athleteId: string, level: ExperienceLevel) => {
-    try {
-      await withTimeout(updateAthlete(athleteId, { experience: level }));
-    } catch (error) {
-      console.error("Erro ao alterar nível:", error);
-    }
+  const handleLevelChange = (athleteId: string, level: ExperienceLevel) => {
+    updateAthlete(athleteId, { experience: level });
   };
 
   return (
@@ -179,62 +139,71 @@ const Athletes: React.FC = () => {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-3">
-            <Users className="text-emerald-600 w-8 h-8" /> Gestão do Elenco
-          </h2>
-          <p className="text-slate-500 mt-1 font-medium italic">Administração de atletas e prontidão técnica.</p>
+          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Gestão de Atletas</h1>
+          <p className="text-slate-500 font-medium">Controle biométrico e acesso dos atletas.</p>
         </div>
-        <div className="flex w-full md:w-auto gap-3">
-          <div className="relative flex-1 md:w-64">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Buscar por nome..."
-              className="w-full pl-10 pr-4 py-4 bg-slate-50 border-none rounded-2xl text-xs font-black uppercase italic focus:ring-2 focus:ring-emerald-500 outline-none"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-          </div>
+        <div className="flex gap-3 w-full md:w-auto">
           <button 
-            onClick={() => { setEditingId(null); setFormData({ name: "", experience: "Iniciante", birthDate: "", email: "", weight: 0, height: 0 }); setIsFormOpen(true); }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 flex items-center gap-2"
+            onClick={generateTestAthletes}
+            className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest transition shadow-sm border border-emerald-200"
           >
-            <UserPlus className="w-4 h-4" /> Novo Atleta
+            <UserPlus className="w-4 h-4" /> GERAR TESTES
+          </button>
+          <button 
+            onClick={() => {
+              setIsFormOpen(true);
+              setEditingId(null);
+              setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '' });
+            }}
+            className="flex-1 md:flex-none bg-emerald-950 hover:bg-black text-white px-8 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest shadow-xl transition"
+          >
+            <Plus className="w-4 h-4" /> NOVO ATLETA
           </button>
         </div>
       </div>
 
+      <div className="relative group">
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-emerald-500 transition-colors" />
+        <input 
+          type="text" 
+          placeholder="PESQUISAR POR NOME OU EMAIL..." 
+          className="w-full pl-12 pr-4 py-5 rounded-[1.5rem] border-none bg-white shadow-xl shadow-slate-200/50 focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-sm tracking-tight italic"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
       {isFormOpen && (
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border-2 border-emerald-100 animate-fade-in-up">
-          <div className="flex justify-between items-center mb-8">
-             <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
-                {editingId ? <Edit2 className="text-emerald-600" /> : <Plus className="text-emerald-600" />}
-                {editingId ? 'Editar Perfil' : 'Cadastrar Novo Atleta'}
-             </h3>
-             <button onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-slate-50 rounded-full transition text-slate-400"><X /></button>
+        <div className="bg-white p-8 rounded-[2rem] shadow-2xl border border-slate-100 animate-fade-in-up">
+          <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-4">
+            <h2 className="text-xl font-black uppercase italic tracking-tighter text-slate-900">
+              {editingId ? 'Editar Cadastro' : 'Novo Atleta'}
+            </h2>
+            <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:bg-slate-50 p-2 rounded-full transition">
+               <X className="w-6 h-6" />
+            </button>
           </div>
           
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
             <div className="md:col-span-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nome Completo</label>
               <input 
-                type="text"
                 className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none" 
-                placeholder="Ex: Leandro Barbosa"
-                value={formData.name || ''}
+                placeholder="Ex: João das Neves" 
+                value={formData.name}
                 onChange={e => setFormData({...formData, name: e.target.value})}
                 required
               />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Email de Contato</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Email Profissional</label>
               <input 
                 type="email"
                 className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none" 
-                placeholder="atleta@email.com"
-                value={formData.email || ''}
+                placeholder="atleta@pro.com" 
+                value={formData.email}
                 onChange={e => setFormData({...formData, email: e.target.value})}
               />
             </div>
@@ -297,27 +266,9 @@ const Athletes: React.FC = () => {
               />
             </div>
             <div className="md:col-span-3 flex justify-end gap-4 mt-6">
-              <button
-                type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-slate-600 transition"
-                disabled={isSaving}
-              >
-                CANCELAR
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105 disabled:opacity-50 disabled:scale-100"
-              >
-                {isSaving ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    SALVANDO...
-                  </span>
-                ) : (
-                  editingId ? '✓ ATUALIZAR DADOS' : '✓ SALVAR ATLETA'
-                )}
+              <button type="button" onClick={() => setIsFormOpen(false)} className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-slate-600 transition">CANCELAR</button>
+              <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105">
+                {editingId ? '✓ ATUALIZAR DADOS' : '✓ SALVAR ATLETA'}
               </button>
             </div>
           </form>

@@ -4,50 +4,32 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getAuth } from 'firebase/auth';
 
 const getFirebaseConfig = () => {
-  // Configurações via variáveis de ambiente (Vite usa import.meta.env)
-  const apiKey = import.meta.env.VITE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY;
-  const authDomain = import.meta.env.VITE_AUTH_DOMAIN;
-  const projectId = import.meta.env.VITE_PROJECT_ID;
-  const storageBucket = import.meta.env.VITE_STORAGE_BUCKET;
-  const messagingSenderId = import.meta.env.VITE_MESSAGING_SENDER_ID;
-  const appId = import.meta.env.VITE_APP_ID;
+  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || process.env.API_KEY;
   
-  // Verificação básica: se não houver API Key ou Project ID, o Firebase não funcionará na nuvem
-  if (!apiKey || !projectId) {
-    console.warn("⚠️ Firebase: Configuração incompleta. Verifique as variáveis de ambiente (VITE_API_KEY, VITE_PROJECT_ID). O app funcionará apenas localmente.");
+  if (!apiKey) {
+    console.warn("Firebase API Key is missing. Auth and Database features will be disabled.");
     return null;
   }
 
   return {
     apiKey,
-    authDomain: authDomain || `${projectId}.firebaseapp.com`,
-    projectId: projectId,
-    storageBucket: storageBucket || `${projectId}.appspot.com`,
-    messagingSenderId: messagingSenderId,
-    appId: appId
+    authDomain: "prorun-lb.firebaseapp.com",
+    projectId: "prorun-lb",
+    storageBucket: "prorun-lb.appspot.com",
+    messagingSenderId: "458712548963",
+    appId: "1:458712548963:web:7f8e9a0b1c2d3e4f5"
   };
 };
 
 const firebaseConfig = getFirebaseConfig();
 
-// Inicializa o Firebase com proteção contra falhas de configuração
-const getApp = () => {
-  if (!firebaseConfig) return null;
-  try {
-    return initializeApp(firebaseConfig);
-  } catch (error) {
-    console.error("❌ Erro ao inicializar Firebase (Verifique se as chaves são válidas):", error);
-    return null;
-  }
-};
-
-export const app = getApp();
+// Initialize Firebase only if config is available
+export const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
 
-// Inicializa o Firestore com cache persistente
+// Inicializa o Firestore com cache persistente para evitar timeouts e permitir uso offline
 export const db = app ? initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
 }) : null;
-

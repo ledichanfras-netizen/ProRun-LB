@@ -1,16 +1,17 @@
+
 import React, { Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 
-// Lazy loading das páginas para performance
-const Dashboard = lazy(() => import('./pages/Dashboard'));
+// Lazy loading das páginas secundárias para performance
 const Athletes = lazy(() => import('./pages/Athletes'));
 const Assessments = lazy(() => import('./pages/Assessments'));
 const Library = lazy(() => import('./pages/Library'));
 const Periodization = lazy(() => import('./pages/Periodization'));
 const AthletePortal = lazy(() => import('./pages/AthletePortal'));
-const Login = lazy(() => import('./pages/Login'));
 
 const LoadingFallback = () => (
   <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
@@ -38,20 +39,12 @@ function AppContent() {
         {userRole ? (
           <Layout>
             <Routes>
-              {/* Common Routes */}
               <Route path="/" element={<Dashboard />} />
-              <Route path="/athlete-portal" element={<AthletePortal />} />
+              <Route path="/athletes" element={<Athletes />} />
               <Route path="/assessments" element={<Assessments />} />
-
-              {/* Coach Only Routes */}
-              {userRole === 'coach' && (
-                <>
-                  <Route path="/athletes" element={<Athletes />} />
-                  <Route path="/library" element={<Library />} />
-                  <Route path="/periodization" element={<Periodization />} />
-                </>
-              )}
-
+              <Route path="/library" element={<Library />} />
+              <Route path="/periodization" element={<Periodization />} />
+              <Route path="/athlete-portal" element={<AthletePortal />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>

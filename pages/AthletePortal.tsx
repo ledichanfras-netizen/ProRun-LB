@@ -1,42 +1,52 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { 
-  TrendingUp,
-  CheckCircle, 
-  Circle, 
-  X, 
-  Zap,
-  ImageIcon,
-  Loader2,
-  Activity,
-  Sparkles,
-  Check,
-  ChevronRight,
-  Info
-} from 'lucide-react';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
-import { createPortal } from 'react-dom';
+import { 
+  AlertCircle, 
+  CheckCircle, 
+  Circle, 
+  Trophy, 
+  X, 
+  Activity,
+  Image as ImageIcon,
+  MessageSquare,
+  Loader2,
+  Check,
+  TrendingUp,
+  Sparkles,
+  Zap,
+  Flag
+} from 'lucide-react';
+import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-import { withTimeout } from '../utils/helpers';
 
 const AthletePortal: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus } = useApp();
-  const [selectedWorkout, setSelectedWorkout] = useState<any>(null);
+  const navigate = useNavigate();
+  const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
+  const portalRoot = document.getElementById('printable-portal');
+  
+  const [selectedWorkout, setSelectedWorkout] = useState<{
+    weekIndex: number;
+    dayIndex: number;
+    data: any;
+  } | null>(null);
+
   const [feedbackText, setFeedbackText] = useState('');
   const [rpeValue, setRpeValue] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
-  const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
-  const portalRoot = document.getElementById('print-layout-root');
-
   if (!activeAthlete) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 text-slate-400">
-        <Activity className="w-16 h-16 opacity-20 mb-4" />
-        <h2 className="text-xl font-black uppercase italic tracking-tighter text-slate-900">Portal do Atleta</h2>
+      <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 animate-fade-in">
+        <AlertCircle className="w-16 h-16 text-slate-200 mb-4" />
+        <h2 className="text-xl font-black text-slate-700 uppercase italic tracking-tighter">Acesso Restrito</h2>
         <p className="max-w-md text-center mt-2 font-medium">Nenhum perfil carregado. Por favor, faça login.</p>
       </div>
     );
@@ -60,14 +70,14 @@ const AthletePortal: React.FC = () => {
     try {
       const newStatus = !selectedWorkout.data.completed;
       
-      await withTimeout(updateWorkoutStatus(
+      await updateWorkoutStatus(
         activeAthlete.id, 
         selectedWorkout.weekIndex, 
         selectedWorkout.dayIndex, 
         newStatus, 
         feedbackText,
         rpeValue
-      ));
+      );
       
       setSaveSuccess(true);
       
@@ -78,13 +88,14 @@ const AthletePortal: React.FC = () => {
         setSaveSuccess(false);
         setFeedbackText('');
         setRpeValue(0);
+        // Removido navigate('/') para manter o atleta no portal e ver o progresso
       }, 800);
 
     } catch (err) {
       console.error("Erro ao salvar:", err);
+      alert("Erro ao sincronizar. Verifique sua conexão com o banco de dados.");
       setIsSaving(false);
       setSaveSuccess(false);
-      setSelectedWorkout(null);
     }
   };
 
@@ -127,37 +138,43 @@ const AthletePortal: React.FC = () => {
     
     setExportLoading(true);
     try {
+      // Pequeno delay para garantir que o portal está montado e renderizado no DOM oculto
       await new Promise(resolve => setTimeout(resolve, 800));
+      
       const success = await exportToImage('print-layout-root', `Planilha_${activeAthlete.name.replace(/\s+/g, '_')}`);
-      if (success) console.log("Imagem exportada com sucesso");
+      
+      if (success) {
+        console.log("Imagem exportada com sucesso");
+      }
     } catch (err) {
       console.error("Erro no download:", err);
+      alert("Erro ao gerar imagem. Tente novamente.");
     } finally {
       setExportLoading(false);
     }
   };
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-8 pb-20 relative animate-fade-in">
       {activeAthlete && athletePlan && portalRoot && createPortal(
         <PrintLayout 
           athlete={activeAthlete} 
           plan={visibleWeeks} 
           paces={paces} 
-          goal={athletePlan.specificGoal || ''}
+          goal={athletePlan.specificGoal || 'Ciclo de Performance'} 
           totalWeeks={allWeeks.length}
         />,
         portalRoot
       )}
 
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-        <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-emerald-950 rounded-[1.5rem] flex items-center justify-center text-white font-black italic text-2xl shadow-xl transform -rotate-3">
-             {activeAthlete.name.charAt(0)}
+      <header className="bg-white rounded-[2rem] p-6 md:p-8 shadow-xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 no-print">
+        <div className="flex items-center gap-6 w-full md:w-auto">
+          <div className="w-16 h-16 bg-emerald-950 rounded-2xl flex items-center justify-center text-white text-2xl font-black italic shadow-lg transform -rotate-3">
+            {activeAthlete.name.charAt(0)}
           </div>
           <div>
-            <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">{activeAthlete.name}</h1>
-            <p className="text-emerald-600 font-black text-[10px] uppercase tracking-widest italic flex items-center gap-2">
+            <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">{activeAthlete.name}</h1>
+            <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest italic flex items-center gap-2">
               <Sparkles className="w-3 h-3" /> {athletePlan?.specificGoal || 'Ciclo ProRun'}
             </p>
           </div>

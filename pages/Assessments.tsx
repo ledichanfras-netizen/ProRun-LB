@@ -1,325 +1,223 @@
-
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { calculateVO2, calculatePaces } from '../utils/calculations';
-import { TrainingPace, Assessment } from '../types';
-import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2, Download } from 'lucide-react';
-import { PrintLayout } from '../components/PrintLayout';
-import { exportToImage } from '../utils/exporter';
+import { Assessment, TrainingZone } from '../types';
+import {
+  Plus,
+  Activity,
+  Trash2,
+  Edit2,
+  Save,
+  RefreshCw,
+  Heart,
+  History,
+  Loader2,
+  X,
+  TrendingUp,
+  Info,
+  Users
+} from 'lucide-react';
+import { calculateVO2, calculatePaces, getHrRangeString } from '../utils/calculations';
+import { withTimeout } from '../utils/helpers';
 
 const Assessments: React.FC = () => {
-  const { athletes, selectedAthleteId, addNewAssessment, updateAssessment, deleteAssessment, updateAthlete, userRole } = useApp();
-  
-  const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
-  const isReadOnly = userRole === 'athlete';
-  const portalRoot = document.getElementById('printable-portal');
-
-  const getSaoPauloDate = () => {
-    const d = new Date();
-    return d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  };
-
-  const [testType, setTestType] = useState<'3k' | 'VO2_Lab' | 'TRF'>('3k');
+  const { athletes, selectedAthleteId, addNewAssessment, updateAssessment, deleteAssessment, updateAthlete } = useApp();
+  const [isSavingAssessment, setIsSavingAssessment] = useState(false);
+  const [isSavingZones, setIsSavingZones] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formDate, setFormDate] = useState(getSaoPauloDate());
-  const [formTime3k, setFormTime3k] = useState('');
-  const [formTrfDistance, setFormTrfDistance] = useState<number>(5);
-  const [formTrfTime, setFormTrfTime] = useState('');
+  const [isEditingZones, setIsEditingZones] = useState(false);
 
-  const [formVo2Max, setFormVo2Max] = useState<number | ''>('');
+  // Form states
+  const [testType, setTestType] = useState<'3k' | 'TRF' | 'VO2_Lab'>('3k');
+  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [formTime3k, setFormTime3k] = useState('');
+  const [formTrfDistance, setFormTrfDistance] = useState(0);
+  const [formTrfTime, setFormTrfTime] = useState('');
+  const [formVo2Max, setFormVo2Max] = useState(0);
   const [formFcMax, setFormFcMax] = useState<number | ''>('');
   const [formFcThreshold, setFormFcThreshold] = useState<number | ''>('');
-
   const [calculatedVo2, setCalculatedVo2] = useState<number | null>(null);
-  const [paces, setPaces] = useState<TrainingPace[]>([]);
-  const [isEditingZones, setIsEditingZones] = useState(false);
-  const [isSavingZones, setIsSavingZones] = useState(false);
-  const [isSavingAssessment, setIsSavingAssessment] = useState(false);
-  const [editablePaces, setEditablePaces] = useState<TrainingPace[]>([]);
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
-  // Monitora mudanças para recalcular zonas na hora (Simulação)
-  useEffect(() => {
-    if (activeAthlete && !isEditingZones) {
-      // Prioridade: Valor do formulário (simulação) > Valor atual do atleta
-      const vdotToUse = calculatedVo2 || activeAthlete.metrics.vdot || 30;
-      const hrThresholdToUse = (formFcThreshold !== '' && formFcThreshold !== 0) ? Number(formFcThreshold) : (activeAthlete.metrics.fcThreshold || 0);
-      const hrMaxToUse = (formFcMax !== '' && formFcMax !== 0) ? Number(formFcMax) : (activeAthlete.metrics.fcMax || 0);
-
-      const updatedPaces = calculatePaces(vdotToUse, hrThresholdToUse, hrMaxToUse);
-      setPaces(updatedPaces);
-    }
-  }, [calculatedVo2, formFcThreshold, formFcMax, activeAthlete, isEditingZones]);
-
-  useEffect(() => {
-    if (activeAthlete) {
-      if (!editingId && formFcMax === '' && formFcThreshold === '') {
-        setFormFcMax(activeAthlete.metrics.fcMax || '');
-        setFormFcThreshold(activeAthlete.metrics.fcThreshold || '');
-      }
-
-      if (activeAthlete.customZones && activeAthlete.customZones.length > 0) {
-        setPaces(activeAthlete.customZones);
-      }
-    } else {
-      setPaces([]);
-    }
-  }, [activeAthlete, editingId]);
+  const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
+  const isReadOnly = !activeAthlete;
 
   const handleSimulate3k = (time: string) => {
-    if (!time.includes(':') || time.length < 4) return;
-    const vo2 = calculateVO2(time, 3);
-    setCalculatedVo2(vo2);
+    if (time.includes(':') && time.length >= 4) {
+      const vdot = calculateVO2(time, 3);
+      setCalculatedVo2(vdot);
+    }
   };
 
   const handleSimulateTrf = (time: string) => {
-    if (!time.includes(':') || time.length < 4 || !formTrfDistance) return;
-    const vo2 = calculateVO2(time, formTrfDistance);
-    setCalculatedVo2(vo2);
+    if (time.includes(':') && time.length >= 4 && formTrfDistance > 0) {
+      const vdot = calculateVO2(time, formTrfDistance);
+      setCalculatedVo2(vdot);
+    }
   };
 
-  useEffect(() => {
-    if (testType === 'VO2_Lab' && formVo2Max) {
-      setCalculatedVo2(Number(formVo2Max));
-    }
-  }, [formVo2Max, testType]);
-
   const handleSaveAssessment = async () => {
-    if (isReadOnly || isSavingAssessment) return;
-    if (!activeAthlete || !calculatedVo2) {
-      alert('Preencha os dados do teste para calcular o VDOT antes de salvar.');
-      return;
-    }
-
+    if (!activeAthlete || !calculatedVo2) return;
     setIsSavingAssessment(true);
 
-    try {
-      let resultValue = '';
-      if (testType === '3k') resultValue = formTime3k;
-      else if (testType === 'TRF') resultValue = `${formTrfTime} (${formTrfDistance}km)`;
-      else resultValue = `${formVo2Max} ml/kg/min`;
+    const assessment: Assessment = {
+      id: editingId || crypto.randomUUID(),
+      date: formDate,
+      type: testType === '3k' ? 'Teste 3km' : testType === 'TRF' ? `TRF ${formTrfDistance}km` : 'VO2 Lab',
+      resultValue: testType === '3k' ? formTime3k : testType === 'TRF' ? `${formTrfDistance}k em ${formTrfTime}` : `${formVo2Max} ml/kg`,
+      calculatedVdot: calculatedVo2,
+      fcMax: formFcMax || undefined,
+      fcThreshold: formFcThreshold || undefined
+    };
 
-      const assessmentData: Assessment = {
-        id: editingId || crypto.randomUUID(), 
-        date: formDate,
-        type: testType,
-        resultValue: resultValue,
-        calculatedVdot: calculatedVo2, 
-        vo2Max: testType === 'VO2_Lab' ? Number(formVo2Max) : undefined,
-        fcMax: formFcMax ? Number(formFcMax) : activeAthlete.metrics.fcMax,
-        fcThreshold: formFcThreshold ? Number(formFcThreshold) : activeAthlete.metrics.fcThreshold,
-        distanceKm: testType === 'TRF' ? formTrfDistance : undefined,
-      };
-      
+    try {
       if (editingId) {
-        await updateAssessment(activeAthlete.id, assessmentData);
+        await withTimeout(updateAssessment(activeAthlete.id, assessment));
       } else {
-        await addNewAssessment(activeAthlete.id, assessmentData);
+        await withTimeout(addNewAssessment(activeAthlete.id, assessment));
       }
       
-      handleCancelEdit();
+      // Limpar formulário
+      setEditingId(null);
+      setFormTime3k('');
+      setFormTrfTime('');
+      setCalculatedVo2(null);
+      setFormFcMax('');
+      setFormFcThreshold('');
     } catch (error) {
       console.error("Erro ao salvar avaliação:", error);
-      alert("Erro ao salvar. Verifique sua conexão e tente novamente.");
     } finally {
-      // Garantimos que o botão saia do estado 'Salvando' independente do resultado
       setIsSavingAssessment(false);
     }
   };
 
-  const handleEditHistory = (assessment: Assessment) => {
-    setEditingId(assessment.id);
-    setTestType(assessment.type);
-    setFormDate(assessment.date);
-    setCalculatedVo2(assessment.calculatedVdot);
+  const handleEditHistory = (ass: Assessment) => {
+    setEditingId(ass.id);
+    setFormDate(ass.date);
+    setCalculatedVo2(ass.calculatedVdot);
+    setFormFcMax(ass.fcMax || '');
+    setFormFcThreshold(ass.fcThreshold || '');
     
-    setFormFcMax(assessment.fcMax || '');
-    setFormFcThreshold(assessment.fcThreshold || '');
-    setFormVo2Max(assessment.vo2Max || '');
-
-    if (assessment.type === '3k') {
-      setFormTime3k(assessment.resultValue);
-    } else if (assessment.type === 'TRF') {
-      const parts = assessment.resultValue.split(' (');
-      if (parts.length > 0) setFormTrfTime(parts[0]);
-      if (assessment.distanceKm) setFormTrfDistance(assessment.distanceKm);
+    if (ass.type.includes('3km')) {
+      setTestType('3k');
+      setFormTime3k(ass.resultValue);
+    } else if (ass.type.includes('TRF')) {
+      setTestType('TRF');
+      const parts = ass.resultValue.split(' em ');
+      setFormTrfDistance(parseFloat(parts[0]));
+      setFormTrfTime(parts[1]);
+    } else {
+      setTestType('VO2_Lab');
+      setFormVo2Max(parseFloat(ass.resultValue));
     }
-    
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const confirmDelete = (e: React.MouseEvent, id: string) => {
+  const confirmDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    setDeleteModal({ isOpen: true, id });
-  };
-
-  const executeDelete = async () => {
-    if (activeAthlete && deleteModal.id) {
+    if (window.confirm("Deseja realmente excluir este registro do histórico?")) {
       try {
-        await deleteAssessment(activeAthlete.id, deleteModal.id);
-      } finally {
-        setDeleteModal({ isOpen: false, id: null });
-        // Limpar edição caso o registro deletado fosse o que estava sendo editado
-        if (editingId === deleteModal.id) {
-          handleCancelEdit();
-        }
+        await withTimeout(deleteAssessment(activeAthlete!.id, id));
+      } catch (error) {
+        console.error("Erro ao deletar:", error);
       }
     }
   };
 
+  // Paces logic
+  const vdotValue = activeAthlete?.metrics.vdot || 30;
+  const currentPaces = activeAthlete?.customZones && activeAthlete.customZones.length > 0
+    ? activeAthlete.customZones
+    : calculatePaces(vdotValue, activeAthlete?.metrics.fcThreshold, activeAthlete?.metrics.fcMax);
+
+  const [editablePaces, setEditablePaces] = useState<TrainingZone[]>([]);
+
   const handleStartZoneEdit = () => {
-    setEditablePaces([...paces]);
+    setEditablePaces(currentPaces.map(p => ({...p})));
     setIsEditingZones(true);
   };
 
-  const handleRecalculateZones = () => {
-    if (activeAthlete) {
-      const recalculated = calculatePaces(
-        activeAthlete.metrics.vdot,
-        activeAthlete.metrics.fcThreshold,
-        activeAthlete.metrics.fcMax
-      );
-      setEditablePaces(recalculated);
-    }
-  };
-
-  const handleZoneChange = (index: number, field: keyof TrainingPace, value: string) => {
+  const handleZoneChange = (index: number, field: keyof TrainingZone, value: string) => {
     const newPaces = [...editablePaces];
     newPaces[index] = { ...newPaces[index], [field]: value };
     setEditablePaces(newPaces);
   };
 
   const handleSaveZones = async () => {
-    if (activeAthlete) {
-      setIsSavingZones(true);
-      try {
-        await updateAthlete(activeAthlete.id, { customZones: editablePaces });
-        setIsEditingZones(false);
-      } catch (error) {
-        console.error("Erro ao salvar zonas:", error);
-        alert("Erro ao salvar zonas personalizadas. Verifique sua conexão.");
-      } finally {
-        setIsSavingZones(false);
-      }
-    }
-  };
-
-  const handleResetZones = async () => {
-    if (activeAthlete && window.confirm('Remover zonas personalizadas e voltar ao cálculo automático?')) {
-      try {
-        await updateAthlete(activeAthlete.id, { customZones: undefined });
-        setIsEditingZones(false);
-      } catch (error) {
-        console.error("Erro ao resetar zonas:", error);
-        alert("Erro ao resetar zonas.");
-      }
-    }
-  };
-
-  const [exportLoading, setExportLoading] = useState(false);
-
-  const handleDownloadImage = async () => {
-    if (exportLoading || !activeAthlete) return;
-    
-    setExportLoading(true);
+    if (!activeAthlete) return;
+    setIsSavingZones(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const success = await exportToImage('print-layout-root', `Zonas_${activeAthlete.name.replace(/\s+/g, '_')}`);
-      if (success) console.log("Zonas exportadas");
-    } catch (err) {
-      console.error("Erro no download:", err);
-      alert("Erro ao gerar imagem.");
+      await withTimeout(updateAthlete(activeAthlete.id, { customZones: editablePaces }));
+      setIsEditingZones(false);
+    } catch (error) {
+      console.error("Erro ao salvar zonas customizadas:", error);
     } finally {
-      setExportLoading(false);
+      setIsSavingZones(false);
     }
   };
 
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setFormDate(getSaoPauloDate());
-    setFormTime3k('');
-    setFormTrfTime('');
-    setFormTrfDistance(5);
-    setFormVo2Max('');
-    setCalculatedVo2(null);
-    if (activeAthlete) {
-      setFormFcMax(activeAthlete.metrics.fcMax || '');
-      setFormFcThreshold(activeAthlete.metrics.fcThreshold || '');
+  const handleResetZones = () => {
+    if (window.confirm("Deseja restaurar as zonas padrão para este VDOT?")) {
+      setEditablePaces(calculatePaces(vdotValue, activeAthlete?.metrics.fcThreshold, activeAthlete?.metrics.fcMax));
     }
   };
+
+  const handleRecalculateZones = () => {
+    setEditablePaces(calculatePaces(vdotValue, activeAthlete?.metrics.fcThreshold, activeAthlete?.metrics.fcMax));
+  };
+
+  if (!activeAthlete) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 text-center px-6">
+        <div className="bg-emerald-50 p-6 rounded-full mb-6">
+          <Users className="w-12 h-12 text-emerald-600" />
+        </div>
+        <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Nenhum Atleta Selecionado</h2>
+        <p className="text-slate-500 mt-2 font-medium italic max-w-sm">
+          Selecione um atleta na aba "Meus Atletas" para gerenciar suas avaliações e zonas.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 relative animate-fade-in custom-scrollbar">
-      {activeAthlete && portalRoot && createPortal(
-        <PrintLayout 
-          athlete={activeAthlete} 
-          plan={[]} 
-          paces={paces} 
-          goal="Zonas de Treinamento e Performance" 
-          totalWeeks={0}
-        />,
-        portalRoot
-      )}
-      {deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full animate-fade-in-up border-l-8 border-red-500">
-             <div className="flex items-center gap-3 text-red-600 mb-4">
-               <div className="bg-red-50 p-2 rounded-full"><AlertTriangle className="w-6 h-6" /></div>
-               <h3 className="text-xl font-black uppercase italic tracking-tighter">Excluir Avaliação?</h3>
-             </div>
-             <p className="text-slate-600 mb-6 text-sm font-medium italic">As métricas do atleta podem ser recalculadas com base no registro anterior.</p>
-             <div className="flex gap-3 justify-end">
-               <button onClick={() => setDeleteModal({ isOpen: false, id: null })} className="px-6 py-2 text-slate-400 font-black text-xs uppercase hover:text-slate-600 transition">Cancelar</button>
-               <button onClick={executeDelete} className="px-6 py-2 bg-red-600 text-white rounded-xl font-black text-xs uppercase shadow-md transition hover:bg-red-700">Confirmar</button>
-             </div>
-          </div>
-        </div>
-      )}
-
-      <header className="flex justify-between items-center">
+    <div className="space-y-8 animate-fade-in pb-10">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Avaliações & Zonas</h1>
-          <p className="text-slate-500 font-medium">Configuração técnica personalizada (Fuso SP).</p>
+          <div className="flex items-center gap-2 mb-1">
+             <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest italic bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">Performance Integrada</span>
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-3">
+            <Activity className="text-emerald-600 w-8 h-8" /> Avaliações: {activeAthlete.name}
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium italic">Gestão de testes fisiológicos e zonas de intensidade.</p>
         </div>
-        {activeAthlete && (
-          <button 
-            onClick={handleDownloadImage}
-            disabled={exportLoading}
-            className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-black transition shadow-lg uppercase text-[10px] italic tracking-widest disabled:opacity-50"
-          >
-            {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {exportLoading ? 'GERANDO...' : 'Baixar Zonas'}
-          </button>
-        )}
+
+        <div className="flex flex-col items-end">
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">VDOT Atual</span>
+           <div className="flex items-center gap-2 bg-emerald-950 px-6 py-3 rounded-2xl shadow-xl shadow-emerald-900/20">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-2xl font-black text-white italic tracking-tighter">{activeAthlete.metrics.vdot}</span>
+           </div>
+        </div>
       </header>
 
-      {!activeAthlete ? (
-         <div className="bg-emerald-50 border-l-4 border-emerald-500 p-6 rounded-r-3xl flex items-center gap-4 shadow-sm">
-            <AlertCircle className="h-8 w-8 text-emerald-500" />
-            <p className="text-sm text-emerald-700 font-black uppercase italic tracking-tight">Selecione um atleta no menu lateral para gerenciar as zonas.</p>
-          </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="space-y-6">
-            <div className={`bg-white p-6 rounded-3xl shadow-sm border ${editingId ? 'border-emerald-300 ring-4 ring-emerald-50' : 'border-slate-100'}`}>
-              <div className="flex justify-between items-start mb-4">
-                <h2 className="text-lg font-black flex items-center gap-2 text-slate-900 uppercase italic tracking-tighter">
-                  <Calculator className="text-emerald-600 w-5 h-5" /> 
-                  {isReadOnly ? 'Simulador' : editingId ? 'Editar Teste' : 'Novo Teste'}
-                </h2>
-                {editingId && <button onClick={handleCancelEdit} className="text-slate-400 hover:text-slate-600 transition"><X className="w-5 h-5" /></button>}
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100">
+              <div className="flex items-center gap-3 mb-8 border-b border-slate-50 pb-4">
+                <div className="bg-emerald-50 p-3 rounded-2xl"><Plus className="w-5 h-5 text-emerald-600" /></div>
+                <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">{editingId ? 'Editar Teste' : 'Novo Registro'}</h2>
               </div>
               
-              <div className="flex bg-slate-50 p-1 rounded-xl mb-6 overflow-x-auto custom-scrollbar">
-                {['3k', 'TRF', 'VO2_Lab'].map(t => (
-                  <button key={t} onClick={() => setTestType(t as any)} className={`flex-1 py-2 px-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition whitespace-nowrap ${testType === t ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                    {t === '3k' ? 'Teste 3km' : t === 'TRF' ? 'TRF (Campo)' : 'Laboratório'}
-                  </button>
-                ))}
-              </div>
-              
-              <div className="space-y-4">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Protocolo de Teste</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button onClick={() => setTestType('3k')} className={`py-3 px-1 rounded-xl font-black text-[9px] uppercase italic transition-all border ${testType === '3k' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>Teste 3km</button>
+                    <button onClick={() => setTestType('TRF')} className={`py-3 px-1 rounded-xl font-black text-[9px] uppercase italic transition-all border ${testType === 'TRF' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>T.R.F</button>
+                    <button onClick={() => setTestType('VO2_Lab')} className={`py-3 px-1 rounded-xl font-black text-[9px] uppercase italic transition-all border ${testType === 'VO2_Lab' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>VO2 Lab</button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Data</label>
                   <input type="date" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-sm font-bold disabled:opacity-50 focus:ring-2 focus:ring-emerald-500 outline-none" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
@@ -339,7 +237,7 @@ const Assessments: React.FC = () => {
                       <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none" value={formTrfDistance} onChange={(e) => setFormTrfDistance(Number(e.target.value))} />
                     </div>
                     <div>
-                      <label className="block text-[10px) font-black text-slate-400 uppercase mb-1">Tempo Total (MM:SS)</label>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Tempo Total (MM:SS)</label>
                       <input type="text" placeholder="Ex: 22:15" disabled={isReadOnly || isSavingAssessment} className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black text-xl italic focus:ring-2 focus:ring-emerald-500 outline-none" value={formTrfTime} onChange={(e) => { setFormTrfTime(e.target.value); if (e.target.value.length >= 4) handleSimulateTrf(e.target.value); }} />
                     </div>
                   </div>
@@ -427,7 +325,7 @@ const Assessments: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {(isEditingZones ? editablePaces : paces).map((p, idx) => (
+                    {(isEditingZones ? editablePaces : currentPaces).map((p, idx) => (
                       <tr key={p.zone} className="hover:bg-slate-50/30 transition">
                         <td className="p-4">
                           <div className={`w-12 h-12 flex items-center justify-center rounded-2xl font-black text-lg border-2
@@ -525,8 +423,7 @@ const Assessments: React.FC = () => {
                 </div>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

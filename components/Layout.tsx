@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -11,7 +10,9 @@ import {
   X,
   TrendingUp,
   UserCheck,
-  LogOut
+  LogOut,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -21,13 +22,12 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const { athletes, selectedAthleteId, userRole, logout } = useApp();
+  const { athletes, selectedAthleteId, userRole, logout, isCloudSyncEnabled } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
 
-  // Define navigation based on Role
   const navItems = userRole === 'coach' 
     ? [
         { to: '/', icon: LayoutDashboard, label: 'Painel Geral' },
@@ -76,12 +76,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
             <div>
               <h1 className="font-black text-xl tracking-tighter italic uppercase">ProRun</h1>
-              <p className="text-[10px] text-emerald-300/60 uppercase font-black tracking-widest leading-none">
-                {userRole === 'coach' ? 'Coach' : 'Athlete'}
-              </p>
+              <div className="flex items-center gap-1.5">
+                 <span className="text-[10px] text-emerald-300/60 uppercase font-black tracking-widest leading-none">
+                  {userRole === 'coach' ? 'Coach' : 'Athlete'}
+                 </span>
+                 <div className="w-1 h-1 bg-emerald-800 rounded-full"></div>
+                 {isCloudSyncEnabled ? (
+                   <Cloud className="w-2.5 h-2.5 text-emerald-500" />
+                 ) : (
+                   <CloudOff className="w-2.5 h-2.5 text-amber-500" />
+                 )}
+              </div>
             </div>
           </div>
-
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

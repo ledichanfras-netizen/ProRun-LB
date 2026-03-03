@@ -10,7 +10,9 @@ import {
   onSnapshot,
   getDocs,
   writeBatch,
-  Firestore
+  Firestore,
+  query,
+  where
 } from 'firebase/firestore';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
@@ -61,7 +63,7 @@ const sanitizeData = (data: any): any => {
       return val === undefined ? null : val;
     }
     
-    if (seen.has(val)) return null; // Circular reference found
+    if (seen.has(val)) return null;
     seen.set(val, true);
     
     if (Array.isArray(val)) {
@@ -106,9 +108,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const saved = localStorage.getItem('proRun_athletePlans');
     return saved ? JSON.parse(saved) : {};
   });
+
   const [isLoading, setIsLoading] = useState(true);
 
-  // Sync state to localStorage
+  // Persistence to localStorage (as backup/offline cache)
   useEffect(() => {
     if (userRole) localStorage.setItem('proRun_userRole', userRole);
     else localStorage.removeItem('proRun_userRole');
@@ -131,63 +134,94 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('proRun_athletePlans', JSON.stringify(athletePlans));
   }, [athletePlans]);
 
-  // Initial Sync Strategy: Local -> Cloud (if Cloud empty) and Cloud -> Local (Listen)
+  // Unified Cloud Sync Strategy
   useEffect(() => {
     if (!db) {
+      console.warn("⚠️ Firestore não inicializado. Operando apenas em modo local.");
       setIsLoading(false);
       return;
     }
 
     const firestore = db as Firestore;
+    let isInitialLoadActive = true;
 
-    const performInitialSync = async () => {
+    // Failsafe: Don't block UI forever
+    const failsafeTimeout = setTimeout(() => {
+      if (isInitialLoadActive) {
+        console.warn("⏱️ Sincronização demorando muito. Liberando interface...");
+        setIsLoading(false);
+        isInitialLoadActive = false;
+      }
+    }, 5000);
+
+    const initializeCloudSync = async () => {
       try {
-        // 1. Check if Cloud has data
-        const athletesSnap = await getDocs(collection(firestore, "athletes"));
+        // 1. Fetch current cloud state to decide on strategy
+        const [athSnap, workSnap, planSnap] = await Promise.all([
+          getDocs(collection(firestore, "athletes")),
+          getDocs(collection(firestore, "workouts")),
+          getDocs(collection(firestore, "plans"))
+        ]);
 
-        if (athletesSnap.empty && athletes.length > 0) {
-          console.log("☁️ Cloud empty, uploading local data...");
+        const cloudIsEmpty = athSnap.empty && workSnap.empty && planSnap.empty;
+
+        if (cloudIsEmpty && (athletes.length > 0 || workouts.length > 0)) {
+          console.log("☁️ Nuvem vazia detectada. Fazendo upload dos dados locais iniciais...");
           const batch = writeBatch(firestore);
 
-          // Upload Athletes
-          athletes.forEach(a => {
-            batch.set(doc(firestore, "athletes", a.id), sanitizeData(a));
-          });
-
-          // Upload Workouts
-          workouts.forEach(w => {
-            batch.set(doc(firestore, "workouts", w.id), sanitizeData(w));
-          });
-
-          // Upload Plans
+          athletes.forEach(a => batch.set(doc(firestore, "athletes", a.id), sanitizeData(a)));
+          workouts.forEach(w => batch.set(doc(firestore, "workouts", w.id), sanitizeData(w)));
           Object.entries(athletePlans).forEach(([id, plan]) => {
             batch.set(doc(firestore, "plans", id), sanitizeData(plan));
           });
 
           await batch.commit();
-          console.log("✅ Local data synced to Cloud.");
+          console.log("✅ Upload concluído com sucesso.");
+        } else {
+          // If cloud is NOT empty, populate local state immediately with what we fetched
+          if (!athSnap.empty) {
+            const cloudAthletes = athSnap.docs.map(d => ({ ...d.data(), id: d.id } as Athlete));
+            setAthletes(cloudAthletes);
+          }
+          if (!workSnap.empty) {
+            const cloudWorkouts = workSnap.docs.map(d => ({ ...d.data(), id: d.id } as Workout));
+            setWorkouts(cloudWorkouts);
+          }
+          if (!planSnap.empty) {
+            const cloudPlans: Record<string, AthletePlan> = {};
+            planSnap.docs.forEach(d => { cloudPlans[d.id] = d.data() as AthletePlan; });
+            setAthletePlans(cloudPlans);
+          }
+          console.log("📥 Dados da nuvem sincronizados localmente.");
         }
       } catch (err) {
-        console.error("❌ Error during initial cloud sync:", err);
+        console.error("❌ Erro durante a sincronização inicial:", err);
       } finally {
-        setIsLoading(false);
+        if (isInitialLoadActive) {
+          clearTimeout(failsafeTimeout);
+          setIsLoading(false);
+          isInitialLoadActive = false;
+        }
       }
     };
 
-    performInitialSync();
+    initializeCloudSync();
 
-    // Setup Listeners for Cloud Updates
+    // Setup Real-time Listeners
     const unsubAthletes = onSnapshot(collection(firestore, "athletes"), (snapshot) => {
+      if (isInitialLoadActive) return; // Ignore snapshots during manual initial load
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Athlete));
       if (data.length > 0) setAthletes(data);
     });
 
     const unsubWorkouts = onSnapshot(collection(firestore, "workouts"), (snapshot) => {
+      if (isInitialLoadActive) return;
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Workout));
       if (data.length > 0) setWorkouts(data);
     });
 
     const unsubPlans = onSnapshot(collection(firestore, "plans"), (snapshot) => {
+      if (isInitialLoadActive) return;
       const plansMap: Record<string, AthletePlan> = {};
       snapshot.docs.forEach(doc => {
         plansMap[doc.id] = doc.data() as AthletePlan;
@@ -196,6 +230,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     return () => {
+      clearTimeout(failsafeTimeout);
       unsubAthletes();
       unsubWorkouts();
       unsubPlans();
@@ -204,27 +239,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     const normalizedUsername = username.trim().toLowerCase();
+
+    // Coach Access
     if (normalizedUsername === 'leandro' && password === '1234') {
       setUserRole('coach');
       setSelectedAthleteId(null);
       return { success: true };
     }
+
+    // Athlete Access
     const athlete = athletes.find(a => a.name.trim().toLowerCase() === normalizedUsername);
     if (athlete) {
       const inputPass = password.replace(/\D/g, '');
       let storedPass = '';
+
       if (athlete.birthDate) {
         const [year, month, day] = athlete.birthDate.split('-');
         storedPass = `${day}${month}${year}`;
       }
+
       if (inputPass === storedPass || password === athlete.birthDate) {
         setUserRole('athlete');
         setSelectedAthleteId(athlete.id);
         return { success: true };
       }
-      return { success: false, message: 'Senha incorreta.' };
+      return { success: false, message: 'Senha incorreta (use sua data de nascimento DDMMAAAA).' };
     }
-    return { success: false, message: 'Atleta não encontrado.' };
+
+    return { success: false, message: 'Usuário não encontrado. Verifique se o nome está correto.' };
   };
 
   const logout = () => {

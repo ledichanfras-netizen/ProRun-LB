@@ -1,4 +1,3 @@
-
 import React, { Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
@@ -39,12 +38,20 @@ function AppContent() {
         {userRole ? (
           <Layout>
             <Routes>
+              {/* Common Routes */}
               <Route path="/" element={<Dashboard />} />
-              <Route path="/athletes" element={<Athletes />} />
-              <Route path="/assessments" element={<Assessments />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/periodization" element={<Periodization />} />
               <Route path="/athlete-portal" element={<AthletePortal />} />
+              <Route path="/assessments" element={<Assessments />} />
+
+              {/* Coach Only Routes */}
+              {userRole === 'coach' && (
+                <>
+                  <Route path="/athletes" element={<Athletes />} />
+                  <Route path="/library" element={<Library />} />
+                  <Route path="/periodization" element={<Periodization />} />
+                </>
+              )}
+
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>

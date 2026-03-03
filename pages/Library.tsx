@@ -1,21 +1,27 @@
-
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { Workout } from '../types';
-import { Book, Plus, Clock, Zap, Info, Trash2, Edit2, Save, X, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Search, Zap, Clock, Book, Save, Info, AlertCircle } from 'lucide-react';
+import { withTimeout } from '../utils/helpers';
 
 const Library: React.FC = () => {
   const { workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout } = useApp();
-  
   const [showForm, setShowForm] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
-  // Delete Modal State
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; title: string }>({ isOpen: false, id: null, title: '' });
+  const [isSaving, setIsSaving] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{isOpen: boolean, id: string | null, name: string}>({
+    isOpen: false,
+    id: null,
+    name: ''
+  });
 
   const [formWorkout, setFormWorkout] = useState<Partial<Workout>>({
-    title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3
+    title: '',
+    type: 'Recovery',
+    description: '',
+    durationMinutes: 30,
+    distanceKm: 5,
+    rpe: 3
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,81 +30,79 @@ const Library: React.FC = () => {
     
     try {
       if (editingId) {
-        await updateLibraryWorkout(editingId, formWorkout);
+        await withTimeout(updateLibraryWorkout(editingId, formWorkout));
       } else {
-        await addWorkout({ ...formWorkout as Workout, id: crypto.randomUUID() });
+        await withTimeout(addWorkout({
+          ...formWorkout as Workout,
+          id: crypto.randomUUID(),
+          isVisible: true
+        }));
       }
-
-      // Reset
       setShowForm(false);
       setEditingId(null);
-      setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
     } catch (error) {
       console.error("Erro ao salvar treino:", error);
-      alert("Erro ao salvar dados na biblioteca. Verifique sua conexão ou configurações.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleEdit = (workout: Workout) => {
-    setEditingId(workout.id);
-    setFormWorkout(workout);
+  const handleEdit = (w: Workout) => {
+    setEditingId(w.id);
+    setFormWorkout(w);
     setShowForm(true);
   };
 
-  // Open Delete Modal
-  const confirmDelete = (e: React.MouseEvent, id: string, title: string) => {
+  const confirmDelete = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
-    setDeleteModal({ isOpen: true, id, title });
+    setDeleteModal({ isOpen: true, id, name });
   };
 
-  // Execute Delete
   const executeDelete = async () => {
     if (deleteModal.id) {
-      await deleteLibraryWorkout(deleteModal.id);
-      setDeleteModal({ isOpen: false, id: null, title: '' });
+      try {
+        await withTimeout(deleteLibraryWorkout(deleteModal.id));
+        setDeleteModal({ isOpen: false, id: null, name: '' });
+      } catch (error) {
+        console.error("Erro ao excluir:", error);
+      }
     }
   };
 
   const mapType = (type: string) => {
-      switch(type) {
-          case 'Recovery': return 'Recuperação';
-          case 'Long Run': return 'Longão';
-          case 'Tempo': return 'Tempo';
-          case 'Interval': return 'Intervalado';
-          case 'Speed': return 'Velocidade';
-          default: return type;
-      }
-  }
+    switch (type) {
+      case 'Recovery': return 'Recuperação';
+      case 'Long Run': return 'Longão';
+      case 'Tempo': return 'Tempo';
+      case 'Interval': return 'Intervalado';
+      case 'Speed': return 'Velocidade';
+      case 'Prova': return 'Prova';
+      default: return type;
+    }
+  };
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-6 animate-fade-in pb-10">
       
-      {/* DELETE CONFIRMATION MODAL */}
+      {/* Delete Confirmation Modal */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full animate-fade-in-up">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full animate-fade-in-up border-t-8 border-red-500">
              <div className="flex items-center gap-3 text-red-600 mb-4">
-               <div className="bg-red-100 p-2 rounded-full">
-                  <AlertTriangle className="w-6 h-6" />
-               </div>
-               <h3 className="text-lg font-bold">Excluir Treino?</h3>
+               <AlertCircle className="w-6 h-6" />
+               <h3 className="text-xl font-bold">Excluir Treino?</h3>
              </div>
-             <p className="text-slate-600 mb-2">
-               Você vai excluir da biblioteca:
-             </p>
-             <p className="font-bold text-slate-800 mb-6 italic">"{deleteModal.title}"</p>
+             <p className="text-slate-600 mb-6">Confirma a remoção permanente de <strong>{deleteModal.name}</strong> da biblioteca?</p>
              <div className="flex gap-3 justify-end">
                <button 
-                 onClick={() => setDeleteModal({ isOpen: false, id: null, title: '' })}
-                 className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                 onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })}
+                 className="px-4 py-2 text-slate-400 hover:text-slate-600 font-bold uppercase text-[10px]"
                >
                  Cancelar
                </button>
                <button 
                  onClick={executeDelete}
-                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium shadow-md"
+                 className="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-black text-[10px] uppercase italic shadow-lg"
                >
                  Sim, Excluir
                </button>
@@ -107,10 +111,12 @@ const Library: React.FC = () => {
         </div>
       )}
 
-      <div className="flex justify-between items-center">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Biblioteca de Treinos</h1>
-          <p className="text-slate-500">Banco de dados de treinos padronizados</p>
+          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-3">
+            <Book className="text-emerald-600 w-8 h-8" /> Biblioteca de Treinos
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium italic">Banco de dados de sessões técnicas padronizadas.</p>
         </div>
         <button 
           onClick={() => {
@@ -118,133 +124,126 @@ const Library: React.FC = () => {
             setEditingId(null);
             setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md transition"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 flex items-center gap-2"
         >
           <Plus className="w-4 h-4" /> Novo Treino
         </button>
-      </div>
+      </header>
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl shadow border border-slate-200 animate-fade-in-down">
-          <div className="flex justify-between items-center mb-6 border-b pb-2">
-            <div className="flex items-center gap-2">
-              <Plus className="w-5 h-5 text-green-600" />
-              <h3 className="font-bold text-lg text-slate-800">{editingId ? 'Editar Treino' : 'Cadastrar Novo Treino'}</h3>
-            </div>
-            <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border-2 border-emerald-100 animate-fade-in-up">
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+              {editingId ? <Edit2 className="text-emerald-600" /> : <Plus className="text-emerald-600" />}
+              {editingId ? 'Editar Treino' : 'Nova Sessão Técnica'}
+            </h3>
+            <button onClick={() => setShowForm(false)} className="text-slate-400 hover:bg-slate-50 p-2 rounded-full transition">
               <X className="w-5 h-5" />
             </button>
           </div>
           
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Título */}
-            <div className="col-span-1">
-              <label className="block text-sm font-bold text-slate-700 mb-1">Nome do Treino</label>
-              <input 
-                placeholder="Ex: Fartlek Piramidal" 
-                className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" 
-                value={formWorkout.title} 
-                onChange={e => setFormWorkout({...formWorkout, title: e.target.value})} 
-                required
-              />
-              <p className="text-xs text-slate-400 mt-1">Dê um nome curto e identificável.</p>
-            </div>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Título da Sessão</label>
+                <input
+                  placeholder="Ex: Fartlek Piramidal"
+                  className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none"
+                  value={formWorkout.title}
+                  onChange={e => setFormWorkout({...formWorkout, title: e.target.value})}
+                  required
+                />
+              </div>
 
-            {/* Tipo */}
-            <div className="col-span-1">
-              <label className="block text-sm font-bold text-slate-700 mb-1">Tipo de Sessão</label>
-              <select 
-                className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                value={formWorkout.type}
-                onChange={e => setFormWorkout({...formWorkout, type: e.target.value as any})}
-              >
-                <option value="Recovery">Recuperação (Regenerativo)</option>
-                <option value="Long Run">Longão (Resistência)</option>
-                <option value="Tempo">Tempo (Ritmo de Prova/Limiar)</option>
-                <option value="Interval">Intervalado (VO2Max)</option>
-                <option value="Speed">Velocidade (Repetições Curtas)</option>
-              </select>
-              <p className="text-xs text-slate-400 mt-1">Define a cor e categoria no calendário.</p>
-            </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Categoria</label>
+                <div className="relative">
+                  <select
+                    className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
+                    value={formWorkout.type}
+                    onChange={e => setFormWorkout({...formWorkout, type: e.target.value as any})}
+                  >
+                    <option value="Recovery">Recuperação</option>
+                    <option value="Long Run">Resistência (Longão)</option>
+                    <option value="Tempo">Ritmo / Limiar</option>
+                    <option value="Interval">Intervalado (VO2Max)</option>
+                    <option value="Speed">Velocidade</option>
+                    <option value="Prova">Prova</option>
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
 
-            {/* Descrição */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-slate-700 mb-1">Estrutura do Treino (Descrição Completa)</label>
-              <textarea 
-                placeholder="Ex: 15min Aquece (Z1) + 5x 1000m (Z4) c/ 2min pausa leve + 10min Desaquece" 
-                className="w-full border border-slate-300 p-3 rounded h-28 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                value={formWorkout.description}
-                onChange={e => setFormWorkout({...formWorkout, description: e.target.value})}
-              />
-              <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                <Info className="w-3 h-3" />
-                <span>Descreva o aquecimento, parte principal e desaquecimento detalhadamente.</span>
+              <div className="grid grid-cols-3 gap-4">
+                 <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Duração (m)</label>
+                    <input
+                      type="number"
+                      className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic text-center focus:ring-2 focus:ring-emerald-500 outline-none"
+                      value={formWorkout.durationMinutes}
+                      onChange={e => setFormWorkout({...formWorkout, durationMinutes: Number(e.target.value)})}
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Volume (km)</label>
+                    <input
+                      type="number"
+                      className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic text-center focus:ring-2 focus:ring-emerald-500 outline-none"
+                      value={formWorkout.distanceKm}
+                      onChange={e => setFormWorkout({...formWorkout, distanceKm: Number(e.target.value)})}
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">PSE Estimada</label>
+                    <input
+                      type="number"
+                      className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic text-center focus:ring-2 focus:ring-emerald-500 outline-none text-emerald-600"
+                      min="1" max="10"
+                      value={formWorkout.rpe}
+                      onChange={e => setFormWorkout({...formWorkout, rpe: Number(e.target.value)})}
+                    />
+                 </div>
               </div>
             </div>
 
-            {/* Métricas */}
-            <div className="md:col-span-2 grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
-               <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Duração (min)</label>
-                  <input 
-                    type="number" 
-                    placeholder="Ex: 60" 
-                    className="w-full border border-slate-300 p-2 rounded"
-                    value={formWorkout.durationMinutes}
-                    onChange={e => setFormWorkout({...formWorkout, durationMinutes: Number(e.target.value)})}
-                  />
-               </div>
-               <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Distância (km)</label>
-                  <input 
-                    type="number" 
-                    placeholder="Ex: 10" 
-                    className="w-full border border-slate-300 p-2 rounded"
-                    value={formWorkout.distanceKm}
-                    onChange={e => setFormWorkout({...formWorkout, distanceKm: Number(e.target.value)})}
-                  />
-               </div>
-               <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">PSE (1-10)</label>
-                  <input 
-                    type="number" 
-                    placeholder="Ex: 7" 
-                    className="w-full border border-slate-300 p-2 rounded"
-                    min="1" max="10"
-                    value={formWorkout.rpe}
-                    onChange={e => setFormWorkout({...formWorkout, rpe: Number(e.target.value)})}
-                  />
-               </div>
-               <div className="col-span-3 text-xs text-slate-400 text-center">
-                 Estimativas para cálculo de volume e carga.
-               </div>
+            <div className="flex flex-col">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Estrutura e Prescrição Detalhada</label>
+              <textarea 
+                placeholder="Descreva o aquecimento, parte principal e desaquecimento..."
+                className="w-full flex-1 p-4 bg-slate-50 border-none rounded-2xl font-bold text-sm italic focus:ring-2 focus:ring-emerald-500 outline-none resize-none min-h-[200px]"
+                value={formWorkout.description}
+                onChange={e => setFormWorkout({...formWorkout, description: e.target.value})}
+              />
+              <div className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase mt-3 italic">
+                <Info className="w-3 h-3 text-emerald-500" />
+                <span>Instruções técnicas para o atleta visualizar no portal.</span>
+              </div>
             </div>
 
-            <div className="md:col-span-2 flex justify-end gap-3 pt-2">
+            <div className="md:col-span-2 flex justify-end gap-4 mt-4 border-t border-slate-50 pt-8">
                <button 
                 type="button"
                 disabled={isSaving}
                 onClick={() => setShowForm(false)}
-                className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium disabled:opacity-50"
+                className="px-6 py-3 text-slate-400 font-black text-xs uppercase italic tracking-widest hover:text-slate-600 transition disabled:opacity-50"
                >
-                 Cancelar
+                 CANCELAR
                </button>
                <button
                 type="submit"
                 disabled={isSaving}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-emerald-600 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 disabled:opacity-50"
                >
                  {isSaving ? (
-                   <>
+                   <span className="flex items-center gap-2">
                     <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Salvando...
-                   </>
+                    SINCRONIZANDO...
+                   </span>
                  ) : (
-                   <>
+                   <span className="flex items-center gap-2">
                     {editingId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    {editingId ? 'Salvar Alterações' : 'Adicionar à Biblioteca'}
-                   </>
+                    {editingId ? 'ATUALIZAR TREINO' : 'SALVAR NA BIBLIOTECA'}
+                   </span>
                  )}
                </button>
             </div>
@@ -252,48 +251,47 @@ const Library: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {workouts.map(w => (
-          <div key={w.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition group relative">
-            
-            {/* Actions */}
-            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white shadow-sm rounded-lg p-1 border border-slate-100">
-               <button 
-                onClick={() => handleEdit(w)}
-                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Editar">
-                 <Edit2 className="w-4 h-4" />
-               </button>
-               <button 
-                type="button"
-                onClick={(e) => confirmDelete(e, w.id, w.title)}
-                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Excluir">
-                 <Trash2 className="w-4 h-4" />
-               </button>
-            </div>
+          <div key={w.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all group relative border-b-8">
+            <div className={`absolute top-0 left-0 right-0 h-2 rounded-t-[2rem]
+               ${w.type === 'Recovery' ? 'bg-blue-400' :
+                 w.type === 'Tempo' ? 'bg-yellow-400' :
+                 w.type === 'Interval' ? 'bg-orange-400' :
+                 w.type === 'Long Run' ? 'bg-emerald-400' :
+                 w.type === 'Prova' ? 'bg-purple-600' :
+                 'bg-red-400'}`}></div>
 
-            <div className="flex justify-between items-start mb-3">
-              <span className={`
-                px-2 py-1 text-xs font-bold uppercase rounded
-                ${w.type === 'Recovery' ? 'bg-blue-100 text-blue-700' : 
-                  w.type === 'Tempo' ? 'bg-yellow-100 text-yellow-700' :
-                  w.type === 'Interval' ? 'bg-orange-100 text-orange-700' :
-                  w.type === 'Long Run' ? 'bg-green-100 text-green-700' :
-                  'bg-red-100 text-red-700'}
-              `}>
+            <div className="flex justify-between items-start mb-4 mt-2">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">
                 {mapType(w.type)}
               </span>
-              <div className="flex items-center gap-1 text-slate-400 text-xs pr-8">
-                 <Zap className="w-3 h-3" /> PSE {w.rpe}
+              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                 <button onClick={() => handleEdit(w)} className="p-2 bg-slate-50 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition shadow-sm border border-slate-100">
+                    <Edit2 className="w-3.5 h-3.5" />
+                 </button>
+                 <button onClick={(e) => confirmDelete(e, w.id, w.title)} className="p-2 bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition shadow-sm border border-slate-100">
+                    <Trash2 className="w-3.5 h-3.5" />
+                 </button>
               </div>
             </div>
-            <h3 className="font-bold text-slate-800 text-lg mb-2">{w.title}</h3>
-            <p className="text-slate-600 text-sm mb-4 line-clamp-3">{w.description}</p>
-            <div className="flex items-center gap-4 text-xs text-slate-500 border-t pt-3">
-              <div className="flex items-center gap-1">
-                <Clock className="w-3 h-3" /> {w.durationMinutes} min
+
+            <h3 className="font-black text-slate-900 text-lg mb-3 uppercase italic tracking-tighter leading-tight">{w.title}</h3>
+            <p className="text-slate-500 text-xs font-medium italic mb-6 line-clamp-3 leading-relaxed">"{w.description}"</p>
+
+            <div className="flex items-center justify-between border-t border-slate-50 pt-4">
+              <div className="flex gap-4">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3 h-3 text-slate-300" />
+                  <span className="text-[10px] font-black text-slate-600 italic">{w.durationMinutes}M</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Book className="w-3 h-3 text-slate-300" />
+                  <span className="text-[10px] font-black text-slate-600 italic">{w.distanceKm}K</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <Book className="w-3 h-3" /> {w.distanceKm} km
+              <div className="bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+                 <span className="text-[9px] font-black text-emerald-600 uppercase italic">PSE {w.rpe}</span>
               </div>
             </div>
           </div>
@@ -302,5 +300,10 @@ const Library: React.FC = () => {
     </div>
   );
 };
+
+// Internal icon for select
+const ChevronDown = ({ className }: { className: string }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+);
 
 export default Library;

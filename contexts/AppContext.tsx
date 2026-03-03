@@ -448,8 +448,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
 
     if (db) {
-      setDoc(doc(db as Firestore, "plans", athleteId), sanitizeData(updatedPlan))
-        .catch(err => console.error("Erro ao sincronizar plano com Firestore:", err));
+      try {
+        await setDoc(doc(db as Firestore, "plans", athleteId), sanitizeData(updatedPlan));
+      } catch (err) {
+        console.error("Erro ao sincronizar plano com Firestore:", err);
+        throw err;
+      }
     }
   };
 

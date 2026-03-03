@@ -1,11 +1,10 @@
-
 export type ExperienceLevel = 'Iniciante' | 'Intermediário' | 'Avançado' | 'Elite';
 export type UserRole = 'coach' | 'athlete' | null;
 
 export interface Assessment {
   id: string;
   date: string;
-  type: '3k' | 'VO2_Lab' | 'TRF'; 
+  type: string;
   resultValue: string; 
   calculatedVdot: number;
   vo2Max?: number;
@@ -18,11 +17,14 @@ export interface Assessment {
 export interface Workout {
   id: string;
   title: string;
-  type: 'Recovery' | 'Long Run' | 'Tempo' | 'Interval' | 'Speed';
+  type: string;
   description: string;
   durationMinutes: number;
   distanceKm: number;
   rpe: number;
+  isVisible?: boolean;
+  customDescription?: string;
+  distance?: number;
 }
 
 export interface TrainingPace {
@@ -55,11 +57,11 @@ export interface Athlete {
   assessmentHistory: Assessment[];
 }
 
-export type WorkoutType = 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Descanso' | 'Fortalecimento' | 'Velocidade';
+export type WorkoutType = string;
 
 export interface TrainingWeek {
   id: string;
-  phase: 'Base' | 'Construção' | 'Pico' | 'Polimento';
+  phase: string;
   weekNumber: number;
   totalVolume: number;
   isVisible?: boolean; 
@@ -67,12 +69,13 @@ export interface TrainingWeek {
   workouts: {
     day: string; 
     workoutId?: string;
-    type?: WorkoutType; 
+    type?: string;
     customDescription?: string;
     distance?: number;
     completed?: boolean;
     feedback?: string; 
     rpe?: number;
+    [key: string]: any;
   }[];
 }
 

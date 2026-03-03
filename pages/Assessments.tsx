@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { Assessment, TrainingZone } from '../types';
+import { Assessment, TrainingPace } from '../types';
 import {
   Plus,
   Activity,
@@ -128,14 +128,14 @@ const Assessments: React.FC = () => {
     ? activeAthlete.customZones
     : calculatePaces(vdotValue, activeAthlete?.metrics.fcThreshold, activeAthlete?.metrics.fcMax);
 
-  const [editablePaces, setEditablePaces] = useState<TrainingZone[]>([]);
+  const [editablePaces, setEditablePaces] = useState<TrainingPace[]>([]);
 
   const handleStartZoneEdit = () => {
     setEditablePaces(currentPaces.map(p => ({...p})));
     setIsEditingZones(true);
   };
 
-  const handleZoneChange = (index: number, field: keyof TrainingZone, value: string) => {
+  const handleZoneChange = (index: number, field: keyof TrainingPace, value: string) => {
     const newPaces = [...editablePaces];
     newPaces[index] = { ...newPaces[index], [field]: value };
     setEditablePaces(newPaces);

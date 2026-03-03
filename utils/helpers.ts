@@ -34,3 +34,27 @@ export const safeDeepClone = (obj: any): any => {
   
   return clone(obj);
 };
+
+/**
+ * Executes an async function with a maximum timeout.
+ * Useful for Firestore operations that might stall.
+ */
+export const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number = 5000,
+  errorMsg: string = "Operação expirou (timeout)"
+): Promise<T> => {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    return result as T;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};

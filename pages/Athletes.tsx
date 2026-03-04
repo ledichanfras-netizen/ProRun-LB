@@ -5,10 +5,11 @@ import { Athlete, ExperienceLevel } from '../types';
 import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info, ChevronDown } from 'lucide-react';
 
 const Athletes: React.FC = () => {
-  const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId, generateTestAthletes } = useApp();
+  const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId } = useApp();
   
   // Search State
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   // Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -146,12 +147,6 @@ const Athletes: React.FC = () => {
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <button 
-            onClick={generateTestAthletes}
-            className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest transition shadow-sm border border-emerald-200"
-          >
-            <UserPlus className="w-4 h-4" /> GERAR TESTES
-          </button>
-          <button 
             onClick={() => {
               setIsFormOpen(true);
               setEditingId(null);
@@ -172,7 +167,34 @@ const Athletes: React.FC = () => {
           className="w-full pl-12 pr-4 py-5 rounded-[1.5rem] border-none bg-white shadow-xl shadow-slate-200/50 focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-sm tracking-tight italic"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          onFocus={() => setIsSearchFocused(true)}
+          onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
         />
+        
+        {isSearchFocused && athletes.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-40 max-h-60 overflow-y-auto custom-scrollbar animate-fade-in">
+            <div className="p-2">
+              {[...athletes].sort((a, b) => a.name.localeCompare(b.name)).map(athlete => (
+                <button
+                  key={athlete.id}
+                  onClick={() => {
+                    setSearchTerm(athlete.name);
+                    setIsSearchFocused(false);
+                  }}
+                  className="w-full text-left p-3 hover:bg-emerald-50 rounded-xl transition-colors flex items-center gap-3 group"
+                >
+                  <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
+                    {athlete.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-800 uppercase italic tracking-tighter">{athlete.name}</p>
+                    <p className="text-[9px] text-slate-400 font-bold">{athlete.email}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {isFormOpen && (

@@ -29,7 +29,7 @@ export const generateTrainingPlan = async (
   }).join(", ");
 
   const raceWeekday = raceDate 
-    ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(raceDate))
+    ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(raceDate + 'T00:00:00'))
     : 'Domingo';
 
   const prompt = `
@@ -42,11 +42,12 @@ export const generateTrainingPlan = async (
     RITMOS ALVO: ${pacesContext}.
 
     REGRAS DE OURO DA PERIODIZAÇÃO:
-    1. A PROVA ALVO (${raceDistance}) é o evento FINAL absoluto do plano, na semana ${weeks}, no dia: ${raceWeekday}.
-    2. O treino "Longão" deve ser OBRIGATORIAMENTE aos DOMINGOS.
-    3. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.
-    4. DISTRIBUIÇÃO: Distribua os ${runningDays} treinos de corrida e ${gymDays} de academia de forma equilibrada. Não coloque treinos intensos em dias seguidos.
-    5. POLIMENTO: A última semana deve ter uma redução drástica de volume (Tapering) para chegar descansado na prova.
+    1. A PROVA ALVO (${raceDistance}) é o evento FINAL absoluto do plano. Ela deve ocorrer na ÚLTIMA SEMANA (Semana ${weeks}), EXATAMENTE no dia: ${raceWeekday}.
+    2. O plano deve ter ${weeks} semanas completas. Cada semana deve ter 7 dias, começando na Segunda-feira e terminando no Domingo.
+    3. O treino "Longão" deve ser OBRIGATORIAMENTE aos DOMINGOS (exceto na semana da prova, onde a prova é o evento principal).
+    4. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.
+    5. DISTRIBUIÇÃO: Distribua os ${runningDays} treinos de corrida e ${gymDays} de academia de forma equilibrada. Não coloque treinos intensos em dias seguidos.
+    6. POLIMENTO: A última semana deve ter uma redução drástica de volume (Tapering) para chegar descansado na prova.
 
     ESTRATÉGIA DE PROVA (raceStrategy):
     - Detalhe o plano de ritmos e tática para atingir a meta "${raceGoal}".

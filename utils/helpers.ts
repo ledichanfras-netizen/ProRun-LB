@@ -23,9 +23,25 @@ export const safeDeepClone = (obj: any): any => {
 
     // Handle circular references
     if (seen.has(val)) {
-      return undefined; // Discard circular reference
+      return undefined;
     }
     
+    // Add to seen early to prevent recursion even for complex objects
+    seen.add(val);
+
+    // Detect Firestore internal objects (DocumentReference, Query, etc.)
+    const constructorName = val.constructor?.name;
+    const isFirestoreInternal = 
+      constructorName === 'DocumentReference' || 
+      constructorName === 'Query' || 
+      constructorName === 'Firestore' ||
+      constructorName === 'CollectionReference' ||
+      (val.firestore && val.id && typeof val.withConverter === 'function');
+
+    if (isFirestoreInternal) {
+      return null;
+    }
+
     // Only process plain objects and arrays
     const proto = Object.getPrototypeOf(val);
     const isPlainObject = proto === null || proto === Object.prototype;
@@ -36,15 +52,15 @@ export const safeDeepClone = (obj: any): any => {
       // try to see if it has a toJSON method, otherwise return null
       if (typeof val.toJSON === 'function') {
         try {
-          return clone(val.toJSON());
+          const json = val.toJSON();
+          if (json === val) return null;
+          return clone(json);
         } catch (e) {
           return null;
         }
       }
       return null; 
     }
-
-    seen.add(val);
     
     if (isArray) {
       return val.map(item => clone(item));
@@ -53,9 +69,16 @@ export const safeDeepClone = (obj: any): any => {
     const result: any = {};
     for (const key in val) {
       if (Object.prototype.hasOwnProperty.call(val, key)) {
-        const clonedVal = clone(val[key]);
-        if (clonedVal !== undefined) {
-          result[key] = clonedVal;
+        // Skip internal properties
+        if (key.startsWith('_') || key === 'firestore' || key === 'delegate') continue;
+
+        try {
+          const clonedVal = clone(val[key]);
+          if (clonedVal !== undefined) {
+            result[key] = clonedVal;
+          }
+        } catch (e) {
+          continue;
         }
       }
     }

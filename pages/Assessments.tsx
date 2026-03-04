@@ -15,14 +15,14 @@ const Assessments: React.FC = () => {
   const isReadOnly = userRole === 'athlete';
   const portalRoot = document.getElementById('printable-portal');
 
-  const getSaoPauloDate = () => {
+  const getLocalDate = () => {
     const d = new Date();
-    return d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    return d.toLocaleDateString('en-CA');
   };
 
   const [testType, setTestType] = useState<'3k' | 'VO2_Lab' | 'TRF'>('3k');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formDate, setFormDate] = useState(getSaoPauloDate());
+  const [formDate, setFormDate] = useState(getLocalDate());
   const [formTime3k, setFormTime3k] = useState('');
   const [formTrfDistance, setFormTrfDistance] = useState<number>(5);
   const [formTrfTime, setFormTrfTime] = useState('');
@@ -229,7 +229,7 @@ const Assessments: React.FC = () => {
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setFormDate(getSaoPauloDate());
+    setFormDate(getLocalDate());
     setFormTime3k('');
     setFormTrfTime('');
     setFormTrfDistance(5);
@@ -272,7 +272,7 @@ const Assessments: React.FC = () => {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Avaliações & Zonas</h1>
-          <p className="text-slate-500 font-medium">Configuração técnica personalizada (Fuso SP).</p>
+          <p className="text-slate-500 font-medium">Configuração técnica personalizada.</p>
         </div>
         {activeAthlete && (
           <button 

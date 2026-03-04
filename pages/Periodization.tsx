@@ -24,7 +24,8 @@ import {
   Download,
   TrendingUp,
   BookOpen,
-  X
+  X,
+  Plus
 } from 'lucide-react';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
@@ -84,7 +85,7 @@ const Periodization: React.FC = () => {
       const race = new Date(raceDate + 'T00:00:00');
       race.setHours(0, 0, 0, 0);
       
-      if (race > today) {
+      if (race >= today) {
         const diffMs = race.getTime() - today.getTime();
         const diffWeeks = Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 7));
         // Limitamos entre 4 e 24 semanas para manter a qualidade da prescrição
@@ -142,6 +143,55 @@ const Periodization: React.FC = () => {
       setIsEditing(false);
       alert('Planilha publicada com sucesso!');
     }
+  };
+
+  const handleManualCreate = () => {
+    if (!activeAthlete) return;
+    
+    const manualWeeks: TrainingWeek[] = Array.from({ length: weeks }, (_, i) => ({
+      id: crypto.randomUUID(),
+      weekNumber: i + 1,
+      phase: i < weeks / 2 ? 'Base' : 'Construção',
+      totalVolume: 0,
+      isVisible: true,
+      workouts: diasSemanaFull.map(day => ({
+        day,
+        type: 'Descanso' as WorkoutType,
+        customDescription: 'Descanso total.',
+        distance: 0
+      }))
+    }));
+
+    const newPlan: AthletePlan = {
+      weeks: manualWeeks,
+      specificGoal: raceGoal || raceDistance,
+      raceStrategy: 'Periodização manual iniciada.',
+      motivationalMessage: 'Foco no processo!'
+    };
+
+    setFullPlan(newPlan);
+    saveAthletePlan(activeAthlete.id, newPlan);
+    setIsEditing(true);
+  };
+
+  const addWeek = () => {
+    if (!fullPlan) return;
+    const newPlan = safeDeepClone(fullPlan);
+    const nextNum = newPlan.weeks.length + 1;
+    newPlan.weeks.push({
+      id: crypto.randomUUID(),
+      weekNumber: nextNum,
+      phase: 'Base',
+      totalVolume: 0,
+      isVisible: true,
+      workouts: diasSemanaFull.map(day => ({
+        day,
+        type: 'Descanso' as WorkoutType,
+        customDescription: 'Descanso total.',
+        distance: 0
+      }))
+    });
+    setFullPlan(newPlan);
   };
 
   const updateWorkout = (wIdx: number, dIdx: number, field: string, value: any) => {
@@ -360,9 +410,14 @@ const Periodization: React.FC = () => {
                   <ChevronDown className="absolute right-3 top-[34px] w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
 
-                <button onClick={handleGenerate} disabled={loading || !raceDate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest mt-4">
-                  {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} {loading ? 'GERANDO...' : 'Gerar Periodização'}
-                </button>
+                <div className="grid grid-cols-1 gap-3 mt-4">
+                  <button onClick={handleGenerate} disabled={loading || !raceDate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
+                    {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} {loading ? 'GERANDO...' : 'Gerar com IA'}
+                  </button>
+                  <button onClick={handleManualCreate} disabled={loading} className="w-full bg-slate-800 hover:bg-black text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
+                    <CalendarDays className="w-5 h-5" /> Criar Manualmente
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -433,10 +488,11 @@ const Periodization: React.FC = () => {
                                     setTargetDay({ weekIndex, dayIndex });
                                     setShowLibraryModal(true);
                                   }}
-                                  className="absolute right-2 top-2 p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm"
+                                  className="absolute right-2 top-2 px-3 py-1.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center gap-2"
                                   title="Importar da Biblioteca"
                                 >
-                                  <BookOpen className="w-4 h-4" />
+                                  <BookOpen className="w-3.5 h-3.5" />
+                                  <span className="text-[10px] font-black uppercase italic tracking-tight">Biblioteca</span>
                                 </button>
                               </div>
                            ) : (
@@ -465,8 +521,18 @@ const Periodization: React.FC = () => {
             ) : (
               <div className="bg-white p-20 rounded-[3rem] border-2 border-dashed border-slate-100 flex flex-col items-center text-center">
                 <CalendarDays className="w-16 h-16 text-slate-100 mb-4" />
-                <p className="text-slate-300 font-black uppercase italic tracking-widest text-sm">Insira os parâmetros e a Data da Prova para gerar o ciclo automático.</p>
+                <p className="text-slate-300 font-black uppercase italic tracking-widest text-sm">Insira os parâmetros e a Data da Prova para gerar o ciclo automático ou crie manualmente.</p>
               </div>
+            )}
+
+            {isEditing && fullPlan && (
+              <button 
+                onClick={addWeek}
+                className="w-full py-6 border-4 border-dashed border-slate-100 rounded-[2.5rem] text-slate-300 hover:text-emerald-500 hover:border-emerald-100 transition-all flex flex-col items-center gap-2 group"
+              >
+                <Plus className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                <span className="font-black uppercase italic tracking-widest text-xs">Adicionar Semana ao Ciclo</span>
+              </button>
             )}
           </div>
         </div>

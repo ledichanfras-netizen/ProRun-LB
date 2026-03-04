@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { 
   Trophy, 
@@ -35,35 +35,39 @@ export default function Dashboard() {
   const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics } = useApp();
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
-  const activeAthlete = athletes.find(a => a.id === currentAthleteId);
+  const activeAthlete = useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
   
-  const metrics = currentAthleteId ? getAthleteMetrics(currentAthleteId) : {
+  const metrics = useMemo(() => currentAthleteId ? getAthleteMetrics(currentAthleteId) : {
     history: [],
     completionRate: 0,
     totalVolumeCompleted: 0,
     totalVolumePlanned: 0
-  };
+  }, [currentAthleteId, getAthleteMetrics]);
 
-  const athletePlan = currentAthleteId ? athletePlans[currentAthleteId] : null;
-  const visibleWeeks = athletePlan?.weeks?.filter(w => w.isVisible === true) || [];
-  const nextWorkout = visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso');
+  const athletePlan = useMemo(() => currentAthleteId ? athletePlans[currentAthleteId] : null, [currentAthleteId, athletePlans]);
+  
+  const visibleWeeks = useMemo(() => athletePlan?.weeks?.filter(w => w.isVisible === true) || [], [athletePlan]);
+  
+  const nextWorkout = useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
 
-  const allActivities = athletes.flatMap(athlete => {
-    const aPlan = athletePlans[athlete.id];
-    if (!aPlan || !aPlan.weeks) return [];
-    
-    return aPlan.weeks.flatMap(week => (week.workouts || []).filter(w => w.completed).map(w => ({
-      athleteId: athlete.id,
-      athleteName: athlete.name,
-      day: w.day,
-      type: w.type,
-      feedback: w.feedback,
-      rpe: w.rpe || 0,
-      timestamp: new Date()
-    })));
-  });
+  const allActivities = useMemo(() => {
+    return athletes.flatMap(athlete => {
+      const aPlan = athletePlans[athlete.id];
+      if (!aPlan || !aPlan.weeks) return [];
+      
+      return aPlan.weeks.flatMap(week => (week.workouts || []).filter(w => w.completed).map(w => ({
+        athleteId: athlete.id,
+        athleteName: athlete.name,
+        day: w.day,
+        type: w.type,
+        feedback: w.feedback,
+        rpe: w.rpe || 0,
+        timestamp: new Date()
+      })));
+    });
+  }, [athletes, athletePlans]);
 
-  const calculateLoadGuidance = () => {
+  const loadGuidance = useMemo(() => {
     if (!currentAthleteId) return null;
     
     const athleteHistory = allActivities
@@ -103,9 +107,7 @@ export default function Dashboard() {
       icon: <ActivityIcon className="w-8 h-8" />,
       recommendation: 'Percepção de esforço muito baixa. Considere progredir os volumes ou reduzir os paces alvo.' 
     };
-  };
-
-  const loadGuidance = calculateLoadGuidance();
+  }, [currentAthleteId, allActivities]);
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">

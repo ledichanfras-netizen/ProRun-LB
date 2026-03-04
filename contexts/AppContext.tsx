@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan } from '../types';
 import { db } from '../services/firebase';
 import { 
@@ -44,8 +44,6 @@ interface AppContextType {
     totalVolumeCompleted: number,
     totalVolumePlanned: number 
   };
-  
-  generateTestAthletes: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -73,18 +71,34 @@ const sanitizeData = (data: any): any => {
     // Handle circular references
     if (seen.has(val)) return null;
     
+    // Add to seen early
+    seen.add(val);
+    
+    // Detect Firestore internal objects (DocumentReference, Query, etc.)
+    // These usually have a 'firestore' property or specific constructor names in dev
+    const constructorName = val.constructor?.name;
+    const isFirestoreInternal = 
+      constructorName === 'DocumentReference' || 
+      constructorName === 'Query' || 
+      constructorName === 'Firestore' ||
+      constructorName === 'CollectionReference' ||
+      (val.firestore && val.id && typeof val.withConverter === 'function');
+
+    if (isFirestoreInternal) {
+      return null;
+    }
+
     // Only process plain objects and arrays
     const proto = Object.getPrototypeOf(val);
     const isPlainObject = proto === null || proto === Object.prototype;
     const isArray = Array.isArray(val);
 
     if (!isPlainObject && !isArray) {
-      // If it's a complex object (like a Firebase class or DOM node), 
-      // try to see if it has a toJSON method, otherwise return null
+      // If it's a complex object, try to see if it has a toJSON method
       if (typeof val.toJSON === 'function') {
         try {
           const json = val.toJSON();
-          if (json === val) return null; // Avoid infinite recursion if toJSON returns self
+          if (json === val) return null; 
           return clean(json);
         } catch (e) {
           return null;
@@ -93,18 +107,24 @@ const sanitizeData = (data: any): any => {
       return null; 
     }
 
-    seen.add(val);
-    
     if (isArray) {
       return val.map(clean);
     }
-    
+
     const result: any = {};
     for (const key in val) {
       if (Object.prototype.hasOwnProperty.call(val, key)) {
-        const cleaned = clean(val[key]);
-        if (cleaned !== undefined) {
-          result[key] = cleaned;
+        // Skip internal properties
+        if (key.startsWith('_') || key === 'firestore' || key === 'delegate') continue;
+        
+        try {
+          const cleaned = clean(val[key]);
+          if (cleaned !== undefined) {
+            result[key] = cleaned;
+          }
+        } catch (e) {
+          // If cleaning a specific property fails, skip it
+          continue;
         }
       }
     }
@@ -126,7 +146,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    // Se já sincronizamos nesta sessão, podemos começar com isLoading false
+    // para evitar o flicker da tela de loading ao navegar (se o App remontar)
+    return sessionStorage.getItem('proRun_hasSynced') !== 'true';
+  });
+  const [syncStatus, setSyncStatus] = useState({ athletes: false, workouts: false, plans: false });
+
+  useEffect(() => {
+    if (!db) {
+      setIsLoading(false);
+      return;
+    }
+    // Only set isLoading to false when all critical collections have synced at least once
+    if (syncStatus.athletes && syncStatus.workouts && syncStatus.plans) {
+      setIsLoading(false);
+      sessionStorage.setItem('proRun_hasSynced', 'true');
+    }
+  }, [syncStatus, db]);
 
   useEffect(() => {
     if (userRole) localStorage.setItem('proRun_userRole', userRole);
@@ -144,12 +181,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
     const unsubscribe = onSnapshot(collection(db, "athletes"), (snapshot) => {
-      const athletesData = snapshot.docs.map(doc => sanitizeData({ ...doc.data(), id: doc.id }) as Athlete);
-      setAthletes(athletesData);
-      setIsLoading(false);
+      setAthletes(prev => {
+        const newAthletes = [...prev];
+        snapshot.docChanges().forEach(change => {
+          const data = sanitizeData({ ...change.doc.data(), id: change.doc.id }) as Athlete;
+          if (change.type === 'added' || change.type === 'modified') {
+            const index = newAthletes.findIndex(a => a.id === data.id);
+            if (index > -1) newAthletes[index] = data;
+            else newAthletes.push(data);
+          } else if (change.type === 'removed') {
+            const index = newAthletes.findIndex(a => a.id === change.doc.id);
+            if (index > -1) newAthletes.splice(index, 1);
+          }
+        });
+        return newAthletes;
+      });
+      setSyncStatus(prev => ({ ...prev, athletes: true }));
     }, (error) => {
-      console.error("Firestore Error (Athletes):", error);
-      setIsLoading(false);
+      console.error("Firestore Error (Athletes):", error?.message || error);
+      setSyncStatus(prev => ({ ...prev, athletes: true }));
     });
     return () => unsubscribe();
   }, []);
@@ -157,21 +207,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     if (!db) return;
     const unsubscribe = onSnapshot(collection(db, "workouts"), (snapshot) => {
-      const workoutsData = snapshot.docs.map(doc => sanitizeData({ ...doc.data(), id: doc.id }) as Workout);
-      setWorkouts(workoutsData);
-    }, (error) => console.error("Firestore Error (Workouts):", error));
+      setWorkouts(prev => {
+        const newWorkouts = [...prev];
+        snapshot.docChanges().forEach(change => {
+          const data = sanitizeData({ ...change.doc.data(), id: change.doc.id }) as Workout;
+          if (change.type === 'added' || change.type === 'modified') {
+            const index = newWorkouts.findIndex(w => w.id === data.id);
+            if (index > -1) newWorkouts[index] = data;
+            else newWorkouts.push(data);
+          } else if (change.type === 'removed') {
+            const index = newWorkouts.findIndex(w => w.id === change.doc.id);
+            if (index > -1) newWorkouts.splice(index, 1);
+          }
+        });
+        return newWorkouts;
+      });
+      setSyncStatus(prev => ({ ...prev, workouts: true }));
+    }, (error) => {
+      console.error("Firestore Error (Workouts):", error?.message || error);
+      setSyncStatus(prev => ({ ...prev, workouts: true }));
+    });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!db) return;
     const unsubscribe = onSnapshot(collection(db, "plans"), (snapshot) => {
-      const plansMap: Record<string, AthletePlan> = {};
-      snapshot.docs.forEach(doc => {
-        plansMap[doc.id] = sanitizeData(doc.data()) as AthletePlan;
+      setAthletePlans(prev => {
+        const newPlans = { ...prev };
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added' || change.type === 'modified') {
+            newPlans[change.doc.id] = sanitizeData(change.doc.data()) as AthletePlan;
+          } else if (change.type === 'removed') {
+            delete newPlans[change.doc.id];
+          }
+        });
+        return newPlans;
       });
-      setAthletePlans(plansMap);
-    }, (error) => console.error("Firestore Error (Plans):", error));
+      setSyncStatus(prev => ({ ...prev, plans: true }));
+    }, (error) => {
+      console.error("Firestore Error (Plans):", error?.message || error);
+      setSyncStatus(prev => ({ ...prev, plans: true }));
+    });
     return () => unsubscribe();
   }, []);
 
@@ -363,23 +440,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const generateTestAthletes = async () => {
-    const testAthlete: Athlete = {
-      id: "test-athlete-1",
-      name: "Marcos Silva",
-      age: 32,
-      birthDate: "1992-05-15",
-      weight: 78,
-      height: 180,
-      experience: "Avançado",
-      email: "marcos@teste.com",
-      metrics: { vdot: 48.5, test3kTime: "11:45", fcMax: 192, fcThreshold: 172 },
-      assessmentHistory: []
-    };
-    await addAthlete(testAthlete);
-  };
-
-  const getAthleteMetrics = (athleteId: string) => {
+  const getAthleteMetrics = useCallback((athleteId: string) => {
     const plan = athletePlans[athleteId];
     const allWeeks = plan?.weeks || [];
     const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
@@ -404,7 +465,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
     const completionRate = totalWorkouts === 0 ? 0 : Math.round((completedWorkouts / totalWorkouts) * 100);
     return { history, completionRate, totalVolumePlanned, totalVolumeCompleted };
-  };
+  }, [athletePlans]);
 
   return (
     <AppContext.Provider value={{
@@ -414,7 +475,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, generateTestAthletes, isLoading
+      getAthleteMetrics, isLoading
     }}>
       {children}
     </AppContext.Provider>

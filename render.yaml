@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: prorun-performance
+    env: node
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_KEY
+        sync: false
+      - key: VITE_FIREBASE_API_KEY
+        sync: false

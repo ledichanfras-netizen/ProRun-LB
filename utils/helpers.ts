@@ -22,25 +22,22 @@ export const safeDeepClone = (obj: any): any => {
     }
 
     // Handle circular references
-    if (seen.has(val)) {
-      return undefined;
-    }
-    
-    // Add to seen early to prevent recursion even for complex objects
+    if (seen.has(val)) return undefined;
     seen.add(val);
 
     // Detect Firestore internal objects (DocumentReference, Query, etc.)
-    const constructorName = val.constructor?.name;
     const isFirestoreInternal = 
-      constructorName === 'DocumentReference' || 
-      constructorName === 'Query' || 
-      constructorName === 'Firestore' ||
-      constructorName === 'CollectionReference' ||
-      (val.firestore && val.id && typeof val.withConverter === 'function');
+      (val.firestore && val.id && typeof val.withConverter === 'function') ||
+      (val.constructor && (
+        val.constructor.name === 'DocumentReference' || 
+        val.constructor.name === 'Query' || 
+        val.constructor.name === 'Firestore' ||
+        val.constructor.name === 'CollectionReference' ||
+        val.constructor.name === 'Y2' || // Common minified names
+        val.constructor.name === 'Ka'
+      ));
 
-    if (isFirestoreInternal) {
-      return null;
-    }
+    if (isFirestoreInternal) return null;
 
     // Only process plain objects and arrays
     const proto = Object.getPrototypeOf(val);
@@ -48,8 +45,6 @@ export const safeDeepClone = (obj: any): any => {
     const isArray = Array.isArray(val);
 
     if (!isPlainObject && !isArray) {
-      // If it's a complex object (like a Firebase class or DOM node), 
-      // try to see if it has a toJSON method, otherwise return null
       if (typeof val.toJSON === 'function') {
         try {
           const json = val.toJSON();
@@ -69,8 +64,8 @@ export const safeDeepClone = (obj: any): any => {
     const result: any = {};
     for (const key in val) {
       if (Object.prototype.hasOwnProperty.call(val, key)) {
-        // Skip internal properties
-        if (key.startsWith('_') || key === 'firestore' || key === 'delegate') continue;
+        // Skip internal properties that often cause circularity
+        if (key.startsWith('_') || key === 'firestore' || key === 'delegate' || key === 'src') continue;
 
         try {
           const clonedVal = clone(val[key]);

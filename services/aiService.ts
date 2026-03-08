@@ -61,7 +61,7 @@ class AIService {
       if (!textOutput) throw new Error("Sem resposta da IA.");
       return JSON.parse(textOutput) as WorkoutPlan;
     } catch (error: any) {
-      console.error("AIService Error:", error);
+      console.error("AIService Error:", error?.message || "Erro desconhecido");
       let userMessage = "Erro ao gerar fortalecimento.";
       if (error?.message?.includes("503") || error?.message?.includes("UNAVAILABLE")) {
         userMessage = "O servidor da IA está sobrecarregado no momento. Por favor, tente novamente em alguns instantes.";

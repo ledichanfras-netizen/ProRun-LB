@@ -71,23 +71,22 @@ const sanitizeData = (data: any): any => {
 
     // Handle circular references
     if (seen.has(val)) return null;
-    
-    // Add to seen early
     seen.add(val);
     
     // Detect Firestore internal objects (DocumentReference, Query, etc.)
-    // These usually have a 'firestore' property or specific constructor names in dev
-    const constructorName = val.constructor?.name;
+    // These often have circular references and shouldn't be serialized
     const isFirestoreInternal = 
-      constructorName === 'DocumentReference' || 
-      constructorName === 'Query' || 
-      constructorName === 'Firestore' ||
-      constructorName === 'CollectionReference' ||
-      (val.firestore && val.id && typeof val.withConverter === 'function');
+      (val.firestore && val.id && typeof val.withConverter === 'function') ||
+      (val.constructor && (
+        val.constructor.name === 'DocumentReference' || 
+        val.constructor.name === 'Query' || 
+        val.constructor.name === 'Firestore' ||
+        val.constructor.name === 'CollectionReference' ||
+        val.constructor.name === 'Y2' || // Common minified names
+        val.constructor.name === 'Ka'
+      ));
 
-    if (isFirestoreInternal) {
-      return null;
-    }
+    if (isFirestoreInternal) return null;
 
     // Only process plain objects and arrays
     const proto = Object.getPrototypeOf(val);
@@ -95,7 +94,6 @@ const sanitizeData = (data: any): any => {
     const isArray = Array.isArray(val);
 
     if (!isPlainObject && !isArray) {
-      // If it's a complex object, try to see if it has a toJSON method
       if (typeof val.toJSON === 'function') {
         try {
           const json = val.toJSON();
@@ -115,8 +113,8 @@ const sanitizeData = (data: any): any => {
     const result: any = {};
     for (const key in val) {
       if (Object.prototype.hasOwnProperty.call(val, key)) {
-        // Skip internal properties
-        if (key.startsWith('_') || key === 'firestore' || key === 'delegate') continue;
+        // Skip internal properties that often cause circularity
+        if (key.startsWith('_') || key === 'firestore' || key === 'delegate' || key === 'src') continue;
         
         try {
           const cleaned = clean(val[key]);
@@ -124,7 +122,6 @@ const sanitizeData = (data: any): any => {
             result[key] = cleaned;
           }
         } catch (e) {
-          // If cleaning a specific property fails, skip it
           continue;
         }
       }
@@ -199,7 +196,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       setSyncStatus(prev => ({ ...prev, athletes: true }));
     }, (error) => {
-      console.error("Firestore Error (Athletes):", error?.message || error);
+      console.error("Firestore Error (Athletes):", error?.message || "Erro desconhecido");
       setSyncStatus(prev => ({ ...prev, athletes: true }));
     });
     return () => unsubscribe();
@@ -225,7 +222,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       setSyncStatus(prev => ({ ...prev, workouts: true }));
     }, (error) => {
-      console.error("Firestore Error (Workouts):", error?.message || error);
+      console.error("Firestore Error (Workouts):", error?.message || "Erro desconhecido");
       setSyncStatus(prev => ({ ...prev, workouts: true }));
     });
     return () => unsubscribe();
@@ -247,7 +244,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       setSyncStatus(prev => ({ ...prev, plans: true }));
     }, (error) => {
-      console.error("Firestore Error (Plans):", error?.message || error);
+      console.error("Firestore Error (Plans):", error?.message || "Erro desconhecido");
       setSyncStatus(prev => ({ ...prev, plans: true }));
     });
     return () => unsubscribe();
@@ -290,7 +287,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (db) {
       setDoc(doc(db, "athletes", athlete.id), sanitizeData(athlete))
-        .catch(err => console.error("Erro ao salvar atleta:", err));
+        .catch(err => console.error("Erro ao salvar atleta:", err?.message || "Erro desconhecido"));
     }
   };
   
@@ -300,7 +297,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (db) {
       updateDoc(doc(db, "athletes", id), sanitizeData(data))
-        .catch(err => console.error("Erro ao atualizar atleta:", err));
+        .catch(err => console.error("Erro ao atualizar atleta:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -310,9 +307,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (db) {
       deleteDoc(doc(db, "athletes", id))
-        .catch(err => console.error("Erro ao deletar atleta:", err));
+        .catch(err => console.error("Erro ao deletar atleta:", err?.message || "Erro desconhecido"));
       deleteDoc(doc(db, "plans", id))
-        .catch(err => console.error("Erro ao deletar plano:", err));
+        .catch(err => console.error("Erro ao deletar plano:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -334,7 +331,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (db) {
       updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload))
-        .catch(err => console.error("Erro ao salvar avaliação:", err));
+        .catch(err => console.error("Erro ao salvar avaliação:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -358,7 +355,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (db) {
       updateDoc(doc(db, "athletes", athleteId), sanitizeData(updatePayload))
-        .catch(err => console.error("Erro ao atualizar avaliação:", err));
+        .catch(err => console.error("Erro ao atualizar avaliação:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -372,7 +369,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (db) {
       updateDoc(doc(db, "athletes", athleteId), sanitizeData({ assessmentHistory: newHistory }))
-        .catch(err => console.error("Erro ao deletar avaliação:", err));
+        .catch(err => console.error("Erro ao deletar avaliação:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -382,7 +379,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (db) {
       setDoc(doc(db, "workouts", workout.id), sanitizeData(workout))
-        .catch(err => console.error("Erro ao salvar treino na biblioteca:", err));
+        .catch(err => console.error("Erro ao salvar treino na biblioteca:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -392,7 +389,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (db) {
       updateDoc(doc(db, "workouts", id), sanitizeData(data))
-        .catch(err => console.error("Erro ao atualizar treino na biblioteca:", err));
+        .catch(err => console.error("Erro ao atualizar treino na biblioteca:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -402,7 +399,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (db) {
       deleteDoc(doc(db, "workouts", id))
-        .catch(err => console.error("Erro ao deletar treino da biblioteca:", err));
+        .catch(err => console.error("Erro ao deletar treino da biblioteca:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -412,7 +409,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (db) {
       setDoc(doc(db, "plans", athleteId), sanitizeData(plan))
-        .catch(err => console.error("Erro ao salvar plano:", err));
+        .catch(err => console.error("Erro ao salvar plano:", err?.message || "Erro desconhecido"));
     }
   };
 
@@ -437,7 +434,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Background Sync: Não bloqueia a UI esperando o Firestore
     if (db) {
       setDoc(doc(db, "plans", athleteId), sanitizeData(updatedPlan))
-        .catch(err => console.error("Erro ao sincronizar plano com Firestore:", err));
+        .catch(err => console.error("Erro ao sincronizar plano com Firestore:", err?.message || "Erro desconhecido"));
     }
   };
 

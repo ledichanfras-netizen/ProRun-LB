@@ -4,7 +4,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB3LfoWbVQ0WPNPht13PmGCxjz6xQqOegw",
+  apiKey: "tTnQATkTY9hsJsyEpTAPtJiZM0CkYCbydSUMgcXcJHM",
   authDomain: "prorunlb.firebaseapp.com",
   projectId: "prorunlb",
   storageBucket: "prorunlb.firebasestorage.app",

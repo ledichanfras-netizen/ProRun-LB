@@ -102,7 +102,7 @@ export const generateTrainingPlan = async (
     const parsed = JSON.parse(response.text || "{}");
     return parsed as AthletePlan;
   } catch (error: any) {
-    console.error("Erro Gemini:", error);
+    console.error("Erro Gemini:", error?.message || "Erro desconhecido");
     let userMessage = "A IA falhou ao gerar o plano.";
     if (error?.message?.includes("503") || error?.message?.includes("UNAVAILABLE")) {
       userMessage = "O servidor da IA está sobrecarregado no momento. Por favor, tente novamente em alguns instantes.";

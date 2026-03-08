@@ -2,14 +2,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info } from 'lucide-react';
+import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info, Cloud, CloudOff } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { login } = useApp();
+  const { login, isCloudConnected } = useApp();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -103,8 +103,21 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-slate-50 text-center">
+        <div className="mt-8 pt-6 border-t border-slate-50 flex flex-col items-center gap-2">
            <p className="text-[10px] text-slate-300 uppercase font-black tracking-widest">© 2025 LB Sports Performance</p>
+           <div className="flex items-center gap-2">
+              {isCloudConnected ? (
+                <>
+                  <Cloud className="w-3 h-3 text-emerald-500" />
+                  <span className="text-[8px] font-black uppercase text-emerald-500 tracking-widest">Cloud Sync Ativo</span>
+                </>
+              ) : (
+                <>
+                  <CloudOff className="w-3 h-3 text-red-400" />
+                  <span className="text-[8px] font-black uppercase text-red-400 tracking-widest">Modo Local (Offline)</span>
+                </>
+              )}
+           </div>
         </div>
       </div>
     </div>

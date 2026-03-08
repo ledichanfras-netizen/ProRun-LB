@@ -4,7 +4,11 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getAuth } from 'firebase/auth';
 
 const getFirebaseConfig = () => {
-  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || process.env.API_KEY;
+  const apiKey = 
+    import.meta.env.VITE_FIREBASE_API_KEY || 
+    process.env.VITE_FIREBASE_API_KEY || 
+    process.env.API_KEY || 
+    import.meta.env.VITE_GEMINI_API_KEY;
   
   if (!apiKey) {
     console.warn("Firebase API Key is missing. Auth and Database features will be disabled.");

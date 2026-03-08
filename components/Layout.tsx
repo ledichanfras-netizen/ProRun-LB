@@ -11,7 +11,9 @@ import {
   X,
   TrendingUp,
   UserCheck,
-  LogOut
+  LogOut,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -21,7 +23,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const { athletes, selectedAthleteId, userRole, logout } = useApp();
+  const { athletes, selectedAthleteId, userRole, logout, isCloudConnected } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -73,11 +75,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="bg-emerald-500 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
              <TrendingUp className="w-6 h-6 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="font-black text-xl tracking-tighter italic uppercase">ProRun</h1>
-            <p className="text-[10px] text-emerald-300/60 uppercase font-black tracking-widest leading-none">
-              {userRole === 'coach' ? 'Coach' : 'Athlete'}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-emerald-300/60 uppercase font-black tracking-widest leading-none">
+                {userRole === 'coach' ? 'Coach' : 'Athlete'}
+              </p>
+              {isCloudConnected ? (
+                <Cloud className="w-3 h-3 text-emerald-400" />
+              ) : (
+                <CloudOff className="w-3 h-3 text-red-400" />
+              )}
+            </div>
           </div>
         </div>
 

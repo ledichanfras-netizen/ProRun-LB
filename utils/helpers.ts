@@ -87,3 +87,34 @@ export const safeDeepClone = (obj: any): any => {
   
   return clone(obj);
 };
+
+/**
+ * Retries a function with exponential backoff.
+ */
+export const withRetry = async <T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 1000,
+  backoff = 2
+): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (retries <= 0) throw error;
+    
+    // Check if it's a retryable error (like 503 or 429)
+    const errorStr = error?.message || "";
+    const isRetryable = 
+      errorStr.includes("503") || 
+      errorStr.includes("429") || 
+      errorStr.includes("UNAVAILABLE") || 
+      errorStr.includes("high demand") ||
+      errorStr.includes("overloaded");
+      
+    if (!isRetryable) throw error;
+
+    console.warn(`Retrying AI call... (${retries} left). Error: ${errorStr}`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return withRetry(fn, retries - 1, delay * backoff, backoff);
+  }
+};

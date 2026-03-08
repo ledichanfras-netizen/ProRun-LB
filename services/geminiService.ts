@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Athlete, AthletePlan } from "../types";
 import { calculatePaces } from "../utils/calculations";
+import { withRetry } from "../utils/helpers";
 
 export const generateTrainingPlan = async (
   athlete: Athlete,
@@ -54,7 +55,7 @@ export const generateTrainingPlan = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: modelName,
       contents: prompt,
       config: {
@@ -96,12 +97,16 @@ export const generateTrainingPlan = async (
           required: ["weeks", "raceStrategy"]
         }
       },
-    });
+    }));
 
     const parsed = JSON.parse(response.text || "{}");
     return parsed as AthletePlan;
   } catch (error: any) {
     console.error("Erro Gemini:", error);
-    throw new Error(`IA Falhou: ${error?.message || "Erro desconhecido"}`);
+    let userMessage = "A IA falhou ao gerar o plano.";
+    if (error?.message?.includes("503") || error?.message?.includes("UNAVAILABLE")) {
+      userMessage = "O servidor da IA está sobrecarregado no momento. Por favor, tente novamente em alguns instantes.";
+    }
+    throw new Error(userMessage);
   }
 };

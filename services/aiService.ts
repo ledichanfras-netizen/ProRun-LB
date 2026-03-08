@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
+import { withRetry } from "../utils/helpers";
 
 export interface WorkoutParams {
   studentName: string;
@@ -21,7 +22,7 @@ class AIService {
     const prompt = `Crie um plano de exercícios de fortalecimento funcional para o corredor ${params.studentName}. Nível: ${params.fitnessLevel}. Objetivo: ${params.primaryGoal}. Tempo disponível: ${params.sessionTime} minutos por sessão.`;
     
     try {
-      const response = await ai.models.generateContent({
+      const response = await withRetry(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
@@ -54,14 +55,18 @@ class AIService {
             }
           }
         }
-      });
+      }));
 
       const textOutput = response.text;
       if (!textOutput) throw new Error("Sem resposta da IA.");
       return JSON.parse(textOutput) as WorkoutPlan;
     } catch (error: any) {
       console.error("AIService Error:", error);
-      throw new Error(`Erro ao gerar fortalecimento: ${error.message}`);
+      let userMessage = "Erro ao gerar fortalecimento.";
+      if (error?.message?.includes("503") || error?.message?.includes("UNAVAILABLE")) {
+        userMessage = "O servidor da IA está sobrecarregado no momento. Por favor, tente novamente em alguns instantes.";
+      }
+      throw new Error(userMessage);
     }
   }
 }

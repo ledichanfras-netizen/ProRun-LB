@@ -91,8 +91,8 @@ const AthletePortal: React.FC = () => {
         // Removido navigate('/') para manter o atleta no portal e ver o progresso
       }, 800);
 
-    } catch (err) {
-      console.error("Erro ao salvar:", err);
+    } catch (err: any) {
+      console.error("Erro ao salvar:", err?.message || "Erro desconhecido");
       alert("Erro ao sincronizar. Verifique sua conexão com o banco de dados.");
       setIsSaving(false);
       setSaveSuccess(false);
@@ -146,8 +146,8 @@ const AthletePortal: React.FC = () => {
       if (success) {
         console.log("Imagem exportada com sucesso");
       }
-    } catch (err) {
-      console.error("Erro no download:", err);
+    } catch (err: any) {
+      console.error("Erro no download:", err?.message || "Erro desconhecido");
       alert("Erro ao gerar imagem. Tente novamente.");
     } finally {
       setExportLoading(false);

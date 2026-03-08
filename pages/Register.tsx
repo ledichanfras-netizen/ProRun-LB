@@ -29,7 +29,7 @@ export default function Register() {
       navigate('/');
     } catch (err: any) {
       setError("Erro ao criar conta. Verifique os dados e tente novamente.");
-      console.error(err);
+      console.error("Erro no registro:", err?.message || "Erro desconhecido");
     } finally {
       setLoading(false);
     }

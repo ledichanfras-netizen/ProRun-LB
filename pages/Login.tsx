@@ -25,7 +25,7 @@ export default function Login() {
       }
     } catch (err: any) {
       setError("Ocorreu um erro ao tentar acessar.");
-      console.error(err);
+      console.error("Erro no login:", err?.message || "Erro desconhecido");
     } finally {
       setLoading(false);
     }

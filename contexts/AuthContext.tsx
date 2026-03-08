@@ -42,8 +42,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUserData(userDoc.data());
             }
           }
-        } catch (error) {
-          console.error("Erro ao carregar dados do usuário:", error);
+        } catch (error: any) {
+          console.error("Erro ao carregar dados do usuário:", error?.message || "Erro desconhecido");
         }
       } else {
         setUser(null);

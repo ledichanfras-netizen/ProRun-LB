@@ -218,8 +218,8 @@ const Periodization: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 800));
       const success = await exportToImage('print-layout-root', `Periodizacao_${activeAthlete.name.replace(/\s+/g, '_')}`);
       if (success) console.log("Imagem exportada");
-    } catch (err) {
-      console.error("Erro no download:", err);
+    } catch (err: any) {
+      console.error("Erro no download:", err?.message || "Erro desconhecido");
       alert("Erro ao gerar imagem.");
     } finally {
       setExportLoading(false);

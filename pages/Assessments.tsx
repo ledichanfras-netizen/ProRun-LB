@@ -119,8 +119,8 @@ const Assessments: React.FC = () => {
       }
       
       handleCancelEdit();
-    } catch (error) {
-      console.error("Erro ao salvar avaliação:", error);
+    } catch (error: any) {
+      console.error("Erro ao salvar avaliação:", error?.message || "Erro desconhecido");
       alert("Erro ao salvar. Verifique sua conexão e tente novamente.");
     } finally {
       // Garantimos que o botão saia do estado 'Salvando' independente do resultado
@@ -219,8 +219,8 @@ const Assessments: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 800));
       const success = await exportToImage('print-layout-root', `Zonas_${activeAthlete.name.replace(/\s+/g, '_')}`);
       if (success) console.log("Zonas exportadas");
-    } catch (err) {
-      console.error("Erro no download:", err);
+    } catch (err: any) {
+      console.error("Erro no download:", err?.message || "Erro desconhecido");
       alert("Erro ao gerar imagem.");
     } finally {
       setExportLoading(false);

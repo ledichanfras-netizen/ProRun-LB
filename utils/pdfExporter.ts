@@ -64,8 +64,8 @@ export const exportToPDF = async (elementId: string, filename: string) => {
     pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
     
     return true;
-  } catch (error) {
-    console.error("Falha na exportação PDF:", error);
+  } catch (error: any) {
+    console.error("Falha na exportação PDF:", error?.message || "Erro desconhecido");
     alert("Houve um problema na geração do PDF. Tente novamente ou use a opção de baixar imagem.");
     return false;
   }

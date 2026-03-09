@@ -32,7 +32,7 @@ import {
 } from 'recharts';
 
 export default function Dashboard() {
-  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics, isFirebaseConfigured } = useApp();
+  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics } = useApp();
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
   const activeAthlete = useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
@@ -122,11 +122,6 @@ export default function Dashboard() {
               : 'Seu centro de performance técnica.'}
           </p>
         </div>
-        {!isFirebaseConfigured && (
-          <div className="bg-amber-50 text-amber-700 px-4 py-2 rounded-xl border border-amber-200 flex items-center gap-2 text-[10px] font-black uppercase italic animate-pulse">
-            <AlertTriangle className="w-4 h-4" /> Modo Offline (Nuvem não configurada)
-          </div>
-        )}
       </header>
 
       {loadGuidance && (

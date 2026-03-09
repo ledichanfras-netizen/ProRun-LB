@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Athlete, AthletePlan } from "../types";
 import { calculatePaces } from "../utils/calculations";
@@ -14,10 +15,7 @@ export const generateTrainingPlan = async (
   raceGoal?: string
 ): Promise<AthletePlan> => {
   
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-  if (!apiKey) throw new Error("VITE_GEMINI_API_KEY não configurada.");
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const modelName = 'gemini-3-flash-preview';
 
   const paces = athlete.customZones || calculatePaces(athlete.metrics.vdot, athlete.metrics.fcThreshold, athlete.metrics.fcMax);

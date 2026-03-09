@@ -29,21 +29,24 @@ export const generateTrainingPlan = async (
     return `${sigla}: Pace ${p.minPace}-${p.maxPace}`;
   }).join(", ");
 
+  const today = new Date().toLocaleDateString('pt-BR');
   const raceWeekday = raceDate 
     ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(raceDate + 'T00:00:00'))
     : 'Domingo';
 
   const prompt = `
     Aja como um Treinador de Corrida de Elite (Metodologia VDOT).
+    DATA DE HOJE: ${today}.
     ATLETA: ${athlete.name} | NÍVEL: ${athlete.experience} | VDOT: ${athlete.metrics.vdot}.
     META ESPECÍFICA: ${raceGoal || raceDistance} na distância de ${raceDistance}.
+    DATA DA PROVA: ${raceDate} (${raceWeekday}).
     DURAÇÃO DO CICLO: ${weeks} semanas.
     FREQUÊNCIA: ${runningDays} dias de corrida e ${gymDays} dias de fortalecimento/academia por semana.
     CONTEXTO ADICIONAL: ${goalDescription}.
     RITMOS ALVO: ${pacesContext}.
-
+ 
     REGRAS DE OURO DA PERIODIZAÇÃO:
-    1. A PROVA ALVO (${raceDistance}) é o evento FINAL absoluto do plano. Ela deve ocorrer na ÚLTIMA SEMANA (Semana ${weeks}), EXATAMENTE no dia: ${raceWeekday}.
+    1. A PROVA ALVO (${raceDistance}) é o evento FINAL absoluto do plano. Ela deve ocorrer na ÚLTIMA SEMANA (Semana ${weeks}), OBRIGATORIAMENTE no dia: ${raceWeekday}. Se a prova é no domingo, o treino de domingo da última semana DEVE ser a prova.
     2. O plano deve ter ${weeks} semanas completas. Cada semana deve ter 7 dias, começando na Segunda-feira e terminando no Domingo.
     3. O treino "Longão" deve ser OBRIGATORIAMENTE aos DOMINGOS (exceto na semana da prova, onde a prova é o evento principal).
     4. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.

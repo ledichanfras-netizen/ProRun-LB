@@ -88,8 +88,8 @@ const Periodization: React.FC = () => {
       if (race >= today) {
         const diffMs = race.getTime() - today.getTime();
         const diffWeeks = Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 7));
-        // Limitamos entre 4 e 24 semanas para manter a qualidade da prescrição
-        setWeeks(Math.min(24, Math.max(4, diffWeeks)));
+        // Limitamos entre 1 e 24 semanas para manter a qualidade da prescrição
+        setWeeks(Math.min(24, Math.max(1, diffWeeks)));
       }
     }
   }, [raceDate]);
@@ -476,23 +476,25 @@ const Periodization: React.FC = () => {
                         </div>
                         <div className="flex-1 relative group">
                            {isEditing ? (
-                              <div className="relative">
-                                <textarea 
-                                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold italic outline-none focus:ring-2 focus:ring-emerald-500 pr-10"
-                                  value={workout.customDescription}
-                                  rows={2}
-                                  onChange={e => updateWorkout(weekIndex, dayIndex, 'customDescription', e.target.value)}
-                                />
+                              <div className="flex flex-col gap-2">
+                                <div className="relative">
+                                  <textarea 
+                                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold italic outline-none focus:ring-2 focus:ring-emerald-500"
+                                    value={workout.customDescription}
+                                    rows={2}
+                                    onChange={e => updateWorkout(weekIndex, dayIndex, 'customDescription', e.target.value)}
+                                  />
+                                </div>
                                 <button 
                                   onClick={() => {
                                     setTargetDay({ weekIndex, dayIndex });
                                     setShowLibraryModal(true);
                                   }}
-                                  className="absolute right-2 top-2 px-3 py-1.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center gap-2"
+                                  className="self-start px-3 py-1.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center gap-2"
                                   title="Importar da Biblioteca"
                                 >
                                   <BookOpen className="w-3.5 h-3.5" />
-                                  <span className="text-[10px] font-black uppercase italic tracking-tight">Biblioteca</span>
+                                  <span className="text-[10px] font-black uppercase italic tracking-tight">Biblioteca de Treinos</span>
                                 </button>
                               </div>
                            ) : (

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { withRetry } from "../utils/helpers";
 
@@ -17,8 +16,10 @@ export interface WorkoutPlan {
 
 class AIService {
   async generateWorkout(params: WorkoutParams): Promise<WorkoutPlan> {
-    // Inicialização direta com process.env.GEMINI_API_KEY seguindo as diretrizes do SDK @google/genai
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+    if (!apiKey) throw new Error("VITE_GEMINI_API_KEY não configurada.");
+
+    const ai = new GoogleGenAI({ apiKey });
     const prompt = `Crie um plano de exercícios de fortalecimento funcional para o corredor ${params.studentName}. Nível: ${params.fitnessLevel}. Objetivo: ${params.primaryGoal}. Tempo disponível: ${params.sessionTime} minutos por sessão.`;
     
     try {

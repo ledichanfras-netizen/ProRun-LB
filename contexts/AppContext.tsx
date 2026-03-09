@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan } from '../types';
-import { db } from '../services/firebase';
+import { app, db, isFirebaseConfigured } from '../services/firebase';
 import { 
   collection, 
   doc, 
@@ -46,6 +46,7 @@ interface AppContextType {
   };
   isLoading: boolean;
   isCloudConnected: boolean;
+  isFirebaseConfigured: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -473,7 +474,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, isLoading, isCloudConnected: !!db
+      getAthleteMetrics, isLoading, isCloudConnected: !!db,
+      isFirebaseConfigured
     }}>
       {children}
     </AppContext.Provider>

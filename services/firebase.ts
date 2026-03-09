@@ -4,16 +4,21 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "tTnQATkTY9hsJsyEpTAPtJiZM0CkYCbydSUMgcXcJHM",
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "prorunlb.firebaseapp.com",
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "prorunlb",
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "prorunlb.firebasestorage.app",
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "5064421357",
-  appId: process.env.VITE_FIREBASE_APP_ID || "1:5064421357:web:c595b37f9f693f752041e4"
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.VITE_FIREBASE_APP_ID || ""
 };
 
+// Verifica se a configuração é válida (chaves do Firebase começam com AIzaSy)
+export const isFirebaseConfigured = 
+  firebaseConfig.apiKey.startsWith('AIzaSy') && 
+  firebaseConfig.projectId !== "";
+
 // Initialize Firebase only if config is available
-export const app = initializeApp(firebaseConfig);
+export const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
 
 // Inicializa o Firestore com cache persistente para evitar timeouts e permitir uso offline

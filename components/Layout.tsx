@@ -23,7 +23,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const { athletes, selectedAthleteId, userRole, logout, isCloudConnected } = useApp();
+  const { athletes, selectedAthleteId, userRole, logout, isCloudConnected, isFirebaseConfigured } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -81,7 +81,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <p className="text-[10px] text-emerald-300/60 uppercase font-black tracking-widest leading-none">
                 {userRole === 'coach' ? 'Coach' : 'Athlete'}
               </p>
-              {isCloudConnected ? (
+              {isFirebaseConfigured ? (
                 <Cloud className="w-3 h-3 text-emerald-400" />
               ) : (
                 <CloudOff className="w-3 h-3 text-red-400" />

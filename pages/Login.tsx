@@ -9,7 +9,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { login, isCloudConnected } = useApp();
+  const { login, isCloudConnected, isFirebaseConfigured } = useApp();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,6 +46,18 @@ export default function Login() {
           <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-xl flex items-center gap-3 text-sm font-medium animate-fade-in border-l-4 border-red-500">
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
             {error}
+          </div>
+        )}
+
+        {!isFirebaseConfigured && (
+          <div className="mb-6 bg-amber-50 text-amber-700 p-4 rounded-xl flex flex-col gap-2 text-[10px] font-bold animate-fade-in border-l-4 border-amber-500">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="uppercase tracking-widest">Atenção: Nuvem não configurada</span>
+            </div>
+            <p className="opacity-80 leading-relaxed">
+              O sistema está operando em modo offline. Dados criados aqui não serão sincronizados com outros dispositivos até que as chaves do Firebase sejam configuradas no menu Settings.
+            </p>
           </div>
         )}
 

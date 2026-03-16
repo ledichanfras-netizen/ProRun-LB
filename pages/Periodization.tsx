@@ -498,7 +498,22 @@ const Periodization: React.FC = () => {
                                 </button>
                               </div>
                            ) : (
-                              <p className={`text-sm font-bold italic ${workout.type === 'Descanso' ? 'text-slate-300' : 'text-slate-700'}`}>{workout.customDescription}</p>
+                              <div className="space-y-1">
+                                <p className={`text-sm font-bold italic ${workout.type === 'Descanso' ? 'text-slate-300' : 'text-slate-700'}`}>{workout.customDescription}</p>
+                                {workout.completed && (
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    {(workout.rpe || 0) > 0 && (
+                                      <span className="text-[9px] font-black px-2 py-0.5 bg-amber-100 text-amber-700 rounded-md uppercase italic">Percepção: {workout.rpe}/10</span>
+                                    )}
+                                    {workout.feedback && (
+                                      <div className="w-full flex items-start gap-1.5 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                        <MessageSquare className="w-3 h-3 text-slate-400 mt-0.5" />
+                                        <p className="text-[10px] text-slate-600 font-medium italic leading-tight">{workout.feedback}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                            )}
                         </div>
                         <div className="text-right">

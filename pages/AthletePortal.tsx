@@ -241,9 +241,14 @@ const AthletePortal: React.FC = () => {
                              ) : <span className="text-[10px] font-black text-slate-300 uppercase italic">OFF</span>}
                           
                           {workout.completed && (
-                            <div className="flex items-center gap-1">
-                               <Zap className={`w-3 h-3 ${getRPEColor(workout.rpe || 0)}`} />
-                               <span className="text-[9px] font-black text-emerald-800">PSE {workout.rpe || '-'}</span>
+                            <div className="flex items-center gap-2">
+                               <div className="flex items-center gap-1">
+                                 <Zap className={`w-3 h-3 ${getRPEColor(workout.rpe || 0)}`} />
+                                 <span className="text-[9px] font-black text-emerald-800">PSE {workout.rpe || '-'}</span>
+                               </div>
+                               {workout.feedback && (
+                                 <MessageSquare className="w-3 h-3 text-emerald-600" />
+                               )}
                             </div>
                           )}
                         </div>

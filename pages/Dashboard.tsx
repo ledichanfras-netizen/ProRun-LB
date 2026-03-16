@@ -51,7 +51,12 @@ export default function Dashboard() {
   const nextWorkout = useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
 
   const allActivities = useMemo(() => {
-    return athletes.flatMap(athlete => {
+    // Se for atleta, mostra apenas as próprias atividades. Se for coach, mostra de todos.
+    const filteredAthletes = userRole === 'athlete' 
+      ? athletes.filter(a => a.id === selectedAthleteId)
+      : athletes;
+
+    return filteredAthletes.flatMap(athlete => {
       const aPlan = athletePlans[athlete.id];
       if (!aPlan || !aPlan.weeks) return [];
       
@@ -65,7 +70,7 @@ export default function Dashboard() {
         timestamp: new Date()
       })));
     });
-  }, [athletes, athletePlans]);
+  }, [athletes, athletePlans, userRole, selectedAthleteId]);
 
   const loadGuidance = useMemo(() => {
     if (!currentAthleteId) return null;

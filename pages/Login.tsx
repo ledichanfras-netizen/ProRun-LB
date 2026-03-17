@@ -59,7 +59,7 @@ export default function Login() {
                 required
                 autoComplete="username"
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition font-bold"
-                placeholder="Ex: Leandro Barbosa"
+                placeholder="Digite seu nome"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
               />
@@ -75,17 +75,11 @@ export default function Login() {
                 required
                 autoComplete="current-password"
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition font-bold"
-                placeholder="Data de Nascimento (DDMMAAAA)"
+                placeholder="Sua senha"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
               />
             </div>
-            {username.length > 3 && (
-              <div className="mt-2 flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase italic tracking-tight animate-fade-in">
-                <Info className="w-3 h-3" />
-                Dica: Use sua data de nascimento sem barras (ex: 29121981)
-              </div>
-            )}
           </div>
 
           <button 

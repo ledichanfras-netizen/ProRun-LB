@@ -88,3 +88,9 @@ export interface HistoryEntry {
   planned: number;
   completed: number;
 }
+
+declare global {
+  interface Window {
+    Android?: any;
+  }
+}

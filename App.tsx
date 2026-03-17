@@ -1,5 +1,5 @@
 
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
@@ -22,6 +22,16 @@ const LoadingFallback = () => (
 
 function AppContent() {
   const { userRole, isLoading } = useApp();
+
+  useEffect(() => {
+    if (window.Android) {
+      console.log("Rodando dentro do App Nativo ProRunLB");
+      
+      // Esconder o botão de instalar PWA do navegador, pois já é o App!
+      const installBtn = document.getElementById('meu-botao-instalar');
+      if (installBtn) installBtn.style.display = 'none';
+    }
+  }, []);
 
   if (isLoading) {
     return (

@@ -17,8 +17,7 @@ import {
   Info,
   TrendingDown,
   Activity as ActivityIcon,
-  TrendingUp as TrendingIcon,
-  Brain
+  TrendingUp as TrendingIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { 
@@ -31,10 +30,9 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
-import { PerformanceDashboard } from '../src/components/PerformanceDashboard';
 
 export default function Dashboard() {
-  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
+  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics } = useApp();
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
   const activeAthlete = useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
@@ -48,6 +46,26 @@ export default function Dashboard() {
 
   const athletePlan = useMemo(() => currentAthleteId ? athletePlans[currentAthleteId] : null, [currentAthleteId, athletePlans]);
   
+  const performanceMetrics = useMemo(() => {
+    if (!activeAthlete || !athletePlan) return null;
+    const allWorkouts = athletePlan.weeks.flatMap(w => (w.workouts || []).filter(work => work.completed));
+    const last7Days = allWorkouts.slice(-7);
+    const avgRpe7 = last7Days.length > 0 
+      ? last7Days.reduce((acc, curr) => acc + (curr.rpe || 0), 0) / last7Days.length 
+      : 0;
+    const fatigue = Math.min(100, (avgRpe7 / 10) * 100);
+    const completionRate = allWorkouts.length / (athletePlan.weeks.flatMap(w => w.workouts || []).length || 1);
+    const readiness = Math.max(0, 100 - fatigue + (completionRate * 20) - 10);
+    
+    const acuteLoad = last7Days.reduce((acc, curr) => acc + (curr.distance || 0), 0);
+    const chronicLoad = allWorkouts.length > 0 
+      ? (allWorkouts.reduce((acc, curr) => acc + (curr.distance || 0), 0) / allWorkouts.length) * 7
+      : 1;
+    const acwr = acuteLoad / (chronicLoad || 1);
+
+    return { readiness, acwr };
+  }, [activeAthlete, athletePlan]);
+
   const visibleWeeks = useMemo(() => athletePlan?.weeks?.filter(w => w.isVisible === true) || [], [athletePlan]);
   
   const nextWorkout = useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
@@ -131,13 +149,6 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {activeAthlete && (
-        <PerformanceDashboard 
-          athlete={activeAthlete} 
-          onRunAnalysis={userRole === 'coach' ? () => runAIAnalysis(activeAthlete.id) : undefined} 
-        />
-      )}
-
       {loadGuidance && (
         <div className={`${loadGuidance.bg} p-8 rounded-[2.5rem] border-2 border-white shadow-xl animate-fade-in-up flex flex-col md:flex-row items-center gap-8`}>
            <div className={`flex-shrink-0 bg-white p-6 rounded-3xl shadow-lg ${loadGuidance.color}`}>
@@ -166,7 +177,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between group relative">
           <div>
             <div className="flex items-center gap-1.5 mb-1">
@@ -214,6 +225,34 @@ export default function Dashboard() {
             <Trophy className="w-6 h-6" />
           </div>
         </div>
+
+        {performanceMetrics && (
+          <>
+            <Link to="/performance" className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between hover:border-emerald-300 transition-all group">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prontidão</p>
+                <p className={`text-3xl font-black ${performanceMetrics.readiness > 70 ? 'text-emerald-600' : 'text-orange-500'}`}>
+                  {performanceMetrics.readiness.toFixed(0)}%
+                </p>
+              </div>
+              <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <Zap className="w-6 h-6" />
+              </div>
+            </Link>
+
+            <Link to="/performance" className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between hover:border-red-300 transition-all group">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Risco Lesão</p>
+                <p className={`text-3xl font-black ${performanceMetrics.acwr > 1.5 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {performanceMetrics.acwr.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-red-50 p-3 rounded-2xl text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+            </Link>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

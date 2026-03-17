@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
@@ -19,22 +19,17 @@ import {
   TrendingUp,
   Sparkles,
   Zap,
-  Flag,
-  Heart,
-  Brain
+  Flag
 } from 'lucide-react';
-import { WorkoutType, WellnessData } from '../types';
+import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-import { WellnessForm } from '../src/components/WellnessForm';
-import { PerformanceDashboard } from '../src/components/PerformanceDashboard';
 
 const AthletePortal: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus, addWellnessData, runAIAnalysis } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus } = useApp();
   const navigate = useNavigate();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
   
-  const [activeTab, setActiveTab] = useState<'workouts' | 'wellness' | 'performance'>('workouts');
   const [selectedWorkout, setSelectedWorkout] = useState<{
     weekIndex: number;
     dayIndex: number;
@@ -61,6 +56,26 @@ const AthletePortal: React.FC = () => {
   const allWeeks = athletePlan?.weeks || [];
   const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
   const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
+
+  const performanceMetrics = useMemo(() => {
+    if (!activeAthlete || !athletePlan) return null;
+    const allWorkouts = athletePlan.weeks.flatMap(w => (w.workouts || []).filter(work => work.completed));
+    const last7Days = allWorkouts.slice(-7);
+    const avgRpe7 = last7Days.length > 0 
+      ? last7Days.reduce((acc, curr) => acc + (curr.rpe || 0), 0) / last7Days.length 
+      : 0;
+    const fatigue = Math.min(100, (avgRpe7 / 10) * 100);
+    const completionRate = allWorkouts.length / (athletePlan.weeks.flatMap(w => w.workouts || []).length || 1);
+    const readiness = Math.max(0, 100 - fatigue + (completionRate * 20) - 10);
+    
+    const acuteLoad = last7Days.reduce((acc, curr) => acc + (curr.distance || 0), 0);
+    const chronicLoad = allWorkouts.length > 0 
+      ? (allWorkouts.reduce((acc, curr) => acc + (curr.distance || 0), 0) / allWorkouts.length) * 7
+      : 1;
+    const acwr = acuteLoad / (chronicLoad || 1);
+
+    return { readiness, acwr };
+  }, [activeAthlete, athletePlan]);
 
   const isFinalWorkout = selectedWorkout && 
     selectedWorkout.weekIndex === (allWeeks.length - 1) && 
@@ -159,14 +174,6 @@ const AthletePortal: React.FC = () => {
     }
   };
 
-  const handleWellnessSubmit = async (data: WellnessData) => {
-    if (!activeAthlete) return;
-    await addWellnessData(activeAthlete.id, data);
-    setActiveTab('performance');
-    // Run AI analysis after wellness update
-    await runAIAnalysis(activeAthlete.id);
-  };
-
   return (
     <div className="space-y-8 pb-20 relative animate-fade-in">
       {activeAthlete && athletePlan && portalRoot && createPortal(
@@ -187,9 +194,23 @@ const AthletePortal: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">{activeAthlete.name}</h1>
-            <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest italic flex items-center gap-2">
-              <Sparkles className="w-3 h-3" /> {athletePlan?.specificGoal || 'Ciclo ProRun'}
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest italic flex items-center gap-2">
+                <Sparkles className="w-3 h-3" /> {athletePlan?.specificGoal || 'Ciclo ProRun'}
+              </p>
+              {performanceMetrics && (
+                <div className="flex items-center gap-2 border-l pl-3 border-slate-200">
+                  <div className="flex items-center gap-1">
+                    <Zap className={`w-3 h-3 ${performanceMetrics.readiness > 70 ? 'text-emerald-500' : 'text-orange-500'}`} />
+                    <span className="text-[9px] font-black uppercase text-slate-400">Prontidão: {performanceMetrics.readiness.toFixed(0)}%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <AlertCircle className={`w-3 h-3 ${performanceMetrics.acwr > 1.5 ? 'text-red-500' : 'text-emerald-500'}`} />
+                    <span className="text-[9px] font-black uppercase text-slate-400">Risco: {performanceMetrics.acwr.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
@@ -203,110 +224,75 @@ const AthletePortal: React.FC = () => {
         </button>
       </header>
 
-      {/* Tabs */}
-      <div className="flex bg-white p-2 rounded-2xl shadow-sm border border-slate-100 no-print">
-        <button 
-          onClick={() => setActiveTab('workouts')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all ${activeTab === 'workouts' ? 'bg-emerald-950 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
-        >
-          <Flag className="w-4 h-4" /> Treinos
-        </button>
-        <button 
-          onClick={() => setActiveTab('wellness')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all ${activeTab === 'wellness' ? 'bg-emerald-950 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
-        >
-          <Heart className="w-4 h-4" /> Wellness
-        </button>
-        <button 
-          onClick={() => setActiveTab('performance')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all ${activeTab === 'performance' ? 'bg-emerald-950 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
-        >
-          <Brain className="w-4 h-4" /> Performance IA
-        </button>
-      </div>
-
       <div className="no-print">
-        {activeTab === 'workouts' && (
-          visibleWeeks.length === 0 ? (
-            <div className="text-center py-32 bg-white rounded-[2rem] border-2 border-dashed border-slate-200">
-               <Activity className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-               <p className="text-slate-400 font-black uppercase tracking-widest italic">Aguardando publicação do treinador.</p>
-            </div>
-          ) : (
-            <div className="space-y-12">
-              {visibleWeeks.map((week, wIdx) => {
-                const originalWeekIndex = allWeeks.findIndex(p => p.weekNumber === week.weekNumber);
-                return (
-                  <div key={wIdx} className="space-y-6 animate-fade-in-up">
-                    <div className="flex items-center gap-4 border-b pb-4">
-                      <span className="px-5 py-1.5 rounded-full text-[10px] font-black uppercase italic bg-emerald-950 text-white shadow-lg">
-                        SEMANA {week.weekNumber} • {week.phase.toUpperCase()}
-                      </span>
-                      <span className="text-xs font-black text-slate-400 uppercase ml-auto flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-emerald-500" /> {week.totalVolume || 0} KM
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
-                      {(week.workouts || []).map((workout, dIdx) => (
-                        <div 
-                          key={dIdx} 
-                          onClick={() => openWorkoutModal(originalWeekIndex, dIdx, workout)} 
-                          className={`p-5 rounded-[1.5rem] cursor-pointer hover:shadow-2xl transition-all border-2 flex flex-col justify-between h-full min-h-[160px]
-                            ${workout.completed ? 'border-emerald-500 bg-emerald-50/50' : `bg-white shadow-md ${getWorkoutBorderColor(workout.type)} hover:border-emerald-300`}
-                          `}
-                        >
-                          <div>
-                            <div className="flex justify-between items-start mb-3">
-                              <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">{workout.day.split('-')[0]}</span>
-                              {workout.completed ? (
-                                <CheckCircle className="w-6 h-6 text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                              ) : (
-                                <Circle className="w-6 h-6 text-slate-200" />
-                              )}
-                            </div>
-                            <h4 className={`font-bold text-[11px] leading-snug line-clamp-3 mb-2 uppercase italic tracking-tighter ${workout.completed ? 'text-emerald-900 opacity-70' : 'text-slate-800'}`}>
-                              {workout.type || 'Treino'}
-                            </h4>
-                          </div>
-                          
-                          <div className={`mt-3 flex items-center justify-between border-t pt-3 ${workout.completed ? 'border-emerald-200' : 'border-slate-50'}`}>
-                               {workout.distance && workout.distance > 0 ? (
-                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border italic ${workout.completed ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-emerald-50 text-emerald-950 border-emerald-100'}`}>
-                                    {workout.distance} KM
-                                  </span>
-                               ) : <span className="text-[10px] font-black text-slate-300 uppercase italic">OFF</span>}
-                            
-                            {workout.completed && (
-                              <div className="flex items-center gap-2">
-                                 <div className="flex items-center gap-1">
-                                   <Zap className={`w-3 h-3 ${getRPEColor(workout.rpe || 0)}`} />
-                                   <span className="text-[9px] font-black text-emerald-800">PSE {workout.rpe || '-'}</span>
-                                 </div>
-                                 {workout.feedback && (
-                                   <MessageSquare className="w-3 h-3 text-emerald-600" />
-                                 )}
-                              </div>
+        {visibleWeeks.length === 0 ? (
+          <div className="text-center py-32 bg-white rounded-[2rem] border-2 border-dashed border-slate-200">
+             <Activity className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+             <p className="text-slate-400 font-black uppercase tracking-widest italic">Aguardando publicação do treinador.</p>
+          </div>
+        ) : (
+          <div className="space-y-12">
+            {visibleWeeks.map((week, wIdx) => {
+              const originalWeekIndex = allWeeks.findIndex(p => p.weekNumber === week.weekNumber);
+              return (
+                <div key={wIdx} className="space-y-6 animate-fade-in-up">
+                  <div className="flex items-center gap-4 border-b pb-4">
+                    <span className="px-5 py-1.5 rounded-full text-[10px] font-black uppercase italic bg-emerald-950 text-white shadow-lg">
+                      SEMANA {week.weekNumber} • {week.phase.toUpperCase()}
+                    </span>
+                    <span className="text-xs font-black text-slate-400 uppercase ml-auto flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-emerald-500" /> {week.totalVolume || 0} KM
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
+                    {(week.workouts || []).map((workout, dIdx) => (
+                      <div 
+                        key={dIdx} 
+                        onClick={() => openWorkoutModal(originalWeekIndex, dIdx, workout)} 
+                        className={`p-5 rounded-[1.5rem] cursor-pointer hover:shadow-2xl transition-all border-2 flex flex-col justify-between h-full min-h-[160px]
+                          ${workout.completed ? 'border-emerald-500 bg-emerald-50/50' : `bg-white shadow-md ${getWorkoutBorderColor(workout.type)} hover:border-emerald-300`}
+                        `}
+                      >
+                        <div>
+                          <div className="flex justify-between items-start mb-3">
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">{workout.day.split('-')[0]}</span>
+                            {workout.completed ? (
+                              <CheckCircle className="w-6 h-6 text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                            ) : (
+                              <Circle className="w-6 h-6 text-slate-200" />
                             )}
                           </div>
+                          <h4 className={`font-bold text-[11px] leading-snug line-clamp-3 mb-2 uppercase italic tracking-tighter ${workout.completed ? 'text-emerald-900 opacity-70' : 'text-slate-800'}`}>
+                            {workout.type || 'Treino'}
+                          </h4>
                         </div>
-                      ))}
-                    </div>
+                        
+                        <div className={`mt-3 flex items-center justify-between border-t pt-3 ${workout.completed ? 'border-emerald-200' : 'border-slate-50'}`}>
+                             {workout.distance && workout.distance > 0 ? (
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border italic ${workout.completed ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-emerald-50 text-emerald-950 border-emerald-100'}`}>
+                                  {workout.distance} KM
+                                </span>
+                             ) : <span className="text-[10px] font-black text-slate-300 uppercase italic">OFF</span>}
+                          
+                          {workout.completed && (
+                            <div className="flex items-center gap-2">
+                               <div className="flex items-center gap-1">
+                                 <Zap className={`w-3 h-3 ${getRPEColor(workout.rpe || 0)}`} />
+                                 <span className="text-[9px] font-black text-emerald-800">PSE {workout.rpe || '-'}</span>
+                               </div>
+                               {workout.feedback && (
+                                 <MessageSquare className="w-3 h-3 text-emerald-600" />
+                               )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          )
-        )}
-
-        {activeTab === 'wellness' && (
-          <WellnessForm onSubmit={handleWellnessSubmit} />
-        )}
-
-        {activeTab === 'performance' && (
-          <PerformanceDashboard 
-            athlete={activeAthlete} 
-            onRunAnalysis={() => runAIAnalysis(activeAthlete.id)} 
-          />
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 

@@ -34,6 +34,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ? [
         { to: '/', icon: LayoutDashboard, label: 'Painel Geral' },
         { to: '/athletes', icon: Users, label: 'Meus Atletas' },
+        { to: '/performance', icon: TrendingUp, label: 'Performance' },
         { to: '/assessments', icon: Activity, label: 'Avaliações' },
         { to: '/library', icon: BookOpen, label: 'Biblioteca' },
         { to: '/periodization', icon: CalendarDays, label: 'Prescrição' },
@@ -41,6 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ]
     : [
         { to: '/', icon: LayoutDashboard, label: 'Meu Painel' },
+        { to: '/performance', icon: TrendingUp, label: 'Minha Performance' },
         { to: '/athlete-portal', icon: UserCheck, label: 'Meu Treino' },
         { to: '/assessments', icon: Activity, label: 'Minhas Zonas' },
       ];

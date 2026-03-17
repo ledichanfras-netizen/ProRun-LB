@@ -1,5 +1,5 @@
 
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
@@ -12,6 +12,7 @@ const Assessments = lazy(() => import('./pages/Assessments'));
 const Library = lazy(() => import('./pages/Library'));
 const Periodization = lazy(() => import('./pages/Periodization'));
 const AthletePortal = lazy(() => import('./pages/AthletePortal'));
+const PerformanceAnalytics = lazy(() => import('./pages/PerformanceAnalytics'));
 
 const LoadingFallback = () => (
   <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
@@ -22,16 +23,6 @@ const LoadingFallback = () => (
 
 function AppContent() {
   const { userRole, isLoading } = useApp();
-
-  useEffect(() => {
-    if (window.Android) {
-      console.log("Rodando dentro do App Nativo ProRunLB");
-      
-      // Esconder o botão de instalar PWA do navegador, pois já é o App!
-      const installBtn = document.getElementById('meu-botao-instalar');
-      if (installBtn) installBtn.style.display = 'none';
-    }
-  }, []);
 
   if (isLoading) {
     return (
@@ -55,6 +46,7 @@ function AppContent() {
               <Route path="/library" element={<Library />} />
               <Route path="/periodization" element={<Periodization />} />
               <Route path="/athlete-portal" element={<AthletePortal />} />
+              <Route path="/performance" element={<PerformanceAnalytics />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>

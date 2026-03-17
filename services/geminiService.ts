@@ -113,3 +113,52 @@ export const generateTrainingPlan = async (
     throw new Error(userMessage);
   }
 };
+
+export const generatePerformanceInsights = async (
+  athlete: Athlete,
+  metrics: {
+    fatigue: number;
+    readiness: number;
+    injuryRisk: number;
+    radarData: any[];
+    recentWorkouts: any[];
+  }
+): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const modelName = 'gemini-3-flash-preview';
+
+  const prompt = `
+    Aja como um Cientista do Esporte de Elite.
+    Analise os dados de performance do atleta ${athlete.name} e forneça insights acionáveis.
+
+    DADOS ATUAIS:
+    - Fadiga (0-100): ${metrics.fatigue}
+    - Prontidão (0-100): ${metrics.readiness}
+    - Risco de Lesão (ACWR): ${metrics.injuryRisk.toFixed(2)} (Ideal: 0.8 - 1.3)
+    - Radar de Capacidades: ${JSON.stringify(metrics.radarData)}
+    - Últimos Treinos (RPE/Feedback): ${JSON.stringify(metrics.recentWorkouts)}
+
+    OBJETIVO:
+    Forneça uma análise curta (máximo 3 parágrafos) em tom profissional e motivador, focando em:
+    1. Estado atual de recuperação e prontidão.
+    2. Alerta sobre risco de lesão se o ACWR estiver fora da zona segura.
+    3. Sugestão de ajuste técnico ou de carga para a próxima semana.
+    
+    Responda em Português do Brasil.
+  `;
+
+  try {
+    const response = await withRetry(() => ai.models.generateContent({
+      model: modelName,
+      contents: prompt,
+      config: {
+        systemInstruction: "Você é o Treinador Leandro Barbosa, especialista em fisiologia do exercício. Sua análise é baseada em dados reais e ciência do esporte.",
+      },
+    }));
+
+    return response.text || "Não foi possível gerar insights no momento.";
+  } catch (error: any) {
+    console.error("Erro Gemini Insights:", error?.message || "Erro desconhecido");
+    return "Ocorreu um erro ao consultar a IA para insights de performance.";
+  }
+};

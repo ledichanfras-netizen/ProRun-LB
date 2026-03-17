@@ -63,7 +63,6 @@ export const exportToImage = async (elementId: string, filename: string) => {
     return true;
   } catch (error: any) {
     console.error("Falha na exportação de imagem:", error?.message || "Erro desconhecido");
-    alert("Houve um problema na geração da imagem. Tente novamente.");
     return false;
   }
 };

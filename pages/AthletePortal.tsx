@@ -113,7 +113,6 @@ const AthletePortal: React.FC = () => {
 
     } catch (err: any) {
       console.error("Erro ao salvar:", err?.message || "Erro desconhecido");
-      alert("Erro ao sincronizar. Verifique sua conexão com o banco de dados.");
       setIsSaving(false);
       setSaveSuccess(false);
     }
@@ -168,7 +167,6 @@ const AthletePortal: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Erro no download:", err?.message || "Erro desconhecido");
-      alert("Erro ao gerar imagem. Tente novamente.");
     } finally {
       setExportLoading(false);
     }

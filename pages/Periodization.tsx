@@ -96,7 +96,7 @@ const Periodization: React.FC = () => {
 
   const handleGenerate = async () => {
     if (!activeAthlete || !raceDate) {
-      alert("Defina a data da prova para calcular o ciclo.");
+      console.warn("Defina a data da prova para calcular o ciclo.");
       return;
     }
     setLoading(true);
@@ -131,7 +131,7 @@ const Periodization: React.FC = () => {
       saveAthletePlan(activeAthlete.id, newPlan);
       setIsEditing(true);
     } catch (e: any) {
-      alert("Erro na IA: " + e.message);
+      console.error("Erro na IA:", e.message);
     } finally {
       setLoading(false);
     }
@@ -141,7 +141,7 @@ const Periodization: React.FC = () => {
     if (activeAthlete && fullPlan) {
       saveAthletePlan(activeAthlete.id, fullPlan);
       setIsEditing(false);
-      alert('Planilha publicada com sucesso!');
+      console.log('Planilha publicada com sucesso!');
     }
   };
 
@@ -220,7 +220,6 @@ const Periodization: React.FC = () => {
       if (success) console.log("Imagem exportada");
     } catch (err: any) {
       console.error("Erro no download:", err?.message || "Erro desconhecido");
-      alert("Erro ao gerar imagem.");
     } finally {
       setExportLoading(false);
     }

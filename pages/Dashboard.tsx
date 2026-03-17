@@ -17,7 +17,8 @@ import {
   Info,
   TrendingDown,
   Activity as ActivityIcon,
-  TrendingUp as TrendingIcon
+  TrendingUp as TrendingIcon,
+  Brain
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { 
@@ -30,9 +31,10 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+import { PerformanceDashboard } from '../src/components/PerformanceDashboard';
 
 export default function Dashboard() {
-  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics } = useApp();
+  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
   const activeAthlete = useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
@@ -128,6 +130,13 @@ export default function Dashboard() {
           </p>
         </div>
       </header>
+
+      {activeAthlete && (
+        <PerformanceDashboard 
+          athlete={activeAthlete} 
+          onRunAnalysis={userRole === 'coach' ? () => runAIAnalysis(activeAthlete.id) : undefined} 
+        />
+      )}
 
       {loadGuidance && (
         <div className={`${loadGuidance.bg} p-8 rounded-[2.5rem] border-2 border-white shadow-xl animate-fade-in-up flex flex-col md:flex-row items-center gap-8`}>

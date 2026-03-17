@@ -35,6 +35,33 @@ export interface TrainingPace {
   heartRateRange?: string; 
 }
 
+export interface WellnessData {
+  date: string;
+  sleep: number; // 1-5
+  stress: number; // 1-5
+  soreness: number; // 1-5
+  fatigue: number; // 1-5
+  mood: number; // 1-5
+}
+
+export interface PhysicalCapacities {
+  aerobic: number; // 0-100
+  anaerobic: number; // 0-100
+  strength: number; // 0-100
+  speed: number; // 0-100
+  endurance: number; // 0-100
+  flexibility: number; // 0-100
+}
+
+export interface PerformanceMetrics {
+  readiness: number; // 0-100
+  injuryRisk: 'Baixo' | 'Moderado' | 'Alto';
+  performanceScore: number; // 0-100
+  acuteLoad: number;
+  chronicLoad: number;
+  ratio: number; // ACWR
+}
+
 export interface Athlete {
   id: string;
   name: string;
@@ -53,6 +80,9 @@ export interface Athlete {
   };
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
+  wellnessHistory?: WellnessData[];
+  capacities?: PhysicalCapacities;
+  performance?: PerformanceMetrics;
 }
 
 export type WorkoutType = 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Descanso' | 'Fortalecimento' | 'Velocidade';
@@ -87,10 +117,4 @@ export interface HistoryEntry {
   label: string;
   planned: number;
   completed: number;
-}
-
-declare global {
-  interface Window {
-    Android?: any;
-  }
 }

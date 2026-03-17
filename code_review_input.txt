@@ -1,0 +1,13 @@
+Bug Fix: Corrected AI Service Import and Implemented Missing Function
+
+Problem:
+The build failed on Render because 'contexts/AppContext.tsx' was trying to import from '../src/services/aiService' (which doesn't exist) and 'analyzeAthletePerformance' was not implemented/exported in 'services/aiService.ts'.
+
+Solution:
+1. Implemented 'analyzeAthletePerformance' in 'services/aiService.ts' using @google/genai to analyze athlete data.
+2. Corrected the import path in 'contexts/AppContext.tsx' to '../services/aiService'.
+3. Verified the fix by running 'npm run build', which now passes.
+
+Files changed:
+- services/aiService.ts
+- contexts/AppContext.tsx

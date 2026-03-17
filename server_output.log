@@ -1,0 +1,9 @@
+
+> prorun-performance-integrated@1.1.0 start
+> tsx server.ts
+
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+Database initialized (SQLite)
+Server running on http://localhost:3000
+6:46:39 PM [vite] (client) page reload verification_script.py
+6:47:04 PM [vite] (client) page reload verification_script.py

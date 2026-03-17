@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, WellnessData } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
-import { analyzeAthletePerformance } from '../services/aiService';
+import { analyzeAthletePerformance } from '../src/services/aiService';
 
 interface AppContextType {
   userRole: UserRole;

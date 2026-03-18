@@ -24,10 +24,13 @@ import {
 import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 
+import { AIPerformanceHub } from '../src/components/AIPerformanceHub';
+
 const AthletePortal: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus } = useApp();
   const navigate = useNavigate();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
+  
   const portalRoot = document.getElementById('printable-portal');
   
   const [selectedWorkout, setSelectedWorkout] = useState<{
@@ -189,6 +192,13 @@ const AthletePortal: React.FC = () => {
           {exportLoading ? 'GERANDO...' : 'BAIXAR IMAGEM'}
         </button>
       </header>
+
+      {activeAthlete && (
+        <AIPerformanceHub 
+          athlete={activeAthlete} 
+          canAnalyze={false}
+        />
+      )}
 
       <div className="no-print">
         {visibleWeeks.length === 0 ? (

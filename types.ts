@@ -50,6 +50,19 @@ export interface Athlete {
     vdot: number;
     fcMax?: number;
     fcThreshold?: number;
+    performanceScore?: number;
+    fatigueScore?: number;
+    readinessScore?: number;
+    injuryRiskScore?: number;
+    physicalCapabilities?: {
+      aerobic: number;
+      anaerobic: number;
+      strength: number;
+      speed: number;
+      flexibility: number;
+      endurance: number;
+    };
+    aiAnalysis?: string;
   };
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];

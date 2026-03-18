@@ -35,12 +35,15 @@ interface AppContextType {
     totalVolumeCompleted: number,
     totalVolumePlanned: number 
   };
+  runAIAnalysis: (athleteId: string) => Promise<void>;
   isLoading: boolean;
   isCloudConnected: boolean;
   isFirebaseConfigured: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+import { analyzeAthletePerformance } from '../src/services/aiService';
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [userRole, setUserRole] = useState<UserRole>(() => {
@@ -56,6 +59,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isCloudConnected, setIsCloudConnected] = useState(true);
+
+  const runAIAnalysis = async (athleteId: string) => {
+    const athlete = athletes.find(a => a.id === athleteId);
+    if (!athlete) return;
+    
+    const plan = athletePlans[athleteId] || null;
+    const result = await analyzeAthletePerformance(athlete, plan);
+    
+    if (result) {
+      const updatedAthlete = {
+        ...athlete,
+        metrics: {
+          ...athlete.metrics,
+          performanceScore: result.performanceScore,
+          fatigueScore: result.fatigueScore,
+          readinessScore: result.readinessScore,
+          injuryRiskScore: result.injuryRiskScore,
+          physicalCapabilities: result.physicalCapabilities,
+          aiAnalysis: result.analysis
+        }
+      };
+      
+      await updateAthlete(athleteId, updatedAthlete);
+    }
+  };
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -350,7 +378,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
-      getAthleteMetrics, isLoading, isCloudConnected,
+      getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected,
       isFirebaseConfigured: true // Always true now as we use PostgreSQL
     }}>
       {children}

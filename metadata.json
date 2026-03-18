@@ -1,5 +1,5 @@
 {
   "name": "ProRun LB",
-  "description": "Uma plataforma profissional de treinamento de corrida com IA, apresentando avaliações fisiológicas (VDOT/3k), periodização automatizada e prescrição dinâmica de treinamento.",
+  "description": "Uma plataforma profissional de treinamento esportivo com IA integrada, apresentando cálculo automático de performance, análise de fadiga/prontidão, score de risco de lesão e Radar de Capacidades Físicas.",
   "requestFramePermissions": []
 }

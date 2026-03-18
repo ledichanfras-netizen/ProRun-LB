@@ -20,6 +20,7 @@ import {
   TrendingUp as TrendingIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { AIPerformanceHub } from '../src/components/AIPerformanceHub';
 import { 
   BarChart, 
   Bar, 
@@ -32,11 +33,22 @@ import {
 } from 'recharts';
 
 export default function Dashboard() {
-  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics } = useApp();
+  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
   const activeAthlete = useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
   
+  const handleAIAnalysis = async () => {
+    if (!currentAthleteId) return;
+    setIsAnalyzing(true);
+    try {
+      await runAIAnalysis(currentAthleteId);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const metrics = useMemo(() => currentAthleteId ? getAthleteMetrics(currentAthleteId) : {
     history: [],
     completionRate: 0,
@@ -127,34 +139,25 @@ export default function Dashboard() {
               : 'Seu centro de performance técnica.'}
           </p>
         </div>
+        {userRole === 'coach' && (
+          <button 
+            onClick={handleAIAnalysis}
+            disabled={isAnalyzing || !currentAthleteId}
+            className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black uppercase italic tracking-tighter text-xs flex items-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-50 shadow-lg"
+          >
+            <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse' : ''}`} />
+            {isAnalyzing ? 'Analisando Performance...' : 'Atualizar Análise IA'}
+          </button>
+        )}
       </header>
 
-      {loadGuidance && (
-        <div className={`${loadGuidance.bg} p-8 rounded-[2.5rem] border-2 border-white shadow-xl animate-fade-in-up flex flex-col md:flex-row items-center gap-8`}>
-           <div className={`flex-shrink-0 bg-white p-6 rounded-3xl shadow-lg ${loadGuidance.color}`}>
-              {loadGuidance.icon}
-           </div>
-           <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Análise de Carga Interna (sRPE)</span>
-                 <div className="h-px bg-slate-200 flex-1"></div>
-              </div>
-              <h3 className={`text-2xl font-black italic uppercase tracking-tighter ${loadGuidance.color} mb-1`}>
-                {loadGuidance.status}
-              </h3>
-              <p className="text-sm font-bold text-slate-700 italic leading-relaxed">
-                "{loadGuidance.recommendation}"
-              </p>
-           </div>
-           {currentAthleteId && (
-             <div className="text-right hidden md:block">
-                <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">PSE MÉDIA (5T)</span>
-                <span className={`text-5xl font-black italic tracking-tighter ${loadGuidance.color}`}>
-                  {(allActivities.filter(a => a.athleteId === currentAthleteId).slice(-5).reduce((a,b) => a+b.rpe,0)/5 || 0).toFixed(1)}
-                </span>
-             </div>
-           )}
-        </div>
+      {activeAthlete && (
+        <AIPerformanceHub 
+          athlete={activeAthlete} 
+          isAnalyzing={isAnalyzing} 
+          onAnalyze={handleAIAnalysis} 
+          canAnalyze={userRole === 'coach'}
+        />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

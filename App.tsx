@@ -12,7 +12,6 @@ const Assessments = lazy(() => import('./pages/Assessments'));
 const Library = lazy(() => import('./pages/Library'));
 const Periodization = lazy(() => import('./pages/Periodization'));
 const AthletePortal = lazy(() => import('./pages/AthletePortal'));
-const PerformanceAnalytics = lazy(() => import('./pages/PerformanceAnalytics'));
 
 const LoadingFallback = () => (
   <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
@@ -46,7 +45,6 @@ function AppContent() {
               <Route path="/library" element={<Library />} />
               <Route path="/periodization" element={<Periodization />} />
               <Route path="/athlete-portal" element={<AthletePortal />} />
-              <Route path="/performance" element={<PerformanceAnalytics />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>

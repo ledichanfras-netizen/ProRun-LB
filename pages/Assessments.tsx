@@ -88,7 +88,7 @@ const Assessments: React.FC = () => {
   const handleSaveAssessment = async () => {
     if (isReadOnly || isSavingAssessment) return;
     if (!activeAthlete || !calculatedVo2) {
-      console.warn('Dados do teste incompletos para calcular o VDOT.');
+      alert('Preencha os dados do teste para calcular o VDOT antes de salvar.');
       return;
     }
 
@@ -121,6 +121,7 @@ const Assessments: React.FC = () => {
       handleCancelEdit();
     } catch (error: any) {
       console.error("Erro ao salvar avaliação:", error?.message || "Erro desconhecido");
+      alert("Erro ao salvar. Verifique sua conexão e tente novamente.");
     } finally {
       // Garantimos que o botão saia do estado 'Salvando' independente do resultado
       setIsSavingAssessment(false);
@@ -202,7 +203,7 @@ const Assessments: React.FC = () => {
   };
 
   const handleResetZones = async () => {
-    if (activeAthlete) {
+    if (activeAthlete && window.confirm('Remover zonas personalizadas e voltar ao cálculo automático?')) {
       await updateAthlete(activeAthlete.id, { customZones: undefined });
       setIsEditingZones(false);
     }
@@ -220,6 +221,7 @@ const Assessments: React.FC = () => {
       if (success) console.log("Zonas exportadas");
     } catch (err: any) {
       console.error("Erro no download:", err?.message || "Erro desconhecido");
+      alert("Erro ao gerar imagem.");
     } finally {
       setExportLoading(false);
     }

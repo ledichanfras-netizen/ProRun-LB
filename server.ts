@@ -3,37 +3,46 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import pg from "pg";
 import cors from "cors";
 import dotenv from "dotenv";
-import Database from "better-sqlite3";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Use SQLite for local development to avoid DNS issues with Render internal hostnames
-const db = new Database("database.sqlite");
+const { Pool } = pg;
+
+// Use the provided database URL
+const DATABASE_URL = process.env.DATABASE_URL || "postgresql://prorunlb_user:TorY4TqPzBDnJmLL2da2Tra44PjgidMQ@dpg-d6l41crh46gs73djpoeg-a/prorunlb";
+
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false // Required for Render PostgreSQL
+  }
+});
 
 async function initDb() {
   try {
-    db.exec(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS athletes (
         id TEXT PRIMARY KEY,
-        data TEXT NOT NULL
+        data JSONB NOT NULL
       );
       
       CREATE TABLE IF NOT EXISTS workouts_library (
         id TEXT PRIMARY KEY,
-        data TEXT NOT NULL
+        data JSONB NOT NULL
       );
       
       CREATE TABLE IF NOT EXISTS athlete_plans (
         athlete_id TEXT PRIMARY KEY,
-        plan_data TEXT NOT NULL
+        plan_data JSONB NOT NULL
       );
     `);
-    console.log("Database initialized (SQLite)");
+    console.log("Database initialized");
   } catch (err) {
     console.error("Error initializing database:", err);
   }
@@ -51,37 +60,32 @@ async function startServer() {
   // API Routes
   
   // Athletes
-  app.get("/api/athletes", (_req, res) => {
+  app.get("/api/athletes", async (_req, res) => {
     try {
-      const rows = db.prepare("SELECT data FROM athletes").all() as { data: string }[];
-      res.json(rows.map(row => JSON.parse(row.data)));
+      const result = await pool.query("SELECT data FROM athletes");
+      res.json(result.rows.map(row => row.data));
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
   });
 
-  app.post("/api/athletes", (req, res) => {
+  app.post("/api/athletes", async (req, res) => {
     const athlete = req.body;
     try {
-      const stmt = db.prepare("INSERT OR REPLACE INTO athletes (id, data) VALUES (?, ?)");
-      stmt.run(athlete.id, JSON.stringify(athlete));
+      await pool.query(
+        "INSERT INTO athletes (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2",
+        [athlete.id, athlete]
+      );
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
   });
 
-  app.delete("/api/athletes/:id", (req, res) => {
+  app.delete("/api/athletes/:id", async (req, res) => {
     try {
-      const deleteAthlete = db.prepare("DELETE FROM athletes WHERE id = ?");
-      const deletePlans = db.prepare("DELETE FROM athlete_plans WHERE athlete_id = ?");
-      
-      const transaction = db.transaction(() => {
-        deleteAthlete.run(req.params.id);
-        deletePlans.run(req.params.id);
-      });
-      
-      transaction();
+      await pool.query("DELETE FROM athletes WHERE id = $1", [req.params.id]);
+      await pool.query("DELETE FROM athlete_plans WHERE athlete_id = $1", [req.params.id]);
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
@@ -89,29 +93,31 @@ async function startServer() {
   });
 
   // Workouts Library
-  app.get("/api/workouts", (_req, res) => {
+  app.get("/api/workouts", async (_req, res) => {
     try {
-      const rows = db.prepare("SELECT data FROM workouts_library").all() as { data: string }[];
-      res.json(rows.map(row => JSON.parse(row.data)));
+      const result = await pool.query("SELECT data FROM workouts_library");
+      res.json(result.rows.map(row => row.data));
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
   });
 
-  app.post("/api/workouts", (req, res) => {
+  app.post("/api/workouts", async (req, res) => {
     const workout = req.body;
     try {
-      const stmt = db.prepare("INSERT OR REPLACE INTO workouts_library (id, data) VALUES (?, ?)");
-      stmt.run(workout.id, JSON.stringify(workout));
+      await pool.query(
+        "INSERT INTO workouts_library (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2",
+        [workout.id, workout]
+      );
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
   });
 
-  app.delete("/api/workouts/:id", (req, res) => {
+  app.delete("/api/workouts/:id", async (req, res) => {
     try {
-      db.prepare("DELETE FROM workouts_library WHERE id = ?").run(req.params.id);
+      await pool.query("DELETE FROM workouts_library WHERE id = $1", [req.params.id]);
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
@@ -119,12 +125,12 @@ async function startServer() {
   });
 
   // Athlete Plans
-  app.get("/api/plans", (_req, res) => {
+  app.get("/api/plans", async (_req, res) => {
     try {
-      const rows = db.prepare("SELECT athlete_id, plan_data FROM athlete_plans").all() as { athlete_id: string, plan_data: string }[];
+      const result = await pool.query("SELECT athlete_id, plan_data FROM athlete_plans");
       const plans: Record<string, any> = {};
-      rows.forEach(row => {
-        plans[row.athlete_id] = JSON.parse(row.plan_data);
+      result.rows.forEach(row => {
+        plans[row.athlete_id] = row.plan_data;
       });
       res.json(plans);
     } catch (err) {
@@ -132,12 +138,14 @@ async function startServer() {
     }
   });
 
-  app.post("/api/plans/:athleteId", (req, res) => {
+  app.post("/api/plans/:athleteId", async (req, res) => {
     const { athleteId } = req.params;
     const plan = req.body;
     try {
-      const stmt = db.prepare("INSERT OR REPLACE INTO athlete_plans (athlete_id, plan_data) VALUES (?, ?)");
-      stmt.run(athleteId, JSON.stringify(plan));
+      await pool.query(
+        "INSERT INTO athlete_plans (athlete_id, plan_data) VALUES ($1, $2) ON CONFLICT (athlete_id) DO UPDATE SET plan_data = $2",
+        [athleteId, plan]
+      );
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });

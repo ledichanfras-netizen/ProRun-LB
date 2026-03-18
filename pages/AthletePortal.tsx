@@ -19,21 +19,10 @@ import {
   TrendingUp,
   Sparkles,
   Zap,
-  Flag,
-  Gauge,
-  ShieldAlert,
-  Dna
+  Flag
 } from 'lucide-react';
 import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-import { 
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  ResponsiveContainer
-} from 'recharts';
-import { calculatePerformanceMetrics } from '../utils/performance';
 
 const AthletePortal: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus } = useApp();
@@ -64,7 +53,6 @@ const AthletePortal: React.FC = () => {
   }
 
   const athletePlan = athletePlans[activeAthlete.id];
-  const performanceMetrics = calculatePerformanceMetrics(activeAthlete, athletePlan || null);
   const allWeeks = athletePlan?.weeks || [];
   const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
   const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
@@ -201,70 +189,6 @@ const AthletePortal: React.FC = () => {
           {exportLoading ? 'GERANDO...' : 'BAIXAR IMAGEM'}
         </button>
       </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
-        <div className="lg:col-span-2 bg-emerald-950 p-8 rounded-[2.5rem] border-2 border-emerald-900 shadow-2xl flex flex-col md:flex-row items-center gap-8 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-800/20 blur-3xl rounded-full -mr-32 -mt-32"></div>
-          
-          <div className="flex-shrink-0 bg-emerald-900/50 p-6 rounded-3xl border border-emerald-800/50 text-emerald-400 relative z-10">
-             <Gauge className="w-10 h-10" />
-          </div>
-          
-          <div className="flex-1 relative z-10">
-             <div className="flex items-center gap-2 mb-3">
-                <span className="text-[9px] font-black text-emerald-400/60 uppercase tracking-[0.2em] italic">AI Performance Integrated</span>
-                <div className="h-px bg-emerald-800/50 flex-1"></div>
-             </div>
-             
-             <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div>
-                  <p className="text-[8px] font-black text-emerald-500/50 uppercase mb-1">Performance</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-white italic tracking-tighter">{performanceMetrics.performanceScore}</span>
-                    <span className="text-[9px] font-bold text-emerald-400/60 italic">SCORE</span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[8px] font-black text-emerald-500/50 uppercase mb-1">Prontidão</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-white italic tracking-tighter">{performanceMetrics.readiness}%</span>
-                    <span className="text-[9px] font-bold text-emerald-400/60 italic">READY</span>
-                  </div>
-                </div>
-                <div className="col-span-2 md:col-span-1">
-                  <p className="text-[8px] font-black text-emerald-500/50 uppercase mb-1">Risco Lesão</p>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-3xl font-black italic tracking-tighter ${performanceMetrics.injuryRisk > 50 ? 'text-red-400' : 'text-emerald-400'}`}>
-                      {performanceMetrics.injuryRisk}%
-                    </span>
-                    <ShieldAlert className={`w-4 h-4 ${performanceMetrics.injuryRisk > 50 ? 'text-red-400 animate-pulse' : 'text-emerald-400/40'}`} />
-                  </div>
-                </div>
-             </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col items-center justify-center">
-          <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 italic flex items-center gap-2">
-            <Dna className="w-3 h-3 text-emerald-500" /> Radar de Capacidades
-          </h3>
-          <div className="w-full h-40">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={performanceMetrics.radarData}>
-                <PolarGrid stroke="#e2e8f0" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 7, fontWeight: 800 }} />
-                <Radar
-                  name="Atleta"
-                  dataKey="A"
-                  stroke="#10b981"
-                  fill="#10b981"
-                  fillOpacity={0.4}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
 
       <div className="no-print">
         {visibleWeeks.length === 0 ? (

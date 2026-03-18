@@ -1,9 +1,8 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, WellnessData } from '../types';
+import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
-import { analyzeAthletePerformance } from '../src/services/aiService';
 
 interface AppContextType {
   userRole: UserRole;
@@ -17,9 +16,6 @@ interface AppContextType {
   addNewAssessment: (athleteId: string, assessment: Assessment) => Promise<void>;
   updateAssessment: (athleteId: string, assessment: Assessment) => Promise<void>;
   deleteAssessment: (athleteId: string, assessmentId: string) => Promise<void>;
-  
-  addWellnessData: (athleteId: string, wellness: WellnessData) => Promise<void>;
-  runAIAnalysis: (athleteId: string) => Promise<void>;
   
   workouts: Workout[];
   addWorkout: (workout: Workout) => Promise<void>;
@@ -240,54 +236,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const addWellnessData = async (athleteId: string, wellness: WellnessData) => {
-    const athlete = athletes.find(a => a.id === athleteId);
-    if (!athlete) return;
-    
-    const wellnessHistory = [wellness, ...(athlete.wellnessHistory || [])].slice(0, 30); // Keep last 30 days
-    const updatePayload = { ...athlete, wellnessHistory };
-    
-    setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
-    
-    try {
-      await fetch('/api/athletes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
-      });
-    } catch (err) {
-      console.error("Error adding wellness data:", err);
-    }
-  };
-
-  const runAIAnalysis = async (athleteId: string) => {
-    const athlete = athletes.find(a => a.id === athleteId);
-    const plan = athletePlans[athleteId];
-    if (!athlete || !plan) return;
-    
-    setIsLoading(true);
-    try {
-      const result = await analyzeAthletePerformance(athlete, plan);
-      const updatePayload = { 
-        ...athlete, 
-        performance: result.performance, 
-        capacities: result.capacities 
-      };
-      
-      setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
-      
-      await fetch('/api/athletes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
-      });
-    } catch (err) {
-      console.error("Error running AI analysis:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const addWorkout = async (workout: Workout) => {
     setWorkouts(prev => [...prev, workout]);
     try {
@@ -399,7 +347,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       userRole, login, logout,
       athletes, addAthlete, updateAthlete, deleteAthlete, 
       addNewAssessment, updateAssessment, deleteAssessment,
-      addWellnessData, runAIAnalysis,
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,

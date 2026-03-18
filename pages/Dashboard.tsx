@@ -17,11 +17,7 @@ import {
   Info,
   TrendingDown,
   Activity as ActivityIcon,
-  TrendingUp as TrendingIcon,
-  ShieldAlert,
-  Battery,
-  Gauge,
-  Dna
+  TrendingUp as TrendingIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { 
@@ -32,14 +28,8 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Cell,
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis
+  Cell
 } from 'recharts';
-import { calculatePerformanceMetrics } from '../utils/performance';
 
 export default function Dashboard() {
   const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics } = useApp();
@@ -56,11 +46,6 @@ export default function Dashboard() {
 
   const athletePlan = useMemo(() => currentAthleteId ? athletePlans[currentAthleteId] : null, [currentAthleteId, athletePlans]);
   
-  const performanceMetrics = useMemo(() => {
-    if (!activeAthlete) return null;
-    return calculatePerformanceMetrics(activeAthlete, athletePlan);
-  }, [activeAthlete, athletePlan]);
-
   const visibleWeeks = useMemo(() => athletePlan?.weeks?.filter(w => w.isVisible === true) || [], [athletePlan]);
   
   const nextWorkout = useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
@@ -144,78 +129,31 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {performanceMetrics && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up">
-          <div className="lg:col-span-2 bg-emerald-950 p-8 rounded-[2.5rem] border-2 border-emerald-900 shadow-2xl flex flex-col md:flex-row items-center gap-8 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-800/20 blur-3xl rounded-full -mr-32 -mt-32 group-hover:bg-emerald-700/30 transition-all duration-700"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-800/20 blur-3xl rounded-full -ml-32 -mb-32 group-hover:bg-emerald-700/30 transition-all duration-700"></div>
-            
-            <div className="flex-shrink-0 bg-emerald-900/50 p-6 rounded-3xl shadow-inner border border-emerald-800/50 text-emerald-400 relative z-10">
-               <Gauge className="w-12 h-12" />
-            </div>
-            
-            <div className="flex-1 relative z-10">
-               <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[10px] font-black text-emerald-400/60 uppercase tracking-[0.2em] italic">AI Performance Integrated</span>
-                  <div className="h-px bg-emerald-800/50 flex-1"></div>
-               </div>
-               
-               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                  <div>
-                    <p className="text-[9px] font-black text-emerald-500/50 uppercase mb-1">Performance</p>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-black text-white italic tracking-tighter">{performanceMetrics.performanceScore}</span>
-                      <span className="text-[10px] font-bold text-emerald-400/60 italic">SCORE</span>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-emerald-500/50 uppercase mb-1">Fadiga / Prontidão</p>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-black text-white italic tracking-tighter">{performanceMetrics.readiness}%</span>
-                      <span className="text-[10px] font-bold text-emerald-400/60 italic">READY</span>
-                    </div>
-                  </div>
-                  <div className="col-span-2 md:col-span-1">
-                    <p className="text-[9px] font-black text-emerald-500/50 uppercase mb-1">Risco de Lesão</p>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-4xl font-black italic tracking-tighter ${performanceMetrics.injuryRisk > 50 ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {performanceMetrics.injuryRisk}%
-                      </span>
-                      <ShieldAlert className={`w-5 h-5 ${performanceMetrics.injuryRisk > 50 ? 'text-red-400 animate-pulse' : 'text-emerald-400/40'}`} />
-                    </div>
-                  </div>
-               </div>
-               
-               <p className="mt-6 text-xs font-bold text-emerald-300/80 italic leading-relaxed border-l-2 border-emerald-500/30 pl-4">
-                 {performanceMetrics.readiness > 70 
-                   ? "Corpo em estado ideal para estímulos de alta intensidade. Aproveite para performar." 
-                   : performanceMetrics.readiness > 40 
-                   ? "Fadiga moderada detectada. Mantenha o volume planejado, mas monitore a percepção de esforço." 
-                   : "Fadiga crítica. Recomendamos um dia extra de descanso ou treino regenerativo leve."}
-               </p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col items-center justify-center">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 italic flex items-center gap-2">
-              <Dna className="w-3 h-3 text-emerald-500" /> Radar de Capacidades
-            </h3>
-            <div className="w-full h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={performanceMetrics.radarData}>
-                  <PolarGrid stroke="#e2e8f0" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 8, fontWeight: 800 }} />
-                  <Radar
-                    name="Atleta"
-                    dataKey="A"
-                    stroke="#10b981"
-                    fill="#10b981"
-                    fillOpacity={0.4}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+      {loadGuidance && (
+        <div className={`${loadGuidance.bg} p-8 rounded-[2.5rem] border-2 border-white shadow-xl animate-fade-in-up flex flex-col md:flex-row items-center gap-8`}>
+           <div className={`flex-shrink-0 bg-white p-6 rounded-3xl shadow-lg ${loadGuidance.color}`}>
+              {loadGuidance.icon}
+           </div>
+           <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Análise de Carga Interna (sRPE)</span>
+                 <div className="h-px bg-slate-200 flex-1"></div>
+              </div>
+              <h3 className={`text-2xl font-black italic uppercase tracking-tighter ${loadGuidance.color} mb-1`}>
+                {loadGuidance.status}
+              </h3>
+              <p className="text-sm font-bold text-slate-700 italic leading-relaxed">
+                "{loadGuidance.recommendation}"
+              </p>
+           </div>
+           {currentAthleteId && (
+             <div className="text-right hidden md:block">
+                <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">PSE MÉDIA (5T)</span>
+                <span className={`text-5xl font-black italic tracking-tighter ${loadGuidance.color}`}>
+                  {(allActivities.filter(a => a.athleteId === currentAthleteId).slice(-5).reduce((a,b) => a+b.rpe,0)/5 || 0).toFixed(1)}
+                </span>
+             </div>
+           )}
         </div>
       )}
 

@@ -44,6 +44,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 import { analyzeAthletePerformance } from '../src/services/aiService';
+import { supabase } from '../src/lib/supabase';
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [userRole, setUserRole] = useState<UserRole>(() => {
@@ -89,14 +90,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsLoading(true);
     try {
       const [athletesRes, workoutsRes, plansRes] = await Promise.all([
-        fetch('/api/athletes'),
-        fetch('/api/workouts'),
-        fetch('/api/plans')
+        supabase.from('athletes').select('data'),
+        supabase.from('workouts_library').select('data'),
+        supabase.from('athlete_plans').select('*')
       ]);
 
-      if (athletesRes.ok) setAthletes(await athletesRes.json());
-      if (workoutsRes.ok) setWorkouts(await workoutsRes.json());
-      if (plansRes.ok) setAthletePlans(await plansRes.json());
+      if (athletesRes.data) setAthletes(athletesRes.data.map(row => row.data));
+      if (workoutsRes.data) setWorkouts(workoutsRes.data.map(row => row.data));
+      if (plansRes.data) {
+        const plans: Record<string, any> = {};
+        plansRes.data.forEach(row => {
+          plans[row.athlete_id] = row.plan_data;
+        });
+        setAthletePlans(plans);
+      }
       
       setIsCloudConnected(true);
     } catch (err) {
@@ -155,11 +162,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addAthlete = async (athlete: Athlete) => {
     setAthletes(prev => [...prev, athlete]);
     try {
-      await fetch('/api/athletes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(athlete)
-      });
+      await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
     } catch (err) {
       console.error("Error adding athlete:", err);
     }
@@ -171,11 +174,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const athlete = updatedAthletes.find(a => a.id === id);
     if (athlete) {
       try {
-        await fetch('/api/athletes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(athlete)
-        });
+        await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
       } catch (err) {
         console.error("Error updating athlete:", err);
       }
@@ -185,7 +184,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteAthlete = async (id: string) => {
     setAthletes(prev => prev.filter(a => a.id !== id));
     try {
-      await fetch(`/api/athletes/${id}`, { method: 'DELETE' });
+      await supabase.from('athletes').delete().eq('id', id);
+      await supabase.from('athlete_plans').delete().eq('athlete_id', id);
     } catch (err) {
       console.error("Error deleting athlete:", err);
     }
@@ -207,11 +207,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await fetch('/api/athletes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
-      });
+      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
     } catch (err) {
       console.error("Error saving assessment:", err);
     }
@@ -235,11 +231,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await fetch('/api/athletes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
-      });
+      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
     } catch (err) {
       console.error("Error updating assessment:", err);
     }
@@ -254,11 +246,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await fetch('/api/athletes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
-      });
+      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
     } catch (err) {
       console.error("Error deleting assessment:", err);
     }
@@ -267,11 +255,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addWorkout = async (workout: Workout) => {
     setWorkouts(prev => [...prev, workout]);
     try {
-      await fetch('/api/workouts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workout)
-      });
+      await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
     } catch (err) {
       console.error("Error adding workout:", err);
     }
@@ -283,11 +267,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const workout = updatedWorkouts.find(w => w.id === id);
     if (workout) {
       try {
-        await fetch('/api/workouts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(workout)
-        });
+        await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
       } catch (err) {
         console.error("Error updating workout:", err);
       }
@@ -297,7 +277,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteLibraryWorkout = async (id: string) => {
     setWorkouts(prev => prev.filter(w => w.id !== id));
     try {
-      await fetch(`/api/workouts/${id}`, { method: 'DELETE' });
+      await supabase.from('workouts_library').delete().eq('id', id);
     } catch (err) {
       console.error("Error deleting workout:", err);
     }
@@ -306,11 +286,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
     setAthletePlans(prev => ({ ...prev, [athleteId]: plan }));
     try {
-      await fetch(`/api/plans/${athleteId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(plan)
-      });
+      await supabase.from('athlete_plans').upsert({ athlete_id: athleteId, plan_data: plan });
     } catch (err) {
       console.error("Error saving plan:", err);
     }
@@ -333,11 +309,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
 
     try {
-      await fetch(`/api/plans/${athleteId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedPlan)
-      });
+      await supabase.from('athlete_plans').upsert({ athlete_id: athleteId, plan_data: updatedPlan });
     } catch (err) {
       console.error("Error updating workout status:", err);
     }
@@ -379,7 +351,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
       getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected,
-      isFirebaseConfigured: true // Always true now as we use PostgreSQL
+      isFirebaseConfigured: true // Always true now as we use Supabase
     }}>
       {children}
     </AppContext.Provider>

@@ -273,7 +273,8 @@ const Athletes: React.FC = () => {
                 step="0.1"
                 className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none" 
                 placeholder="00.0" 
-                value={formData.weight || ''}
+                value={formData.weight === 0 ? '' : formData.weight}
+                onFocus={e => e.target.select()}
                 onChange={e => setFormData({...formData, weight: Number(e.target.value)})}
               />
             </div>
@@ -283,7 +284,8 @@ const Athletes: React.FC = () => {
                 type="number"
                 className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none" 
                 placeholder="000" 
-                value={formData.height || ''}
+                value={formData.height === 0 ? '' : formData.height}
+                onFocus={e => e.target.select()}
                 onChange={e => setFormData({...formData, height: Number(e.target.value)})}
               />
             </div>

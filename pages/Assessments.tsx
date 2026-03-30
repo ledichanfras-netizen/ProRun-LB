@@ -328,7 +328,7 @@ const Assessments: React.FC = () => {
                   <div className="space-y-3 animate-fade-in">
                     <div>
                       <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Distância (km)</label>
-                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none" value={formTrfDistance} onChange={(e) => setFormTrfDistance(Number(e.target.value))} />
+                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none" value={formTrfDistance === 0 ? '' : formTrfDistance} onFocus={e => e.target.select()} onChange={(e) => setFormTrfDistance(Number(e.target.value))} />
                     </div>
                     <div>
                       <label className="block text-[10px) font-black text-slate-400 uppercase mb-1">Tempo Total (MM:SS)</label>
@@ -340,7 +340,7 @@ const Assessments: React.FC = () => {
                 {testType === 'VO2_Lab' && (
                   <div className="animate-fade-in">
                     <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">VO2Max (ml/kg/min)</label>
-                    <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black text-xl italic focus:ring-2 focus:ring-emerald-500 outline-none" value={formVo2Max} onChange={(e) => setFormVo2Max(Number(e.target.value))} />
+                    <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black text-xl italic focus:ring-2 focus:ring-emerald-500 outline-none" value={formVo2Max === 0 ? '' : formVo2Max} onFocus={e => e.target.select()} onChange={(e) => setFormVo2Max(Number(e.target.value))} />
                   </div>
                 )}
 
@@ -349,11 +349,11 @@ const Assessments: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Máxima</label>
-                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="bpm" value={formFcMax} onChange={(e) => setFormFcMax(e.target.value === '' ? '' : Number(e.target.value))} />
+                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="bpm" value={formFcMax === 0 ? '' : formFcMax} onFocus={e => e.target.select()} onChange={(e) => setFormFcMax(e.target.value === '' ? '' : Number(e.target.value))} />
                     </div>
                     <div>
                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Limiar (LTHR)</label>
-                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="bpm" value={formFcThreshold} onChange={(e) => setFormFcThreshold(e.target.value === '' ? '' : Number(e.target.value))} />
+                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="bpm" value={formFcThreshold === 0 ? '' : formFcThreshold} onFocus={e => e.target.select()} onChange={(e) => setFormFcThreshold(e.target.value === '' ? '' : Number(e.target.value))} />
                     </div>
                   </div>
                 </div>

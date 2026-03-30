@@ -521,7 +521,8 @@ const Periodization: React.FC = () => {
                               <input 
                                 type="number" 
                                 className="w-16 bg-slate-100 border-none rounded-lg p-1 text-center font-black text-sm" 
-                                value={workout.distance} 
+                                value={workout.distance === 0 ? '' : workout.distance} 
+                                onFocus={e => e.target.select()}
                                 onChange={e => updateWorkout(weekIndex, dayIndex, 'distance', Number(e.target.value))}
                               />
                            ) : (

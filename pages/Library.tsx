@@ -213,7 +213,8 @@ const Library: React.FC = () => {
                     type="number" 
                     placeholder="Ex: 60" 
                     className="w-full p-4 bg-white border-none rounded-xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none"
-                    value={formWorkout.durationMinutes}
+                    value={formWorkout.durationMinutes === 0 ? '' : formWorkout.durationMinutes}
+                    onFocus={e => e.target.select()}
                     onChange={e => setFormWorkout({...formWorkout, durationMinutes: Number(e.target.value)})}
                   />
                </div>
@@ -223,7 +224,8 @@ const Library: React.FC = () => {
                     type="number" 
                     placeholder="Ex: 10" 
                     className="w-full p-4 bg-white border-none rounded-xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none"
-                    value={formWorkout.distanceKm}
+                    value={formWorkout.distanceKm === 0 ? '' : formWorkout.distanceKm}
+                    onFocus={e => e.target.select()}
                     onChange={e => setFormWorkout({...formWorkout, distanceKm: Number(e.target.value)})}
                   />
                </div>
@@ -234,7 +236,8 @@ const Library: React.FC = () => {
                     placeholder="Ex: 7" 
                     className="w-full p-4 bg-white border-none rounded-xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none"
                     min="1" max="10"
-                    value={formWorkout.rpe}
+                    value={formWorkout.rpe === 0 ? '' : formWorkout.rpe}
+                    onFocus={e => e.target.select()}
                     onChange={e => setFormWorkout({...formWorkout, rpe: Number(e.target.value)})}
                   />
                </div>

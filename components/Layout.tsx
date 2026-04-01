@@ -23,9 +23,18 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [showInstallBanner, setShowInstallBanner] = React.useState(true);
   const { athletes, selectedAthleteId, userRole, logout, isCloudConnected } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
+
+  React.useEffect(() => {
+    // Verifica se está rodando dentro do App Android Nativo
+    const isNative = (window as any).Android && (window as any).Android.isNativeApp();
+    if (isNative) {
+      setShowInstallBanner(false);
+    }
+  }, []);
   
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
 
@@ -132,6 +141,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-full">
         <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+          {showInstallBanner && (
+            <div id="install-area" className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 mb-6 no-print animate-fade-in shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="bg-emerald-500 p-3 rounded-2xl shadow-lg shadow-emerald-500/20">
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="font-black text-slate-900 uppercase italic tracking-tighter">Acesse pelo nosso App!</p>
+                  <p className="text-xs text-slate-500 font-medium italic">Para melhor performance e notificações em tempo real.</p>
+                </div>
+              </div>
+              <a 
+                href="/app-release.apk" 
+                className="bg-emerald-950 hover:bg-black text-white px-8 py-3 rounded-xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105 flex items-center gap-2"
+              >
+                Baixar App Android
+              </a>
+            </div>
+          )}
           {children}
         </div>
       </main>

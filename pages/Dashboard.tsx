@@ -151,6 +151,23 @@ export default function Dashboard() {
         )}
       </header>
 
+      {userRole === 'athlete' && (
+        <div className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in shadow-sm no-print">
+          <div className="flex items-center gap-4">
+            <div className="bg-emerald-500 p-3 rounded-2xl shadow-lg shadow-emerald-500/20">
+              <Info className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="font-black text-slate-900 uppercase italic tracking-tighter">Lembrete de Registro</p>
+              <p className="text-xs text-slate-500 font-medium italic">Não esqueça de registrar seu PSE e feedback no Portal do Atleta após cada treino para que o treinador acompanhe sua evolução.</p>
+            </div>
+          </div>
+          <Link to="/athlete-portal" className="w-full md:w-auto bg-emerald-950 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase italic tracking-widest hover:bg-black transition-all text-center">
+            Ir para o Portal
+          </Link>
+        </div>
+      )}
+
       {activeAthlete && (
         <AIPerformanceHub 
           athlete={activeAthlete} 

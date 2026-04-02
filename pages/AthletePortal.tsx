@@ -193,6 +193,39 @@ const AthletePortal: React.FC = () => {
         </button>
       </header>
 
+      {/* Banner de Instruções para o Atleta */}
+      <div className="bg-emerald-950 text-white p-6 md:p-8 rounded-[2.5rem] shadow-2xl border border-emerald-800 flex flex-col md:flex-row items-center gap-8 no-print animate-fade-in relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+          <Zap className="w-32 h-32" />
+        </div>
+        
+        <div className="flex items-center gap-5 flex-1 relative z-10">
+          <div className="bg-emerald-500 p-4 rounded-2xl shadow-lg shadow-emerald-500/20 transform -rotate-3">
+            <Activity className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black uppercase italic tracking-tighter text-emerald-400">Procedimento de Registro</h2>
+            <p className="text-xs text-emerald-100/60 font-medium italic mt-1 leading-relaxed">
+              Para manter sua evolução em dia: Clique no card do treino, defina seu <span className="text-emerald-400 font-bold">PSE (Esforço)</span> e deixe seu feedback. Isso ajuda a IA e o treinador a ajustarem sua carga!
+            </p>
+          </div>
+        </div>
+
+        <div className="h-px w-full md:h-16 md:w-px bg-emerald-800/50"></div>
+
+        <div className="flex items-center gap-5 flex-1 relative z-10">
+          <div className="bg-white/10 p-4 rounded-2xl border border-white/10">
+            <ImageIcon className="w-8 h-8 text-emerald-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black uppercase italic tracking-tighter text-white">Treino Offline</h2>
+            <p className="text-xs text-emerald-100/60 font-medium italic mt-1 leading-relaxed">
+              Vai treinar sem internet? Use o botão <span className="text-white font-bold">"BAIXAR IMAGEM"</span> acima para salvar sua planilha da semana na galeria do seu celular.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {activeAthlete && (
         <AIPerformanceHub 
           athlete={activeAthlete} 

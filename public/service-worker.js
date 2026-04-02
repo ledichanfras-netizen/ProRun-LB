@@ -4,7 +4,8 @@ const ASSETS = [
   '/index.html',
   '/manifest.json',
   '/index.tsx',
-  '/styles/globals.css'
+  '/styles/globals.css',
+  '/icon.png'
 ];
 
 self.addEventListener('install', (event) => {

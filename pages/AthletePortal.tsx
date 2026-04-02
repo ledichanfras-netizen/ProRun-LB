@@ -24,7 +24,7 @@ import {
 import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 
-import { AIPerformanceHub } from '../src/components/AIPerformanceHub';
+import { AIPerformanceHub } from '../components/AIPerformanceHub';
 
 const AthletePortal: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus } = useApp();

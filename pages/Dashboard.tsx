@@ -20,7 +20,7 @@ import {
   TrendingUp as TrendingIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { AIPerformanceHub } from '../src/components/AIPerformanceHub';
+import { AIPerformanceHub } from '../components/AIPerformanceHub';
 import { 
   BarChart, 
   Bar, 

@@ -14,7 +14,7 @@ import {
   PolarRadiusAxis, 
   ResponsiveContainer 
 } from 'recharts';
-import { Athlete } from '../../types';
+import { Athlete } from '../types';
 
 interface AIPerformanceHubProps {
   athlete: Athlete;

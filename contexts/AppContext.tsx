@@ -3,6 +3,8 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
+import { analyzeAthletePerformance } from '../services/performanceService';
+import { supabase } from '../lib/supabase';
 
 interface AppContextType {
   userRole: UserRole;
@@ -42,9 +44,6 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-import { analyzeAthletePerformance } from '../src/services/aiService';
-import { supabase } from '../src/lib/supabase';
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [userRole, setUserRole] = useState<UserRole>(() => {

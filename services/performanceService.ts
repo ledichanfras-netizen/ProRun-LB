@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Athlete, AthletePlan, TrainingWeek } from "../../types";
+import { Athlete, AthletePlan, TrainingWeek } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 

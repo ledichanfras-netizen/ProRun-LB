@@ -23,17 +23,23 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const [showInstallBanner, setShowInstallBanner] = React.useState(true);
+  const [showInstallBanner, setShowInstallBanner] = React.useState(false);
+  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
   const { athletes, selectedAthleteId, userRole, logout, isCloudConnected } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
   React.useEffect(() => {
-    // Verifica se está rodando dentro do App Android Nativo
-    const isNative = (window as any).Android && (window as any).Android.isNativeApp();
-    if (isNative) {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    });
+
+    window.addEventListener('appinstalled', () => {
       setShowInstallBanner(false);
-    }
+      setDeferredPrompt(null);
+    });
   }, []);
   
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
@@ -148,16 +154,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <TrendingUp className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="font-black text-slate-900 uppercase italic tracking-tighter">Acesse pelo nosso App!</p>
-                  <p className="text-xs text-slate-500 font-medium italic">Para melhor performance e notificações em tempo real.</p>
+                  <p className="font-black text-slate-900 uppercase italic tracking-tighter">Instale o ProRun LB!</p>
+                  <p className="text-xs text-slate-500 font-medium italic">Adicione à sua tela inicial para acesso rápido e offline.</p>
                 </div>
               </div>
-              <a 
-                href="/app-release.apk" 
+              <button 
+                onClick={() => {
+                  if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult: any) => {
+                      if (choiceResult.outcome === 'accepted') {
+                        setShowInstallBanner(false);
+                      }
+                    });
+                  }
+                }}
                 className="bg-emerald-950 hover:bg-black text-white px-8 py-3 rounded-xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105 flex items-center gap-2"
               >
-                Baixar App Android
-              </a>
+                Instalar Aplicativo
+              </button>
             </div>
           )}
           {children}

@@ -23,10 +23,25 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [showInstallBanner, setShowInstallBanner] = React.useState(false);
+  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
   const { athletes, selectedAthleteId, userRole, logout, isCloudConnected } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
+  React.useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    });
+
+    window.addEventListener('appinstalled', () => {
+      setShowInstallBanner(false);
+      setDeferredPrompt(null);
+    });
+  }, []);
+  
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
 
   // Define navigation based on Role
@@ -57,7 +72,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Mobile Header */}
       <div className="md:hidden bg-emerald-950 text-white p-4 flex justify-between items-center sticky top-0 z-20 shadow-lg no-print">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-6 h-6 text-emerald-400" />
+          <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
           <span className="font-bold text-lg tracking-tighter italic uppercase">ProRun</span>
         </div>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1">
@@ -72,8 +87,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="p-6 flex items-center gap-3 border-b border-emerald-900">
-          <div className="bg-emerald-500 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
-             <TrendingUp className="w-6 h-6 text-white" />
+          <div className="bg-white p-1.5 rounded-lg shadow-lg">
+             <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
           </div>
           <div className="flex-1">
             <h1 className="font-black text-xl tracking-tighter italic uppercase">ProRun</h1>
@@ -132,6 +147,34 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-full">
         <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+          {showInstallBanner && (
+            <div id="install-area" className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 mb-6 no-print animate-fade-in shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="bg-white p-2 rounded-2xl shadow-lg">
+                  <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
+                </div>
+                <div>
+                  <p className="font-black text-slate-900 uppercase italic tracking-tighter">Instale o ProRun LB!</p>
+                  <p className="text-xs text-slate-500 font-medium italic">Adicione à sua tela inicial para acesso rápido e offline.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult: any) => {
+                      if (choiceResult.outcome === 'accepted') {
+                        setShowInstallBanner(false);
+                      }
+                    });
+                  }
+                }}
+                className="bg-emerald-950 hover:bg-black text-white px-8 py-3 rounded-xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105 flex items-center gap-2"
+              >
+                Instalar Aplicativo
+              </button>
+            </div>
+          )}
           {children}
         </div>
       </main>

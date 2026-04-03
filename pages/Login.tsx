@@ -35,8 +35,8 @@ export default function Login() {
     <div className="min-h-screen bg-emerald-950 flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 animate-fade-in-up">
         <div className="flex flex-col items-center mb-8">
-          <div className="mb-4 p-4 bg-emerald-100 rounded-full text-emerald-600 shadow-inner transform -rotate-3">
-            <TrendingUp className="w-12 h-12" />
+          <div className="mb-4 p-1 bg-white rounded-3xl text-emerald-600 shadow-xl transform -rotate-3 border-4 border-emerald-50">
+            <img src="/logo.svg" alt="ProRun LB Logo" className="w-20 h-20 rounded-2xl" referrerPolicy="no-referrer" />
           </div>
           <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">ProRun LB</h1>
           <p className="text-slate-500 font-medium text-center px-4 italic">Performance Integrada</p>

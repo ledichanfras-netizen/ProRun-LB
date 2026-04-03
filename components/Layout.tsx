@@ -79,7 +79,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Mobile Header */}
       <div className="md:hidden bg-emerald-950 text-white p-4 flex justify-between items-center sticky top-0 z-20 shadow-lg no-print">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-8 h-8 text-emerald-400" />
+          <img src="/logo.svg" alt="Logo" className="w-8 h-8 rounded-lg" referrerPolicy="no-referrer" />
           <span className="font-bold text-lg tracking-tighter italic uppercase">ProRun</span>
         </div>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1">
@@ -94,8 +94,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="p-6 flex items-center gap-3 border-b border-emerald-900">
-          <div className="bg-white p-1.5 rounded-lg shadow-lg">
-             <TrendingUp className="w-8 h-8 text-emerald-600" />
+          <div className="bg-white p-1 rounded-lg shadow-lg">
+             <img src="/logo.svg" alt="Logo" className="w-10 h-10 rounded-md" referrerPolicy="no-referrer" />
           </div>
           <div className="flex-1">
             <h1 className="font-black text-xl tracking-tighter italic uppercase">ProRun</h1>
@@ -157,8 +157,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {showInstallBanner && (
             <div id="install-area" className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 mb-6 no-print animate-fade-in shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="bg-white p-2 rounded-2xl shadow-lg">
-                  <TrendingUp className="w-8 h-8 text-emerald-600" />
+                <div className="bg-white p-1 rounded-2xl shadow-lg">
+                  <img src="/logo.svg" alt="Logo" className="w-10 h-10 rounded-xl" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <p className="font-black text-slate-900 uppercase italic tracking-tighter">Instale o ProRun LB!</p>

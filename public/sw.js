@@ -2,7 +2,8 @@ const CACHE_NAME = 'prorun-lb-v8';
 const ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/logo.svg'
 ];
 
 self.addEventListener('install', (event) => {

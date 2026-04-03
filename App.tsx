@@ -15,6 +15,9 @@ const AthletePortal = lazy(() => import('./pages/AthletePortal'));
 
 const LoadingFallback = () => (
   <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+    <div className="mb-6 animate-pulse">
+      <img src="/logo.png?v=2" alt="Logo" className="w-16 h-16 object-contain" />
+    </div>
     <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
     <span className="font-black text-xs tracking-widest text-slate-400 uppercase italic">Carregando Módulos...</span>
   </div>
@@ -26,6 +29,9 @@ function AppContent() {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-emerald-950 text-white">
+        <div className="mb-8 animate-bounce">
+          <img src="/logo.png?v=2" alt="Logo" className="w-24 h-24 object-contain brightness-110 drop-shadow-2xl" />
+        </div>
         <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mb-4"></div>
         <span className="font-black text-xl tracking-tighter uppercase italic">PRORUN LB</span>
         <span className="mt-2 text-emerald-300/60 text-[10px] font-black uppercase tracking-widest">Sincronizando Performance...</span>

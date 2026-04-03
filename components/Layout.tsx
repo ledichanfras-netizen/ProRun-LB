@@ -30,6 +30,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
 
   React.useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    
+    if (isIOS && !isStandalone) {
+      setShowInstallBanner(true);
+    }
+
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -72,7 +79,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Mobile Header */}
       <div className="md:hidden bg-emerald-950 text-white p-4 flex justify-between items-center sticky top-0 z-20 shadow-lg no-print">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
+          <TrendingUp className="w-8 h-8 text-emerald-400" />
           <span className="font-bold text-lg tracking-tighter italic uppercase">ProRun</span>
         </div>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1">
@@ -88,7 +95,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       `}>
         <div className="p-6 flex items-center gap-3 border-b border-emerald-900">
           <div className="bg-white p-1.5 rounded-lg shadow-lg">
-             <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
+             <TrendingUp className="w-8 h-8 text-emerald-600" />
           </div>
           <div className="flex-1">
             <h1 className="font-black text-xl tracking-tighter italic uppercase">ProRun</h1>
@@ -151,28 +158,34 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div id="install-area" className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 mb-6 no-print animate-fade-in shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="bg-white p-2 rounded-2xl shadow-lg">
-                  <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
+                  <TrendingUp className="w-8 h-8 text-emerald-600" />
                 </div>
                 <div>
                   <p className="font-black text-slate-900 uppercase italic tracking-tighter">Instale o ProRun LB!</p>
-                  <p className="text-xs text-slate-500 font-medium italic">Adicione à sua tela inicial para acesso rápido e offline.</p>
+                  <p className="text-xs text-slate-500 font-medium italic">
+                    {/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream 
+                      ? "Toque em Compartilhar e depois em 'Adicionar à Tela de Início'." 
+                      : "Adicione à sua tela inicial para acesso rápido e offline."}
+                  </p>
                 </div>
               </div>
-              <button 
-                onClick={() => {
-                  if (deferredPrompt) {
-                    deferredPrompt.prompt();
-                    deferredPrompt.userChoice.then((choiceResult: any) => {
-                      if (choiceResult.outcome === 'accepted') {
-                        setShowInstallBanner(false);
-                      }
-                    });
-                  }
-                }}
-                className="bg-emerald-950 hover:bg-black text-white px-8 py-3 rounded-xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105 flex items-center gap-2"
-              >
-                Instalar Aplicativo
-              </button>
+              {!/iPad|iPhone|iPod/.test(navigator.userAgent) && (
+                <button 
+                  onClick={() => {
+                    if (deferredPrompt) {
+                      deferredPrompt.prompt();
+                      deferredPrompt.userChoice.then((choiceResult: any) => {
+                        if (choiceResult.outcome === 'accepted') {
+                          setShowInstallBanner(false);
+                        }
+                      });
+                    }
+                  }}
+                  className="bg-emerald-950 hover:bg-black text-white px-8 py-3 rounded-xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105 flex items-center gap-2"
+                >
+                  Instalar Aplicativo
+                </button>
+              )}
             </div>
           )}
           {children}

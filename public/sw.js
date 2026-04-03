@@ -1,9 +1,8 @@
-const CACHE_NAME = 'prorun-lb-v6';
+const CACHE_NAME = 'prorun-lb-v8';
 const ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json',
-  '/logo.png'
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {

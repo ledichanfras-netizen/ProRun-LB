@@ -54,10 +54,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return localStorage.getItem('proRun_selectedAthleteId') || null;
   });
   
-  const [athletes, setAthletes] = React.useState<Athlete[]>([]);
-  const [workouts, setWorkouts] = React.useState<Workout[]>([]);
-  const [athletePlans, setAthletePlans] = React.useState<Record<string, AthletePlan>>({});
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [athletes, setAthletes] = React.useState<Athlete[]>(() => {
+    const cached = localStorage.getItem('proRun_cached_athletes');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [workouts, setWorkouts] = React.useState<Workout[]>(() => {
+    const cached = localStorage.getItem('proRun_cached_workouts');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [athletePlans, setAthletePlans] = React.useState<Record<string, AthletePlan>>(() => {
+    const cached = localStorage.getItem('proRun_cached_athletePlans');
+    return cached ? JSON.parse(cached) : {};
+  });
+  const [isLoading, setIsLoading] = React.useState(() => {
+    const hasAthletes = localStorage.getItem('proRun_cached_athletes');
+    const hasWorkouts = localStorage.getItem('proRun_cached_workouts');
+    const hasPlans = localStorage.getItem('proRun_cached_athletePlans');
+    return !(hasAthletes || hasWorkouts || hasPlans);
+  });
   const [isCloudConnected, setIsCloudConnected] = React.useState(true);
 
   const runAIAnalysis = async (athleteId: string) => {
@@ -86,7 +100,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const fetchData = async () => {
-    setIsLoading(true);
+    // Se não houver cache, mostramos o loading
+    const hasCache = athletes.length > 0 || workouts.length > 0 || Object.keys(athletePlans).length > 0;
+    if (!hasCache) setIsLoading(true);
+    
     try {
       const [athletesRes, workoutsRes, plansRes] = await Promise.all([
         supabase.from('athletes').select('data'),
@@ -94,14 +111,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         supabase.from('athlete_plans').select('*')
       ]);
 
-      if (athletesRes.data) setAthletes(athletesRes.data.map(row => row.data));
-      if (workoutsRes.data) setWorkouts(workoutsRes.data.map(row => row.data));
+      if (athletesRes.data) {
+        const fetchedAthletes = athletesRes.data.map(row => row.data);
+        setAthletes(fetchedAthletes);
+        localStorage.setItem('proRun_cached_athletes', JSON.stringify(fetchedAthletes));
+      }
+      
+      if (workoutsRes.data) {
+        const fetchedWorkouts = workoutsRes.data.map(row => row.data);
+        setWorkouts(fetchedWorkouts);
+        localStorage.setItem('proRun_cached_workouts', JSON.stringify(fetchedWorkouts));
+      }
+      
       if (plansRes.data) {
         const plans: Record<string, any> = {};
         plansRes.data.forEach(row => {
           plans[row.athlete_id] = row.plan_data;
         });
         setAthletePlans(plans);
+        localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(plans));
       }
       
       setIsCloudConnected(true);

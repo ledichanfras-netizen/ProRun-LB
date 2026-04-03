@@ -1,0 +1,11 @@
+
+> prorun-performance-integrated@1.1.0 dev
+> tsx server.ts
+
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+Server running on http://localhost:3000
+2:05:48 AM [vite] page reload index.html
+2:05:48 AM [vite] hmr update /App.tsx, /styles/globals.css
+2:05:48 AM [vite] hmr update /components/Layout.tsx, /styles/globals.css
+2:05:48 AM [vite] hmr update /pages/Login.tsx, /styles/globals.css
+2:06:31 AM [vite] page reload public/sw.js

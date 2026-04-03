@@ -34,10 +34,10 @@ import {
 
 export default function Dashboard() {
   const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
-  const activeAthlete = useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
+  const activeAthlete = React.useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
   
   const handleAIAnalysis = async () => {
     if (!currentAthleteId) return;
@@ -49,20 +49,20 @@ export default function Dashboard() {
     }
   };
 
-  const metrics = useMemo(() => currentAthleteId ? getAthleteMetrics(currentAthleteId) : {
+  const metrics = React.useMemo(() => currentAthleteId ? getAthleteMetrics(currentAthleteId) : {
     history: [],
     completionRate: 0,
     totalVolumeCompleted: 0,
     totalVolumePlanned: 0
   }, [currentAthleteId, getAthleteMetrics]);
 
-  const athletePlan = useMemo(() => currentAthleteId ? athletePlans[currentAthleteId] : null, [currentAthleteId, athletePlans]);
+  const athletePlan = React.useMemo(() => currentAthleteId ? athletePlans[currentAthleteId] : null, [currentAthleteId, athletePlans]);
   
-  const visibleWeeks = useMemo(() => athletePlan?.weeks?.filter(w => w.isVisible === true) || [], [athletePlan]);
+  const visibleWeeks = React.useMemo(() => athletePlan?.weeks?.filter(w => w.isVisible === true) || [], [athletePlan]);
   
-  const nextWorkout = useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
+  const nextWorkout = React.useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
 
-  const allActivities = useMemo(() => {
+  const allActivities = React.useMemo(() => {
     // Se for atleta, mostra apenas as próprias atividades. Se for coach, mostra de todos.
     const filteredAthletes = userRole === 'athlete' 
       ? athletes.filter(a => a.id === selectedAthleteId)
@@ -84,7 +84,7 @@ export default function Dashboard() {
     });
   }, [athletes, athletePlans, userRole, selectedAthleteId]);
 
-  const loadGuidance = useMemo(() => {
+  const loadGuidance = React.useMemo(() => {
     if (!currentAthleteId) return null;
     
     const athleteHistory = allActivities

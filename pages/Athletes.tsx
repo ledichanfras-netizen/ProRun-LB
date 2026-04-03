@@ -8,18 +8,18 @@ const Athletes: React.FC = () => {
   const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId } = useApp();
   
   // Search State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [isSearchFocused, setIsSearchFocused] = React.useState(false);
 
   // Form State
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [showLevelGuide, setShowLevelGuide] = useState(false);
+  const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [showLevelGuide, setShowLevelGuide] = React.useState(false);
   
   // Delete Modal State
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
+  const [deleteModal, setDeleteModal] = React.useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
 
-  const [formData, setFormData] = useState<Partial<Athlete>>({
+  const [formData, setFormData] = React.useState<Partial<Athlete>>({
     name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: ''
   });
 

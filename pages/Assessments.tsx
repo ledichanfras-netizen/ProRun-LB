@@ -20,27 +20,27 @@ const Assessments: React.FC = () => {
     return d.toLocaleDateString('en-CA');
   };
 
-  const [testType, setTestType] = useState<'3k' | 'VO2_Lab' | 'TRF'>('3k');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formDate, setFormDate] = useState(getLocalDate());
-  const [formTime3k, setFormTime3k] = useState('');
-  const [formTrfDistance, setFormTrfDistance] = useState<number>(5);
-  const [formTrfTime, setFormTrfTime] = useState('');
+  const [testType, setTestType] = React.useState<'3k' | 'VO2_Lab' | 'TRF'>('3k');
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [formDate, setFormDate] = React.useState(getLocalDate());
+  const [formTime3k, setFormTime3k] = React.useState('');
+  const [formTrfDistance, setFormTrfDistance] = React.useState<number>(5);
+  const [formTrfTime, setFormTrfTime] = React.useState('');
 
-  const [formVo2Max, setFormVo2Max] = useState<number | ''>('');
-  const [formFcMax, setFormFcMax] = useState<number | ''>('');
-  const [formFcThreshold, setFormFcThreshold] = useState<number | ''>('');
+  const [formVo2Max, setFormVo2Max] = React.useState<number | ''>('');
+  const [formFcMax, setFormFcMax] = React.useState<number | ''>('');
+  const [formFcThreshold, setFormFcThreshold] = React.useState<number | ''>('');
 
-  const [calculatedVo2, setCalculatedVo2] = useState<number | null>(null);
-  const [paces, setPaces] = useState<TrainingPace[]>([]);
-  const [isEditingZones, setIsEditingZones] = useState(false);
-  const [isSavingZones, setIsSavingZones] = useState(false);
-  const [isSavingAssessment, setIsSavingAssessment] = useState(false);
-  const [editablePaces, setEditablePaces] = useState<TrainingPace[]>([]);
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+  const [calculatedVo2, setCalculatedVo2] = React.useState<number | null>(null);
+  const [paces, setPaces] = React.useState<TrainingPace[]>([]);
+  const [isEditingZones, setIsEditingZones] = React.useState(false);
+  const [isSavingZones, setIsSavingZones] = React.useState(false);
+  const [isSavingAssessment, setIsSavingAssessment] = React.useState(false);
+  const [editablePaces, setEditablePaces] = React.useState<TrainingPace[]>([]);
+  const [deleteModal, setDeleteModal] = React.useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
   // Monitora mudanças para recalcular zonas na hora (Simulação)
-  useEffect(() => {
+  React.useEffect(() => {
     if (activeAthlete && !isEditingZones) {
       // Prioridade: Valor do formulário (simulação) > Valor atual do atleta
       const vdotToUse = calculatedVo2 || activeAthlete.metrics.vdot || 30;
@@ -52,7 +52,7 @@ const Assessments: React.FC = () => {
     }
   }, [calculatedVo2, formFcThreshold, formFcMax, activeAthlete, isEditingZones]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (activeAthlete) {
       if (!editingId && formFcMax === '' && formFcThreshold === '') {
         setFormFcMax(activeAthlete.metrics.fcMax || '');
@@ -79,7 +79,7 @@ const Assessments: React.FC = () => {
     setCalculatedVo2(vo2);
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (testType === 'VO2_Lab' && formVo2Max) {
       setCalculatedVo2(Number(formVo2Max));
     }

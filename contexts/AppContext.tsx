@@ -46,19 +46,19 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [userRole, setUserRole] = useState<UserRole>(() => {
+  const [userRole, setUserRole] = React.useState<UserRole>(() => {
     return (localStorage.getItem('proRun_userRole') as UserRole) || null;
   });
   
-  const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(() => {
+  const [selectedAthleteId, setSelectedAthleteId] = React.useState<string | null>(() => {
     return localStorage.getItem('proRun_selectedAthleteId') || null;
   });
   
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [workouts, setWorkouts] = useState<Workout[]>([]);
-  const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [isCloudConnected, setIsCloudConnected] = useState(true);
+  const [athletes, setAthletes] = React.useState<Athlete[]>([]);
+  const [workouts, setWorkouts] = React.useState<Workout[]>([]);
+  const [athletePlans, setAthletePlans] = React.useState<Record<string, AthletePlan>>({});
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isCloudConnected, setIsCloudConnected] = React.useState(true);
 
   const runAIAnalysis = async (athleteId: string) => {
     const athlete = athletes.find(a => a.id === athleteId);

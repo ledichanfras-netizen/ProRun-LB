@@ -5,10 +5,10 @@ import { useApp } from '../contexts/AppContext';
 import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info, Cloud, CloudOff } from 'lucide-react';
 
 export default function Login() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [username, setUsername] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
   const { login, isCloudConnected } = useApp();
   const navigate = useNavigate();
 

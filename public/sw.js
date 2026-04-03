@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prorun-lb-v6';
+const CACHE_NAME = 'prorun-lb-v7';
 const ASSETS = [
   '/',
   '/index.html',

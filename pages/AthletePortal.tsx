@@ -131,6 +131,9 @@ const AthletePortal: React.FC = () => {
       case 'Intervalado': return 'border-red-500';
       case 'Velocidade': return 'border-purple-500';
       case 'Fortalecimento': return 'border-purple-500';
+      case 'Natação': return 'border-sky-400';
+      case 'Ciclismo': return 'border-orange-400';
+      case 'Transição': return 'border-rose-500';
       case 'Descanso': return 'border-slate-200';
       default: return 'border-slate-100';
     }

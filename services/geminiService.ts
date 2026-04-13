@@ -39,6 +39,7 @@ export const generateTrainingPlan = async (
     DATA DE HOJE: ${today}.
     ATLETA: ${athlete.name} | NÍVEL: ${athlete.experience} | VDOT: ${athlete.metrics.vdot}.
     META ESPECÍFICA: ${raceGoal || raceDistance} na distância de ${raceDistance}.
+    MODALIDADE: ${raceDistance.includes('Triathlon') || raceDistance.includes('70.3') || raceDistance.includes('Ironman') ? 'Triathlon' : raceDistance.includes('Duathlon') ? 'Duathlon' : 'Corrida'}.
     DATA DA PROVA: ${raceDate} (${raceWeekday}).
     DURAÇÃO DO CICLO: ${weeks} semanas.
     FREQUÊNCIA: ${runningDays} dias de corrida e ${gymDays} dias de fortalecimento/academia por semana.
@@ -48,10 +49,11 @@ export const generateTrainingPlan = async (
     REGRAS DE OURO DA PERIODIZAÇÃO:
     1. A PROVA ALVO (${raceDistance}) é o evento FINAL absoluto do plano. Ela deve ocorrer na ÚLTIMA SEMANA (Semana ${weeks}), OBRIGATORIAMENTE no dia: ${raceWeekday}. Se a prova é no domingo, o treino de domingo da última semana DEVE ser a prova.
     2. O plano deve ter ${weeks} semanas completas. Cada semana deve ter 7 dias, começando na Segunda-feira e terminando no Domingo.
-    3. O treino "Longão" deve ser OBRIGATORIAMENTE aos DOMINGOS (exceto na semana da prova, onde a prova é o evento principal).
-    4. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.
-    5. DISTRIBUIÇÃO: Distribua os ${runningDays} treinos de corrida e ${gymDays} de academia de forma equilibrada. Não coloque treinos intensos em dias seguidos.
-    6. POLIMENTO: A última semana deve ter uma redução drástica de volume (Tapering) para chegar descansado na prova.
+    3. Para TRIATHLON/DUATHLON/IRONMAN: O plano DEVE incluir sessões de Natação, Ciclismo e Transição (Brick), além da Corrida e Fortalecimento.
+    4. O treino "Longão" (ou treino longo da modalidade principal do dia) deve ser OBRIGATORIAMENTE aos DOMINGOS (exceto na semana da prova, onde a prova é o evento principal).
+    5. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.
+    6. DISTRIBUIÇÃO: Distribua os ${runningDays} treinos de corrida e ${gymDays} de academia de forma equilibrada. Não coloque treinos intensos em dias seguidos.
+    7. POLIMENTO: A última semana deve ter uma redução drástica de volume (Tapering) para chegar descansado na prova.
 
     ESTRATÉGIA DE PROVA (raceStrategy):
     - Detalhe o plano de ritmos e tática para atingir a meta "${raceGoal}".
@@ -85,7 +87,7 @@ export const generateTrainingPlan = async (
                       type: Type.OBJECT,
                       properties: {
                         day: { type: Type.STRING },
-                        type: { type: Type.STRING, enum: ["Regenerativo", "Longão", "Limiar", "Intervalado", "Fortalecimento", "Descanso", "Velocidade"] },
+                        type: { type: Type.STRING, enum: ["Regenerativo", "Longão", "Limiar", "Intervalado", "Fortalecimento", "Descanso", "Velocidade", "Natação", "Ciclismo", "Transição"] },
                         customDescription: { type: Type.STRING },
                         distance: { type: Type.NUMBER }
                       },

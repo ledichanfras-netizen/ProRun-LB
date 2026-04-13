@@ -63,6 +63,12 @@ const Periodization: React.FC = () => {
     { value: '50km', label: 'Ultra 50k' },
     { value: '80km', label: 'Ultra 80k' },
     { value: '100km', label: 'Ultra 100k' },
+    { value: 'Triathlon_Short', label: 'Triathlon Short (750m/20k/5k)' },
+    { value: 'Triathlon_Olimpico', label: 'Triathlon Olímpico (1.5k/40k/10k)' },
+    { value: '70.3', label: 'Ironman 70.3 (1.9k/90k/21k)' },
+    { value: 'Ironman', label: 'Ironman (3.8k/180k/42k)' },
+    { value: 'Duathlon_Sprint', label: 'Duathlon Sprint (5k/20k/2.5k)' },
+    { value: 'Duathlon_Olimpico', label: 'Duathlon Olímpico (10k/40k/5k)' },
   ];
 
   useEffect(() => {
@@ -352,7 +358,7 @@ const Periodization: React.FC = () => {
                     type="text" 
                     className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold outline-none italic" 
                     placeholder="Meta de tempo ou colocação..."
-                    value={raceGoal}
+                    value={raceGoal || ''}
                     onChange={e => setRaceGoal(e.target.value)}
                   />
                 </div>
@@ -365,7 +371,7 @@ const Periodization: React.FC = () => {
                     className="w-full bg-slate-50 border-none rounded-xl p-3 text-xs font-medium outline-none resize-none" 
                     rows={4} 
                     placeholder="Ex: Limitar treinos de semana em 50 min. Focar em volume no domingo..."
-                    value={goalDescription}
+                    value={goalDescription || ''}
                     onChange={e => setGoalDescription(e.target.value)}
                   />
                 </div>
@@ -373,7 +379,7 @@ const Periodization: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative">
                     <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Data da Prova</label>
-                    <input type="date" className="w-full bg-emerald-50 border-none rounded-xl p-3 text-[10px] font-bold outline-none" value={raceDate} onChange={e => setRaceDate(e.target.value)} />
+                    <input type="date" className="w-full bg-emerald-50 border-none rounded-xl p-3 text-[10px] font-bold outline-none" value={raceDate || ''} onChange={e => setRaceDate(e.target.value)} />
                   </div>
                   <div className="relative">
                     <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Duração (Semanas)</label>
@@ -464,7 +470,7 @@ const Periodization: React.FC = () => {
                                   value={workout.type}
                                   onChange={e => updateWorkout(weekIndex, dayIndex, 'type', e.target.value)}
                                 >
-                                  {["Regenerativo", "Longão", "Limiar", "Intervalado", "Velocidade", "Descanso", "Fortalecimento"].map(t => (
+                                  {["Regenerativo", "Longão", "Limiar", "Intervalado", "Velocidade", "Descanso", "Fortalecimento", "Natação", "Ciclismo", "Transição"].map(t => (
                                     <option key={t} value={t}>{t}</option>
                                   ))}
                                 </select>
@@ -480,7 +486,7 @@ const Periodization: React.FC = () => {
                                 <div className="relative">
                                   <textarea 
                                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold italic outline-none focus:ring-2 focus:ring-emerald-500"
-                                    value={workout.customDescription}
+                                    value={workout.customDescription || ''}
                                     rows={2}
                                     onChange={e => updateWorkout(weekIndex, dayIndex, 'customDescription', e.target.value)}
                                   />
@@ -521,7 +527,7 @@ const Periodization: React.FC = () => {
                               <input 
                                 type="number" 
                                 className="w-16 bg-slate-100 border-none rounded-lg p-1 text-center font-black text-sm" 
-                                value={workout.distance === 0 ? '' : workout.distance} 
+                                value={workout.distance === 0 || workout.distance === undefined ? '' : workout.distance} 
                                 onFocus={e => e.target.select()}
                                 onChange={e => updateWorkout(weekIndex, dayIndex, 'distance', Number(e.target.value))}
                               />

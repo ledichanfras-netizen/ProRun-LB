@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prorun-lb-v10';
+const CACHE_NAME = 'prorun-lb-v11';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -31,30 +31,32 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estratégia de Fetch: Stale-While-Revalidate para assets do app
+// Estratégia de Fetch
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
-  // Apenas cacheia requisições do mesmo domínio (assets do app)
-  // Ignora chamadas de API (Supabase, Google AI) para garantir dados frescos
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      caches.open(CACHE_NAME).then((cache) => {
-        return cache.match(event.request).then((cachedResponse) => {
-          const fetchedResponse = fetch(event.request).then((networkResponse) => {
-            // Cacheia a nova versão para a próxima vez
-            if (networkResponse.status === 200) {
-              cache.put(event.request, networkResponse.clone());
-            }
-            return networkResponse;
-          }).catch(() => cachedResponse); // Se falhar a rede, usa o cache
+  // Ignora extensões de código fonte e chamadas de API
+  const isCodeFile = url.pathname.match(/\.(tsx|ts|jsx|js)$/);
+  const isApiCall = url.pathname.startsWith('/api') || url.origin !== self.location.origin;
 
-          return cachedResponse || fetchedResponse;
-        });
-      })
-    );
-  } else {
-    // Para chamadas externas (Supabase), usa apenas rede
-    event.respondWith(fetch(event.request));
+  if (isCodeFile || isApiCall) {
+    return; // Deixa o navegador/rede lidar normalmente
   }
+
+  // Para assets estáticos conhecidos ou a raiz
+  event.respondWith(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.match(event.request).then((cachedResponse) => {
+        const fetchedResponse = fetch(event.request).then((networkResponse) => {
+          // Apenas cacheia se for uma resposta válida e não for código fonte
+          if (networkResponse.status === 200 && !isCodeFile) {
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        }).catch(() => cachedResponse);
+
+        return cachedResponse || fetchedResponse;
+      });
+    })
+  );
 });

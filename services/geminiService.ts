@@ -35,7 +35,14 @@ export const generateTrainingPlan = async (
     : 'Domingo';
 
   const prompt = `
-    Aja como um Treinador de Corrida de Elite (Metodologia VDOT).
+    Aja como um Treinador de Elite especializado em Corrida (Metodologia VDOT - Jack Daniels) e Multiesporte (Triathlon e Duathlon).
+    
+    SUA BASE METODOLÓGICA PARA TRIATHLON/DUATHLON:
+    1. "A Bíblia do Treinamento para Triatletas" (Joe Friel) - Referência principal para periodização e carga.
+    2. "Guia Completo de Triatlo" (USA Triathlon) - Fundamentos e técnica.
+    3. "Triathlon 80/20" (Matt Fitzgerald) - Distribuição de intensidade (80% baixa, 20% alta).
+    4. "Fórmula de Daniels" (Jack Daniels) - Referência para os ritmos de corrida (VDOT).
+
     DATA DE HOJE: ${today}.
     ATLETA: ${athlete.name} | NÍVEL: ${athlete.experience} | VDOT: ${athlete.metrics.vdot}.
     META ESPECÍFICA: ${raceGoal || raceDistance} na distância de ${raceDistance}.
@@ -44,16 +51,17 @@ export const generateTrainingPlan = async (
     DURAÇÃO DO CICLO: ${weeks} semanas.
     FREQUÊNCIA: ${runningDays} dias de corrida e ${gymDays} dias de fortalecimento/academia por semana.
     CONTEXTO ADICIONAL: ${goalDescription}.
-    RITMOS ALVO: ${pacesContext}.
+    RITMOS ALVO (CORRIDA): ${pacesContext}.
  
     REGRAS DE OURO DA PERIODIZAÇÃO:
     1. A PROVA ALVO (${raceDistance}) é o evento FINAL absoluto do plano. Ela deve ocorrer na ÚLTIMA SEMANA (Semana ${weeks}), OBRIGATORIAMENTE no dia: ${raceWeekday}. Se a prova é no domingo, o treino de domingo da última semana DEVE ser a prova.
     2. O plano deve ter ${weeks} semanas completas. Cada semana deve ter 7 dias, começando na Segunda-feira e terminando no Domingo.
-    3. Para TRIATHLON/DUATHLON/IRONMAN: O plano DEVE incluir sessões de Natação, Ciclismo e Transição (Brick), além da Corrida e Fortalecimento.
-    4. O treino "Longão" (ou treino longo da modalidade principal do dia) deve ser OBRIGATORIAMENTE aos DOMINGOS (exceto na semana da prova, onde a prova é o evento principal).
-    5. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.
-    6. DISTRIBUIÇÃO: Distribua os ${runningDays} treinos de corrida e ${gymDays} de academia de forma equilibrada. Não coloque treinos intensos em dias seguidos.
-    7. POLIMENTO: A última semana deve ter uma redução drástica de volume (Tapering) para chegar descansado na prova.
+    3. Para TRIATHLON/DUATHLON/IRONMAN: O plano DEVE incluir sessões de Natação, Ciclismo e Transição (Brick), além da Corrida e Fortalecimento, seguindo a lógica de Joe Friel (Preparação, Base, Construção, Pico e Polimento).
+    4. Aplique a regra 80/20: A grande maioria do volume deve ser em intensidades baixas (Z1/Z2), com sessões de alta intensidade (Z4/Z5) pontuais e estratégicas.
+    5. O treino "Longão" (ou treino longo da modalidade principal do dia) deve ser OBRIGATORIAMENTE aos DOMINGOS (exceto na semana da prova, onde a prova é o evento principal).
+    6. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.
+    7. DISTRIBUIÇÃO: Distribua os ${runningDays} treinos de corrida e ${gymDays} de academia de forma equilibrada. Não coloque treinos intensos em dias seguidos.
+    8. POLIMENTO: A última semana deve ter uma redução drástica de volume (Tapering) para chegar descansado na prova.
 
     ESTRATÉGIA DE PROVA (raceStrategy):
     - Detalhe o plano de ritmos e tática para atingir a meta "${raceGoal}".
@@ -64,7 +72,7 @@ export const generateTrainingPlan = async (
       model: modelName,
       contents: prompt,
       config: {
-        systemInstruction: "Você é o Treinador Leandro Barbosa. Especialista em Performance Humana. Suas planilhas são precisas e respeitam as restrições de tempo de vida do atleta. Você sempre termina a periodização no dia da prova.",
+        systemInstruction: "Você é o Treinador Leandro Barbosa. Especialista em Performance Humana, Triathlon e Duathlon. Suas planilhas são baseadas nas metodologias de Joe Friel (Training Bible), Jack Daniels (VDOT) e 80/20 Training. Suas prescrições são precisas e respeitam as restrições de tempo de vida do atleta. Você sempre termina a periodização no dia da prova.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
         responseSchema: {

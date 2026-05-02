@@ -25,7 +25,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [showInstallBanner, setShowInstallBanner] = React.useState(false);
   const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
-  const { athletes, selectedAthleteId, userRole, logout, isCloudConnected } = useApp();
+  const { athletes, selectedAthleteId, setSelectedAthleteId, userRole, logout, isCloudConnected } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -134,7 +134,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="p-4 border-t border-emerald-900 bg-emerald-950/30">
           {userRole === 'coach' && (
             <div className="bg-emerald-900/40 rounded-xl p-3 mb-3 border border-emerald-800/50">
-               <p className="text-[8px] text-emerald-400 mb-1 uppercase font-black tracking-widest">Atleta Selecionado</p>
+               <div className="flex justify-between items-center mb-1">
+                 <p className="text-[8px] text-emerald-400 uppercase font-black tracking-widest">Atleta Selecionado</p>
+                 {selectedAthleteId && (
+                   <button 
+                     onClick={() => setSelectedAthleteId(null)}
+                     className="text-[7px] font-black text-emerald-400 hover:text-white uppercase tracking-tighter"
+                   >
+                     LIMPAR
+                   </button>
+                 )}
+               </div>
                <div className="font-bold text-xs text-white truncate flex items-center gap-2">
                   <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
                   {activeAthlete ? activeAthlete.name : 'Nenhum'}

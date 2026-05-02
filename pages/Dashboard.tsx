@@ -33,7 +33,7 @@ import {
 } from 'recharts';
 
 export default function Dashboard() {
-  const { userRole, athletes, selectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
+  const { userRole, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
@@ -63,8 +63,9 @@ export default function Dashboard() {
   const nextWorkout = React.useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
 
   const allActivities = React.useMemo(() => {
-    // Se for atleta, mostra apenas as próprias atividades. Se for coach, mostra de todos.
-    const filteredAthletes = userRole === 'athlete' 
+    // Se houver um atleta selecionado (selecionado por coach ou atleta logado), filtra por ele.
+    // Se nenhum estiver selecionado (coach em visão geral), mostra atividades de todos.
+    const filteredAthletes = selectedAthleteId 
       ? athletes.filter(a => a.id === selectedAthleteId)
       : athletes;
 
@@ -264,9 +265,19 @@ export default function Dashboard() {
 
         <div className="space-y-6">
           <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm flex flex-col h-full">
-            <h3 className="font-black text-slate-800 flex items-center gap-3 uppercase italic tracking-tighter text-lg mb-6">
-              <MessageSquare className="text-emerald-500 w-5 h-5" /> Feed de Atividades Recentes
-            </h3>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-black text-slate-800 flex items-center gap-3 uppercase italic tracking-tighter text-lg">
+                <MessageSquare className="text-emerald-500 w-5 h-5" /> Feed de Atividades
+              </h3>
+              {userRole === 'coach' && selectedAthleteId && (
+                <button 
+                  onClick={() => setSelectedAthleteId(null)}
+                  className="text-[9px] font-black text-emerald-600 uppercase italic border border-emerald-100 px-2 py-1 rounded-lg hover:bg-emerald-50 transition-colors"
+                >
+                  Ver Todos
+                </button>
+              )}
+            </div>
             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
               {allActivities.length > 0 ? allActivities.slice(-8).reverse().map((f, i) => (
                 <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 hover:border-emerald-200 transition-colors">

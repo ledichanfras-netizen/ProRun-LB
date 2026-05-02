@@ -304,16 +304,26 @@ const Athletes: React.FC = () => {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                <th className="p-6 text-center w-20">Sel.</th>
                 <th className="p-6">Identificação</th>
                 <th className="p-6">Nível Técnico (Trocar)</th>
                 <th className="p-6">Biometria</th>
                 <th className="p-6">VDOT (Pro)</th>
-                <th className="p-6 text-center">Ações de Gestão</th>
+                <th className="p-6 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filteredAthletes.map((athlete) => (
                 <tr key={athlete.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedAthleteId === athlete.id ? 'bg-emerald-50/50' : ''}`}>
+                  <td className="p-6 text-center">
+                    <button 
+                      onClick={() => setSelectedAthleteId(athlete.id)}
+                      className={`p-3 rounded-xl transition shadow-sm ${selectedAthleteId === athlete.id ? 'bg-emerald-600 text-white shadow-emerald-500/20 scale-110' : 'bg-white text-emerald-600 hover:bg-emerald-50 border border-emerald-100'}`} 
+                      title="Selecionar para Trabalho"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                    </button>
+                  </td>
                   <td className="p-6">
                     <div className="flex items-center gap-4">
                        <div className="w-10 h-10 bg-emerald-950 rounded-xl flex items-center justify-center text-white font-black italic text-sm">
@@ -357,13 +367,6 @@ const Athletes: React.FC = () => {
                   </td>
                   <td className="p-6">
                     <div className="flex justify-center gap-3">
-                      <button 
-                        onClick={() => setSelectedAthleteId(athlete.id)}
-                        className={`p-3 rounded-xl transition shadow-sm ${selectedAthleteId === athlete.id ? 'bg-emerald-600 text-white shadow-emerald-500/20' : 'bg-white text-emerald-600 hover:bg-emerald-50 border border-emerald-100'}`} 
-                        title="Selecionar para Trabalho"
-                      >
-                        <CheckCircle className="w-5 h-5" />
-                      </button>
                       <button onClick={() => handleEditClick(athlete)} className="p-3 text-slate-400 hover:text-emerald-600 hover:bg-white bg-slate-50 rounded-xl transition" title="Editar Perfil">
                         <Edit2 className="w-5 h-5" />
                       </button>
@@ -373,6 +376,7 @@ const Athletes: React.FC = () => {
                     </div>
                   </td>
                 </tr>
+
               ))}
             </tbody>
           </table>

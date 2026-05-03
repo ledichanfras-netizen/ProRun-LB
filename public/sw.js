@@ -3,7 +3,7 @@ const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.ico'
+  '/prorunlb_android_192.png'
 ];
 
 const STATIC_CACHE = 'prorun-static-v1';
@@ -77,8 +77,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: data.body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/prorunlb_android_192.png',
+    badge: '/prorunlb_android_192.png',
     vibrate: [100, 50, 100],
     data: {
       url: data.url || '/'

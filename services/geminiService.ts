@@ -15,7 +15,7 @@ export const generateTrainingPlan = async (
   raceGoal?: string
 ): Promise<AthletePlan> => {
   
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const modelName = 'gemini-3-flash-preview';
 
   const paces = athlete.customZones || calculatePaces(athlete.metrics.vdot, athlete.metrics.fcThreshold, athlete.metrics.fcMax);

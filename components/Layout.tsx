@@ -186,8 +186,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {showInstallBanner && (
             <div id="install-area" className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 mb-6 no-print animate-fade-in shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="bg-white p-2 rounded-2xl shadow-lg">
-                  <TrendingUp className="w-8 h-8 text-emerald-600" />
+                <div className="bg-white p-0.5 rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+                  <img src="/prorunlb_android_192.png" alt="ProRun Logo" className="w-12 h-12 object-cover" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <p className="font-black text-slate-900 uppercase italic tracking-tighter">Instale o ProRun LB!</p>

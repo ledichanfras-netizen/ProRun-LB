@@ -3,6 +3,7 @@ import React, { Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
+import Offline from './pages/Offline';
 
 // Lazy loading das páginas para performance
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -12,7 +13,6 @@ const Assessments = lazy(() => import('./pages/Assessments'));
 const Library = lazy(() => import('./pages/Library'));
 const Periodization = lazy(() => import('./pages/Periodization'));
 const AthletePortal = lazy(() => import('./pages/AthletePortal'));
-const Offline = lazy(() => import('./pages/Offline'));
 const Subscriptions = lazy(() => import('./pages/Subscriptions'));
 
 const LoadingFallback = () => (

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { 
   Trophy, 
@@ -27,17 +27,15 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Cell
+  Tooltip 
 } from 'recharts';
 
 export default function Dashboard() {
   const { userRole, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
-  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
-  const activeAthlete = React.useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
+  const activeAthlete = useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
   
   const handleAIAnalysis = async () => {
     if (!currentAthleteId) return;
@@ -49,22 +47,20 @@ export default function Dashboard() {
     }
   };
 
-  const metrics = React.useMemo(() => currentAthleteId ? getAthleteMetrics(currentAthleteId) : {
+  const metrics = useMemo(() => currentAthleteId ? getAthleteMetrics(currentAthleteId) : {
     history: [],
     completionRate: 0,
     totalVolumeCompleted: 0,
     totalVolumePlanned: 0
   }, [currentAthleteId, getAthleteMetrics]);
 
-  const athletePlan = React.useMemo(() => currentAthleteId ? athletePlans[currentAthleteId] : null, [currentAthleteId, athletePlans]);
+  const athletePlan = useMemo(() => currentAthleteId ? athletePlans[currentAthleteId] : null, [currentAthleteId, athletePlans]);
   
-  const visibleWeeks = React.useMemo(() => athletePlan?.weeks?.filter(w => w.isVisible === true) || [], [athletePlan]);
+  const visibleWeeks = useMemo(() => athletePlan?.weeks?.filter(w => w.isVisible === true) || [], [athletePlan]);
   
-  const nextWorkout = React.useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
+  const nextWorkout = useMemo(() => visibleWeeks.flatMap(w => w.workouts || []).find(work => work && !work.completed && work.type !== 'Descanso'), [visibleWeeks]);
 
-  const allActivities = React.useMemo(() => {
-    // Se houver um atleta selecionado (selecionado por coach ou atleta logado), filtra por ele.
-    // Se nenhum estiver selecionado (coach em visão geral), mostra atividades de todos.
+  const allActivities = useMemo(() => {
     const filteredAthletes = selectedAthleteId 
       ? athletes.filter(a => a.id === selectedAthleteId)
       : athletes;
@@ -83,9 +79,9 @@ export default function Dashboard() {
         timestamp: new Date()
       })));
     });
-  }, [athletes, athletePlans, userRole, selectedAthleteId]);
+  }, [athletes, athletePlans, selectedAthleteId]);
 
-  const loadGuidance = React.useMemo(() => {
+  const loadGuidance = useMemo(() => {
     if (!currentAthleteId) return null;
     
     const athleteHistory = allActivities
@@ -127,14 +123,13 @@ export default function Dashboard() {
     };
   }, [currentAthleteId, allActivities]);
 
-  const teamMetrics = React.useMemo(() => {
+  const teamMetrics = useMemo(() => {
     if (userRole !== 'coach') return null;
     
     const totalAthletes = athletes.length;
     const activeAthletes = athletes.filter(a => {
       const plan = athletePlans[a.id];
       const lastWorkout = plan?.weeks?.flatMap(w => w.workouts).filter(w => w.completed).pop();
-      // Simulação de atividade recente (se tiver concluído algo nas últimas semanas)
       return !!lastWorkout;
     }).length;
 
@@ -384,26 +379,16 @@ export default function Dashboard() {
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase italic tracking-tighter mb-6">
               <TrendingUp className="text-emerald-600 w-5 h-5" /> Distribuição de Volume Semanal
             </h2>
-            <div className="h-72 w-full">
+            <div className="h-72 w-full flex items-center justify-center">
               {metrics.history.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metrics.history}>
+                  <BarChart width={500} height={250} data={metrics.history}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} dy={10} />
                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
                     <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                    <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]}>
-                       {metrics.history.map((entry, index) => (
-                         <Cell key={`cell-${index}`} fill="#e2e8f0" />
-                       ))}
-                    </Bar>
-                    <Bar dataKey="completed" name="Executado" radius={[6, 6, 0, 0]}>
-                       {metrics.history.map((entry, index) => (
-                         <Cell key={`cell-${index}`} fill="#10b981" />
-                       ))}
-                    </Bar>
+                    <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]} fill="#e2e8f0" />
+                    <Bar dataKey="completed" name="Executado" radius={[6, 6, 0, 0]} fill="#10b981" />
                   </BarChart>
-                </ResponsiveContainer>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-100 rounded-[2rem] italic">
                   Aguardando dados de periodização...

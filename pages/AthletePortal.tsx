@@ -32,8 +32,7 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer 
+  Tooltip 
 } from 'recharts';
 
 const TimerComponent: React.FC = () => {
@@ -107,6 +106,30 @@ const AthletePortal: React.FC = () => {
   const allWeeks = athletePlan?.weeks || [];
   const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
   const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
+
+  if (visibleWeeks.length === 0) {
+    return (
+      <div className="max-w-md mx-auto space-y-8 pb-24 animate-fade-in flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
+        <div className="bg-emerald-500/10 p-8 rounded-[3rem] border border-emerald-500/20 mb-6">
+          <Sparkles className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-black text-slate-800 uppercase italic tracking-tighter">Preparando sua Evolução</h2>
+          <p className="text-slate-500 text-sm font-medium italic mt-2">
+            Seu treinador está finalizando sua periodização personalizada. Assim que as planilhas forem publicadas, elas aparecerão aqui em tempo real.
+          </p>
+        </div>
+        <div className="space-y-4 w-full">
+           <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 bg-emerald-950 rounded-xl flex items-center justify-center text-xl">⚡</div>
+              <div className="text-left">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dica de Performance</p>
+                <p className="text-xs font-bold text-slate-700 italic">Mantenha seu VDOT atualizado nas avaliações.</p>
+              </div>
+           </div>
+           <button onClick={() => navigate('/')} className="w-full bg-emerald-950 text-white py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest">VOLTAR AO PAINEL</button>
+        </div>
+      </div>
+    );
+  }
 
   const isFinalWorkout = React.useMemo(() => {
     if (!selectedWorkout || !allWeeks.length) return false;
@@ -368,9 +391,8 @@ const AthletePortal: React.FC = () => {
           <TrendingUp className="text-emerald-500 w-5 h-5" /> Sua Evolução Semanal
         </h3>
         
-        <div className="h-48 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={visibleWeeks.slice().reverse().map(w => ({ name: `S${w.weekNumber}`, km: w.totalVolume }))}>
+        <div className="h-48 w-full flex items-center justify-center">
+            <BarChart width={320} height={180} data={visibleWeeks.slice().reverse().map(w => ({ name: `S${w.weekNumber}`, km: w.totalVolume }))}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis 
                 dataKey="name" 
@@ -384,7 +406,6 @@ const AthletePortal: React.FC = () => {
               />
               <Bar dataKey="km" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
             </BarChart>
-          </ResponsiveContainer>
         </div>
         
         <p className="text-[9px] text-slate-400 font-bold uppercase italic tracking-widest text-center mt-6">
@@ -408,6 +429,24 @@ const AthletePortal: React.FC = () => {
             <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
               <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white' : 'bg-emerald-50/30 border-emerald-100 text-emerald-950'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
                 "{selectedWorkout.data.customDescription}"
+              </div>
+
+              {/* Hub de Ritmos do Atleta */}
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 px-1">
+                  <Flag className="w-3.5 h-3.5 text-emerald-500" /> Seus Ritmos Alvo
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {paces.map((p, idx) => (
+                    <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{p.zone}</span>
+                      <span className="text-sm font-black text-emerald-600 italic tracking-tighter">{p.minPace} min/km</span>
+                      {p.heartRateRange && (
+                        <span className="text-[7px] font-bold text-slate-300 uppercase">{p.heartRateRange} bpm</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="space-y-4">

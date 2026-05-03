@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prorun-lb-v14'; // Incremented version
+const CACHE_NAME = 'prorun-lb-v15'; // Incremented version
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

@@ -259,13 +259,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [selectedAthleteId]);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
-    const normalizedUsername = username.trim().toLowerCase();
+    const normalize = (str: string) => str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const normalizedUsername = normalize(username);
+
     if (normalizedUsername === 'leandro' && password === '1234') {
       setUserRole('coach');
       setSelectedAthleteId(null);
       return { success: true };
     }
-    const athlete = athletes.find(a => a.name.trim().toLowerCase() === normalizedUsername);
+
+    const athlete = athletes.find(a => normalize(a.name) === normalizedUsername);
     if (athlete) {
       const inputPass = password.replace(/\D/g, '');
       let storedPass = '';

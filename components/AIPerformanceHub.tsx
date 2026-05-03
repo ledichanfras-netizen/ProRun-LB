@@ -11,8 +11,7 @@ import {
   RadarChart, 
   PolarGrid, 
   PolarAngleAxis, 
-  PolarRadiusAxis, 
-  ResponsiveContainer 
+  PolarRadiusAxis 
 } from 'recharts';
 import { Athlete } from '../types';
 
@@ -114,10 +113,9 @@ export const AIPerformanceHub: React.FC<AIPerformanceHubProps> = ({
 
       <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center justify-center">
         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic mb-4">Radar de Capacidades</h3>
-        <div className="w-full h-64">
+        <div className="w-full h-64 flex items-center justify-center">
           {radarData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData} width={300} height={250}>
                 <PolarGrid stroke="#e2e8f0" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 800 }} />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
@@ -129,7 +127,6 @@ export const AIPerformanceHub: React.FC<AIPerformanceHubProps> = ({
                   fillOpacity={0.6}
                 />
               </RadarChart>
-            </ResponsiveContainer>
           ) : (
             <div className="h-full flex items-center justify-center text-slate-300 italic text-[10px] font-black uppercase text-center">
               Aguardando Análise IA

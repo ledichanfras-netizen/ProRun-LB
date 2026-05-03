@@ -9,6 +9,9 @@
   html, body, #root {
     height: 100%;
   }
+  html {
+    @apply bg-[#022c22];
+  }
   body {
     @apply bg-gray-50 text-gray-900 font-sans antialiased;
   }

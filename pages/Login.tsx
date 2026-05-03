@@ -32,86 +32,95 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-emerald-950 flex flex-col justify-center items-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 animate-fade-in-up">
-        <div className="flex flex-col items-center mb-8">
-          <div className="mb-4 p-4 bg-emerald-100 rounded-full text-emerald-600 shadow-inner transform -rotate-3">
-            <TrendingUp className="w-12 h-12" />
+    <div className="min-h-screen bg-[#022c22] flex flex-col justify-center items-center p-4 overflow-hidden relative">
+      {/* Background patterns */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
+      </div>
+
+      <div className="w-full max-w-sm relative z-10 animate-fade-in-up">
+        <div className="flex flex-col items-center mb-10">
+          <div className="mb-6 p-0.5 bg-white rounded-3xl shadow-[0_0_40px_rgba(16,185,129,0.2)] border border-white/10 overflow-hidden transform hover:scale-110 transition-transform duration-500">
+            <img src="/prorunlb_android_192.png" alt="Logo" className="w-20 h-20 object-cover" />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">ProRun LB</h1>
-          <p className="text-slate-500 font-medium text-center px-4 italic">Performance Integrada</p>
+          <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
+            ProRun <span className="text-emerald-500">LB</span>
+          </h1>
+          <p className="text-emerald-500/60 font-bold uppercase tracking-[0.3em] text-[10px] mt-2 italic">Performance Integrada</p>
         </div>
 
-        {error && (
-          <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-xl flex items-center gap-3 text-sm font-medium animate-fade-in border-l-4 border-red-500">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Usuário Registrado</label>
-            <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
-              <input 
-                type="text" 
-                required
-                autoComplete="username"
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition font-bold"
-                placeholder="Digite seu nome"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-              />
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
+          {error && (
+            <div className="mb-6 bg-red-500/10 text-red-400 p-4 rounded-2xl flex items-center gap-3 text-xs font-bold animate-shake border border-red-500/20">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
             </div>
-          </div>
+          )}
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Chave de Acesso</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
-              <input 
-                type="password" 
-                required
-                autoComplete="current-password"
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition font-bold"
-                placeholder="Sua senha"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-              />
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-black text-emerald-500/50 uppercase tracking-widest mb-3 ml-1">Atleta / Treinador</label>
+              <div className="relative group">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/30 w-5 h-5 group-focus-within:text-emerald-500 transition-colors" />
+                <input 
+                  type="text" 
+                  required
+                  autoComplete="username"
+                  className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/5 rounded-2xl focus:ring-1 focus:ring-emerald-500 focus:bg-white/10 outline-none transition text-white font-bold placeholder:text-white/10"
+                  placeholder="Nome de usuário"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-500/30 flex justify-center items-center gap-2 transition disabled:opacity-50 uppercase italic tracking-widest text-xs"
-          >
-            {loading ? (
-              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <>
-                Entrar no Sistema <ArrowRight className="w-5 h-5" />
-              </>
-            )}
-          </button>
-        </form>
+            <div>
+              <label className="block text-[10px] font-black text-emerald-500/50 uppercase tracking-widest mb-3 ml-1">Chave Biométrica</label>
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/30 w-5 h-5 group-focus-within:text-emerald-500 transition-colors" />
+                <input 
+                  type="password" 
+                  required
+                  autoComplete="current-password"
+                  className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/5 rounded-2xl focus:ring-1 focus:ring-emerald-500 focus:bg-white/10 outline-none transition text-white font-bold placeholder:text-white/10"
+                  placeholder="Senha de acesso"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                />
+              </div>
+            </div>
 
-        <div className="mt-8 pt-6 border-t border-slate-50 flex flex-col items-center gap-2">
-           <p className="text-[10px] text-slate-300 uppercase font-black tracking-widest">© 2025 LB Sports Performance</p>
-           <div className="flex items-center gap-2">
-              {isCloudConnected ? (
-                <>
-                  <Cloud className="w-3 h-3 text-emerald-500" />
-                  <span className="text-[8px] font-black uppercase text-emerald-500 tracking-widest">Cloud Sync Ativo</span>
-                </>
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black py-5 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 uppercase italic tracking-widest text-xs"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-emerald-950 border-t-transparent rounded-full animate-spin"></div>
               ) : (
                 <>
-                  <CloudOff className="w-3 h-3 text-red-400" />
-                  <span className="text-[8px] font-black uppercase text-red-400 tracking-widest">Modo Local (Offline)</span>
+                  Acessar Sistema <ArrowRight className="w-4 h-4" />
                 </>
               )}
+            </button>
+          </form>
+        </div>
+
+        <div className="mt-10 flex flex-col items-center gap-4">
+           <div className="flex items-center gap-3 px-4 py-2 bg-emerald-500/5 rounded-full border border-emerald-500/10">
+              {isCloudConnected ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  <span className="text-[8px] font-black uppercase text-emerald-500/70 tracking-widest">Global Network Connected</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                  <span className="text-[8px] font-black uppercase text-amber-500/70 tracking-widest">Secure Local Storage</span>
+                </div>
+              )}
            </div>
+           <p className="text-[9px] text-white/20 uppercase font-black tracking-[0.4em]">© 2025 LB Performance Systems</p>
         </div>
       </div>
     </div>

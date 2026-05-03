@@ -4,6 +4,7 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
 import Offline from './pages/Offline';
+import SplashScreen from './components/SplashScreen';
 
 // Lazy loading das páginas para performance
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -16,9 +17,9 @@ const AthletePortal = lazy(() => import('./pages/AthletePortal'));
 const Subscriptions = lazy(() => import('./pages/Subscriptions'));
 
 const LoadingFallback = () => (
-  <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
-    <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-    <span className="font-black text-xs tracking-widest text-slate-400 uppercase italic">Carregando Módulos...</span>
+  <div className="flex flex-col items-center justify-center h-screen bg-[#022c22]">
+    <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <span className="text-[8px] font-black tracking-[0.3em] text-emerald-500/40 uppercase italic">Iniciando Engine...</span>
   </div>
 );
 
@@ -45,10 +46,9 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-emerald-950 text-white">
-        <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <span className="font-black text-xl tracking-tighter uppercase italic">PRORUN LB</span>
-        <span className="mt-2 text-emerald-300/60 text-[10px] font-black uppercase tracking-widest">Sincronizando Performance...</span>
+      <div className="flex flex-col items-center justify-center h-screen bg-[#022c22] text-white">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <span className="text-emerald-500/60 text-[9px] font-black uppercase tracking-[0.2em]">Sincronizando Dados</span>
       </div>
     );
   }
@@ -83,6 +83,7 @@ function AppContent() {
 const App: React.FC = () => {
   return (
     <AppProvider>
+      <SplashScreen />
       <Router>
         <AppContent />
       </Router>

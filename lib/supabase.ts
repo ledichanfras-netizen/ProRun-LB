@@ -1,12 +1,16 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Fallback to provided keys if environment variables are not set
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://yjmuhcglmhvbsogzrfuy.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_zVwpacFU6xhqeK53gKDFrQ_swCkZ1qs';
+// Supabase configuration
+// Always prefer environment variables. Fallback keys are for development only.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-  console.warn('Supabase environment variables are missing. Using provided fallback keys.');
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('Supabase environment variables are missing. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your deployment settings.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co', 
+  supabaseAnonKey || 'placeholder-key'
+);

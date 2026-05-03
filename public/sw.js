@@ -1,15 +1,15 @@
 const CACHE_NAME = 'prorun-lb-v15'; // Incremented version
 const ASSETS_TO_CACHE = [
   '/',
-  '/index.html',
-  '/manifest.json',
-  '/prorunlb_android_192.png',
-  '/prorunlb_pwa_512.png',
-  '/prorunlb_maskable_512.png'
+  'index.html',
+  'manifest.json',
+  'prorunlb_android_192.png',
+  'prorunlb_pwa_512.png',
+  'prorunlb_maskable_512.png'
 ];
 
-const STATIC_CACHE = 'prorun-static-v1';
-const DYNAMIC_CACHE = 'prorun-dynamic-v1';
+const STATIC_CACHE = 'prorun-static-v2';
+const DYNAMIC_CACHE = 'prorun-dynamic-v2';
 
 // Instalação: Cacheia os assets estáticos iniciais
 self.addEventListener('install', (event) => {
@@ -17,7 +17,10 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       console.log('[SW] Pre-caching assets');
-      return cache.addAll(ASSETS_TO_CACHE);
+      // Tentamos cachear cada um individualmente para não falhar tudo se um sumir
+      return Promise.allSettled(
+        ASSETS_TO_CACHE.map(asset => cache.add(asset).catch(err => console.error(`Failed to cache ${asset}:`, err)))
+      );
     })
   );
 });

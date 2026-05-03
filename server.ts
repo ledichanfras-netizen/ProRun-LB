@@ -32,9 +32,19 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Serve static files in production
-    const distPath = path.resolve(__dirname, "dist");
+    const rootPath = process.cwd();
+    const distPath = path.join(rootPath, "dist");
+    
+    console.log(`[Production] Serving static files from: ${distPath}`);
+    
     app.use(express.static(distPath));
-    app.get("*", (_req, res) => {
+    
+    app.get("*", (req, res) => {
+      // If the request is for an asset that wasn't found by express.static, 
+      // but it looks like a file (has an extension), don't send index.html
+      if (path.extname(req.path)) {
+        return res.status(404).send('Not found');
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

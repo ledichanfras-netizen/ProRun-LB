@@ -1,9 +1,11 @@
-const CACHE_NAME = 'prorun-lb-v12'; // Incremented version
+const CACHE_NAME = 'prorun-lb-v14'; // Incremented version
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/prorunlb_android_192.png'
+  '/prorunlb_android_192.png',
+  '/prorunlb_pwa_512.png',
+  '/prorunlb_maskable_512.png'
 ];
 
 const STATIC_CACHE = 'prorun-static-v1';

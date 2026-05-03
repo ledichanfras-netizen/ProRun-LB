@@ -206,34 +206,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     setIsLoading(true);
     try {
+      console.log("[Sync] Tentando sincronizar com Supabase...");
       const [athletesRes, workoutsRes, plansRes] = await Promise.all([
         supabase.from('athletes').select('data').order('created_at', { ascending: false }),
         supabase.from('workouts_library').select('data').order('created_at', { ascending: false }),
         supabase.from('athlete_plans').select('*')
       ]);
 
-      if (athletesRes.data) {
+      if (athletesRes.error || workoutsRes.error) {
+         console.warn("[Sync] Tabelas não encontradas ou erro de acesso. Verifique o console do Supabase.");
+         setIsCloudConnected(false);
+      } else {
+         setIsCloudConnected(true);
+      }
+
+      if (athletesRes.data && athletesRes.data.length > 0) {
         const fetchedAthletes = athletesRes.data.map(row => row.data);
         setAthletes(fetchedAthletes);
         localStorage.setItem('proRun_cached_athletes', JSON.stringify(fetchedAthletes));
       }
       
-      if (workoutsRes.data) {
+      if (workoutsRes.data && workoutsRes.data.length > 0) {
         const fetchedWorkouts = workoutsRes.data.map(row => row.data);
         setWorkouts(fetchedWorkouts);
         localStorage.setItem('proRun_cached_workouts', JSON.stringify(fetchedWorkouts));
       }
       
-      if (plansRes.data) {
+      if (plansRes.data && plansRes.data.length > 0) {
         const plans: Record<string, any> = {};
         plansRes.data.forEach(row => {
-          plans[row.athlete_id] = row.plan_data;
+          // Flexible mapping to handle different schema variations
+          const athleteId = row.id || row.athlete_id;
+          const planData = row.data || row.plan_data || row;
+          if (athleteId) plans[athleteId] = planData;
         });
         setAthletePlans(plans);
         localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(plans));
       }
       
-      setIsCloudConnected(true);
     } catch (err) {
       console.error("Error fetching data:", err);
       setIsCloudConnected(false);

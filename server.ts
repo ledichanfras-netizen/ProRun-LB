@@ -39,15 +39,38 @@ async function startServer() {
     console.log(`[Production] Serving static files from: ${distPath}`);
     
     // Priority 1: Dist folder (Build assets)
-    app.use(express.static(distPath, { redirect: false }));
+    app.use(express.static(distPath, { 
+      redirect: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.png')) {
+          res.setHeader('Content-Type', 'image/png');
+        }
+      }
+    }));
+
     // Priority 2: Public folder (Fallbacks/Raw assets)
-    app.use(express.static(publicPath, { redirect: false }));
+    if (path.resolve(distPath) !== path.resolve(publicPath)) {
+      app.use(express.static(publicPath, { 
+        redirect: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.png')) {
+            res.setHeader('Content-Type', 'image/png');
+          }
+        }
+      }));
+    }
     
     app.get("*", (req, res) => {
-      // For any request that reaches here and looks like a file, it's a 404
-      if (req.path.includes('.') && !req.path.endsWith('.html')) {
-        return res.status(404).send('Resource not found');
+      // In production, everything from public should be in dist. 
+      // If it's a file request that reached here, it's a true 404.
+      const isFile = req.path.includes('.');
+      const isHtml = req.path.endsWith('.html') || !isFile;
+
+      if (isFile && !isHtml) {
+        console.log(`[Production] 404 Resource Not Found: ${req.path}`);
+        return res.status(404).send(`Resource not found: ${req.path}`);
       }
+
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

@@ -380,9 +380,9 @@ export default function Dashboard() {
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase italic tracking-tighter mb-6">
               <TrendingUp className="text-emerald-600 w-5 h-5" /> Distribuição de Volume Semanal
             </h2>
-            <div className="h-72 w-full">
+            <div style={{ height: 300, width: '100%', minWidth: 0 }}>
               {metrics.history.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={metrics.history}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} dy={10} />

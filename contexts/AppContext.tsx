@@ -154,18 +154,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [subscription, userRole]);
 
   const refreshSubscription = async () => {
-    // Por enquanto, simulamos uma busca. 
-    // Em um cenário real, buscaríamos na tabela 'subscriptions' do Supabase
-    // baseada no ID do usuário logado.
     try {
-       // Mock de busca para exemplo (Se fosse atleta, buscaria pelo ID dele)
-       // Se o Supabase ainda não tiver a tabela, isso falhará silenciosamente.
-       const { data } = await supabase.from('subscriptions').select('*').limit(1);
-       if (data && data.length > 0) {
+       // Silently try to fetch. If table doesn't exist (404), it's handled.
+       const { data, error } = await supabase.from('subscriptions').select('*').limit(1);
+       if (!error && data && data.length > 0) {
          setSubscription(data[0] as Subscription);
        }
     } catch (e) {
-      console.log("Subscription table not yet available.");
+      // Ignore errors for optional tables
     }
   };
 

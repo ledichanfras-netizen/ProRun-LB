@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prorun-lb-v15'; // Incremented version
+const CACHE_NAME = 'prorun-lb-v16'; // Incremented version
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -8,8 +8,8 @@ const ASSETS_TO_CACHE = [
   '/prorunlb_maskable_512.png'
 ];
 
-const STATIC_CACHE = 'prorun-static-v2';
-const DYNAMIC_CACHE = 'prorun-dynamic-v2';
+const STATIC_CACHE = 'prorun-static-v3';
+const DYNAMIC_CACHE = 'prorun-dynamic-v3';
 
 // Instalação: Cacheia os assets estáticos iniciais
 self.addEventListener('install', (event) => {
@@ -17,9 +17,18 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       console.log('[SW] Pre-caching assets');
-      // Tentamos cachear cada um individualmente para não falhar tudo se um sumir
       return Promise.allSettled(
-        ASSETS_TO_CACHE.map(asset => cache.add(asset).catch(err => console.error(`Failed to cache ${asset}:`, err)))
+        ASSETS_TO_CACHE.map(asset => 
+          fetch(asset).then(response => {
+            if (!response.ok) throw new Error(`Failed to fetch ${asset}`);
+            const contentType = response.headers.get('content-type');
+            // Don't cache HTML if we expected an image
+            if (asset.endsWith('.png') && contentType && contentType.includes('text/html')) {
+               throw new Error(`Corrupted response for ${asset}`);
+            }
+            return cache.put(asset, response);
+          }).catch(err => console.error(`[SW] Pre-cache failed: ${asset}`, err))
+        )
       );
     })
   );

@@ -34,16 +34,19 @@ async function startServer() {
     // Serve static files in production
     const rootPath = process.cwd();
     const distPath = path.join(rootPath, "dist");
+    const publicPath = path.join(rootPath, "public");
     
     console.log(`[Production] Serving static files from: ${distPath}`);
     
-    app.use(express.static(distPath));
+    // Priority 1: Dist folder (Build assets)
+    app.use(express.static(distPath, { redirect: false }));
+    // Priority 2: Public folder (Fallbacks/Raw assets)
+    app.use(express.static(publicPath, { redirect: false }));
     
     app.get("*", (req, res) => {
-      // If the request is for an asset that wasn't found by express.static, 
-      // but it looks like a file (has an extension), don't send index.html
-      if (path.extname(req.path)) {
-        return res.status(404).send('Not found');
+      // For any request that reaches here and looks like a file, it's a 404
+      if (req.path.includes('.') && !req.path.endsWith('.html')) {
+        return res.status(404).send('Resource not found');
       }
       res.sendFile(path.join(distPath, "index.html"));
     });

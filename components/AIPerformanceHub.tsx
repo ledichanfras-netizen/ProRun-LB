@@ -114,9 +114,9 @@ export const AIPerformanceHub: React.FC<AIPerformanceHubProps> = ({
 
       <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center justify-center">
         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic mb-4">Radar de Capacidades</h3>
-        <div className="w-full h-64">
+        <div style={{ height: 260, width: '100%', minWidth: 0 }}>
           {radarData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
                 <PolarGrid stroke="#e2e8f0" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 800 }} />

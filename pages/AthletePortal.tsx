@@ -392,8 +392,8 @@ const AthletePortal: React.FC = () => {
           <TrendingUp className="text-emerald-500 w-5 h-5" /> Sua Evolução Semanal
         </h3>
         
-        <div className="h-48 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart data={visibleWeeks.slice().reverse().map(w => ({ name: `S${w.weekNumber}`, km: w.totalVolume }))}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis 

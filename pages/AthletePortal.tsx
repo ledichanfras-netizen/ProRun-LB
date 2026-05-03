@@ -32,7 +32,8 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip 
+  Tooltip,
+  ResponsiveContainer 
 } from 'recharts';
 
 const TimerComponent: React.FC = () => {
@@ -391,8 +392,9 @@ const AthletePortal: React.FC = () => {
           <TrendingUp className="text-emerald-500 w-5 h-5" /> Sua Evolução Semanal
         </h3>
         
-        <div className="h-48 w-full flex items-center justify-center">
-            <BarChart width={320} height={180} data={visibleWeeks.slice().reverse().map(w => ({ name: `S${w.weekNumber}`, km: w.totalVolume }))}>
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={visibleWeeks.slice().reverse().map(w => ({ name: `S${w.weekNumber}`, km: w.totalVolume }))}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis 
                 dataKey="name" 
@@ -406,6 +408,7 @@ const AthletePortal: React.FC = () => {
               />
               <Bar dataKey="km" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
             </BarChart>
+          </ResponsiveContainer>
         </div>
         
         <p className="text-[9px] text-slate-400 font-bold uppercase italic tracking-widest text-center mt-6">

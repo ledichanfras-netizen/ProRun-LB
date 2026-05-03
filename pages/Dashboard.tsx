@@ -27,7 +27,8 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip 
+  Tooltip,
+  ResponsiveContainer 
 } from 'recharts';
 
 export default function Dashboard() {
@@ -379,9 +380,10 @@ export default function Dashboard() {
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase italic tracking-tighter mb-6">
               <TrendingUp className="text-emerald-600 w-5 h-5" /> Distribuição de Volume Semanal
             </h2>
-            <div className="h-72 w-full flex items-center justify-center">
+            <div className="h-72 w-full">
               {metrics.history.length > 0 ? (
-                  <BarChart width={500} height={250} data={metrics.history}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={metrics.history}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} dy={10} />
                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
@@ -389,6 +391,7 @@ export default function Dashboard() {
                     <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]} fill="#e2e8f0" />
                     <Bar dataKey="completed" name="Executado" radius={[6, 6, 0, 0]} fill="#10b981" />
                   </BarChart>
+                </ResponsiveContainer>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-100 rounded-[2rem] italic">
                   Aguardando dados de periodização...

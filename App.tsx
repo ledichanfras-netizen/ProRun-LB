@@ -4,11 +4,11 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
 import Offline from './pages/Offline';
+import Login from './pages/Login';
 import SplashScreen from './components/SplashScreen';
 
 // Lazy loading das páginas para performance
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Login = lazy(() => import('./pages/Login'));
 const Athletes = lazy(() => import('./pages/Athletes'));
 const Assessments = lazy(() => import('./pages/Assessments'));
 const Library = lazy(() => import('./pages/Library'));

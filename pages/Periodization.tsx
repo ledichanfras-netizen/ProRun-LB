@@ -18,6 +18,7 @@ import {
   CalendarDays,
   Flag,
   ChevronDown,
+  ChevronUp,
   MessageSquare,
   Dumbbell,
   Zap,
@@ -25,14 +26,15 @@ import {
   TrendingUp,
   BookOpen,
   X,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
 import { safeDeepClone } from '../utils/helpers';
 
 const Periodization: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, workouts: libraryWorkouts } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [raceDate, setRaceDate] = useState('');
   const [raceDistance, setRaceDistance] = useState('10km');
@@ -45,12 +47,43 @@ const Periodization: React.FC = () => {
   const [fullPlan, setFullPlan] = useState<AthletePlan | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showLibraryModal, setShowLibraryModal] = useState(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [targetDay, setTargetDay] = useState<{ weekIndex: number; dayIndex: number } | null>(null);
+  const [targetWeekForTemplate, setTargetWeekForTemplate] = useState<number | null>(null);
 
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
 
   const diasSemanaFull = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+
+  const handleSaveWeekAsTemplate = (week: TrainingWeek) => {
+    const name = prompt("Nome do template de semana:", `Semana de ${week.phase}`);
+    if (name) {
+      saveTemplate({
+        name,
+        description: `Template criado a partir da semana ${week.weekNumber}`,
+        workouts: week.workouts,
+        category: week.phase
+      });
+      alert("Template salvo com sucesso!");
+    }
+  };
+
+  const handleImportTemplate = (template: any) => {
+    if (targetWeekForTemplate === null || !fullPlan) return;
+    
+    const newPlan = safeDeepClone(fullPlan);
+    newPlan.weeks[targetWeekForTemplate].workouts = template.workouts;
+    newPlan.weeks[targetWeekForTemplate].phase = template.category;
+    
+    // Recalcular volume
+    const total = template.workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
+    newPlan.weeks[targetWeekForTemplate].totalVolume = total;
+    
+    setFullPlan(newPlan);
+    setShowTemplatesModal(false);
+    setTargetWeekForTemplate(null);
+  };
   
   const distancias = [
     { value: '5km', label: '5 km' },
@@ -143,9 +176,34 @@ const Periodization: React.FC = () => {
     }
   };
 
+  const handleDeleteWeek = (weekIndex: number) => {
+    if (!fullPlan) return;
+    if (confirm("Tem certeza que deseja excluir esta semana inteira? Esta ação não pode ser desfeita.")) {
+      const newPlan = safeDeepClone(fullPlan);
+      newPlan.weeks.splice(weekIndex, 1);
+      
+      // Atualizar números das semanas subsequentes
+      newPlan.weeks.forEach((w: TrainingWeek, i: number) => {
+        w.weekNumber = i + 1;
+      });
+      
+      setFullPlan(newPlan);
+    }
+  };
+
   const handleSave = () => {
     if (activeAthlete && fullPlan) {
       saveAthletePlan(activeAthlete.id, fullPlan);
+      
+      // Notificar Atleta sobre nova planilha
+      addNotification({
+        title: 'Sua planilha foi atualizada!',
+        message: 'Coach Leandro publicou novos treinos no seu ciclo. Toque para ver.',
+        type: 'success',
+        link: '/athlete-portal',
+        category: 'plan'
+      });
+
       setIsEditing(false);
       alert('Planilha publicada com sucesso!');
     }
@@ -214,6 +272,53 @@ const Periodization: React.FC = () => {
     setFullPlan(newPlan);
   };
 
+  const handleMoveWeek = (index: number, direction: 'up' | 'down') => {
+    if (!fullPlan) return;
+    const newPlan = safeDeepClone(fullPlan);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= newPlan.weeks.length) return;
+    
+    const [movedWeek] = newPlan.weeks.splice(index, 1);
+    newPlan.weeks.splice(targetIndex, 0, movedWeek);
+    
+    // Re-normalizar números das semanas
+    newPlan.weeks.forEach((w: TrainingWeek, i: number) => {
+      w.weekNumber = i + 1;
+    });
+    
+    setFullPlan(newPlan);
+  };
+
+  const handleMoveWorkout = (weekIdx: number, dayIdx: number, direction: 'up' | 'down') => {
+    if (!fullPlan) return;
+    const newPlan = safeDeepClone(fullPlan);
+    const targetIdx = direction === 'up' ? dayIdx - 1 : dayIdx + 1;
+    
+    if (targetIdx < 0 || targetIdx >= newPlan.weeks[weekIdx].workouts.length) return;
+    
+    // Trocamos os conteúdos, mas mantemos os nomes dos dias (day) fixos na ordem
+    const currentWorkout = { ...newPlan.weeks[weekIdx].workouts[dayIdx] };
+    const targetWorkout = { ...newPlan.weeks[weekIdx].workouts[targetIdx] };
+    
+    // Preservar o nome do dia original de cada posição
+    const currentDayName = currentWorkout.day;
+    const targetDayName = targetWorkout.day;
+    
+    // Trocar dados mas manter labels de dias
+    newPlan.weeks[weekIdx].workouts[dayIdx] = { ...targetWorkout, day: currentDayName };
+    newPlan.weeks[weekIdx].workouts[targetIdx] = { ...currentWorkout, day: targetDayName };
+    
+    setFullPlan(newPlan);
+  };
+
+  const updateWeekPhase = (weekIdx: number, value: string) => {
+    if (!fullPlan) return;
+    const newPlan = safeDeepClone(fullPlan);
+    newPlan.weeks[weekIdx].phase = value;
+    setFullPlan(newPlan);
+  };
+
   const [exportLoading, setExportLoading] = useState(false);
 
   const handleDownloadImage = async () => {
@@ -266,6 +371,40 @@ const Periodization: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20 no-print animate-fade-in">
+      {showTemplatesModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+              <h3 className="text-xl font-black uppercase italic tracking-tighter text-slate-900 flex items-center gap-2">
+                <CalendarDays className="text-emerald-500 w-5 h-5" /> Templates de Semana
+              </h3>
+              <button onClick={() => {setShowTemplatesModal(false); setTargetWeekForTemplate(null);}} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
+              {templates.length > 0 ? templates.map(t => (
+                <div 
+                  key={t.id} 
+                  onClick={() => handleImportTemplate(t)}
+                  className="p-5 border-2 border-slate-100 rounded-[2rem] hover:border-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer group flex justify-between items-center"
+                >
+                  <div>
+                    <span className="text-[10px] font-black uppercase px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full mb-2 inline-block">{t.category}</span>
+                    <h4 className="font-black text-slate-800 uppercase italic tracking-tight text-lg">{t.name}</h4>
+                    <p className="text-xs text-slate-400 italic mt-1">{t.description}</p>
+                  </div>
+                  <ChevronDown className="w-6 h-6 text-slate-200 group-hover:text-emerald-500 -rotate-90" />
+                </div>
+              )) : (
+                <div className="text-center py-20">
+                  <CalendarDays className="w-16 h-16 text-slate-100 mx-auto mb-4" />
+                  <p className="text-slate-400 font-black uppercase italic text-xs tracking-widest">Nenhum template de semana salvo.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showLibraryModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col">
@@ -442,29 +581,89 @@ const Periodization: React.FC = () => {
             {fullPlan?.weeks && fullPlan.weeks.length > 0 ? (
               fullPlan.weeks.map((week, weekIndex) => (
                 <div key={weekIndex} className={`bg-white rounded-3xl shadow-sm border-2 ${week.isVisible === false ? 'opacity-40 border-slate-200' : 'border-slate-100'} overflow-hidden transition-all`}>
-                  <div className="bg-white px-6 py-4 border-b flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <span className="font-black text-emerald-600 text-[10px] uppercase tracking-widest border border-emerald-200 px-3 py-1 rounded-lg italic">SEMANA {week.weekNumber}</span>
-                      <span className="text-slate-400 text-[10px] font-black uppercase tracking-tighter italic">{week.phase}</span>
-                      <span className="text-slate-400 text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1 ml-2">
+                  <div className="bg-white px-4 md:px-6 py-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        <span className="font-black text-emerald-600 text-[9px] md:text-[10px] uppercase tracking-widest border border-emerald-200 px-2 md:px-3 py-1 rounded-lg italic whitespace-nowrap">SEMANA {week.weekNumber}</span>
+                        {isEditing && (
+                          <div className="flex flex-col gap-0.5 ml-1">
+                            <button onClick={() => handleMoveWeek(weekIndex, 'up')} disabled={weekIndex === 0} className="p-0.5 hover:bg-slate-100 disabled:opacity-20 rounded transition-colors"><ChevronUp className="w-3 h-3" /></button>
+                            <button onClick={() => handleMoveWeek(weekIndex, 'down')} disabled={weekIndex === fullPlan.weeks.length - 1} className="p-0.5 hover:bg-slate-100 disabled:opacity-20 rounded transition-colors"><ChevronDown className="w-3 h-3" /></button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {isEditing ? (
+                        <input 
+                          type="text"
+                          className="text-slate-600 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic bg-slate-50 border border-slate-200 rounded px-2 py-0.5 w-24 outline-none focus:ring-1 focus:ring-emerald-500"
+                          value={week.phase}
+                          onChange={(e) => updateWeekPhase(weekIndex, e.target.value)}
+                        />
+                      ) : (
+                        <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic">{week.phase}</span>
+                      )}
+                      
+                      <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1">
                         <TrendingUp className="w-3 h-3 text-emerald-500" /> {week.totalVolume || 0} KM
                       </span>
                     </div>
-                    <button onClick={() => {
-                        const newPlan = safeDeepClone(fullPlan);
-                        newPlan.weeks[weekIndex].isVisible = !newPlan.weeks[weekIndex].isVisible;
-                        setFullPlan(newPlan);
-                    }} className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-emerald-500 transition-colors">
-                      {week.isVisible === true ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-                    </button>
+                    <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+                      <button 
+                         onClick={() => {setTargetWeekForTemplate(weekIndex); setShowTemplatesModal(true);}}
+                         className="flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl border border-slate-200 text-[8px] md:text-[9px] font-black uppercase text-slate-400 hover:text-emerald-600 hover:border-emerald-100 transition-all italic flex items-center gap-1.5"
+                         title="Aplicar Template"
+                      >
+                         <CalendarDays className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Aplicar</span>
+                      </button>
+                      <button 
+                         onClick={() => handleSaveWeekAsTemplate(week)}
+                         className="flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl border border-slate-200 text-[8px] md:text-[9px] font-black uppercase text-slate-400 hover:text-emerald-600 hover:border-emerald-100 transition-all italic flex items-center gap-1.5"
+                         title="Salvar Template"
+                      >
+                         <Save className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Salvar</span>
+                      </button>
+                      <button onClick={() => {
+                          const newPlan = safeDeepClone(fullPlan);
+                          newPlan.weeks[weekIndex].isVisible = !newPlan.weeks[weekIndex].isVisible;
+                          setFullPlan(newPlan);
+                      }} className={`flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${week.isVisible === true ? 'border-emerald-200 text-emerald-600 bg-emerald-50' : 'border-slate-200 text-slate-400 bg-slate-50'}`}>
+                        {week.isVisible === true ? (
+                          <>
+                            <Eye className="w-3.5 h-3.5" />
+                            <span className="text-[8px] md:text-[9px] font-black uppercase italic hidden xs:inline">Publicado</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5" />
+                            <span className="text-[8px] md:text-[9px] font-black uppercase italic hidden xs:inline">Oculto</span>
+                          </>
+                        )}
+                      </button>
+                      <button 
+                         onClick={() => handleDeleteWeek(weekIndex)}
+                         className="flex-shrink-0 p-1.5 rounded-xl border border-red-100 text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                         title="Excluir Semana"
+                      >
+                         <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <div className="divide-y divide-slate-100">
                     {week.workouts.map((workout, dayIndex) => (
-                      <div key={dayIndex} className="p-4 flex flex-col md:flex-row gap-4 items-center border-l-8 border-slate-100 hover:bg-slate-50/50 transition-colors">
-                        <div className="w-full md:w-40 flex flex-col">
-                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{workout.day}</p>
+                      <div key={dayIndex} className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center border-l-8 border-slate-100 hover:bg-slate-50/50 transition-colors">
+                        <div className="w-full sm:w-40 flex flex-row sm:flex-col justify-between items-center sm:items-start gap-2">
+                           <div className="flex items-center gap-2">
+                             {isEditing && (
+                               <div className="flex flex-col gap-0.5">
+                                 <button onClick={() => handleMoveWorkout(weekIndex, dayIndex, 'up')} disabled={dayIndex === 0} className="p-0.5 hover:bg-slate-200 disabled:opacity-20 rounded transition-colors"><ChevronUp className="w-3 h-3" /></button>
+                                 <button onClick={() => handleMoveWorkout(weekIndex, dayIndex, 'down')} disabled={dayIndex === week.workouts.length - 1} className="p-0.5 hover:bg-slate-200 disabled:opacity-20 rounded transition-colors"><ChevronDown className="w-3 h-3" /></button>
+                               </div>
+                             )}
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{workout.day}</p>
+                           </div>
                            {isEditing ? (
-                              <div className="relative mt-1">
+                              <div className="relative w-32 sm:w-full">
                                 <select 
                                   className="w-full bg-slate-50 border border-slate-200 rounded-lg p-1 text-[9px] font-black uppercase italic outline-none appearance-none pr-6"
                                   value={workout.type}
@@ -480,7 +679,7 @@ const Periodization: React.FC = () => {
                               <p className={`text-[10px] font-black uppercase italic ${workout.type === 'Descanso' ? 'text-slate-300' : 'text-emerald-700'}`}>{workout.type}</p>
                            )}
                         </div>
-                        <div className="flex-1 relative group">
+                        <div className="flex-1 w-full relative group">
                            {isEditing ? (
                               <div className="flex flex-col gap-2">
                                 <div className="relative">
@@ -500,7 +699,7 @@ const Periodization: React.FC = () => {
                                   title="Importar da Biblioteca"
                                 >
                                   <BookOpen className="w-3.5 h-3.5" />
-                                  <span className="text-[10px] font-black uppercase italic tracking-tight">Biblioteca de Treinos</span>
+                                  <span className="text-[10px] font-black uppercase italic tracking-tight">Biblioteca</span>
                                 </button>
                               </div>
                            ) : (
@@ -522,19 +721,22 @@ const Periodization: React.FC = () => {
                               </div>
                            )}
                         </div>
-                        <div className="text-right">
+                        <div className="w-full sm:w-auto flex justify-end items-center border-t sm:border-none pt-2 sm:pt-0 mt-1 sm:mt-0">
                            {isEditing ? (
-                              <input 
-                                type="number" 
-                                className="w-16 bg-slate-100 border-none rounded-lg p-1 text-center font-black text-sm" 
-                                value={workout.distance === 0 || workout.distance === undefined ? '' : workout.distance} 
-                                onFocus={e => e.target.select()}
-                                onChange={e => updateWorkout(weekIndex, dayIndex, 'distance', Number(e.target.value))}
-                              />
+                              <div className="flex items-center gap-2">
+                                <span className="text-[8px] font-black text-slate-300 uppercase sm:hidden">KM:</span>
+                                <input 
+                                  type="number" 
+                                  className="w-16 bg-slate-100 border-none rounded-lg p-1 text-center font-black text-sm" 
+                                  value={workout.distance === 0 || workout.distance === undefined ? '' : workout.distance} 
+                                  onFocus={e => e.target.select()}
+                                  onChange={e => updateWorkout(weekIndex, dayIndex, 'distance', Number(e.target.value))}
+                                />
+                              </div>
                            ) : (
                               workout.distance && workout.distance > 0 ? (
                                 <span className="font-black text-slate-900 text-sm whitespace-nowrap bg-slate-100 px-3 py-1 rounded-full">{workout.distance} KM</span>
-                              ) : <span className="text-[9px] font-black text-slate-200 uppercase italic">--</span>
+                               ) : <span className="text-[9px] font-black text-slate-100 uppercase italic">--</span>
                            )}
                         </div>
                       </div>

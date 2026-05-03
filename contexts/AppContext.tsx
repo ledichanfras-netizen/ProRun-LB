@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan } from '../types';
+import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
@@ -14,6 +14,7 @@ interface AppContextType {
   athletes: Athlete[];
   addAthlete: (athlete: Athlete) => Promise<void>;
   updateAthlete: (id: string, data: Partial<Athlete>) => Promise<void>;
+  updateAthleteReadiness: (id: string, readiness: Athlete['readiness']) => Promise<void>;
   deleteAthlete: (id: string) => Promise<void>;
   addNewAssessment: (athleteId: string, assessment: Assessment) => Promise<void>;
   updateAssessment: (athleteId: string, assessment: Assessment) => Promise<void>;
@@ -41,6 +42,19 @@ interface AppContextType {
   isLoading: boolean;
   isCloudConnected: boolean;
   isFirebaseConfigured: boolean;
+  
+  subscription: Subscription | null;
+  hasActiveSubscription: boolean;
+  refreshSubscription: () => Promise<void>;
+
+  templates: TrainingTemplate[];
+  saveTemplate: (template: Omit<TrainingTemplate, 'id'>) => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
+
+  notifications: AppNotification[];
+  addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
+  markAsRead: (id: string) => void;
+  removeNotification: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -73,8 +87,93 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return !(hasAthletes || hasWorkouts || hasPlans);
   });
   const [isCloudConnected, setIsCloudConnected] = React.useState(true);
+  const [subscription, setSubscription] = React.useState<Subscription | null>(null);
+  const [templates, setTemplates] = React.useState<TrainingTemplate[]>(() => {
+    const saved = localStorage.getItem('proRun_templates');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [notifications, setNotifications] = React.useState<AppNotification[]>(() => {
+    const saved = localStorage.getItem('proRun_notifications');
+    if (saved) return JSON.parse(saved);
+    
+    // Default notifications for demo
+    return [
+      {
+        id: '1',
+        title: 'Boas-vindas à ProRun!',
+        message: 'Explore o painel e comece sua evolução hoje.',
+        type: 'info',
+        timestamp: new Date().toISOString(),
+        read: false,
+        link: '/',
+        category: 'plan'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('proRun_notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  const addNotification = (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+    const newNotif: AppNotification = {
+      ...notif,
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      read: false
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+  };
+
+  const markAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  useEffect(() => {
+    localStorage.setItem('proRun_templates', JSON.stringify(templates));
+  }, [templates]);
+
+  const saveTemplate = async (templateData: Omit<TrainingTemplate, 'id'>) => {
+    const newTemplate = { ...templateData, id: crypto.randomUUID() };
+    setTemplates(prev => [...prev, newTemplate]);
+    
+    // Sincronizar com Supabase se necessário posteriormente
+  };
+
+  const deleteTemplate = async (id: string) => {
+    setTemplates(prev => prev.filter(t => t.id !== id));
+  };
+
+  const hasActiveSubscription = React.useMemo(() => {
+    if (userRole === 'coach') return true; // Coach sempre tem acesso (admin)
+    return subscription?.status === 'active';
+  }, [subscription, userRole]);
+
+  const refreshSubscription = async () => {
+    // Por enquanto, simulamos uma busca. 
+    // Em um cenário real, buscaríamos na tabela 'subscriptions' do Supabase
+    // baseada no ID do usuário logado.
+    try {
+       // Mock de busca para exemplo (Se fosse atleta, buscaria pelo ID dele)
+       // Se o Supabase ainda não tiver a tabela, isso falhará silenciosamente.
+       const { data } = await supabase.from('subscriptions').select('*').limit(1);
+       if (data && data.length > 0) {
+         setSubscription(data[0] as Subscription);
+       }
+    } catch (e) {
+      console.log("Subscription table not yet available.");
+    }
+  };
 
   const runAIAnalysis = async (athleteId: string) => {
+    if (!hasActiveSubscription) {
+      alert("Esta funcionalidade requer uma assinatura ProRun Ativa.");
+      return;
+    }
     const athlete = athletes.find(a => a.id === athleteId);
     if (!athlete) return;
     
@@ -143,10 +242,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     fetchData();
+    refreshSubscription();
   }, []);
 
   useEffect(() => {
-    if (userRole) localStorage.setItem('proRun_userRole', userRole);
+    if (userRole) {
+      localStorage.setItem('proRun_userRole', userRole);
+      refreshSubscription(); // Refresh when role changes (login)
+    }
     else localStorage.removeItem('proRun_userRole');
   }, [userRole]);
 
@@ -206,6 +309,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error("Error updating athlete:", err);
       }
     }
+  };
+
+  const updateAthleteReadiness = async (id: string, readiness: Athlete['readiness']) => {
+    const athlete = athletes.find(a => a.id === id);
+    if (!athlete) return;
+
+    await updateAthlete(id, { readiness });
+
+    // Notificar treinador
+    const statusMap = {
+      ready: 'PRONTO ⚡',
+      fatigued: 'FADIGADO 😴',
+      recovering: 'EM RECUPERAÇÃO 🧘'
+    };
+
+    addNotification({
+      title: 'Feedback de Prontidão',
+      message: `${athlete.name} informou que está ${statusMap[readiness || 'ready']}.`,
+      type: readiness === 'fatigued' ? 'warning' : 'info',
+      link: '/dashboard',
+      category: 'workout'
+    });
   };
 
   const deleteAthlete = async (id: string) => {
@@ -372,13 +497,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       userRole, login, logout,
-      athletes, addAthlete, updateAthlete, deleteAthlete, 
+      athletes, addAthlete, updateAthlete, updateAthleteReadiness, deleteAthlete, 
       addNewAssessment, updateAssessment, deleteAssessment,
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, updateWorkoutStatus,
       getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected,
-      isFirebaseConfigured: true // Always true now as we use Supabase
+      isFirebaseConfigured: true, 
+      subscription, hasActiveSubscription, refreshSubscription,
+      templates, saveTemplate, deleteTemplate,
+      notifications, addNotification, markAsRead, removeNotification
     }}>
       {children}
     </AppContext.Provider>

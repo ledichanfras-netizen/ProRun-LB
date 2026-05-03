@@ -64,6 +64,7 @@ export interface Athlete {
     };
     aiAnalysis?: string;
   };
+  readiness?: 'ready' | 'fatigued' | 'recovering';
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
 }
@@ -100,4 +101,32 @@ export interface HistoryEntry {
   label: string;
   planned: number;
   completed: number;
+}
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  planType: 'mensal' | 'trimestral' | 'semestral' | 'anual';
+  status: 'active' | 'expired';
+  startDate: string;
+  endDate: string;
+}
+
+export interface TrainingTemplate {
+  id: string;
+  name: string;
+  description: string;
+  workouts: TrainingWeek['workouts']; // Reutiliza a estrutura de treinos da semana
+  category: string;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'success' | 'warning' | 'info' | 'critical';
+  timestamp: string;
+  read: boolean;
+  link: string; // Rota para onde o usuário será levado
+  category: 'workout' | 'plan' | 'payment' | 'chat';
 }

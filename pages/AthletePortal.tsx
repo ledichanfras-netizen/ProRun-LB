@@ -19,15 +19,63 @@ import {
   TrendingUp,
   Sparkles,
   Zap,
-  Flag
+  Flag,
+  Play,
+  PlayCircle
 } from 'lucide-react';
 import { WorkoutType } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer 
+} from 'recharts';
+
+const TimerComponent: React.FC = () => {
+  const [seconds, setSeconds] = useState(0);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isActive) {
+      interval = setInterval(() => {
+        setSeconds(s => s + 1);
+      }, 1000);
+    } else if (!isActive && seconds !== 0) {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [isActive, seconds]);
+
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="flex items-center gap-3 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
+      <span className="text-sm font-black text-emerald-700 font-mono tracking-tighter">{formatTime(seconds)}</span>
+      <button 
+        onClick={() => setIsActive(!isActive)}
+        className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-amber-100 text-amber-600' : 'bg-emerald-600 text-white'}`}
+      >
+        {isActive ? <span className="text-[8px] font-black">PAUSA</span> : <Play className="w-3 h-3 fill-current" />}
+      </button>
+      {seconds > 0 && (
+        <button onClick={() => {setSeconds(0); setIsActive(false);}} className="text-[8px] font-black text-slate-400 uppercase">Reset</button>
+      )}
+    </div>
+  );
+};
 
 const AthletePortal: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus, addNotification, updateAthleteReadiness } = useApp();
   const navigate = useNavigate();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   
@@ -60,9 +108,51 @@ const AthletePortal: React.FC = () => {
   const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
   const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
 
-  const isFinalWorkout = selectedWorkout && 
-    selectedWorkout.weekIndex === (allWeeks.length - 1) && 
-    (selectedWorkout.data.type === 'Longão' || selectedWorkout.data.customDescription?.toLowerCase().includes('prova'));
+  const isFinalWorkout = React.useMemo(() => {
+    if (!selectedWorkout || !allWeeks.length) return false;
+    return selectedWorkout.weekIndex === (allWeeks.length - 1) && 
+           (selectedWorkout.data.type === 'Longão' || selectedWorkout.data.customDescription?.toLowerCase().includes('prova'));
+  }, [selectedWorkout, allWeeks]);
+
+  const getRPEColor = (val: number) => {
+    if (val === 0) return 'text-slate-300';
+    if (val <= 3) return 'text-emerald-500';
+    if (val <= 6) return 'text-blue-500';
+    if (val <= 8) return 'text-orange-500';
+    return 'text-red-600';
+  };
+
+  const getRPELabel = (val: number) => {
+    const labels = ["Não avaliado", "Muito Leve", "Leve", "Leve/Moderado", "Moderado", "Moderado/Forte", "Muito Forte", "Exaustivo", "Quase Máximo", "Máximo", "Exaustão Total"];
+    return labels[val] || "Selecione";
+  };
+
+  const nextWorkout = React.useMemo(() => {
+    if (!visibleWeeks.length) return null;
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 is Sunday
+    const dayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Map Sun(0) to Index 6, Mon(1) to Index 0
+    
+    // Tentamos encontrar o treino da semana atual
+    const currentWeek = visibleWeeks[0];
+    if (!currentWeek || !currentWeek.workouts) return null;
+    
+    const workout = currentWeek.workouts[dayIndex];
+    return workout ? { workout, weekIndex: allWeeks.indexOf(currentWeek), dayIndex } : null;
+  }, [visibleWeeks, allWeeks]);
+
+  const weeklyProgress = React.useMemo(() => {
+    if (!visibleWeeks.length) return { completed: 0, total: 0 };
+    const currentWeek = visibleWeeks[0];
+    const completed = currentWeek.workouts.filter(w => w.completed).length;
+    return { completed, total: currentWeek.workouts.length };
+  }, [visibleWeeks]);
+
+  const readinessLevels = [
+    { id: 'ready', label: 'Pronto', color: 'text-emerald-500', icon: '⚡' },
+    { id: 'fatigued', label: 'Fadigado', color: 'text-amber-500', icon: '😴' },
+    { id: 'recovering', label: 'Recuperação', color: 'text-blue-500', icon: '🧘' }
+  ];
 
   const handleToggleComplete = async () => {
     if (!selectedWorkout || !activeAthlete || isSaving) return;
@@ -81,24 +171,32 @@ const AthletePortal: React.FC = () => {
         feedbackText,
         rpeValue
       );
+
+      // Gatilho de Notificação para Esforço Alto (PSE >= 8)
+      if (newStatus && rpeValue >= 8) {
+        addNotification({
+          title: 'Alerta de Esforço Alto!',
+          message: `${activeAthlete.name} registrou PSE ${rpeValue} no treino "${selectedWorkout.data.type || 'Corrida'}". Verifique a fadiga!`,
+          type: 'critical',
+          link: '/dashboard',
+          category: 'workout'
+        });
+      }
       
       setSaveSuccess(true);
       
-      // Aguarda um pouco para mostrar o feedback visual de sucesso
       setTimeout(() => {
         setSelectedWorkout(null); 
         setIsSaving(false);
         setSaveSuccess(false);
         setFeedbackText('');
         setRpeValue(0);
-        // Removido navigate('/') para manter o atleta no portal e ver o progresso
       }, 800);
 
     } catch (err: any) {
       console.error("Erro ao salvar:", err?.message || "Erro desconhecido");
-      alert("Erro ao sincronizar. Verifique sua conexão com o banco de dados.");
+      alert("Erro ao sincronizar. Verifique sua conexão.");
       setIsSaving(false);
-      setSaveSuccess(false);
     }
   };
 
@@ -110,202 +208,188 @@ const AthletePortal: React.FC = () => {
     setIsSaving(false);
   };
 
-  const getRPEColor = (val: number) => {
-    if (val === 0) return 'text-slate-300';
-    if (val <= 3) return 'text-emerald-500';
-    if (val <= 6) return 'text-blue-500';
-    if (val <= 8) return 'text-orange-500';
-    return 'text-red-600';
-  };
-
-  const getRPELabel = (val: number) => {
-    const labels = ["Não avaliado", "Muito Leve", "Leve", "Leve/Moderado", "Moderado", "Moderado/Forte", "Muito Forte", "Exaustivo", "Quase Máximo", "Máximo", "Exaustão Total"];
-    return labels[val] || "Selecione";
-  };
-
-  const getWorkoutBorderColor = (type?: string) => {
-    switch (type) {
-      case 'Regenerativo': return 'border-emerald-400';
-      case 'Longão': return 'border-emerald-600';
-      case 'Limiar': return 'border-amber-500';
-      case 'Intervalado': return 'border-red-500';
-      case 'Velocidade': return 'border-purple-500';
-      case 'Fortalecimento': return 'border-purple-500';
-      case 'Natação': return 'border-sky-400';
-      case 'Ciclismo': return 'border-orange-400';
-      case 'Transição': return 'border-rose-500';
-      case 'Descanso': return 'border-slate-200';
-      default: return 'border-slate-100';
-    }
-  };
-
-  const handleDownloadImage = async () => {
-    if (exportLoading || !activeAthlete) return;
-    
-    setExportLoading(true);
-    try {
-      // Pequeno delay para garantir que o portal está montado e renderizado no DOM oculto
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const success = await exportToImage('print-layout-root', `Planilha_${activeAthlete.name.replace(/\s+/g, '_')}`);
-      
-      if (success) {
-        console.log("Imagem exportada com sucesso");
-      }
-    } catch (err: any) {
-      console.error("Erro no download:", err?.message || "Erro desconhecido");
-      alert("Erro ao gerar imagem. Tente novamente.");
-    } finally {
-      setExportLoading(false);
-    }
-  };
-
   return (
-    <div className="space-y-8 pb-20 relative animate-fade-in">
-      {activeAthlete && athletePlan && portalRoot && createPortal(
-        <PrintLayout 
-          athlete={activeAthlete} 
-          plan={visibleWeeks} 
-          paces={paces} 
-          goal={athletePlan.specificGoal || 'Ciclo de Performance'} 
-          totalWeeks={allWeeks.length}
-        />,
-        portalRoot
-      )}
-
-      <header className="bg-white rounded-[2rem] p-6 md:p-8 shadow-xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 no-print">
-        <div className="flex items-center gap-6 w-full md:w-auto">
-          <div className="w-16 h-16 bg-emerald-950 rounded-2xl flex items-center justify-center text-white text-2xl font-black italic shadow-lg transform -rotate-3">
-            {activeAthlete.name.charAt(0)}
-          </div>
+    <div className="max-w-md mx-auto space-y-6 pb-24 animate-fade-in no-print">
+      {/* Header com Status Físico */}
+      <div className="flex flex-col gap-4 px-2">
+        <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">{activeAthlete.name}</h1>
-            <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest italic flex items-center gap-2">
-              <Sparkles className="w-3 h-3" /> {athletePlan?.specificGoal || 'Ciclo ProRun'}
+            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">
+              {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
+            <h1 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">
+              Olá, {activeAthlete.name.split(' ')[0]}!
+            </h1>
+          </div>
+          <div className="flex gap-2">
+            {readinessLevels.map(level => (
+              <button 
+                key={level.id}
+                onClick={() => updateAthleteReadiness(activeAthlete.id, level.id as any)}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all shadow-sm border-2 ${
+                  activeAthlete.readiness === level.id 
+                    ? 'bg-white border-emerald-500 scale-105 shadow-emerald-500/10' 
+                    : 'bg-slate-50 border-transparent opacity-40 hover:opacity-100'
+                }`}
+                title={level.label}
+              >
+                {level.icon}
+              </button>
+            ))}
           </div>
         </div>
         
-        <button 
-          onClick={handleDownloadImage} 
-          disabled={exportLoading || visibleWeeks.length === 0} 
-          className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase italic tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-        >
-          {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4 text-emerald-200" />} 
-          {exportLoading ? 'GERANDO...' : 'BAIXAR IMAGEM'}
-        </button>
-      </header>
-
-      {/* Banner de Instruções para o Atleta */}
-      <div className="bg-emerald-950 text-white p-6 md:p-8 rounded-[2.5rem] shadow-2xl border border-emerald-800 flex flex-col md:flex-row items-center gap-8 no-print animate-fade-in relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
-          <Zap className="w-32 h-32" />
+        {/* Descrição da Prontidão */}
+        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3">
+          <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">
+            <span className="text-emerald-600 font-black uppercase">Prontidão:</span> Como você se sente hoje? Selecione um ícone para indicar se está <span className="text-emerald-600">Pronto (⚡)</span>, <span className="text-amber-600">Fadigado (😴)</span> ou em <span className="text-blue-600">Recuperação (🧘)</span>. Isso ajuda o treinador a ajustar sua carga!
+          </p>
         </div>
-        
-        <div className="flex items-center gap-5 flex-1 relative z-10">
-          <div className="bg-emerald-500 p-4 rounded-2xl shadow-lg shadow-emerald-500/20 transform -rotate-3">
-            <Activity className="w-8 h-8 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-black uppercase italic tracking-tighter text-emerald-400">Procedimento de Registro</h2>
-            <p className="text-xs text-emerald-100/60 font-medium italic mt-1 leading-relaxed">
-              Para manter sua evolução em dia: Clique no card do treino, defina seu <span className="text-emerald-400 font-bold">PSE (Esforço)</span> e deixe seu feedback. Isso ajuda a IA e o treinador a ajustarem sua carga!
-            </p>
-          </div>
-        </div>
+      </div>
 
-        <div className="h-px w-full md:h-16 md:w-px bg-emerald-800/50"></div>
-
-        <div className="flex items-center gap-5 flex-1 relative z-10">
-          <div className="bg-white/10 p-4 rounded-2xl border border-white/10">
-            <ImageIcon className="w-8 h-8 text-emerald-400" />
+      {/* Card Destaque: Treino de Hoje */}
+      <div className="relative group">
+        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-emerald-700 rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+        <div className="relative bg-emerald-950 rounded-[2.2rem] p-8 text-white shadow-2xl overflow-hidden border border-emerald-900">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+             <Trophy className="w-32 h-32 rotate-12" />
           </div>
-          <div>
-            <h2 className="text-xl font-black uppercase italic tracking-tighter text-white">Treino Offline</h2>
-            <p className="text-xs text-emerald-100/60 font-medium italic mt-1 leading-relaxed">
-              Vai treinar sem internet? Use o botão <span className="text-white font-bold">"BAIXAR IMAGEM"</span> acima para salvar sua planilha da semana na galeria do seu celular.
+          
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="px-3 py-1 bg-emerald-500 text-emerald-950 text-[9px] font-black uppercase rounded-lg italic tracking-tighter">
+                {nextWorkout?.workout.type === 'Descanso' ? 'Recuperação' : 'Treino de Hoje'}
+              </div>
+              {nextWorkout?.workout.completed && (
+                <div className="flex items-center gap-1 text-emerald-400 font-black text-[9px] uppercase italic">
+                  <CheckCircle className="w-3 h-3" /> Concluído
+                </div>
+              )}
+            </div>
+
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2 leading-tight">
+              {nextWorkout ? nextWorkout.workout.type : 'Dia de Descanso'}
+            </h2>
+            
+            <p className="text-emerald-300/80 text-sm font-medium mb-8 leading-relaxed line-clamp-2">
+              {nextWorkout ? nextWorkout.workout.customDescription : 'Aproveite para recuperar as energias e focar na mobilidade.'}
             </p>
+
+            {nextWorkout && nextWorkout.workout.type !== 'Descanso' && (
+              <button 
+                onClick={() => openWorkoutModal(nextWorkout.weekIndex, nextWorkout.dayIndex, nextWorkout.workout)}
+                className="w-full bg-white text-emerald-950 font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-black/20 hover:bg-emerald-50 transition-all active:scale-[0.98] uppercase italic tracking-tighter"
+              >
+                {nextWorkout.workout.completed ? <Check className="w-5 h-5" /> : <Zap className="w-5 h-5 fill-emerald-500 text-emerald-500" />} 
+                {nextWorkout.workout.completed ? 'Ver Detalhes' : 'Iniciar Treino'}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {activeAthlete && (
-        <AIPerformanceHub 
-          athlete={activeAthlete} 
-          canAnalyze={false}
-        />
-      )}
+      {/* Resumo Semanal Mini */}
+      <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="font-black text-slate-800 text-xs uppercase italic tracking-tighter flex items-center gap-2">
+            <Activity className="w-4 h-4 text-emerald-500" /> Sua Constância
+          </h3>
+          <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase italic border border-emerald-100">
+            {weeklyProgress.completed}/{weeklyProgress.total} Concluídos
+          </span>
+        </div>
+        
+        <div className="flex justify-between gap-2">
+          {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((day, i) => {
+            const currentDayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+            const isToday = i === currentDayIndex;
+            const isDone = i < (visibleWeeks[0]?.workouts.filter(w => w.completed).length || 0); // Simplified logic
+            
+            return (
+              <div key={i} className="flex flex-col items-center gap-3 flex-1">
+                <div className={`w-full aspect-square rounded-xl flex items-center justify-center text-[10px] transition-all border-2 ${
+                  isToday
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-600 font-black scale-105' 
+                    : 'border-slate-50 bg-slate-50 text-slate-400 font-bold'
+                }`}>
+                  {day}
+                </div>
+                <div className={`w-2 h-2 rounded-full transition-all duration-500 ${
+                  visibleWeeks[0]?.workouts[i]?.completed ? 'bg-emerald-500 scale-110 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-200'
+                }`} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-      <div className="no-print">
-        {visibleWeeks.length === 0 ? (
-          <div className="text-center py-32 bg-white rounded-[2rem] border-2 border-dashed border-slate-200">
-             <Activity className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-             <p className="text-slate-400 font-black uppercase tracking-widest italic">Aguardando publicação do treinador.</p>
-          </div>
-        ) : (
-          <div className="space-y-12">
-            {visibleWeeks.map((week, wIdx) => {
-              const originalWeekIndex = allWeeks.findIndex(p => p.weekNumber === week.weekNumber);
-              return (
-                <div key={wIdx} className="space-y-6 animate-fade-in-up">
-                  <div className="flex items-center gap-4 border-b pb-4">
-                    <span className="px-5 py-1.5 rounded-full text-[10px] font-black uppercase italic bg-emerald-950 text-white shadow-lg">
-                      SEMANA {week.weekNumber} • {week.phase.toUpperCase()}
-                    </span>
-                    <span className="text-xs font-black text-slate-400 uppercase ml-auto flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-emerald-500" /> {week.totalVolume || 0} KM
-                    </span>
+      {/* Navegação de Semanas Moderna */}
+      <div className="pt-4 px-2">
+        <h3 className="font-black text-slate-400 text-[10px] uppercase tracking-[0.2em] mb-6 italic">Cronograma Completo</h3>
+        <div className="space-y-6">
+          {visibleWeeks.map((week, wIdx) => {
+             const originalWeekIndex = allWeeks.findIndex(p => p.weekNumber === week.weekNumber);
+             return (
+               <div key={wIdx} className="bg-slate-50 rounded-[2rem] p-6 border border-slate-100">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-[10px] font-black text-slate-500 uppercase italic">Semana {week.weekNumber}</span>
+                    <span className="text-[10px] font-black text-emerald-600 bg-white px-2 py-0.5 rounded-lg border border-slate-100 italic">{week.totalVolume} KM</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
-                    {(week.workouts || []).map((workout, dIdx) => (
-                      <div 
-                        key={dIdx} 
-                        onClick={() => openWorkoutModal(originalWeekIndex, dIdx, workout)} 
-                        className={`p-5 rounded-[1.5rem] cursor-pointer hover:shadow-2xl transition-all border-2 flex flex-col justify-between h-full min-h-[160px]
-                          ${workout.completed ? 'border-emerald-500 bg-emerald-50/50' : `bg-white shadow-md ${getWorkoutBorderColor(workout.type)} hover:border-emerald-300`}
-                        `}
+                  <div className="grid grid-cols-7 gap-1.5 md:gap-2 mb-4">
+                    {week.workouts.map((workout, dIdx) => (
+                      <button 
+                        key={dIdx}
+                        onClick={() => openWorkoutModal(originalWeekIndex, dIdx, workout)}
+                        className={`aspect-square rounded-xl flex flex-col items-center justify-center transition-all border-2 ${
+                          workout.completed 
+                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                            : workout.type === 'Descanso' ? 'bg-slate-100 border-slate-100 text-slate-300' : 'bg-white border-slate-100 text-slate-300 hover:border-emerald-200'
+                        }`}
                       >
-                        <div>
-                          <div className="flex justify-between items-start mb-3">
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">{workout.day.split('-')[0]}</span>
-                            {workout.completed ? (
-                              <CheckCircle className="w-6 h-6 text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                            ) : (
-                              <Circle className="w-6 h-6 text-slate-200" />
-                            )}
-                          </div>
-                          <h4 className={`font-bold text-[11px] leading-snug line-clamp-3 mb-2 uppercase italic tracking-tighter ${workout.completed ? 'text-emerald-900 opacity-70' : 'text-slate-800'}`}>
-                            {workout.type || 'Treino'}
-                          </h4>
-                        </div>
-                        
-                        <div className={`mt-3 flex items-center justify-between border-t pt-3 ${workout.completed ? 'border-emerald-200' : 'border-slate-50'}`}>
-                             {workout.distance && workout.distance > 0 ? (
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border italic ${workout.completed ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-emerald-50 text-emerald-950 border-emerald-100'}`}>
-                                  {workout.distance} KM
-                                </span>
-                             ) : <span className="text-[10px] font-black text-slate-300 uppercase italic">OFF</span>}
-                          
-                          {workout.completed && (
-                            <div className="flex items-center gap-2">
-                               <div className="flex items-center gap-1">
-                                 <Zap className={`w-3 h-3 ${getRPEColor(workout.rpe || 0)}`} />
-                                 <span className="text-[9px] font-black text-emerald-800">PSE {workout.rpe || '-'}</span>
-                               </div>
-                               {workout.feedback && (
-                                 <MessageSquare className="w-3 h-3 text-emerald-600" />
-                               )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                         <span className="text-[7px] font-black uppercase mb-0.5 opacity-60">
+                           {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'][dIdx]}
+                         </span>
+                         {workout.completed ? <Check className="w-3 h-3" /> : <div className="w-1 h-1 rounded-full bg-current opacity-20" />}
+                      </button>
                     ))}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                  <p className="text-[9px] font-bold text-slate-400 italic px-1">
+                    Foco: <span className="text-emerald-600 uppercase font-black">{week.phase}</span>
+                  </p>
+               </div>
+             );
+          })}
+        </div>
+      </div>
+
+      {/* Seção de Evolução */}
+      <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
+        <h3 className="font-black text-slate-800 text-sm uppercase italic tracking-tighter mb-8 flex items-center gap-2">
+          <TrendingUp className="text-emerald-500 w-5 h-5" /> Sua Evolução Semanal
+        </h3>
+        
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={visibleWeeks.slice().reverse().map(w => ({ name: `S${w.weekNumber}`, km: w.totalVolume }))}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 900 }} 
+              />
+              <Tooltip 
+                cursor={{ fill: '#f8fafc' }}
+                contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
+              />
+              <Bar dataKey="km" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        
+        <p className="text-[9px] text-slate-400 font-bold uppercase italic tracking-widest text-center mt-6">
+          Volume total acumulado (KM) por semana
+        </p>
       </div>
 
       {selectedWorkout && (
@@ -355,6 +439,13 @@ const AthletePortal: React.FC = () => {
               </div>
 
               <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Cronômetro de Suporte</span>
+                    <span className="text-[8px] text-slate-300 font-bold uppercase italic">Use para marcar intervalos ou tempo total</span>
+                  </div>
+                  <TimerComponent />
+                </div>
                 <textarea 
                   disabled={isSaving}
                   className="w-full p-5 border border-slate-200 rounded-[1.5rem] text-sm font-medium focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all resize-none italic shadow-sm bg-slate-50"

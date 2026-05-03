@@ -127,30 +127,180 @@ export default function Dashboard() {
     };
   }, [currentAthleteId, allActivities]);
 
+  const teamMetrics = React.useMemo(() => {
+    if (userRole !== 'coach') return null;
+    
+    const totalAthletes = athletes.length;
+    const activeAthletes = athletes.filter(a => {
+      const plan = athletePlans[a.id];
+      const lastWorkout = plan?.weeks?.flatMap(w => w.workouts).filter(w => w.completed).pop();
+      // Simulação de atividade recente (se tiver concluído algo nas últimas semanas)
+      return !!lastWorkout;
+    }).length;
+
+    const averageCompletion = athletes.length > 0 
+      ? athletes.reduce((acc, a) => acc + getAthleteMetrics(a.id).completionRate, 0) / athletes.length
+      : 0;
+
+    const riskAthletes = athletes.filter(a => getAthleteMetrics(a.id).completionRate < 50).length;
+
+    return { totalAthletes, activeAthletes, averageCompletion, riskAthletes };
+  }, [athletes, athletePlans, getAthleteMetrics, userRole]);
+
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">
-            Olá, {userRole === 'coach' ? 'Coach Leandro' : (activeAthlete?.name || 'Atleta')}! 👋
+          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+            Olá, {userRole === 'coach' ? 'Coach Leandro' : (activeAthlete?.name.split(' ')[0] || 'Atleta')}! 👋
+            {userRole === 'coach' && activeAthlete?.readiness && (
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 text-lg shadow-sm" title={`Prontidão: ${activeAthlete.readiness}`}>
+                {activeAthlete.readiness === 'fatigued' ? '😴' : activeAthlete.readiness === 'recovering' ? '🧘' : '⚡'}
+              </span>
+            )}
           </h1>
           <p className="text-slate-500 mt-1 font-medium italic">
             {userRole === 'coach' 
-              ? 'Status fisiológico e prontidão do elenco.' 
+              ? (selectedAthleteId ? `Monitorando: ${activeAthlete?.name}` : 'Visão geral do seu elenco de performance.') 
               : 'Seu centro de performance técnica.'}
           </p>
         </div>
-        {userRole === 'coach' && (
-          <button 
-            onClick={handleAIAnalysis}
-            disabled={isAnalyzing || !currentAthleteId}
-            className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black uppercase italic tracking-tighter text-xs flex items-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-50 shadow-lg"
-          >
-            <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse' : ''}`} />
-            {isAnalyzing ? 'Analisando Performance...' : 'Atualizar Análise IA'}
-          </button>
-        )}
+        <div className="flex gap-3">
+          {userRole === 'coach' && selectedAthleteId && (
+            <button 
+              onClick={() => setSelectedAthleteId(null)}
+              className="bg-white border-2 border-slate-100 text-slate-400 hover:text-emerald-600 hover:border-emerald-100 px-6 py-3 rounded-2xl font-black uppercase italic tracking-tighter text-xs transition-all shadow-sm"
+            >
+              Visão do Time
+            </button>
+          )}
+          {userRole === 'coach' && currentAthleteId && (
+            <button 
+              onClick={handleAIAnalysis}
+              disabled={isAnalyzing}
+              className="bg-emerald-950 text-white px-6 py-3 rounded-2xl font-black uppercase italic tracking-tighter text-xs flex items-center gap-2 hover:bg-black transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/20"
+            >
+              <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse' : ''} text-emerald-400`} />
+              {isAnalyzing ? 'Analisando...' : 'Análise IA'}
+            </button>
+          )}
+        </div>
       </header>
+
+      {/* Métricas de Elenco (Apenas Coach sem atleta selecionado) */}
+      {userRole === 'coach' && !selectedAthleteId && teamMetrics && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total de Atletas</p>
+                <p className="text-3xl font-black text-slate-800">{teamMetrics.totalAthletes}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-2xl text-slate-600">
+                <UserIcon className="w-6 h-6" />
+              </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Adesão Média</p>
+                <p className="text-3xl font-black text-emerald-600">{teamMetrics.averageCompletion.toFixed(0)}%</p>
+              </div>
+              <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Em Risco</p>
+                <p className="text-3xl font-black text-red-600">{teamMetrics.riskAthletes}</p>
+              </div>
+              <div className="bg-red-50 p-3 rounded-2xl text-red-600 border border-red-100">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-emerald-950 p-6 rounded-[2rem] shadow-xl flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Status ProRun</p>
+                <p className="text-xl font-black text-white italic uppercase tracking-tighter leading-none">Elenco Ativo</p>
+              </div>
+              <div className="bg-emerald-500 p-3 rounded-2xl text-emerald-950">
+                <Zap className="w-6 h-6" />
+              </div>
+            </div>
+          </div>
+
+          {/* NOVO: Status de Prontidão do Elenco */}
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+            <h3 className="text-lg font-black text-slate-800 uppercase italic tracking-tighter mb-6 flex items-center gap-2">
+              <ActivityIcon className="w-5 h-5 text-emerald-500" /> Prontidão do Elenco Hoje
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {athletes.slice(0, 6).map(athlete => (
+                <div key={athlete.id} className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-sm border-2 ${
+                    athlete.readiness === 'fatigued' ? 'bg-red-50 border-red-200 shadow-red-100' :
+                    athlete.readiness === 'recovering' ? 'bg-blue-50 border-blue-200 shadow-blue-100' :
+                    'bg-emerald-50 border-emerald-200 shadow-emerald-100'
+                  }`}>
+                    {athlete.readiness === 'fatigued' ? '😴' : athlete.readiness === 'recovering' ? '🧘' : '⚡'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black text-slate-800 uppercase italic truncate">{athlete.name}</p>
+                    <p className={`text-[9px] font-bold uppercase ${
+                      athlete.readiness === 'fatigued' ? 'text-red-500' :
+                      athlete.readiness === 'recovering' ? 'text-blue-500' :
+                      'text-emerald-600'
+                    }`}>
+                      {athlete.readiness === 'fatigued' ? 'Fadigado' :
+                       athlete.readiness === 'recovering' ? 'Em Recuperação' :
+                       'Pronto para o Treino'}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedAthleteId(athlete.id)}
+                    className="p-2 hover:bg-white rounded-lg transition-colors text-slate-400 hover:text-emerald-600"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {userRole === 'coach' && !selectedAthleteId && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col md:flex-row items-center gap-6 group hover:border-emerald-200 transition-all">
+              <div className="bg-slate-50 p-5 rounded-3xl group-hover:bg-emerald-50 transition-colors">
+                 <Calendar className="w-10 h-10 text-slate-400 group-hover:text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                 <h3 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter mb-2">Seus Templates</h3>
+                 <p className="text-slate-500 text-sm font-medium italic">Gerencie e aplique semanas de treino pré-definidas em seu elenco.</p>
+              </div>
+              <Link to="/periodization" className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase italic tracking-widest hover:bg-black transition-all">
+                 VER TODOS
+              </Link>
+           </div>
+           
+           <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-8 rounded-[2.5rem] shadow-xl text-white flex flex-col md:flex-row items-center gap-6">
+              <div className="bg-white/20 p-5 rounded-3xl backdrop-blur-md">
+                 <CheckCircle className="w-10 h-10 text-emerald-400" />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                 <h3 className="text-xl font-black uppercase italic tracking-tighter mb-2 leading-none">Notificações Push</h3>
+                 <p className="text-emerald-100/70 text-sm font-medium italic">Lembretes de treino automáticos para seus atletas.</p>
+              </div>
+              <div className="bg-emerald-400/20 px-4 py-2 rounded-lg border border-emerald-400/30">
+                 <span className="text-[10px] font-black uppercase italic tracking-widest">SISTEMA ATIVO</span>
+              </div>
+           </div>
+        </div>
+      )}
 
       {userRole === 'athlete' && (
         <div className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in shadow-sm no-print">

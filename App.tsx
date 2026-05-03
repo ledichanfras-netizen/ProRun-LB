@@ -3,15 +3,17 @@ import React, { Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
 
-// Lazy loading das páginas secundárias para performance
+// Lazy loading das páginas para performance
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Login = lazy(() => import('./pages/Login'));
 const Athletes = lazy(() => import('./pages/Athletes'));
 const Assessments = lazy(() => import('./pages/Assessments'));
 const Library = lazy(() => import('./pages/Library'));
 const Periodization = lazy(() => import('./pages/Periodization'));
 const AthletePortal = lazy(() => import('./pages/AthletePortal'));
+const Offline = lazy(() => import('./pages/Offline'));
+const Subscriptions = lazy(() => import('./pages/Subscriptions'));
 
 const LoadingFallback = () => (
   <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
@@ -22,6 +24,24 @@ const LoadingFallback = () => (
 
 function AppContent() {
   const { userRole, isLoading } = useApp();
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  if (!isOnline && !isLoading) {
+    return <Offline />;
+  }
 
   if (isLoading) {
     return (
@@ -45,6 +65,7 @@ function AppContent() {
               <Route path="/library" element={<Library />} />
               <Route path="/periodization" element={<Periodization />} />
               <Route path="/athlete-portal" element={<AthletePortal />} />
+              <Route path="/subscriptions" element={<Subscriptions />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>

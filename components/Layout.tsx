@@ -13,9 +13,13 @@ import {
   UserCheck,
   LogOut,
   Cloud,
-  CloudOff
+  CloudOff,
+  CreditCard,
+  Bell
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
+import NotificationPrompt from './NotificationPrompt';
+import NotificationCenter from './NotificationCenter';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -23,11 +27,14 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const [showInstallBanner, setShowInstallBanner] = React.useState(false);
   const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
-  const { athletes, selectedAthleteId, setSelectedAthleteId, userRole, logout, isCloudConnected } = useApp();
+  const { athletes, selectedAthleteId, setSelectedAthleteId, userRole, logout, isCloudConnected, notifications } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   React.useEffect(() => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
@@ -60,11 +67,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { to: '/library', icon: BookOpen, label: 'Biblioteca' },
         { to: '/periodization', icon: CalendarDays, label: 'Prescrição' },
         { to: '/athlete-portal', icon: UserCheck, label: 'Visualizar Treino' },
+        { to: '/subscriptions', icon: CreditCard, label: 'Assinatura' },
       ]
     : [
         { to: '/', icon: LayoutDashboard, label: 'Meu Painel' },
         { to: '/athlete-portal', icon: UserCheck, label: 'Meu Treino' },
         { to: '/assessments', icon: Activity, label: 'Minhas Zonas' },
+        { to: '/subscriptions', icon: CreditCard, label: 'Assinatura' },
       ];
 
   const handleLogout = () => {
@@ -82,9 +91,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <TrendingUp className="w-8 h-8 text-emerald-400" />
           <span className="font-bold text-lg tracking-tighter italic uppercase">ProRun</span>
         </div>
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1">
-          {isSidebarOpen ? <X /> : <Menu />}
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setIsNotificationsOpen(true)} className="relative p-1">
+            <Bell className="w-6 h-6 text-emerald-400" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full border border-emerald-950 flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1">
+            {isSidebarOpen ? <X /> : <Menu />}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar */}
@@ -209,6 +228,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
+      <NotificationPrompt />
+      <NotificationCenter isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
     </div>
   );
 };

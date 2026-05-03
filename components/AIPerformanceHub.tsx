@@ -83,7 +83,11 @@ export const AIPerformanceHub: React.FC<AIPerformanceHubProps> = ({
               </div>
             </div>
             <div className="space-y-1">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Prontidão</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                Prontidão {athlete.readiness && (
+                  <span className="text-sm">{athlete.readiness === 'fatigued' ? '😴' : athlete.readiness === 'recovering' ? '🧘' : '⚡'}</span>
+                )}
+              </p>
               <div className="flex items-end gap-1">
                 <span className="text-4xl font-black italic text-blue-400">{athlete.metrics.readinessScore || '--'}</span>
                 <span className="text-[10px] font-bold text-slate-500 mb-2">/100</span>

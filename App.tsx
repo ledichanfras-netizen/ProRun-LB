@@ -1,20 +1,24 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode, Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
-import Offline from './pages/Offline';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Athletes from './pages/Athletes';
-import Assessments from './pages/Assessments';
-import Library from './pages/Library';
-import Periodization from './pages/Periodization';
-import AthletePortal from './pages/AthletePortal';
-import Subscriptions from './pages/Subscriptions';
 import SplashScreen from './components/SplashScreen';
+import { RefreshCw } from 'lucide-react';
+
+// Lazy loading pages
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Athletes = lazy(() => import('./pages/Athletes'));
+const Assessments = lazy(() => import('./pages/Assessments'));
+const Library = lazy(() => import('./pages/Library'));
+const Periodization = lazy(() => import('./pages/Periodization'));
+const AthletePortal = lazy(() => import('./pages/AthletePortal'));
+const Subscriptions = lazy(() => import('./pages/Subscriptions'));
+const Login = lazy(() => import('./pages/Login'));
+const Offline = lazy(() => import('./pages/Offline'));
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+// ... existing constructor and methods ...
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -34,6 +38,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
         <div className="flex flex-col items-center justify-center min-h-screen bg-[#022c22] p-6 text-center text-white">
           <div className="bg-red-500/10 p-8 rounded-[3rem] border border-red-500/20 mb-8 max-w-md w-full">
             <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-4">Ops! Algo deu errado</h2>
+// ... rest of error boundary ...
             <p className="text-slate-400 text-sm font-medium italic mb-6">
               Ocorreu um erro técnico inesperado ao renderizar este módulo. Nossa equipe foi notificada.
             </p>
@@ -55,16 +60,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
-const LoadingFallback = () => (
-  <div className="flex flex-col items-center justify-center h-screen bg-[#022c22]">
-    <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-    <span className="text-[8px] font-black tracking-[0.3em] text-emerald-500/40 uppercase italic">Iniciando Engine...</span>
+const PageLoading = () => (
+  <div className="flex flex-col items-center justify-center min-h-[60vh] w-full">
+    <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <span className="text-[9px] font-black tracking-[0.2em] text-emerald-500/40 uppercase italic">Carregando Módulo...</span>
   </div>
 );
 
 function AppContent() {
   const { userRole, isLoading } = useApp();
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+  const [showUpdateToast, setShowUpdateToast] = React.useState(false);
 
   React.useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -73,6 +79,22 @@ function AppContent() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // SW Update listener
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                setShowUpdateToast(true);
+              }
+            });
+          }
+        });
+      });
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -80,39 +102,68 @@ function AppContent() {
   }, []);
 
   if (!isOnline && !isLoading) {
-    return <Offline />;
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <Offline />
+      </Suspense>
+    );
   }
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#022c22] text-white">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <span className="text-emerald-500/60 text-[9px] font-black uppercase tracking-[0.2em]">Sincronizando Dados</span>
+        <div className="w-12 h-12 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-emerald-500 text-[11px] font-black uppercase tracking-[0.3em] animate-pulse">Sincronizando ProRun LB</span>
+          <span className="text-emerald-500/30 text-[8px] font-bold uppercase tracking-[0.1em]">Aguardando Engine de Performance...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full">
-      {userRole ? (
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/athletes" element={<Athletes />} />
-            <Route path="/assessments" element={<Assessments />} />
-            <Route path="/library" element={<Library />} />
-            <Route path="/periodization" element={<Periodization />} />
-            <Route path="/athlete-portal" element={<AthletePortal />} />
-            <Route path="/subscriptions" element={<Subscriptions />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
-      ) : (
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
+    <div className="h-full relative">
+      {showUpdateToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] animate-bounce-in">
+          <div className="bg-emerald-500 text-emerald-950 px-6 py-4 rounded-3xl shadow-[0_20px_50px_rgba(16,185,129,0.3)] flex items-center gap-4 border border-white/20">
+            <div className="bg-white/20 p-2 rounded-xl">
+              <RefreshCw className="w-4 h-4 animate-spin-slow" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black uppercase tracking-wider">Nova Versão Disponível</span>
+              <span className="text-[8px] font-bold opacity-70 uppercase">Melhorias e correções aplicadas</span>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-emerald-950 text-emerald-400 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-tighter hover:bg-emerald-900 transition-colors"
+            >
+              Atualizar
+            </button>
+          </div>
+        </div>
       )}
+
+      <Suspense fallback={<PageLoading />}>
+        {userRole ? (
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/athletes" element={<Athletes />} />
+              <Route path="/assessments" element={<Assessments />} />
+              <Route path="/library" element={<Library />} />
+              <Route path="/periodization" element={<Periodization />} />
+              <Route path="/athlete-portal" element={<AthletePortal />} />
+              <Route path="/subscriptions" element={<Subscriptions />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Layout>
+        ) : (
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        )}
+      </Suspense>
     </div>
   );
 }

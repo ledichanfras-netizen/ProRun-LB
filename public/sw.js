@@ -1,4 +1,9 @@
-const CACHE_NAME = 'prorun-lb-v16'; // Incremented version
+const VERSION = 'v17';
+const CACHE_NAME = `prorun-lb-${VERSION}`;
+const STATIC_CACHE = `static-${VERSION}`;
+const DYNAMIC_CACHE = `dynamic-${VERSION}`;
+const API_CACHE = `api-${VERSION}`;
+
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -8,24 +13,16 @@ const ASSETS_TO_CACHE = [
   '/prorunlb_maskable_512.png'
 ];
 
-const STATIC_CACHE = 'prorun-static-v3';
-const DYNAMIC_CACHE = 'prorun-dynamic-v3';
-
-// Instalação: Cacheia os assets estáticos iniciais
+// Instalação: Cacheia os assets críticos e assume o controle imediatamente
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
-      console.log('[SW] Pre-caching assets');
+      console.log('[SW] Pre-caching critical assets');
       return Promise.allSettled(
         ASSETS_TO_CACHE.map(asset => 
           fetch(asset).then(response => {
-            if (!response.ok) throw new Error(`Failed to fetch ${asset}`);
-            const contentType = response.headers.get('content-type');
-            // Don't cache HTML if we expected an image
-            if (asset.endsWith('.png') && contentType && contentType.includes('text/html')) {
-               throw new Error(`Corrupted response for ${asset}`);
-            }
+            if (!response.ok) throw new Error(`Fetch failed for ${asset}`);
             return cache.put(asset, response);
           }).catch(err => console.error(`[SW] Pre-cache failed: ${asset}`, err))
         )
@@ -34,15 +31,15 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Ativação: Limpa caches antigos
+// Ativação: Limpa caches de versões anteriores
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
+    caches.keys().then((keys) => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
-            console.log('[SW] Removing old cache', cacheName);
-            return caches.delete(cacheName);
+        keys.map((key) => {
+          if (![STATIC_CACHE, DYNAMIC_CACHE, API_CACHE].includes(key)) {
+            console.log('[SW] Deleting old cache:', key);
+            return caches.delete(key);
           }
         })
       );
@@ -50,37 +47,62 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estratégia de Fetch: Stale-while-revalidate para assets, Network-first para o resto
+// Estratégias de Fetch Diferenciadas
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  
-  // Ignora chamadas de API (Supabase, Google AI) - Sempre rede
-  const isApiCall = url.origin !== self.location.origin || url.pathname.startsWith('/api');
-  if (isApiCall) {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // 1. Ignorar Chrome extensions e outros esquemas não suportados
+  if (!url.protocol.startsWith('http')) return;
+
+  // 2. Chamadas de API (Supabase / Google AI) -> Network First
+  if (url.origin !== self.location.origin) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          const clonedRes = response.clone();
+          caches.open(API_CACHE).then(cache => cache.put(request, clonedRes));
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
     return;
   }
 
-  // Para assets do App (JS, CSS, Imagens)
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchedResponse = fetch(event.request).then((networkResponse) => {
-        // Cacheia apenas se for uma resposta válida do nosso domínio
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-          const responseToCache = networkResponse.clone();
-          caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        }
-        return networkResponse;
-      }).catch(() => {
-         // Se falhar a rede e não houver cache
-         if (event.request.mode === 'navigate') {
-           return caches.match('/index.html');
-         }
-         return null;
-      });
+  // 3. Assets Estáticos (Vite hashes) -> Cache First (Stale-while-revalidate)
+  const isStaticAsset = url.pathname.includes('/assets/') || url.pathname.includes('.png');
+  if (isStaticAsset) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        const networkFetch = fetch(request).then((res) => {
+          const clonedRes = res.clone();
+          caches.open(STATIC_CACHE).then(cache => cache.put(request, clonedRes));
+          return res;
+        });
+        return cached || networkFetch;
+      })
+    );
+    return;
+  }
 
-      return cachedResponse || fetchedResponse;
+  // 4. Navegação / Root -> Network First com fallback para index.html
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // 5. Estratégia Padrão: Stale-while-revalidate
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const networkFetch = fetch(request).then((res) => {
+        const clonedRes = res.clone();
+        caches.open(DYNAMIC_CACHE).then(cache => cache.put(request, clonedRes));
+        return res;
+      }).catch(() => null);
+      
+      return cached || networkFetch;
     })
   );
 });

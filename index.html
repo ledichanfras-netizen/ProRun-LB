@@ -10,9 +10,6 @@
     <meta property="og:title" content="ProRun LB - Performance Integrada" />
     <meta property="og:description" content="Evolua sua corrida com inteligência artificial e ciência do esporte." />
     <meta property="og:image" content="/prorunlb_pwa_512.png" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
 
     <title>ProRun LB | Performance Integrada</title>
     
@@ -87,30 +84,8 @@
           navigator.serviceWorker.register('/sw.js')
             .then(reg => {
               console.log('SW registered!', reg);
-              reg.onupdatefound = () => {
-                const installingWorker = reg.installing;
-                if (installingWorker) {
-                  installingWorker.onstatechange = () => {
-                    if (installingWorker.state === 'installed') {
-                      if (navigator.serviceWorker.controller) {
-                        // New content is available; please refresh.
-                        console.log('New content available, reloading...');
-                        window.location.reload();
-                      }
-                    }
-                  };
-                }
-              };
             })
             .catch(err => console.log('SW registration failed!', err));
-        });
-
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!refreshing) {
-            window.location.reload();
-            refreshing = true;
-          }
         });
       }
     </script>

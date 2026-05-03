@@ -5,13 +5,16 @@ import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
 import { supabase } from '../lib/supabase';
+import { sanitizeInput } from '../utils/sanitization';
 
 interface AppContextType {
+// ... existing types ...
   userRole: UserRole;
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   
   athletes: Athlete[];
+// ... existing types ...
   addAthlete: (athlete: Athlete) => Promise<void>;
   updateAthlete: (id: string, data: Partial<Athlete>) => Promise<void>;
   updateAthleteReadiness: (id: string, readiness: Athlete['readiness']) => Promise<void>;
@@ -80,12 +83,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const cached = localStorage.getItem('proRun_cached_athletePlans');
     return cached ? JSON.parse(cached) : {};
   });
-  const [isLoading, setIsLoading] = React.useState(() => {
-    const hasAthletes = localStorage.getItem('proRun_cached_athletes');
-    const hasWorkouts = localStorage.getItem('proRun_cached_workouts');
-    const hasPlans = localStorage.getItem('proRun_cached_athletePlans');
-    return !(hasAthletes || hasWorkouts || hasPlans);
-  });
+  const [isLoading, setIsLoading] = React.useState(true);
   const [isCloudConnected, setIsCloudConnected] = React.useState(true);
   const [subscription, setSubscription] = React.useState<Subscription | null>(null);
   const [templates, setTemplates] = React.useState<TrainingTemplate[]>(() => {
@@ -94,28 +92,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
   const [notifications, setNotifications] = React.useState<AppNotification[]>(() => {
     const saved = localStorage.getItem('proRun_notifications');
-    if (saved) return JSON.parse(saved);
-    
-    // Default notifications for demo
-    return [
-      {
-        id: '1',
-        title: 'Boas-vindas à ProRun!',
-        message: 'Explore o painel e comece sua evolução hoje.',
-        type: 'info',
-        timestamp: new Date().toISOString(),
-        read: false,
-        link: '/',
-        category: 'plan'
-      }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
+
+  // Listen to Supabase Auth Changes for future expansion
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`Supabase Auth Event: ${event}`);
+      if (event === 'SIGNED_OUT') {
+        logout();
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('proRun_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
-  const addNotification = (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+  const addNotification = useCallback((notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
     const newNotif: AppNotification = {
       ...notif,
       id: crypto.randomUUID(),
@@ -123,15 +121,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       read: false
     };
     setNotifications(prev => [newNotif, ...prev]);
-  };
+  }, []);
 
-  const markAsRead = (id: string) => {
+  const markAsRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
+  }, []);
 
-  const removeNotification = (id: string) => {
+  const removeNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
-  };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('proRun_templates', JSON.stringify(templates));
@@ -140,8 +138,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const saveTemplate = async (templateData: Omit<TrainingTemplate, 'id'>) => {
     const newTemplate = { ...templateData, id: crypto.randomUUID() };
     setTemplates(prev => [...prev, newTemplate]);
-    
-    // Sincronizar com Supabase se necessário posteriormente
   };
 
   const deleteTemplate = async (id: string) => {
@@ -149,25 +145,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const hasActiveSubscription = React.useMemo(() => {
-    if (userRole === 'coach') return true; // Coach sempre tem acesso (admin)
+    if (userRole === 'coach') return true; 
     return subscription?.status === 'active';
   }, [subscription, userRole]);
 
   const refreshSubscription = async () => {
     try {
-       // Silently try to fetch. If table doesn't exist (404), it's handled.
        const { data, error } = await supabase.from('subscriptions').select('*').limit(1);
        if (!error && data && data.length > 0) {
          setSubscription(data[0] as Subscription);
        }
     } catch (e) {
-      // Ignore errors for optional tables
+      // Silence table not found errors
     }
   };
 
   const runAIAnalysis = async (athleteId: string) => {
     if (!hasActiveSubscription) {
-      alert("Esta funcionalidade requer uma assinatura ProRun Ativa.");
+      addNotification({
+        title: 'Assinatura Necessária',
+        message: 'Esta funcionalidade requer uma assinatura ProRun Ativa.',
+        type: 'warning',
+        category: 'system'
+      });
       return;
     }
     const athlete = athletes.find(a => a.id === athleteId);
@@ -195,14 +195,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const fetchData = async () => {
-    // Se não houver cache, mostramos o loading
-    const hasCache = athletes.length > 0 || workouts.length > 0 || Object.keys(athletePlans).length > 0;
-    if (!hasCache) setIsLoading(true);
+    // Check cache first to avoid flickering
+    const cachedAthletes = localStorage.getItem('proRun_cached_athletes');
+    const cachedWorkouts = localStorage.getItem('proRun_cached_workouts');
+    const cachedPlans = localStorage.getItem('proRun_cached_athletePlans');
+
+    if (cachedAthletes) setAthletes(JSON.parse(cachedAthletes));
+    if (cachedWorkouts) setWorkouts(JSON.parse(cachedWorkouts));
+    if (cachedPlans) setAthletePlans(JSON.parse(cachedPlans));
     
+    setIsLoading(true);
     try {
       const [athletesRes, workoutsRes, plansRes] = await Promise.all([
-        supabase.from('athletes').select('data'),
-        supabase.from('workouts_library').select('data'),
+        supabase.from('athletes').select('data').order('created_at', { ascending: false }),
+        supabase.from('workouts_library').select('data').order('created_at', { ascending: false }),
         supabase.from('athlete_plans').select('*')
       ]);
 
@@ -244,20 +250,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     if (userRole) {
       localStorage.setItem('proRun_userRole', userRole);
-      refreshSubscription(); // Refresh when role changes (login)
+    } else {
+      localStorage.removeItem('proRun_userRole');
     }
-    else localStorage.removeItem('proRun_userRole');
   }, [userRole]);
 
   useEffect(() => {
-    if (selectedAthleteId) localStorage.setItem('proRun_selectedAthleteId', selectedAthleteId);
-    else localStorage.removeItem('proRun_selectedAthleteId');
+    if (selectedAthleteId) {
+      localStorage.setItem('proRun_selectedAthleteId', selectedAthleteId);
+    } else {
+      localStorage.removeItem('proRun_selectedAthleteId');
+    }
   }, [selectedAthleteId]);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
+    const sUsername = sanitizeInput(username);
     const normalize = (str: string) => str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const normalizedUsername = normalize(username);
+    const normalizedUsername = normalize(sUsername);
 
+    // Hardcoded coach login (can be migrated to Supabase Auth tables later)
     if (normalizedUsername === 'leandro' && password === '1234') {
       setUserRole('coach');
       setSelectedAthleteId(null);
@@ -279,17 +290,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       return { success: false, message: 'Senha incorreta.' };
     }
-    return { success: false, message: 'Atleta não encontrado.' };
+    return { success: false, message: 'Usuário não encontrado.' };
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUserRole(null);
     setSelectedAthleteId(null);
     localStorage.clear();
-  };
+    supabase.auth.signOut();
+  }, []);
 
   const addAthlete = async (athlete: Athlete) => {
-    setAthletes(prev => [...prev, athlete]);
+    setAthletes(prev => [athlete, ...prev]);
     try {
       await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
     } catch (err) {
@@ -316,7 +328,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     await updateAthlete(id, { readiness });
 
-    // Notificar treinador
     const statusMap = {
       ready: 'PRONTO ⚡',
       fatigued: 'FADIGADO 😴',
@@ -404,7 +415,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addWorkout = async (workout: Workout) => {
-    setWorkouts(prev => [...prev, workout]);
+    setWorkouts(prev => [workout, ...prev]);
     try {
       await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
     } catch (err) {
@@ -444,6 +455,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => {
+    const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
     
@@ -451,7 +463,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const workout = updatedPlan.weeks[weekIndex].workouts[dayIndex];
     
     workout.completed = completed;
-    workout.feedback = feedback || "";
+    workout.feedback = sFeedback || "";
     workout.rpe = rpe !== undefined ? rpe : (workout.rpe || 0);
     
     setAthletePlans(prev => ({
@@ -517,3 +529,4 @@ export const useApp = () => {
   if (!context) throw new Error("useApp must be used within AppProvider");
   return context;
 };
+

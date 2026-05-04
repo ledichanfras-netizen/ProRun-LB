@@ -1,5 +1,5 @@
 
-import React, { Component, ErrorInfo, ReactNode, Suspense, lazy } from 'react';
+import React, { Component, ErrorInfo, ReactNode, Suspense, lazy, useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
@@ -37,7 +37,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-[#022c22] p-6 text-center text-white">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#020617] p-6 text-center text-white">
           <div className="bg-red-500/10 p-8 rounded-[3rem] border border-red-500/20 mb-8 max-w-md w-full">
             <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-4">Ops! Algo deu errado</h2>
 // ... rest of error boundary ...
@@ -71,10 +71,10 @@ const PageLoading = () => (
 
 function AppContent() {
   const { userRole, isLoading } = useApp();
-  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
-  const [showUpdateToast, setShowUpdateToast] = React.useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showUpdateToast, setShowUpdateToast] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
@@ -113,7 +113,7 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#022c22] text-white">
+      <div className="flex flex-col items-center justify-center h-screen bg-[#020617] text-white">
         <div className="w-12 h-12 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-6"></div>
         <div className="flex flex-col items-center gap-1">
           <span className="text-emerald-500 text-[11px] font-black uppercase tracking-[0.3em] animate-pulse">Sincronizando ProRun LB</span>

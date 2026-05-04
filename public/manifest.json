@@ -12,19 +12,19 @@
   "categories": ["sports", "health", "fitness"],
   "icons": [
     {
-      "src": "/prorunlb_android_192.png",
+      "src": "/prorunlb_android_192.png?v=6",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/prorunlb_pwa_512.png",
+      "src": "/prorunlb_pwa_512.png?v=6",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/prorunlb_maskable_512.png",
+      "src": "/prorunlb_maskable_512.png?v=6",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

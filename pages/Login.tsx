@@ -32,16 +32,16 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#022c22] flex flex-col justify-center items-center p-4 overflow-hidden relative">
+    <div className="min-h-screen bg-[#020617] flex flex-col justify-center items-center p-4 overflow-hidden relative">
       {/* Background patterns */}
       <div className="absolute inset-0 opacity-10 pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent" />
       </div>
 
       <div className="w-full max-w-sm relative z-10 animate-fade-in-up">
         <div className="flex flex-col items-center mb-10">
           <div className="mb-6 p-0.5 bg-white rounded-3xl shadow-[0_0_40px_rgba(16,185,129,0.2)] border border-white/10 overflow-hidden transform hover:scale-110 transition-transform duration-500">
-            <img src="/prorunlb_android_192.png" alt="ProRun LB" className="w-20 h-20 object-cover" />
+            <img src="/prorunlb_android_192.png?v=6" alt="ProRun LB" className="w-20 h-20 object-contain" />
           </div>
           <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
             ProRun <span className="text-emerald-500">LB</span>

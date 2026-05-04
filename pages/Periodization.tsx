@@ -5,6 +5,7 @@ import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType, AthletePlan } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
+import { getAppNow } from '../utils/time';
 import { 
   Sparkles, 
   Loader2, 
@@ -37,6 +38,7 @@ const Periodization: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [raceDate, setRaceDate] = useState('');
+  const [startDate, setStartDate] = useState('');
   const [raceDistance, setRaceDistance] = useState('10km');
   const [raceGoal, setRaceGoal] = useState('');
   const [goalDescription, setGoalDescription] = useState('');
@@ -109,29 +111,30 @@ const Periodization: React.FC = () => {
       const plan = athletePlans[activeAthlete.id];
       setFullPlan(plan);
       setRaceGoal(plan.specificGoal || '');
+      if (plan.startDate) setStartDate(plan.startDate);
     } else {
       setFullPlan(null);
       setRaceGoal('');
+      setStartDate('');
     }
   }, [activeAthlete, athletePlans]);
 
-  // Cálculo automático de semanas a partir da data da prova
+  // Cálculo automático de semanas a partir das datas
   useEffect(() => {
-    if (raceDate) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      // Forçar interpretação como data local para evitar erro de fuso horário
+    if (raceDate && startDate) {
+      const start = new Date(startDate + 'T00:00:00');
       const race = new Date(raceDate + 'T00:00:00');
+      start.setHours(0, 0, 0, 0);
       race.setHours(0, 0, 0, 0);
       
-      if (race >= today) {
-        const diffMs = race.getTime() - today.getTime();
+      if (race > start) {
+        const diffMs = race.getTime() - start.getTime();
         const diffWeeks = Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 7));
         // Limitamos entre 1 e 24 semanas para manter a qualidade da prescrição
         setWeeks(Math.min(24, Math.max(1, diffWeeks)));
       }
     }
-  }, [raceDate]);
+  }, [raceDate, startDate]);
 
   const handleGenerate = async () => {
     if (!activeAthlete || !raceDate) {
@@ -164,7 +167,8 @@ const Periodization: React.FC = () => {
       const newPlan: AthletePlan = { 
         ...generated, 
         weeks: normalizedWeeks, 
-        specificGoal: raceGoal ? `${raceDistance} (${raceGoal})` : raceDistance 
+        specificGoal: raceGoal ? `${raceDistance} (${raceGoal})` : raceDistance,
+        startDate: startDate || getAppNow().toISOString().split('T')[0]
       };
       setFullPlan(newPlan);
       saveAthletePlan(activeAthlete.id, newPlan);
@@ -230,7 +234,8 @@ const Periodization: React.FC = () => {
       weeks: manualWeeks,
       specificGoal: raceGoal || raceDistance,
       raceStrategy: 'Periodização manual iniciada.',
-      motivationalMessage: 'Foco no processo!'
+      motivationalMessage: 'Foco no processo!',
+      startDate: startDate || getAppNow().toISOString().split('T')[0]
     };
 
     setFullPlan(newPlan);
@@ -517,14 +522,26 @@ const Periodization: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Início da Prescrição</label>
+                    <input type="date" className="w-full bg-slate-50 border-none rounded-xl p-3 text-[10px] font-bold outline-none" value={startDate || ''} onChange={e => {
+                      setStartDate(e.target.value);
+                      if (fullPlan) {
+                         const newPlan = safeDeepClone(fullPlan);
+                         newPlan.startDate = e.target.value;
+                         setFullPlan(newPlan);
+                      }
+                    }} />
+                  </div>
+                  <div className="relative">
                     <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Data da Prova</label>
                     <input type="date" className="w-full bg-emerald-50 border-none rounded-xl p-3 text-[10px] font-bold outline-none" value={raceDate || ''} onChange={e => setRaceDate(e.target.value)} />
                   </div>
-                  <div className="relative">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Duração (Semanas)</label>
-                    <div className="w-full bg-slate-100 rounded-xl p-3 text-sm font-black text-slate-900 text-center flex items-center justify-center gap-2">
-                      <CalendarDays className="w-4 h-4 text-slate-400" /> {weeks}
-                    </div>
+                </div>
+
+                <div className="relative">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Duração (Semanas)</label>
+                  <div className="w-full bg-slate-100 rounded-xl p-3 text-sm font-black text-slate-900 text-center flex items-center justify-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-slate-400" /> {weeks}
                   </div>
                 </div>
 

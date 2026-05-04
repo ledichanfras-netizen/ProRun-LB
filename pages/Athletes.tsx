@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { Athlete, ExperienceLevel } from '../types';
+import { getAppNow } from '../utils/time';
 import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info, ChevronDown } from 'lucide-react';
 
 const Athletes: React.FC = () => {
@@ -36,7 +37,7 @@ const Athletes: React.FC = () => {
     let calculatedAge = formData.age;
     if (formData.birthDate) {
       const birth = new Date(formData.birthDate);
-      const today = new Date();
+      const today = getAppNow();
       let age = today.getFullYear() - birth.getFullYear();
       const m = today.getMonth() - birth.getMonth();
       if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {

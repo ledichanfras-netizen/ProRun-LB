@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
+import { getAppNow } from '../utils/time';
 import { 
   BarChart, 
   Bar, 
@@ -77,7 +78,7 @@ export default function Dashboard() {
         type: w.type,
         feedback: w.feedback,
         rpe: w.rpe || 0,
-        timestamp: new Date()
+        timestamp: getAppNow()
       })));
     });
   }, [athletes, athletePlans, selectedAthleteId]);

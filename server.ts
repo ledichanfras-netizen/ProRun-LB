@@ -25,20 +25,28 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    console.log("[Server] Mode: Development (using Vite middleware)");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+    
+    // Add a catch-all for troubleshooting dev image 404s
+    app.use((req, res, next) => {
+      if (req.url.endsWith('.png')) {
+        console.warn(`[Dev] PNG request not caught by Vite: ${req.url}`);
+      }
+      next();
+    });
   } else {
     // Serve static files in production
     const rootPath = process.cwd();
     const distPath = path.join(rootPath, "dist");
-    const publicPath = path.join(rootPath, "public");
     
-    console.log(`[Production] Serving static files from: ${distPath}`);
+    console.log(`[Server] Mode: Production. Serving from: ${distPath}`);
     
-    // Priority 1: Dist folder (Build assets)
+    // In production, everything from public is in dist/
     app.use(express.static(distPath, { 
       redirect: false,
       setHeaders: (res, filePath) => {
@@ -48,31 +56,13 @@ async function startServer() {
         }
       }
     }));
-
-    // Priority 2: Public folder (Fallbacks/Raw assets)
-    if (path.resolve(distPath) !== path.resolve(publicPath)) {
-      app.use(express.static(publicPath, { 
-        redirect: false,
-        setHeaders: (res, filePath) => {
-          if (filePath.endsWith('.png')) {
-            res.setHeader('Content-Type', 'image/png');
-            res.setHeader('Cache-Control', 'no-cache');
-          }
-        }
-      }));
-    }
     
     app.get("*", (req, res) => {
-      // In production, everything from public should be in dist. 
-      // If it's a file request that reached here, it's a true 404.
       const isFile = req.path.includes('.');
-      const isHtml = req.path.endsWith('.html') || !isFile;
-
-      if (isFile && !isHtml) {
-        console.log(`[Production] 404 Resource Not Found: ${req.path}`);
-        return res.status(404).send(`Resource not found: ${req.path}`);
+      if (isFile && !req.path.endsWith('.html')) {
+        console.warn(`[Production] 404 static file: ${req.path}`);
+        return res.status(404).send('Not found');
       }
-
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

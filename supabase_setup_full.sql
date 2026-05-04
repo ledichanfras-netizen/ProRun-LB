@@ -39,11 +39,30 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
+-- 5. Notifications Table
+CREATE TABLE IF NOT EXISTS public.app_notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT,
+    category TEXT,
+    link TEXT,
+    read BOOLEAN DEFAULT false,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    user_id TEXT -- Target user or empty for all
+);
+
 -- Enable RLS
 ALTER TABLE public.athletes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workouts_library ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.athlete_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_notifications ENABLE ROW LEVEL SECURITY;
+
+-- Basic Public Policies
+CREATE POLICY "Public Read Access" ON public.app_notifications FOR SELECT USING (true);
+CREATE POLICY "Public Write Access" ON public.app_notifications FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public Update Access" ON public.app_notifications FOR UPDATE USING (true);
 
 -- Basic Public Policies (Adjust as needed for production)
 CREATE POLICY "Public Read Access" ON public.athletes FOR SELECT USING (true);

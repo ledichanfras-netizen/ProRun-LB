@@ -1,11 +1,13 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification } from '../types';
+import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
+import { updateGamificationData } from '../services/gamificationService';
 import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../utils/sanitization';
+import { getAppNow } from '../utils/time';
 
 interface AppContextType {
 // ... existing types ...
@@ -58,6 +60,7 @@ interface AppContextType {
   addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
   markAsRead: (id: string) => void;
   removeNotification: (id: string) => void;
+  addUserGoal: (athleteId: string, goal: Omit<UserGoal, 'id' | 'currentValue' | 'completed'>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -113,23 +116,70 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('proRun_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
-  const addNotification = useCallback((notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+  const addNotification = useCallback(async (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
     const newNotif: AppNotification = {
       ...notif,
       id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
+      timestamp: getAppNow().toISOString(),
       read: false
     };
     setNotifications(prev => [newNotif, ...prev]);
+    
+    try {
+      await supabase.from('app_notifications').insert({
+        title: newNotif.title,
+        message: newNotif.message,
+        type: newNotif.type,
+        icon: newNotif.icon,
+        category: newNotif.category,
+        link: newNotif.link,
+        timestamp: newNotif.timestamp
+      });
+    } catch (e) {
+      console.warn("Could not sync notification to cloud", e);
+    }
   }, []);
 
-  const markAsRead = useCallback((id: string) => {
+  const markAsRead = useCallback(async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    try {
+      await supabase.from('app_notifications').update({ read: true }).eq('id', id);
+    } catch (e) {}
   }, []);
 
-  const removeNotification = useCallback((id: string) => {
+  const removeNotification = useCallback(async (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
+    try {
+      await supabase.from('app_notifications').delete().eq('id', id);
+    } catch (e) {}
   }, []);
+
+  const addUserGoal = async (athleteId: string, goalData: any) => {
+    const athlete = athletes.find(a => a.id === athleteId);
+    if (!athlete) return;
+
+    const newGoal = {
+      ...goalData,
+      id: crypto.randomUUID(),
+      currentValue: 0,
+      completed: false
+    };
+
+    const updatedGamification = {
+      ...(athlete.gamification || {
+        xp: 0,
+        level: 1,
+        streak: 0,
+        longestStreak: 0,
+        totalWorkouts: 0,
+        achievements: [],
+        goals: []
+      }),
+      goals: [...(athlete.gamification?.goals || []), newGoal]
+    };
+
+    await updateAthlete(athleteId, { gamification: updatedGamification });
+  };
 
   useEffect(() => {
     localStorage.setItem('proRun_templates', JSON.stringify(templates));
@@ -166,7 +216,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         title: 'Assinatura Necessária',
         message: 'Esta funcionalidade requer uma assinatura ProRun Ativa.',
         type: 'warning',
-        category: 'system'
+        category: 'system',
+        link: '/subscription'
       });
       return;
     }
@@ -206,36 +257,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     setIsLoading(true);
     try {
-      console.log("[Sync] Tentando sincronizar com Supabase...");
-      const [athletesRes, workoutsRes, plansRes] = await Promise.all([
+      console.log("[Sync] Iniciando sincronização com Supabase...");
+      
+      // Simple select without order to avoid 400 errors if columns don't exist
+      const [athletesRes, workoutsRes, plansRes, notifsRes] = await Promise.all([
         supabase.from('athletes').select('data'),
         supabase.from('workouts_library').select('data'),
-        supabase.from('athlete_plans').select('*')
+        supabase.from('athlete_plans').select('*'),
+        supabase.from('app_notifications').select('*').order('timestamp', { ascending: false }).limit(20)
       ]);
 
-      if (athletesRes.error || workoutsRes.error) {
-         console.warn("[Sync] Tabelas não encontradas ou erro de acesso. Verifique o console do Supabase.");
+      if (athletesRes.error) {
+        console.error("[Sync] Erro ao buscar atletas:", athletesRes.error);
+      }
+      if (workoutsRes.error) {
+        console.error("[Sync] Erro ao buscar biblioteca de treinos:", workoutsRes.error);
+      }
+      if (plansRes.error) {
+        console.error("[Sync] Erro ao buscar planos:", plansRes.error);
+      }
+      if (notifsRes.data) {
+        setNotifications(notifsRes.data as any);
+      }
+
+      const hasCriticalError = (athletesRes.error && athletesRes.status === 404) || 
+                               (workoutsRes.error && workoutsRes.status === 404);
+
+      if (hasCriticalError) {
+         console.warn("[Sync] Tabelas não encontradas. O App usará armazenamento local temporário.");
          setIsCloudConnected(false);
       } else {
-         setIsCloudConnected(true);
+         setIsCloudConnected(athletesRes.error || workoutsRes.error ? false : true);
       }
 
       if (athletesRes.data && athletesRes.data.length > 0) {
+        console.log(`[Sync] ${athletesRes.data.length} atletas sincronizados.`);
         const fetchedAthletes = athletesRes.data.map(row => row.data);
         setAthletes(fetchedAthletes);
         localStorage.setItem('proRun_cached_athletes', JSON.stringify(fetchedAthletes));
       }
       
       if (workoutsRes.data && workoutsRes.data.length > 0) {
+        console.log(`[Sync] ${workoutsRes.data.length} treinos sincronizados.`);
         const fetchedWorkouts = workoutsRes.data.map(row => row.data);
         setWorkouts(fetchedWorkouts);
         localStorage.setItem('proRun_cached_workouts', JSON.stringify(fetchedWorkouts));
       }
       
       if (plansRes.data && plansRes.data.length > 0) {
+        console.log(`[Sync] ${plansRes.data.length} planos sincronizados.`);
         const plans: Record<string, any> = {};
         plansRes.data.forEach(row => {
-          // Flexible mapping to handle different schema variations
           const athleteId = row.id || row.athlete_id;
           const planData = row.data || row.plan_data || row;
           if (athleteId) plans[athleteId] = planData;
@@ -476,6 +548,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     workout.feedback = sFeedback || "";
     workout.rpe = rpe !== undefined ? rpe : (workout.rpe || 0);
     
+    // Gamification Integration
+    if (completed) {
+      const athlete = athletes.find(a => a.id === athleteId);
+      if (athlete) {
+        const { updatedData, newAchievements } = updateGamificationData(
+          athlete.gamification,
+          workout,
+          athletePlans,
+          athleteId
+        );
+        
+        // Update athlete state with new gamification data
+        await updateAthlete(athleteId, { gamification: updatedData });
+        
+        // Notify new achievements
+        newAchievements.forEach(achievement => {
+          addNotification({
+            title: `Nova Conquista: ${achievement.name}`,
+            message: achievement.description,
+            type: 'success',
+            icon: achievement.icon,
+            category: 'system',
+            link: '/athlete-portal'
+          } as any);
+        });
+      }
+    }
+    
     setAthletePlans(prev => ({
       ...prev,
       [athleteId]: updatedPlan
@@ -527,7 +627,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isFirebaseConfigured: true, 
       subscription, hasActiveSubscription, refreshSubscription,
       templates, saveTemplate, deleteTemplate,
-      notifications, addNotification, markAsRead, removeNotification
+      notifications, addNotification, markAsRead, removeNotification,
+      addUserGoal
     }}>
       {children}
     </AppContext.Provider>

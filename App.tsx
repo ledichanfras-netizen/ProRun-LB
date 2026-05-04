@@ -6,16 +6,18 @@ import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
 import { RefreshCw } from 'lucide-react';
 
-// Lazy loading pages
-const Dashboard = lazy(() => import('./pages/Dashboard'));
+// Common pages always available
+import Dashboard from './pages/Dashboard';
+import Login from './pages/Login';
+import Offline from './pages/Offline';
+
+// Lazy loading secondary pages
 const Athletes = lazy(() => import('./pages/Athletes'));
 const Assessments = lazy(() => import('./pages/Assessments'));
 const Library = lazy(() => import('./pages/Library'));
 const Periodization = lazy(() => import('./pages/Periodization'));
 const AthletePortal = lazy(() => import('./pages/AthletePortal'));
 const Subscriptions = lazy(() => import('./pages/Subscriptions'));
-const Login = lazy(() => import('./pages/Login'));
-const Offline = lazy(() => import('./pages/Offline'));
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
 // ... existing constructor and methods ...
@@ -173,7 +175,7 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <AppProvider>
         <SplashScreen />
-        <Router>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AppContent />
         </Router>
       </AppProvider>

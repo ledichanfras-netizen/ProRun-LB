@@ -67,6 +67,37 @@ export interface Athlete {
   readiness?: 'ready' | 'fatigued' | 'recovering';
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
+  gamification?: GamificationData;
+}
+
+export interface GamificationData {
+  xp: number;
+  level: number;
+  streak: number;
+  longestStreak: number;
+  totalWorkouts: number;
+  lastWorkoutDate?: string;
+  achievements: UserAchievement[];
+  goals: UserGoal[];
+}
+
+export interface UserAchievement {
+  id: string;
+  type: string;
+  name: string;
+  description: string;
+  icon: string;
+  dateEarned: string;
+}
+
+export interface UserGoal {
+  id: string;
+  title: string;
+  type: 'distance' | 'vo2' | 'frequency' | 'consistency';
+  targetValue: number;
+  currentValue: number;
+  deadline: string;
+  completed: boolean;
 }
 
 export type WorkoutType = 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Descanso' | 'Fortalecimento' | 'Velocidade' | 'Natação' | 'Ciclismo' | 'Transição';
@@ -95,6 +126,7 @@ export interface AthletePlan {
   raceStrategy?: string;
   motivationalMessage?: string;
   specificGoal?: string; 
+  startDate?: string; // Data de início da periodização
 }
 
 export interface HistoryEntry {
@@ -125,8 +157,9 @@ export interface AppNotification {
   title: string;
   message: string;
   type: 'success' | 'warning' | 'info' | 'critical';
+  icon?: string;
   timestamp: string;
   read: boolean;
   link: string; // Rota para onde o usuário será levado
-  category: 'workout' | 'plan' | 'payment' | 'chat';
+  category: 'workout' | 'plan' | 'payment' | 'chat' | 'system';
 }

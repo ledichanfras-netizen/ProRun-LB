@@ -4,6 +4,8 @@ import { Athlete, AthletePlan } from "../types";
 import { calculatePaces } from "../utils/calculations";
 import { withRetry } from "../utils/helpers";
 
+import { getAppNow } from "../utils/time";
+
 export const generateTrainingPlan = async (
   athlete: Athlete,
   goalDescription: string,
@@ -29,7 +31,7 @@ export const generateTrainingPlan = async (
     return `${sigla}: Pace ${p.minPace}-${p.maxPace}`;
   }).join(", ");
 
-  const today = new Date().toLocaleDateString('pt-BR');
+  const today = getAppNow().toLocaleDateString('pt-BR');
   const raceWeekday = raceDate 
     ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(raceDate + 'T00:00:00'))
     : 'Domingo';

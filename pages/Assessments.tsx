@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useApp } from '../contexts/AppContext';
 import { calculateVO2, calculatePaces } from '../utils/calculations';
 import { TrainingPace, Assessment } from '../types';
+import { getAppNow } from '../utils/time';
 import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2, Download } from 'lucide-react';
 import { PrintLayout } from '../components/PrintLayout';
 import { exportToImage } from '../utils/exporter';
@@ -16,7 +17,7 @@ const Assessments: React.FC = () => {
   const portalRoot = document.getElementById('printable-portal');
 
   const getLocalDate = () => {
-    const d = new Date();
+    const d = getAppNow();
     return d.toLocaleDateString('en-CA');
   };
 

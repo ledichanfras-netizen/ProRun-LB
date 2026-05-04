@@ -44,6 +44,7 @@ async function startServer() {
       setHeaders: (res, filePath) => {
         if (filePath.endsWith('.png')) {
           res.setHeader('Content-Type', 'image/png');
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         }
       }
     }));
@@ -55,6 +56,7 @@ async function startServer() {
         setHeaders: (res, filePath) => {
           if (filePath.endsWith('.png')) {
             res.setHeader('Content-Type', 'image/png');
+            res.setHeader('Cache-Control', 'no-cache');
           }
         }
       }));

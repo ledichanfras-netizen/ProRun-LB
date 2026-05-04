@@ -208,8 +208,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       console.log("[Sync] Tentando sincronizar com Supabase...");
       const [athletesRes, workoutsRes, plansRes] = await Promise.all([
-        supabase.from('athletes').select('data').order('created_at', { ascending: false }),
-        supabase.from('workouts_library').select('data').order('created_at', { ascending: false }),
+        supabase.from('athletes').select('data'),
+        supabase.from('workouts_library').select('data'),
         supabase.from('athlete_plans').select('*')
       ]);
 

@@ -2,13 +2,14 @@
   "id": "/",
   "name": "ProRun LB | Performance Integrada",
   "short_name": "ProRun LB",
-  "description": "Plataforma profissional de treinamento esportivo com IA integrada.",
-  "start_url": "/",
+  "description": "Plataforma de elite para treinamento esportivo com Inteligência Artificial. Performance, ciência e tecnologia integrada.",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#022c22",
-  "theme_color": "#022c22",
+  "background_color": "#020617",
+  "theme_color": "#10b981",
   "orientation": "portrait",
+  "categories": ["sports", "health", "fitness"],
   "icons": [
     {
       "src": "/prorunlb_android_192.png",
@@ -33,11 +34,13 @@
     {
       "name": "Portal do Atleta",
       "url": "/#/athlete-portal",
+      "description": "Acesse seus treinos e métricas do dia",
       "icons": [{ "src": "/prorunlb_android_192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Dashboard",
+      "name": "Dashboard Treinador",
       "url": "/#/",
+      "description": "Gerencie seus atletas e periodização",
       "icons": [{ "src": "/prorunlb_android_192.png", "sizes": "192x192" }]
     }
   ]

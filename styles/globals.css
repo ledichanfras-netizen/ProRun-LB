@@ -27,6 +27,12 @@
   .premium-gradient {
     @apply bg-gradient-to-br from-emerald-500/20 via-transparent to-transparent;
   }
+  .pro-input {
+    @apply bg-white/5 border border-white/10 text-white placeholder-slate-500 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium;
+  }
+  .pro-label {
+    @apply block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2;
+  }
 }
 
 .animate-fade-in-up {

@@ -21,27 +21,27 @@ const Assessments: React.FC = () => {
     return d.toLocaleDateString('en-CA');
   };
 
-  const [testType, setTestType] = React.useState<'3k' | 'VO2_Lab' | 'TRF'>('3k');
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [formDate, setFormDate] = React.useState(getLocalDate());
-  const [formTime3k, setFormTime3k] = React.useState('');
-  const [formTrfDistance, setFormTrfDistance] = React.useState<number>(5);
-  const [formTrfTime, setFormTrfTime] = React.useState('');
+  const [testType, setTestType] = useState<'3k' | 'VO2_Lab' | 'TRF'>('3k');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formDate, setFormDate] = useState(getLocalDate());
+  const [formTime3k, setFormTime3k] = useState('');
+  const [formTrfDistance, setFormTrfDistance] = useState<number>(5);
+  const [formTrfTime, setFormTrfTime] = useState('');
 
-  const [formVo2Max, setFormVo2Max] = React.useState<number | ''>('');
-  const [formFcMax, setFormFcMax] = React.useState<number | ''>('');
-  const [formFcThreshold, setFormFcThreshold] = React.useState<number | ''>('');
+  const [formVo2Max, setFormVo2Max] = useState<number | ''>('');
+  const [formFcMax, setFormFcMax] = useState<number | ''>('');
+  const [formFcThreshold, setFormFcThreshold] = useState<number | ''>('');
 
-  const [calculatedVo2, setCalculatedVo2] = React.useState<number | null>(null);
-  const [paces, setPaces] = React.useState<TrainingPace[]>([]);
-  const [isEditingZones, setIsEditingZones] = React.useState(false);
-  const [isSavingZones, setIsSavingZones] = React.useState(false);
-  const [isSavingAssessment, setIsSavingAssessment] = React.useState(false);
-  const [editablePaces, setEditablePaces] = React.useState<TrainingPace[]>([]);
-  const [deleteModal, setDeleteModal] = React.useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+  const [calculatedVo2, setCalculatedVo2] = useState<number | null>(null);
+  const [paces, setPaces] = useState<TrainingPace[]>([]);
+  const [isEditingZones, setIsEditingZones] = useState(false);
+  const [isSavingZones, setIsSavingZones] = useState(false);
+  const [isSavingAssessment, setIsSavingAssessment] = useState(false);
+  const [editablePaces, setEditablePaces] = useState<TrainingPace[]>([]);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
   // Monitora mudanças para recalcular zonas na hora (Simulação)
-  React.useEffect(() => {
+  useEffect(() => {
     if (activeAthlete && !isEditingZones) {
       // Prioridade: Valor do formulário (simulação) > Valor atual do atleta
       const vdotToUse = calculatedVo2 || activeAthlete.metrics.vdot || 30;
@@ -53,7 +53,7 @@ const Assessments: React.FC = () => {
     }
   }, [calculatedVo2, formFcThreshold, formFcMax, activeAthlete, isEditingZones]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (activeAthlete) {
       if (!editingId && formFcMax === '' && formFcThreshold === '') {
         setFormFcMax(activeAthlete.metrics.fcMax || '');
@@ -80,7 +80,7 @@ const Assessments: React.FC = () => {
     setCalculatedVo2(vo2);
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (testType === 'VO2_Lab' && formVo2Max) {
       setCalculatedVo2(Number(formVo2Max));
     }
@@ -273,7 +273,7 @@ const Assessments: React.FC = () => {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter">Avaliações & Zonas</h1>
-          <p className="text-slate-400 font-medium">Configuração técnica personalizada.</p>
+          <p className="text-slate-300 font-medium">Configuração técnica personalizada.</p>
         </div>
         {activeAthlete && (
           <button 
@@ -295,18 +295,18 @@ const Assessments: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-6">
-            <div className={`bg-white p-6 rounded-3xl shadow-sm border ${editingId ? 'border-emerald-300 ring-4 ring-emerald-50' : 'border-slate-100'}`}>
+            <div className={`bg-slate-900/50 p-6 rounded-3xl shadow-xl border ${editingId ? 'border-emerald-500 ring-4 ring-emerald-500/10' : 'border-white/5'}`}>
               <div className="flex justify-between items-start mb-4">
-                <h2 className="text-lg font-black flex items-center gap-2 text-slate-900 uppercase italic tracking-tighter">
-                  <Calculator className="text-emerald-600 w-5 h-5" /> 
+                <h2 className="text-lg font-black flex items-center gap-2 text-white uppercase italic tracking-tighter">
+                  <Calculator className="text-emerald-400 w-5 h-5" /> 
                   {isReadOnly ? 'Simulador' : editingId ? 'Editar Teste' : 'Novo Teste'}
                 </h2>
-                {editingId && <button onClick={handleCancelEdit} className="text-slate-400 hover:text-slate-600 transition"><X className="w-5 h-5" /></button>}
+                {editingId && <button onClick={handleCancelEdit} className="text-slate-400 hover:text-white transition"><X className="w-5 h-5" /></button>}
               </div>
               
-              <div className="flex bg-slate-50 p-1 rounded-xl mb-6 overflow-x-auto custom-scrollbar">
+              <div className="flex bg-white/5 p-1 rounded-xl mb-6 overflow-x-auto custom-scrollbar border border-white/5">
                 {['3k', 'TRF', 'VO2_Lab'].map(t => (
-                  <button key={t} onClick={() => setTestType(t as any)} className={`flex-1 py-2 px-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition whitespace-nowrap ${testType === t ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <button key={t} onClick={() => setTestType(t as any)} className={`flex-1 py-2 px-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition whitespace-nowrap ${testType === t ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'text-slate-400 hover:text-white'}`}>
                     {t === '3k' ? 'Teste 3km' : t === 'TRF' ? 'TRF (Campo)' : 'Laboratório'}
                   </button>
                 ))}
@@ -314,47 +314,47 @@ const Assessments: React.FC = () => {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Data</label>
-                  <input type="date" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-sm font-bold disabled:opacity-50 focus:ring-2 focus:ring-emerald-500 outline-none" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
+                  <label className="pro-label">Data</label>
+                  <input type="date" disabled={isReadOnly || isSavingAssessment} className="pro-input w-full uppercase" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
                 </div>
 
                 {testType === '3k' && (
                   <div className="animate-fade-in">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Tempo 3km (MM:SS)</label>
-                    <input type="text" placeholder="Ex: 12:30" disabled={isReadOnly || isSavingAssessment} className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black text-xl italic focus:ring-2 focus:ring-emerald-500 outline-none" value={formTime3k} onChange={(e) => { setFormTime3k(e.target.value); if (e.target.value.length >= 4) handleSimulate3k(e.target.value); }} />
+                    <label className="pro-label">Tempo 3km (MM:SS)</label>
+                    <input type="text" placeholder="Ex: 12:30" disabled={isReadOnly || isSavingAssessment} className="pro-input w-full font-black text-xl italic" value={formTime3k} onChange={(e) => { setFormTime3k(e.target.value); if (e.target.value.length >= 4) handleSimulate3k(e.target.value); }} />
                   </div>
                 )}
 
                 {testType === 'TRF' && (
                   <div className="space-y-3 animate-fade-in">
                     <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Distância (km)</label>
-                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none" value={formTrfDistance === 0 ? '' : formTrfDistance} onFocus={e => e.target.select()} onChange={(e) => setFormTrfDistance(Number(e.target.value))} />
+                      <label className="pro-label">Distância (km)</label>
+                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="pro-input w-full" value={formTrfDistance === 0 ? '' : formTrfDistance} onFocus={e => e.target.select()} onChange={(e) => setFormTrfDistance(Number(e.target.value))} />
                     </div>
                     <div>
-                      <label className="block text-[10px) font-black text-slate-400 uppercase mb-1">Tempo Total (MM:SS)</label>
-                      <input type="text" placeholder="Ex: 22:15" disabled={isReadOnly || isSavingAssessment} className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black text-xl italic focus:ring-2 focus:ring-emerald-500 outline-none" value={formTrfTime} onChange={(e) => { setFormTrfTime(e.target.value); if (e.target.value.length >= 4) handleSimulateTrf(e.target.value); }} />
+                      <label className="pro-label">Tempo Total (MM:SS)</label>
+                      <input type="text" placeholder="Ex: 22:15" disabled={isReadOnly || isSavingAssessment} className="pro-input w-full font-black text-xl italic" value={formTrfTime} onChange={(e) => { setFormTrfTime(e.target.value); if (e.target.value.length >= 4) handleSimulateTrf(e.target.value); }} />
                     </div>
                   </div>
                 )}
 
                 {testType === 'VO2_Lab' && (
                   <div className="animate-fade-in">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">VO2Max (ml/kg/min)</label>
-                    <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black text-xl italic focus:ring-2 focus:ring-emerald-500 outline-none" value={formVo2Max === 0 ? '' : formVo2Max} onFocus={e => e.target.select()} onChange={(e) => setFormVo2Max(Number(e.target.value))} />
+                    <label className="pro-label">VO2Max (ml/kg/min)</label>
+                    <input type="number" disabled={isReadOnly || isSavingAssessment} className="pro-input w-full font-black text-xl italic" value={formVo2Max === 0 ? '' : formVo2Max} onFocus={e => e.target.select()} onChange={(e) => setFormVo2Max(Number(e.target.value))} />
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-slate-50">
-                  <h3 className="text-[9px] font-black uppercase text-emerald-600 mb-3 flex items-center gap-1 italic"><Heart className="w-3 h-3" /> Frequência Cardíaca</h3>
+                <div className="pt-4 border-t border-white/5">
+                  <h3 className="text-[9px] font-black uppercase text-emerald-400 mb-3 flex items-center gap-1 italic"><Heart className="w-3 h-3" /> Frequência Cardíaca</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Máxima</label>
-                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="bpm" value={formFcMax === 0 ? '' : formFcMax} onFocus={e => e.target.select()} onChange={(e) => setFormFcMax(e.target.value === '' ? '' : Number(e.target.value))} />
+                      <label className="pro-label">Máxima</label>
+                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="pro-input w-full" placeholder="bpm" value={formFcMax === 0 ? '' : formFcMax} onFocus={e => e.target.select()} onChange={(e) => setFormFcMax(e.target.value === '' ? '' : Number(e.target.value))} />
                     </div>
                     <div>
-                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Limiar (LTHR)</label>
-                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="bpm" value={formFcThreshold === 0 ? '' : formFcThreshold} onFocus={e => e.target.select()} onChange={(e) => setFormFcThreshold(e.target.value === '' ? '' : Number(e.target.value))} />
+                      <label className="pro-label">Limiar (LTHR)</label>
+                      <input type="number" disabled={isReadOnly || isSavingAssessment} className="pro-input w-full" placeholder="bpm" value={formFcThreshold === 0 ? '' : formFcThreshold} onFocus={e => e.target.select()} onChange={(e) => setFormFcThreshold(e.target.value === '' ? '' : Number(e.target.value))} />
                     </div>
                   </div>
                 </div>

@@ -9,7 +9,7 @@ interface WorkoutContextType {
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
 
 export function WorkoutProvider({ children }: { children: React.ReactNode }) {
-  const [activeWorkout, setActiveWorkout] = React.useState<any | null>(null);
+  const [activeWorkout, setActiveWorkout] = useState<any | null>(null);
 
   return (
     <WorkoutContext.Provider value={{ activeWorkout, setActiveWorkout }}>

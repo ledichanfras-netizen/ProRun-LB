@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -26,17 +26,17 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
-  const [showInstallBanner, setShowInstallBanner] = React.useState(false);
-  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const { athletes, selectedAthleteId, setSelectedAthleteId, userRole, logout, isCloudConnected, notifications } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  React.useEffect(() => {
+  useEffect(() => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     

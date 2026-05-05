@@ -148,18 +148,18 @@ export default function Dashboard() {
     <div className="space-y-8 animate-fade-in pb-10">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter flex items-center gap-2">
-            Olá, {userRole === 'coach' ? 'Coach Leandro' : (activeAthlete?.name.split(' ')[0] || 'Atleta')}! 👋
+          <h1 className="text-3xl md:text-4xl font-black text-white uppercase italic tracking-tighter flex items-center gap-3 drop-shadow-sm">
+            Olá, <span className="text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-2xl border border-emerald-400/20">{userRole === 'coach' ? 'Coach Leandro' : (activeAthlete?.name.split(' ')[0] || 'Atleta')}</span>! 👋
             {userRole === 'coach' && activeAthlete?.readiness && (
-              <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-lg shadow-sm" title={`Prontidão: ${activeAthlete.readiness}`}>
+              <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/10 text-xl shadow-sm" title={`Prontidão: ${activeAthlete.readiness}`}>
                 {activeAthlete.readiness === 'fatigued' ? '😴' : activeAthlete.readiness === 'recovering' ? '🧘' : '⚡'}
               </span>
             )}
           </h1>
-          <p className="text-slate-400 mt-1 font-medium italic">
+          <p className="text-slate-300 mt-2 font-medium italic text-sm md:text-base opacity-90">
             {userRole === 'coach' 
-              ? (selectedAthleteId ? `Monitorando: ${activeAthlete?.name}` : 'Visão geral do seu elenco de performance.') 
-              : 'Seu centro de performance técnica.'}
+              ? (selectedAthleteId ? `Monitorando performance de: ${activeAthlete?.name}` : 'Visão geral do seu elenco estratégico.') 
+              : 'Seu centro de performance técnica em tempo real.'}
           </p>
         </div>
         <div className="flex gap-3">

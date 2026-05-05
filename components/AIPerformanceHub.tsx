@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   Activity as ActivityIcon, 
   Zap, 
@@ -29,7 +29,7 @@ export const AIPerformanceHub: React.FC<AIPerformanceHubProps> = ({
   onAnalyze = () => {}, 
   canAnalyze = false 
 }) => {
-  const radarData = React.useMemo(() => {
+  const radarData = useMemo(() => {
     if (!athlete.metrics.physicalCapabilities) return [];
     const caps = athlete.metrics.physicalCapabilities;
     return [

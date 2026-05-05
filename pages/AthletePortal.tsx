@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
@@ -154,7 +154,7 @@ const AthletePortal: React.FC = () => {
     );
   }
 
-  const isFinalWorkout = React.useMemo(() => {
+  const isFinalWorkout = useMemo(() => {
     if (!selectedWorkout || !allWeeks.length) return false;
     return selectedWorkout.weekIndex === (allWeeks.length - 1) && 
            (selectedWorkout.data.type === 'Longão' || selectedWorkout.data.customDescription?.toLowerCase().includes('prova'));
@@ -173,7 +173,7 @@ const AthletePortal: React.FC = () => {
     return labels[val] || "Selecione";
   };
 
-  const { todayWorkout, tomorrowWorkout, currentWeek } = React.useMemo(() => {
+  const { todayWorkout, tomorrowWorkout, currentWeek } = useMemo(() => {
     if (!visibleWeeks.length) return { todayWorkout: null, tomorrowWorkout: null, currentWeek: null };
     
     const today = getAppNow();
@@ -237,7 +237,7 @@ const AthletePortal: React.FC = () => {
     };
   }, [visibleWeeks, allWeeks, athletePlans, activeAthlete.id]);
 
-  const weeklyProgress = React.useMemo(() => {
+  const weeklyProgress = useMemo(() => {
     if (!currentWeek) return { completed: 0, total: 0 };
     const completed = currentWeek.workouts.filter((w: any) => w.completed).length;
     const total = currentWeek.workouts.filter((w: any) => w.type !== 'Descanso').length;
@@ -351,7 +351,7 @@ const AthletePortal: React.FC = () => {
               {getAppNow().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
             <h1 className="text-2xl font-black text-white italic uppercase tracking-tighter">
-              Olá, {activeAthlete.name.split(' ')[0]}!
+              Olá, <span className="text-emerald-500">{activeAthlete.name.split(' ')[0]}</span>!
             </h1>
           </div>
           <div className="flex gap-2">
@@ -672,34 +672,34 @@ const AthletePortal: React.FC = () => {
 
       {selectedWorkout && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md no-print" onClick={() => !isSaving && setSelectedWorkout(null)}>
-          <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
-            <div className={`p-6 md:p-8 border-b flex justify-between items-start flex-shrink-0 ${isFinalWorkout ? 'bg-emerald-950 text-white' : 'bg-slate-50'}`}>
+          <div className="bg-slate-900 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[95vh] border border-white/5" onClick={e => e.stopPropagation()}>
+            <div className={`p-6 md:p-8 border-b flex justify-between items-start flex-shrink-0 ${isFinalWorkout ? 'bg-emerald-950 text-white' : 'bg-white/5'}`}>
                <div className="flex flex-col">
                   <span className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 italic ${isFinalWorkout ? 'text-emerald-400' : 'text-slate-400'}`}>{selectedWorkout.data.day}</span>
                   <div className="flex items-center gap-3">
-                    <h3 className="text-2xl font-black uppercase italic tracking-tighter">{isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}</h3>
+                    <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">{isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}</h3>
                   </div>
                </div>
-               <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200/50 hover:bg-slate-200'}`}><X className="w-5 h-5" /></button>
+               <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}><X className="w-5 h-5 text-white" /></button>
             </div>
             
-            <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
-              <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white' : 'bg-emerald-50/30 border-emerald-100 text-emerald-950'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
+            <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-900">
+              <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'bg-white/5 border-white/10 text-white'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
                 "{selectedWorkout.data.customDescription}"
               </div>
 
               {/* Hub de Ritmos do Atleta */}
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 px-1">
-                  <Flag className="w-3.5 h-3.5 text-emerald-500" /> Seus Ritmos Alvo
+                <label className="pro-label flex items-center gap-2 px-1">
+                  <Flag className="w-3.5 h-3.5 text-emerald-400" /> Seus Ritmos Alvo
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   {paces.map((p, idx) => (
-                    <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{p.zone}</span>
-                      <span className="text-sm font-black text-emerald-600 italic tracking-tighter">{p.minPace} min/km</span>
+                    <div key={idx} className="bg-white/5 p-3 rounded-2xl border border-white/5 shadow-sm flex flex-col justify-center">
+                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">{p.zone}</span>
+                      <span className="text-sm font-black text-emerald-400 italic tracking-tighter">{p.minPace} min/km</span>
                       {p.heartRateRange && (
-                        <span className="text-[7px] font-bold text-slate-300 uppercase">{p.heartRateRange} bpm</span>
+                        <span className="text-[7px] font-bold text-slate-600 uppercase">{p.heartRateRange} bpm</span>
                       )}
                     </div>
                   ))}
@@ -708,7 +708,7 @@ const AthletePortal: React.FC = () => {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <label className="pro-label flex items-center gap-2">
                     <Zap className="w-4 h-4 text-amber-500" /> Esforço Percebido (PSE)
                   </label>
                   <span className={`text-[10px] font-black italic uppercase tracking-tighter ${getRPEColor(rpeValue)}`}>
@@ -724,8 +724,8 @@ const AthletePortal: React.FC = () => {
                       onClick={() => setRpeValue(num)}
                       className={`h-12 rounded-xl font-black text-sm transition-all border-2 flex items-center justify-center
                         ${rpeValue === num 
-                          ? 'bg-emerald-950 text-white border-emerald-950 scale-105 shadow-lg' 
-                          : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-300 hover:text-emerald-600'}
+                          ? 'bg-emerald-500 text-white border-emerald-500 scale-105 shadow-[0_0_20px_rgba(16,185,129,0.3)]' 
+                          : 'bg-white/5 text-slate-500 border-white/5 hover:border-emerald-500/50 hover:text-emerald-400'}
                       `}
                     >
                       {num}
@@ -737,15 +737,14 @@ const AthletePortal: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Cronômetro de Suporte</span>
-                    <span className="text-[8px] text-slate-300 font-bold uppercase italic">Use para marcar intervalos ou tempo total</span>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Cronômetro de Suporte</span>
+                    <span className="text-[8px] text-slate-600 font-bold uppercase italic">Use para marcar intervalos ou tempo total</span>
                   </div>
                   <TimerComponent />
                 </div>
                 <textarea 
                   disabled={isSaving}
-                  className="w-full p-5 border border-slate-200 rounded-[1.5rem] text-sm font-medium focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all resize-none italic shadow-sm bg-slate-50"
-                  rows={4}
+                  className="pro-input w-full h-32 focus:ring-4 focus:ring-emerald-500/20"
                   placeholder="Relate sensações, dores ou conquistas..."
                   value={feedbackText}
                   onChange={e => setFeedbackText(e.target.value)}
@@ -753,7 +752,7 @@ const AthletePortal: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-6 md:p-8 bg-white border-t flex-shrink-0">
+            <div className="p-6 md:p-8 bg-slate-900 border-t border-white/5 flex-shrink-0 font-sans">
               <button 
                 onClick={handleToggleComplete} 
                 disabled={isSaving}
@@ -783,20 +782,20 @@ const AthletePortal: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl p-8"
+              className="bg-slate-900 rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl p-8 border border-white/5"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-black italic uppercase tracking-tighter text-slate-800">Nova Meta</h3>
-                <button onClick={() => setShowGoalModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">Nova Meta</h3>
+                <button onClick={() => setShowGoalModal(false)} className="p-2 bg-white/5 rounded-full text-slate-400 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">Título da Meta</label>
+                  <label className="pro-label">Título da Meta</label>
                   <input 
                     type="text" 
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold italic outline-none focus:border-emerald-500" 
+                    className="pro-input w-full" 
                     placeholder="Ex: Correr 100km total"
                     value={newGoal.title}
                     onChange={e => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
@@ -805,22 +804,22 @@ const AthletePortal: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">Tipo</label>
+                    <label className="pro-label">Tipo</label>
                     <select 
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold italic outline-none focus:border-emerald-500"
+                      className="pro-input w-full cursor-pointer"
                       value={newGoal.type}
                       onChange={e => setNewGoal(prev => ({ ...prev, type: e.target.value as any }))}
                     >
-                      <option value="distance">Distância (KM)</option>
-                      <option value="frequency">Frequência</option>
-                      <option value="consistency">Consistência</option>
+                      <option value="distance" className="bg-slate-900">Distância (KM)</option>
+                      <option value="frequency" className="bg-slate-900">Frequência</option>
+                      <option value="consistency" className="bg-slate-900">Consistência</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">Alvo</label>
+                    <label className="pro-label">Alvo</label>
                     <input 
                       type="number" 
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold italic outline-none focus:border-emerald-500"
+                      className="pro-input w-full"
                       value={newGoal.targetValue}
                       onChange={e => setNewGoal(prev => ({ ...prev, targetValue: Number(e.target.value) }))}
                     />
@@ -828,10 +827,10 @@ const AthletePortal: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">Prazo</label>
+                  <label className="pro-label">Prazo</label>
                   <input 
                     type="date" 
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold italic outline-none focus:border-emerald-500"
+                    className="pro-input w-full uppercase"
                     value={newGoal.deadline}
                     onChange={e => setNewGoal(prev => ({ ...prev, deadline: e.target.value }))}
                   />
@@ -839,7 +838,7 @@ const AthletePortal: React.FC = () => {
 
                 <button 
                   onClick={handleAddGoal}
-                  className="w-full bg-emerald-950 text-white font-black py-4 rounded-2xl uppercase italic tracking-widest mt-4 shadow-lg hover:bg-black transition-all"
+                  className="w-full bg-emerald-500 text-emerald-950 font-black py-4 rounded-2xl uppercase italic tracking-widest mt-4 shadow-[0_10px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-400 transition-all"
                 >
                   Confirmar Desafio
                 </button>

@@ -140,26 +140,26 @@ const Library: React.FC = () => {
         <input 
           type="text" 
           placeholder="PESQUISAR NA BIBLIOTECA (NOME, TIPO OU DESCRIÇÃO)..." 
-          className="w-full pl-12 pr-4 py-5 rounded-[1.5rem] border-none bg-white shadow-xl shadow-slate-200/50 focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-sm tracking-tight italic"
+          className="pro-input w-full pl-12 pr-4 uppercase"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
       {showForm && (
-        <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 animate-fade-in-up relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500" />
+        <div className="bg-slate-900/80 p-8 md:p-10 rounded-[2.5rem] shadow-2xl border border-white/5 animate-fade-in-up relative overflow-hidden backdrop-blur-xl">
+          <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.5)]" />
           
-          <div className="flex justify-between items-center mb-10 border-b border-slate-50 pb-6">
+          <div className="flex justify-between items-center mb-10 border-b border-white/5 pb-6">
             <div className="flex items-center gap-4">
-              <div className="bg-emerald-50 p-3 rounded-2xl">
-                <Plus className="w-6 h-6 text-emerald-600" />
+              <div className="bg-emerald-500/20 p-3 rounded-2xl border border-emerald-500/20">
+                <Plus className="w-6 h-6 text-emerald-400" />
               </div>
-              <h3 className="text-2xl font-black uppercase italic tracking-tighter text-slate-900">
+              <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">
                 {editingId ? 'Editar Sessão' : 'Nova Sessão Técnica'}
               </h3>
             </div>
-            <button onClick={() => setShowForm(false)} className="text-slate-400 hover:bg-slate-50 p-3 rounded-full transition">
+            <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white hover:bg-white/5 p-3 rounded-full transition">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -168,10 +168,10 @@ const Library: React.FC = () => {
             
             {/* Título */}
             <div className="col-span-1">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nome do Treino</label>
+              <label className="pro-label">Nome do Treino</label>
               <input 
                 placeholder="Ex: Fartlek Piramidal 1-2-3-2-1" 
-                className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none transition" 
+                className="pro-input w-full font-black text-lg italic uppercase" 
                 value={formWorkout.title} 
                 onChange={e => setFormWorkout({...formWorkout, title: e.target.value})} 
                 required
@@ -180,61 +180,61 @@ const Library: React.FC = () => {
 
             {/* Tipo */}
             <div className="col-span-1">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tipo de Sessão</label>
+              <label className="pro-label">Tipo de Sessão</label>
               <select 
-                className="w-full p-4 bg-slate-50 border-none rounded-2xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none appearance-none cursor-pointer"
+                className="pro-input w-full font-black italic cursor-pointer"
                 value={formWorkout.type}
                 onChange={e => setFormWorkout({...formWorkout, type: e.target.value as any})}
               >
-                <option value="Recovery">Recuperação (Regenerativo)</option>
-                <option value="Long Run">Longão (Resistência)</option>
-                <option value="Tempo">Tempo (Ritmo de Prova/Limiar)</option>
-                <option value="Interval">Intervalado (VO2Max)</option>
-                <option value="Speed">Velocidade (Repetições Curtas)</option>
+                <option value="Recovery" className="bg-slate-900">Recuperação (Regenerativo)</option>
+                <option value="Long Run" className="bg-slate-900">Longão (Resistência)</option>
+                <option value="Tempo" className="bg-slate-900">Tempo (Ritmo de Prova/Limiar)</option>
+                <option value="Interval" className="bg-slate-900">Intervalado (VO2Max)</option>
+                <option value="Speed" className="bg-slate-900">Velocidade (Repetições Curtas)</option>
               </select>
             </div>
 
             {/* Descrição */}
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Estrutura do Treino (Descrição Técnica)</label>
+              <label className="pro-label">Estrutura do Treino (Descrição Técnica)</label>
               <textarea 
                 placeholder="Ex: 15min Aquece (Z1) + 5x 1000m (Z4) c/ 2min pausa leve + 10min Desaquece" 
-                className="w-full p-5 bg-slate-50 border-none rounded-[1.5rem] h-32 font-medium italic focus:ring-2 focus:ring-emerald-500 outline-none transition resize-none"
+                className="pro-input w-full h-32 font-medium italic resize-none"
                 value={formWorkout.description}
                 onChange={e => setFormWorkout({...formWorkout, description: e.target.value})}
               />
             </div>
 
             {/* Métricas */}
-            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-8 rounded-[2rem] border border-slate-100">
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6 bg-white/5 p-8 rounded-[2rem] border border-white/5">
                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Duração (min)</label>
+                  <label className="pro-label">Duração (min)</label>
                   <input 
                     type="number" 
                     placeholder="Ex: 60" 
-                    className="w-full p-4 bg-white border-none rounded-xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="pro-input w-full"
                     value={formWorkout.durationMinutes === 0 ? '' : formWorkout.durationMinutes}
                     onFocus={e => e.target.select()}
                     onChange={e => setFormWorkout({...formWorkout, durationMinutes: Number(e.target.value)})}
                   />
                </div>
                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Distância (km)</label>
+                  <label className="pro-label">Distância (km)</label>
                   <input 
                     type="number" 
                     placeholder="Ex: 10" 
-                    className="w-full p-4 bg-white border-none rounded-xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="pro-input w-full"
                     value={formWorkout.distanceKm === 0 ? '' : formWorkout.distanceKm}
                     onFocus={e => e.target.select()}
                     onChange={e => setFormWorkout({...formWorkout, distanceKm: Number(e.target.value)})}
                   />
                </div>
                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Esforço (PSE 1-10)</label>
+                  <label className="pro-label">Esforço (PSE 1-10)</label>
                   <input 
                     type="number" 
                     placeholder="Ex: 7" 
-                    className="w-full p-4 bg-white border-none rounded-xl font-black italic focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="pro-input w-full"
                     min="1" max="10"
                     value={formWorkout.rpe === 0 ? '' : formWorkout.rpe}
                     onFocus={e => e.target.select()}

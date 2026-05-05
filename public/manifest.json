@@ -13,7 +13,7 @@
   "icons": [
     {
       "src": "/prorunlb_android_192.png",
-      "sizes": "192x192",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
@@ -35,13 +35,13 @@
       "name": "Portal do Atleta",
       "url": "/#/athlete-portal",
       "description": "Acesse seus treinos e métricas do dia",
-      "icons": [{ "src": "/prorunlb_android_192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/prorunlb_android_192.png", "sizes": "512x512" }]
     },
     {
       "name": "Dashboard Treinador",
       "url": "/#/",
       "description": "Gerencie seus atletas e periodização",
-      "icons": [{ "src": "/prorunlb_android_192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/prorunlb_android_192.png", "sizes": "512x512" }]
     }
   ]
 }

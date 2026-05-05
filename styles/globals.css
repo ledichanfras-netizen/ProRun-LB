@@ -10,10 +10,22 @@
     height: 100%;
   }
   html {
-    @apply bg-[#022c22];
+    @apply bg-[#020617];
   }
   body {
-    @apply bg-gray-50 text-gray-900 font-sans antialiased;
+    @apply bg-[#020617] text-slate-100 font-sans antialiased;
+  }
+  #root {
+    @apply bg-[#020617];
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl;
+  }
+  .premium-gradient {
+    @apply bg-gradient-to-br from-emerald-500/20 via-transparent to-transparent;
   }
 }
 

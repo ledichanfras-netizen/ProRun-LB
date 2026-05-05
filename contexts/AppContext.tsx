@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
@@ -66,37 +66,44 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [userRole, setUserRole] = React.useState<UserRole>(() => {
+  const [userRole, setUserRole] = useState<UserRole>(() => {
     return (localStorage.getItem('proRun_userRole') as UserRole) || null;
   });
   
-  const [selectedAthleteId, setSelectedAthleteId] = React.useState<string | null>(() => {
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(() => {
     return localStorage.getItem('proRun_selectedAthleteId') || null;
   });
   
-  const [athletes, setAthletes] = React.useState<Athlete[]>(() => {
+  const [athletes, setAthletes] = useState<Athlete[]>(() => {
     const cached = localStorage.getItem('proRun_cached_athletes');
     return cached ? JSON.parse(cached) : [];
   });
-  const [workouts, setWorkouts] = React.useState<Workout[]>(() => {
+  const [workouts, setWorkouts] = useState<Workout[]>(() => {
     const cached = localStorage.getItem('proRun_cached_workouts');
     return cached ? JSON.parse(cached) : [];
   });
-  const [athletePlans, setAthletePlans] = React.useState<Record<string, AthletePlan>>(() => {
+  const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>(() => {
     const cached = localStorage.getItem('proRun_cached_athletePlans');
     return cached ? JSON.parse(cached) : {};
   });
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [isCloudConnected, setIsCloudConnected] = React.useState(true);
-  const [subscription, setSubscription] = React.useState<Subscription | null>(null);
-  const [templates, setTemplates] = React.useState<TrainingTemplate[]>(() => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCloudConnected, setIsCloudConnected] = useState(true);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [templates, setTemplates] = useState<TrainingTemplate[]>(() => {
     const saved = localStorage.getItem('proRun_templates');
     return saved ? JSON.parse(saved) : [];
   });
-  const [notifications, setNotifications] = React.useState<AppNotification[]>(() => {
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
     const saved = localStorage.getItem('proRun_notifications');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const logout = useCallback(() => {
+    setUserRole(null);
+    setSelectedAthleteId(null);
+    localStorage.clear();
+    supabase.auth.signOut();
+  }, []);
 
   // Listen to Supabase Auth Changes for future expansion
   useEffect(() => {
@@ -110,7 +117,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [logout]);
 
   useEffect(() => {
     localStorage.setItem('proRun_notifications', JSON.stringify(notifications));
@@ -194,7 +201,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setTemplates(prev => prev.filter(t => t.id !== id));
   };
 
-  const hasActiveSubscription = React.useMemo(() => {
+  const hasActiveSubscription = useMemo(() => {
     if (userRole === 'coach') return true; 
     return subscription?.status === 'active';
   }, [subscription, userRole]);
@@ -374,13 +381,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     return { success: false, message: 'Usuário não encontrado.' };
   };
-
-  const logout = useCallback(() => {
-    setUserRole(null);
-    setSelectedAthleteId(null);
-    localStorage.clear();
-    supabase.auth.signOut();
-  }, []);
 
   const addAthlete = async (athlete: Athlete) => {
     setAthletes(prev => [athlete, ...prev]);

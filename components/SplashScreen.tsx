@@ -23,7 +23,7 @@ const SplashScreen: React.FC = () => {
             filter: 'blur(20px)',
             transition: { duration: 0.8, ease: [0.43, 0.13, 0.23, 0.96] }
           }}
-          className="fixed inset-0 z-[9999] bg-[#022c22] flex flex-col items-center justify-center overflow-hidden"
+          className="fixed inset-0 z-[9999] bg-[#020617] flex flex-col items-center justify-center overflow-hidden"
         >
           {/* Background Effects */}
           <div className="absolute inset-0 opacity-20">

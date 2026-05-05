@@ -108,8 +108,8 @@ const Library: React.FC = () => {
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Biblioteca de Treinos</h1>
-          <p className="text-slate-500 font-medium italic">Banco de dados de sessões padronizadas para prescrição rápida.</p>
+          <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter">Biblioteca de Treinos</h1>
+          <p className="text-slate-400 font-medium italic">Banco de dados de sessões padronizadas para prescrição rápida.</p>
         </div>
         <button 
           onClick={() => {

@@ -347,10 +347,10 @@ const AthletePortal: React.FC = () => {
       <div className="flex flex-col gap-4 px-2">
         <div className="flex justify-between items-end">
           <div>
-            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">
+            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">
               {getAppNow().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
-            <h1 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">
+            <h1 className="text-2xl font-black text-white italic uppercase tracking-tighter">
               Olá, {activeAthlete.name.split(' ')[0]}!
             </h1>
           </div>

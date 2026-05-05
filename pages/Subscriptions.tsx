@@ -52,13 +52,13 @@ const Subscriptions: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-12 pb-20 animate-fade-in">
       <header className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
+        <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">
           <Star className="w-3 h-3 fill-current" /> Planos de Performance
         </div>
-        <h1 className="text-4xl md:text-5xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">
+        <h1 className="text-4xl md:text-5xl font-black text-white uppercase italic tracking-tighter leading-none">
           Evolua como um Pró
         </h1>
-        <p className="text-slate-500 font-medium max-w-xl mx-auto italic text-sm">
+        <p className="text-slate-400 font-medium max-w-xl mx-auto italic text-sm">
           Escolha o plano ideal para seus objetivos de corrida. Performance integrada com ciência e tecnologia.
         </p>
       </header>

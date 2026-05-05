@@ -143,8 +143,8 @@ const Athletes: React.FC = () => {
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Gestão de Atletas</h1>
-          <p className="text-slate-500 font-medium">Controle biométrico e acesso dos atletas.</p>
+          <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter">Gestão de Atletas</h1>
+          <p className="text-slate-400 font-medium font-medium">Controle biométrico e acesso dos atletas.</p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <button 

@@ -272,8 +272,8 @@ const Assessments: React.FC = () => {
 
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Avaliações & Zonas</h1>
-          <p className="text-slate-500 font-medium">Configuração técnica personalizada.</p>
+          <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter">Avaliações & Zonas</h1>
+          <p className="text-slate-400 font-medium">Configuração técnica personalizada.</p>
         </div>
         {activeAthlete && (
           <button 

@@ -455,10 +455,10 @@ const Periodization: React.FC = () => {
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
-            <Sparkles className="text-emerald-600 w-6 h-6" /> Ciclo de Performance
+          <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter flex items-center gap-2">
+            <Sparkles className="text-emerald-400 w-6 h-6" /> Ciclo de Performance
           </h1>
-          <p className="text-slate-500 font-medium italic text-sm">IA Treinador: Prescrição personalizada até o dia da prova.</p>
+          <p className="text-slate-400 font-medium italic text-sm">IA Treinador: Prescrição personalizada até o dia da prova.</p>
         </div>
         
         <div className="flex gap-2 w-full md:w-auto">

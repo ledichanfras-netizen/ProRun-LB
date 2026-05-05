@@ -36,7 +36,8 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip,
-  ResponsiveContainer 
+  ResponsiveContainer,
+  LabelList 
 } from 'recharts';
 
 const TimerComponent: React.FC = () => {
@@ -631,21 +632,22 @@ const AthletePortal: React.FC = () => {
           <TrendingUp className="text-emerald-500 w-5 h-5" /> Sua Evolução Semanal
         </h3>
         
-        <div className="min-h-[220px] w-full" style={{ height: 220, width: '100%', minWidth: 0 }}>
+        <div className="min-h-[260px] w-full" style={{ height: 260, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart 
               data={visibleWeeks.slice().sort((a, b) => a.weekNumber - b.weekNumber).map(w => ({ 
                 name: `S${w.weekNumber}`, 
                 km: w.totalVolume,
-                load: Math.round(w.totalVolume * 10) // Representing internal load
+                load: Math.round(w.totalVolume * 10) 
               }))}
+              margin={{ top: 30, right: 10, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis 
                 dataKey="name" 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 900 }} 
+                tick={{ fill: '#475569', fontSize: 10, fontWeight: 900 }} 
               />
               <YAxis hide />
               <Tooltip 
@@ -653,7 +655,8 @@ const AthletePortal: React.FC = () => {
                 contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
                 formatter={(value: any) => [`${value} KM`, 'Volume']}
               />
-              <Bar dataKey="km" fill="url(#barGradient)" radius={[6, 6, 0, 0]} barSize={24} >
+              <Bar dataKey="km" fill="url(#barGradient)" radius={[8, 8, 0, 0]} barSize={28} >
+                 <LabelList dataKey="km" position="top" style={{ fill: '#10b981', fontSize: '11px', fontWeight: '900' }} offset={15} />
                  <defs>
                     <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#10b981" />

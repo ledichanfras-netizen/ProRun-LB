@@ -29,7 +29,8 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip,
-  ResponsiveContainer 
+  ResponsiveContainer,
+  LabelList 
 } from 'recharts';
 
 export default function Dashboard() {
@@ -384,13 +385,30 @@ export default function Dashboard() {
             <div style={{ height: 300, width: '100%', minWidth: 0 }}>
               {metrics.history.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={metrics.history}>
+                  <BarChart data={metrics.history} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
-                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                    <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]} fill="#e2e8f0" />
-                    <Bar dataKey="completed" name="Executado" radius={[6, 6, 0, 0]} fill="#10b981" />
+                    <XAxis 
+                      dataKey="label" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#475569', fontSize: 10, fontWeight: 800}} 
+                      dy={10} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#94a3b8', fontSize: 10}} 
+                    />
+                    <Tooltip 
+                      cursor={{fill: '#f8fafc'}} 
+                      contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                    />
+                    <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]} fill="#e2e8f0">
+                       <LabelList dataKey="planned" position="top" style={{ fill: '#94a3b8', fontSize: '9px', fontWeight: '900' }} offset={10} />
+                    </Bar>
+                    <Bar dataKey="completed" name="Executado" radius={[6, 6, 0, 0]} fill="#10b981">
+                       <LabelList dataKey="completed" position="top" style={{ fill: '#10b981', fontSize: '9px', fontWeight: '900' }} offset={10} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (

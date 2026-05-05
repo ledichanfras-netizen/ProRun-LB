@@ -94,10 +94,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <span className="font-black text-lg tracking-tighter italic uppercase">ProRun <span className="text-emerald-500">LB</span></span>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => setIsNotificationsOpen(true)} className="relative p-1">
+          <button onClick={() => setIsNotificationsOpen(true)} className="relative p-1.5 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
             <Bell className="w-6 h-6 text-emerald-400" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full border border-[#020617] flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full border-2 border-[#020617] flex items-center justify-center shadow-lg animate-bounce">
                 {unreadCount}
               </span>
             )}
@@ -114,29 +114,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         md:relative md:translate-x-0 flex flex-col border-r border-white/5 no-print
         ${isSidebarOpen ? 'translate-x-0 shadow-[20px_0_50px_rgba(0,0,0,0.5)]' : '-translate-x-full'}
       `}>
-        <div className="p-8 flex items-center gap-4 border-b border-white/5">
-          <div className="bg-white p-1.5 rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-             <img src="/prorunlb_android_192.png?v=6" alt="Logo" className="w-10 h-10 object-contain" />
-          </div>
-          <div className="flex-1">
-            <h1 className="font-black text-2xl tracking-tighter italic uppercase leading-none">ProRun <span className="text-emerald-500">LB</span></h1>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-[10px] text-emerald-300/80 uppercase font-black tracking-[0.2em] leading-none">
-                {userRole === 'coach' ? 'Coach' : 'Athlete'}
-              </p>
-              {isCloudConnected ? (
-                <div className="flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] text-emerald-500 font-bold uppercase tracking-widest">Online</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                  <span className="text-[8px] text-red-500 font-bold uppercase tracking-widest">Offline</span>
-                </div>
-              )}
+        <div className="p-8 flex items-center justify-between border-b border-white/5">
+          <div className="flex items-center gap-4">
+            <div className="bg-white p-1.5 rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+               <img src="/prorunlb_android_192.png?v=6" alt="Logo" className="w-10 h-10 object-contain" />
+            </div>
+            <div className="flex-1">
+              <h1 className="font-black text-2xl tracking-tighter italic uppercase leading-none">ProRun <span className="text-emerald-500">LB</span></h1>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-[10px] text-emerald-300/80 uppercase font-black tracking-[0.2em] leading-none">
+                  {userRole === 'coach' ? 'Coach' : 'Athlete'}
+                </p>
+                {isCloudConnected ? (
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[8px] text-emerald-500 font-bold uppercase tracking-widest">Online</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    <span className="text-[8px] text-red-500 font-bold uppercase tracking-widest">Offline</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+          <button onClick={() => setIsNotificationsOpen(true)} className="relative p-2 hover:bg-white/5 rounded-xl transition-colors group">
+            <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-emerald-400' : 'text-slate-500 group-hover:text-white'}`} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 bg-red-500 w-2 h-2 rounded-full border border-[#050810] animate-pulse" />
+            )}
+          </button>
         </div>
 
         <nav className="flex-1 p-6 space-y-2 overflow-y-auto custom-scrollbar">

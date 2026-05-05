@@ -4,7 +4,9 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider, useApp } from './contexts/AppContext';
 import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
+import { OnboardingWizard } from './components/OnboardingWizard';
 import { RefreshCw } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 
 // Common pages always available
 import Dashboard from './pages/Dashboard';
@@ -73,6 +75,24 @@ function AppContent() {
   const { userRole, isLoading } = useApp();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showUpdateToast, setShowUpdateToast] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    // Check onboarding only for athletes
+    if (userRole === 'athlete') {
+      const completed = localStorage.getItem('proRun_onboarding_completed');
+      if (!completed) {
+        setShowOnboarding(true);
+      }
+    } else {
+      setShowOnboarding(false);
+    }
+  }, [userRole]);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem('proRun_onboarding_completed', 'true');
+    setShowOnboarding(false);
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -125,6 +145,12 @@ function AppContent() {
 
   return (
     <div className="h-full relative">
+      <AnimatePresence>
+        {showOnboarding && (
+          <OnboardingWizard onComplete={handleOnboardingComplete} />
+        )}
+      </AnimatePresence>
+
       {showUpdateToast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] animate-bounce-in">
           <div className="bg-emerald-500 text-emerald-950 px-6 py-4 rounded-3xl shadow-[0_20px_50px_rgba(16,185,129,0.3)] flex items-center gap-4 border border-white/20">

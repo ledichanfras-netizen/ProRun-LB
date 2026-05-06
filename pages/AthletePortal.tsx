@@ -24,7 +24,7 @@ import {
   Play,
   PlayCircle
 } from 'lucide-react';
-import { WorkoutType } from '../types';
+import { WorkoutType, UserAchievement } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
 import { motion, AnimatePresence } from 'motion/react';
@@ -98,6 +98,7 @@ const AthletePortal: React.FC = () => {
   const [exportLoading, setExportLoading] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [newGoal, setNewGoal] = useState({ title: '', type: 'distance' as const, targetValue: 5, deadline: getAppNow().toISOString().split('T')[0] });
+  const [selectedAchievement, setSelectedAchievement] = useState<UserAchievement | null>(null);
   const { addUserGoal } = useApp();
 
   const handleAddGoal = async () => {
@@ -524,18 +525,22 @@ const AthletePortal: React.FC = () => {
 
       {/* Conquistas Recentes */}
       {activeAthlete.gamification?.achievements && activeAthlete.gamification.achievements.length > 0 && (
-        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-          <h3 className="font-black text-slate-800 text-xs uppercase italic tracking-tighter flex items-center gap-2 mb-4">
-            <Trophy className="w-4 h-4 text-emerald-500" /> Conquistas Recentes
+        <div className="bg-slate-900/50 rounded-[2rem] p-6 border border-white/5 shadow-xl backdrop-blur-sm">
+          <h3 className="font-black text-white text-xs uppercase italic tracking-tighter flex items-center gap-2 mb-4">
+            <Trophy className="w-4 h-4 text-emerald-400" /> Conquistas Recentes
           </h3>
           <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             {activeAthlete.gamification.achievements.slice(-5).reverse().map(achievement => (
-              <div key={achievement.id} className="flex-shrink-0 flex flex-col items-center gap-1 group">
-                <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">
+              <button 
+                key={achievement.id} 
+                onClick={() => setSelectedAchievement(achievement)}
+                className="flex-shrink-0 flex flex-col items-center gap-1 group transition-all"
+              >
+                <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 group-hover:bg-emerald-500/20 border border-white/5 transition-all">
                   {achievement.icon}
                 </div>
-                <span className="text-[8px] font-black text-slate-700 italic text-center w-14 leading-tight truncate">{achievement.name}</span>
-              </div>
+                <span className="text-[8px] font-black text-slate-300 italic text-center w-14 leading-tight truncate">{achievement.name}</span>
+              </button>
             ))}
           </div>
         </div>
@@ -844,6 +849,55 @@ const AthletePortal: React.FC = () => {
                   className="w-full bg-emerald-500 text-emerald-950 font-black py-4 rounded-2xl uppercase italic tracking-widest mt-4 shadow-[0_10px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-400 transition-all"
                 >
                   Confirmar Desafio
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Detalhes da Conquista */}
+      <AnimatePresence>
+        {selectedAchievement && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md" onClick={() => setSelectedAchievement(null)}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-slate-900 rounded-[3rem] w-full max-w-sm overflow-hidden shadow-2xl p-8 border border-white/10 relative"
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setSelectedAchievement(null)} 
+                className="absolute top-6 right-6 p-2 bg-white/5 rounded-full text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="flex flex-col items-center text-center">
+                <div className="w-24 h-24 bg-emerald-500/20 rounded-[2.5rem] flex items-center justify-center text-5xl mb-6 shadow-[0_0_40px_rgba(16,185,129,0.2)] border border-emerald-500/20">
+                  {selectedAchievement.icon}
+                </div>
+                
+                <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-2 leading-none">
+                  {selectedAchievement.name}
+                </h3>
+                
+                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-6 italic">
+                  Conquistado em {new Date(selectedAchievement.dateEarned).toLocaleDateString()}
+                </p>
+
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 w-full">
+                  <p className="text-slate-300 font-medium italic leading-relaxed">
+                    {selectedAchievement.description}
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => setSelectedAchievement(null)}
+                  className="w-full bg-emerald-500 text-emerald-950 font-black py-4 rounded-2xl uppercase italic tracking-widest mt-8 shadow-[0_10px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-400 transition-all font-sans"
+                >
+                  Continuar Evoluindo
                 </button>
               </div>
             </motion.div>

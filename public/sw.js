@@ -8,9 +8,9 @@ const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/prorunlb_android_192.png',
+  '/prorunlb_pwa_192_with_text.png',
   '/prorunlb_pwa_512.png',
-  '/prorunlb_maskable_512.png'
+  '/prorunlb_maskable_with_text.png'
 ];
 
 // Instalação: Cacheia os assets críticos e assume o controle imediatamente
@@ -117,8 +117,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: data.body,
-    icon: '/prorunlb_android_192.png',
-    badge: '/prorunlb_android_192.png',
+    icon: '/prorunlb_pwa_512.png',
+    badge: '/prorunlb_pwa_192_with_text.png',
     vibrate: [100, 50, 100],
     data: {
       url: data.url || '/'

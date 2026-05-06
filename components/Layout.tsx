@@ -117,7 +117,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="p-8 flex items-center justify-between border-b border-white/5">
           <div className="flex items-center gap-4">
             <div className="bg-white p-1.5 rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-               <img src="/prorunlb_android_192.png?v=6" alt="Logo" className="w-10 h-10 object-contain" />
+               <img src="/prorunlb_pwa_192_with_text.png?v=6" alt="Logo" className="w-10 h-10 object-contain" />
             </div>
             <div className="flex-1">
               <h1 className="font-black text-2xl tracking-tighter italic uppercase leading-none">ProRun <span className="text-emerald-500">LB</span></h1>
@@ -206,7 +206,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px] -mr-32 -mt-32" />
               <div className="flex items-center gap-6 relative z-10">
                 <div className="bg-white p-1 rounded-[1.5rem] shadow-2xl border border-white/10 overflow-hidden transform group-hover:rotate-6 transition-transform">
-                  <img src="/prorunlb_android_192.png?v=6" alt="ProRun Logo" className="w-16 h-16 object-contain" referrerPolicy="no-referrer" />
+                  <img src="/prorunlb_pwa_192_with_text.png?v=6" alt="ProRun Logo" className="w-16 h-16 object-contain" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <p className="font-black text-2xl text-white uppercase italic tracking-tighter mb-1">Experiência Completa</p>

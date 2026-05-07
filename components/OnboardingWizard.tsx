@@ -11,7 +11,8 @@ import {
   PlayCircle,
   BarChart3,
   Sparkles,
-  CalendarDays
+  CalendarDays,
+  ListOrdered
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -40,6 +41,13 @@ const steps = [
     icon: <BarChart3 className="w-12 h-12 text-blue-500" />,
     image: "https://images.unsplash.com/photo-1530141943419-f470a9eb639b?auto=format&fit=crop&q=80&w=800",
     color: "from-blue-500/20 to-purple-500/20"
+  },
+  {
+    title: "Precisão em Cada Movimento",
+    description: "Pronto para o próximo nível? Em sessões específicas, você terá o detalhamento de cada exercício, séries e cargas sugeridas. Ajuste em tempo real conforme sua performance.",
+    icon: <ListOrdered className="w-12 h-12 text-purple-500" />,
+    image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&q=80&w=800",
+    color: "from-purple-500/20 to-amber-500/20"
   },
   {
     title: "A Importância da Execução",

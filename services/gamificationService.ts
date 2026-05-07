@@ -40,13 +40,16 @@ export const updateGamificationData = (
     // XP Logic
     let xpGain = XP_PER_WORKOUT;
     if (workout.type === 'Longão') xpGain = XP_FOR_LONG_RUN;
-    if (workout.type === 'Intervalado') xpGain = XP_FOR_INTERVAL;
+    else if (workout.type === 'Intervalado') xpGain = XP_FOR_INTERVAL;
+    else if (workout.type === 'Descanso') xpGain = 20; // Pequeno bônus por registrar o descanso
     
     updatedData.xp += xpGain;
     updatedData.level = calculateLevel(updatedData.xp);
-    updatedData.totalWorkouts += 1;
+    if (workout.type !== 'Descanso') {
+      updatedData.totalWorkouts += 1;
+    }
 
-    // Streak Logic
+    // Streak Logic (Descanso também mantém streak se for parte do plano)
     if (updatedData.lastWorkoutDate) {
       const lastDate = new Date(updatedData.lastWorkoutDate);
       const diffTime = Math.abs(today.getTime() - lastDate.getTime());

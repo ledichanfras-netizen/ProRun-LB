@@ -117,7 +117,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="p-8 flex items-center justify-between border-b border-white/5">
           <div className="flex items-center gap-4">
             <div className="bg-white p-1.5 rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-               <img src="/prorunlb_pwa_192_with_text.png?v=6" alt="Logo" className="w-10 h-10 object-contain" />
+               <img src="/prorunlb_pwa_192_with_text.png" alt="Logo" className="w-10 h-10 object-contain" />
             </div>
             <div className="flex-1">
               <h1 className="font-black text-2xl tracking-tighter italic uppercase leading-none">ProRun <span className="text-emerald-500">LB</span></h1>

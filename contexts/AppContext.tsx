@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
-import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal } from '../types';
+import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal, Exercise } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
@@ -35,7 +35,7 @@ interface AppContextType {
   
   athletePlans: Record<string, AthletePlan>;
   saveAthletePlan: (athleteId: string, plan: AthletePlan) => Promise<void>;
-  updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => Promise<void>;
+  updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number, exercises?: Exercise[]) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
     history: HistoryEntry[], 
@@ -536,7 +536,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number) => {
+  const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number, exercises?: Exercise[]) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
@@ -547,6 +547,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     workout.completed = completed;
     workout.feedback = sFeedback || "";
     workout.rpe = rpe !== undefined ? rpe : (workout.rpe || 0);
+    if (exercises) workout.exercises = exercises;
     
     // Gamification Integration
     if (completed) {
@@ -604,8 +605,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           weekPlanned += w.distance;
           if (w.completed) weekCompleted += w.distance;
         }
-        if (w.completed) completedWorkouts++;
-        if (w.type !== 'Descanso') totalWorkouts++;
+        if (w.type !== 'Descanso') {
+          totalWorkouts++;
+          if (w.completed) completedWorkouts++;
+        }
       });
       totalVolumePlanned += weekPlanned;
       totalVolumeCompleted += weekCompleted;

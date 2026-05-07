@@ -21,7 +21,7 @@ const Athletes: React.FC = () => {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
 
   const [formData, setFormData] = useState<Partial<Athlete>>({
-    name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: ''
+    name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: ''
   });
 
   // Filter Athletes
@@ -63,7 +63,7 @@ const Athletes: React.FC = () => {
     
     setIsFormOpen(false);
     setEditingId(null);
-    setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '' });
+    setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: '' });
   };
 
   const handleEditClick = (athlete: Athlete) => {
@@ -151,7 +151,7 @@ const Athletes: React.FC = () => {
             onClick={() => {
               setIsFormOpen(true);
               setEditingId(null);
-              setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '' });
+              setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: '' });
             }}
             className="flex-1 md:flex-none bg-emerald-950 hover:bg-black text-white px-8 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest shadow-xl transition"
           >
@@ -290,6 +290,19 @@ const Athletes: React.FC = () => {
                 onChange={e => setFormData({...formData, height: Number(e.target.value)})}
               />
             </div>
+            
+            <div className="md:col-span-3">
+              <label className="pro-label flex items-center gap-2">
+                <AlertTriangle className="w-3 h-3 text-amber-500" /> Histórico de Lesões / Observações Médicas
+              </label>
+              <textarea 
+                className="pro-input w-full h-24 py-3 resize-none" 
+                placeholder="Ex: Lesão no tendão de Aquiles em 2024. Sensibilidade no joelho esquerdo. Asma leve."
+                value={formData.injuryHistory || ''}
+                onChange={e => setFormData({...formData, injuryHistory: e.target.value})}
+              />
+            </div>
+
             <div className="md:col-span-3 flex justify-end gap-4 mt-6">
               <button type="button" onClick={() => setIsFormOpen(false)} className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-white transition">CANCELAR</button>
               <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105">

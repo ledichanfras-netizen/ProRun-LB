@@ -15,14 +15,24 @@ export interface Assessment {
   notes?: string;
 }
 
+export interface Exercise {
+  id: string;
+  name: string;
+  sets: string;
+  reps: string;
+  load: string;
+  order: number;
+}
+
 export interface Workout {
   id: string;
   title: string;
-  type: 'Recovery' | 'Long Run' | 'Tempo' | 'Interval' | 'Speed';
+  type: WorkoutType;
   description: string;
   durationMinutes: number;
   distanceKm: number;
   rpe: number;
+  exercises?: Exercise[];
 }
 
 export interface TrainingPace {
@@ -64,6 +74,7 @@ export interface Athlete {
     };
     aiAnalysis?: string;
   };
+  injuryHistory?: string;
   readiness?: 'ready' | 'fatigued' | 'recovering';
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
@@ -112,12 +123,13 @@ export interface TrainingWeek {
   workouts: {
     day: string; 
     workoutId?: string;
-    type?: WorkoutType; 
+    type: WorkoutType; 
     customDescription?: string;
     distance?: number;
     completed?: boolean;
     feedback?: string; 
     rpe?: number;
+    exercises?: Exercise[];
   }[];
 }
 
@@ -126,7 +138,9 @@ export interface AthletePlan {
   raceStrategy?: string;
   motivationalMessage?: string;
   specificGoal?: string; 
-  startDate?: string; // Data de início da periodização
+  startDate?: string;
+  endDate?: string;
+  trainingDays?: number[];
 }
 
 export interface HistoryEntry {

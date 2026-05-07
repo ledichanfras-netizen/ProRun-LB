@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
-import { TrainingWeek, Athlete, WorkoutType, AthletePlan } from '../types';
+import { TrainingWeek, Athlete, WorkoutType, AthletePlan, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 import { getAppNow } from '../utils/time';
 import { 
@@ -28,8 +28,10 @@ import {
   BookOpen,
   X,
   Plus,
-  Trash2
+  Trash2,
+  ListOrdered
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
 import { safeDeepClone } from '../utils/helpers';
@@ -45,6 +47,7 @@ const Periodization: React.FC = () => {
   const [weeks, setWeeks] = useState(8);
   const [runningDays, setRunningDays] = useState(4);
   const [gymDays, setGymDays] = useState(2);
+  const [trainingDays, setTrainingDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]); // All days by default
   const [loading, setLoading] = useState(false);
   const [fullPlan, setFullPlan] = useState<AthletePlan | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -151,7 +154,9 @@ const Periodization: React.FC = () => {
         gymDays,
         raceDistance,
         raceDate,
-        raceGoal
+        raceGoal,
+        startDate,
+        trainingDays
       );
       
       const normalizedWeeks = (generated.weeks || []).map(w => {
@@ -168,7 +173,8 @@ const Periodization: React.FC = () => {
         ...generated, 
         weeks: normalizedWeeks, 
         specificGoal: raceGoal ? `${raceDistance} (${raceGoal})` : raceDistance,
-        startDate: startDate || getAppNow().toISOString().split('T')[0]
+        startDate: startDate || getAppNow().toISOString().split('T')[0],
+        trainingDays: trainingDays
       };
       setFullPlan(newPlan);
       saveAthletePlan(activeAthlete.id, newPlan);
@@ -235,7 +241,8 @@ const Periodization: React.FC = () => {
       specificGoal: raceGoal || raceDistance,
       raceStrategy: 'Periodização manual iniciada.',
       motivationalMessage: 'Foco no processo!',
-      startDate: startDate || getAppNow().toISOString().split('T')[0]
+      startDate: startDate || getAppNow().toISOString().split('T')[0],
+      trainingDays: trainingDays
     };
 
     setFullPlan(newPlan);
@@ -361,6 +368,7 @@ const Periodization: React.FC = () => {
     workout.type = typeMap[libWorkout.type] || 'Regenerativo';
     workout.customDescription = libWorkout.description;
     workout.distance = libWorkout.distanceKm;
+    workout.exercises = libWorkout.exercises || [];
     
     // Atualizar volume da semana
     const total = newPlan.weeks[weekIndex].workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
@@ -369,6 +377,60 @@ const Periodization: React.FC = () => {
     setFullPlan(newPlan);
     setShowLibraryModal(false);
     setTargetDay(null);
+  };
+
+  const handleResetWorkout = (wIdx: number, dIdx: number) => {
+    if (confirm("Deseja realmente remover este treino? Ele será resetado para Descanso.")) {
+      const newPlan = safeDeepClone(fullPlan);
+      newPlan.weeks[wIdx].workouts[dIdx] = {
+        day: newPlan.weeks[wIdx].workouts[dIdx].day,
+        type: 'Descanso' as WorkoutType,
+        customDescription: 'Descanso total.',
+        distance: 0,
+        completed: false,
+        exercises: []
+      };
+      // Recalcular volume
+      const total = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
+      newPlan.weeks[wIdx].totalVolume = total;
+      setFullPlan(newPlan);
+    }
+  };
+
+  const [editingExercises, setEditingExercises] = useState<{ wIdx: number, dIdx: number } | null>(null);
+
+  const addWorkoutExercise = (wIdx: number, dIdx: number) => {
+    if (!fullPlan) return;
+    const newPlan = safeDeepClone(fullPlan);
+    const workout = newPlan.weeks[wIdx].workouts[dIdx];
+    const newEx: Exercise = {
+      id: crypto.randomUUID(),
+      name: '',
+      sets: '',
+      reps: '',
+      load: '',
+      order: (workout.exercises?.length || 0) + 1
+    };
+    workout.exercises = [...(workout.exercises || []), newEx];
+    setFullPlan(newPlan);
+  };
+
+  const updateWorkoutExercise = (wIdx: number, dIdx: number, exId: string, field: keyof Exercise, value: any) => {
+    if (!fullPlan) return;
+    const newPlan = safeDeepClone(fullPlan);
+    const workout = newPlan.weeks[wIdx].workouts[dIdx];
+    workout.exercises = (workout.exercises || []).map((ex: Exercise) => 
+      ex.id === exId ? { ...ex, [field]: value } : ex
+    );
+    setFullPlan(newPlan);
+  };
+
+  const removeWorkoutExercise = (wIdx: number, dIdx: number, exId: string) => {
+    if (!fullPlan) return;
+    const newPlan = safeDeepClone(fullPlan);
+    const workout = newPlan.weeks[wIdx].workouts[dIdx];
+    workout.exercises = (workout.exercises || []).filter((ex: Exercise) => ex.id !== exId);
+    setFullPlan(newPlan);
   };
 
   const athletePaces = activeAthlete ? (activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax)) : [];
@@ -572,6 +634,31 @@ const Periodization: React.FC = () => {
                   <ChevronDown className="absolute right-3 top-[34px] w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
 
+                <div>
+                   <label className="pro-label">Dias Disponíveis para Treino</label>
+                   <div className="flex flex-wrap gap-2 mt-2">
+                      {["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"].map((day, idx) => (
+                        <button
+                          key={day}
+                          onClick={() => {
+                            if (trainingDays.includes(idx)) {
+                               setTrainingDays(trainingDays.filter(d => d !== idx));
+                            } else {
+                               setTrainingDays([...trainingDays, idx]);
+                            }
+                          }}
+                          className={`w-10 h-10 rounded-xl text-[10px] font-black uppercase italic transition-all border ${
+                            trainingDays.includes(idx) 
+                              ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                              : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+
                 <div className="grid grid-cols-1 gap-3 mt-4">
                   <button onClick={handleGenerate} disabled={loading || !raceDate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
                     {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} {loading ? 'GERANDO...' : 'Gerar com IA'}
@@ -707,17 +794,34 @@ const Periodization: React.FC = () => {
                                     onChange={e => updateWorkout(weekIndex, dayIndex, 'customDescription', e.target.value)}
                                   />
                                 </div>
-                                <button 
-                                  onClick={() => {
-                                    setTargetDay({ weekIndex, dayIndex });
-                                    setShowLibraryModal(true);
-                                  }}
-                                  className="self-start px-3 py-1.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center gap-2"
-                                  title="Importar da Biblioteca"
-                                >
-                                  <BookOpen className="w-3.5 h-3.5" />
-                                  <span className="text-[10px] font-black uppercase italic tracking-tight">Biblioteca</span>
-                                </button>
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setTargetDay({ weekIndex, dayIndex });
+                                      setShowLibraryModal(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center gap-2"
+                                    title="Importar da Biblioteca"
+                                  >
+                                    <BookOpen className="w-3.5 h-3.5" />
+                                    <span className="text-[10px] font-black uppercase italic tracking-tight">Biblioteca</span>
+                                  </button>
+                                  <button 
+                                    onClick={() => setEditingExercises({ wIdx: weekIndex, dIdx: dayIndex })}
+                                    className="px-3 py-1.5 bg-purple-600 text-white rounded-xl shadow-lg shadow-purple-500/20 hover:bg-purple-700 transition-all flex items-center gap-2"
+                                    title="Editar Exercícios do Torneio"
+                                  >
+                                    <ListOrdered className="w-3.5 h-3.5" />
+                                    <span className="text-[10px] font-black uppercase italic tracking-tight">Exercícios</span>
+                                  </button>
+                                  <button 
+                                    onClick={() => handleResetWorkout(weekIndex, dayIndex)}
+                                    className="px-2 py-1.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 transition-all"
+                                    title="Excluir Treino"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
                            ) : (
                               <div className="space-y-1">
@@ -780,6 +884,102 @@ const Periodization: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL DE EDIÇÃO DE EXERCÍCIOS (MODO ELITE TORNEIO) */}
+      <AnimatePresence>
+        {editingExercises && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.9, y: 20 }}
+               animate={{ opacity: 1, scale: 1, y: 0 }}
+               exit={{ opacity: 0, scale: 0.9, y: 20 }}
+               className="bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]"
+             >
+                <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-purple-500/20 p-3 rounded-2xl border border-purple-500/20 text-purple-400">
+                      <ListOrdered className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">Exercícios Detalhados</h3>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">{fullPlan?.weeks[editingExercises.wIdx].workouts[editingExercises.dIdx].day} • Semana {fullPlan?.weeks[editingExercises.wIdx].weekNumber}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setEditingExercises(null)} className="p-3 hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-white">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <div className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+                  {(fullPlan?.weeks[editingExercises.wIdx].workouts[editingExercises.dIdx].exercises || []).map((ex, idx) => (
+                    <div key={ex.id} className="grid grid-cols-12 gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 group relative">
+                       <div className="col-span-12 md:col-span-1 flex items-center justify-center">
+                          <span className="text-xs font-black text-slate-600">#{idx + 1}</span>
+                       </div>
+                       <div className="col-span-12 md:col-span-4">
+                          <input 
+                            placeholder="Exercício"
+                            className="pro-input w-full text-xs"
+                            value={ex.name}
+                            onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'name', e.target.value)}
+                          />
+                       </div>
+                       <div className="col-span-4 md:col-span-2">
+                          <input 
+                            placeholder="Séries"
+                            className="pro-input w-full text-[10px] text-center"
+                            value={ex.sets}
+                            onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'sets', e.target.value)}
+                          />
+                       </div>
+                       <div className="col-span-4 md:col-span-2">
+                          <input 
+                            placeholder="Reps"
+                            className="pro-input w-full text-[10px] text-center"
+                            value={ex.reps}
+                            onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'reps', e.target.value)}
+                          />
+                       </div>
+                       <div className="col-span-4 md:col-span-2">
+                          <input 
+                            placeholder="Carga"
+                            className="pro-input w-full text-[10px] text-center"
+                            value={ex.load}
+                            onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'load', e.target.value)}
+                          />
+                       </div>
+                       <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => removeWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id)}
+                            className="bg-red-500 text-white p-1.5 rounded-lg shadow-lg hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                       </div>
+                    </div>
+                  ))}
+
+                  <button 
+                    onClick={() => addWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx)}
+                    className="w-full py-4 border-2 border-dashed border-white/5 rounded-2xl text-slate-500 hover:text-emerald-500 hover:border-emerald-500/20 transition-all flex items-center justify-center gap-2 group"
+                  >
+                    <Plus className="w-4 h-4 group-hover:scale-110" />
+                    <span className="text-[10px] font-black uppercase italic tracking-widest">Adicionar Exercício Técnica</span>
+                  </button>
+                </div>
+
+                <div className="p-8 border-t border-white/5 flex justify-end">
+                  <button 
+                    onClick={() => setEditingExercises(null)}
+                    className="px-10 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl hover:bg-emerald-700 transition-all"
+                  >
+                    OK, CONCLUÍDO
+                  </button>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -14,7 +14,9 @@ export const generateTrainingPlan = async (
   gymDays: number,
   raceDistance: string,
   raceDate?: string,
-  raceGoal?: string
+  raceGoal?: string,
+  startDate?: string,
+  trainingDays?: number[]
 ): Promise<AthletePlan> => {
   
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -36,34 +38,44 @@ export const generateTrainingPlan = async (
     ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(raceDate + 'T00:00:00'))
     : 'Domingo';
 
+  const preferredDaysText = trainingDays && trainingDays.length > 0 
+    ? trainingDays.map(d => ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"][d]).join(", ")
+    : "Não especificado (use seu critério)";
+
   const prompt = `
     Aja como um Treinador de Elite especializado em Corrida (Metodologia VDOT - Jack Daniels) e Multiesporte (Triathlon e Duathlon).
     
-    SUA BASE METODOLÓGICA PARA TRIATHLON/DUATHLON:
-    1. "A Bíblia do Treinamento para Triatletas" (Joe Friel) - Referência principal para periodização e carga.
-    2. "Guia Completo de Triatlo" (USA Triathlon) - Fundamentos e técnica.
-    3. "Triathlon 80/20" (Matt Fitzgerald) - Distribuição de intensidade (80% baixa, 20% alta).
-    4. "Fórmula de Daniels" (Jack Daniels) - Referência para os ritmos de corrida (VDOT).
+    SUA BASE METODOLÓGICA:
+    1. "A Bíblia do Treinamento para Triatletas/Ciclistas" (Joe Friel).
+    2. "Fórmula de Daniels" (Jack Daniels).
+    3. Princípio da Individualidade Biológica: Ajuste volumes para a idade, peso e experiência.
+    4. Princípio da Continuidade e Reversibilidade.
+    5. Periodização Linear e Não-Linear.
 
-    DATA DE HOJE: ${today}.
-    ATLETA: ${athlete.name} | NÍVEL: ${athlete.experience} | VDOT: ${athlete.metrics.vdot}.
-    META ESPECÍFICA: ${raceGoal || raceDistance} na distância de ${raceDistance}.
-    MODALIDADE: ${raceDistance.includes('Triathlon') || raceDistance.includes('70.3') || raceDistance.includes('Ironman') ? 'Triathlon' : raceDistance.includes('Duathlon') ? 'Duathlon' : 'Corrida'}.
-    DATA DA PROVA: ${raceDate} (${raceWeekday}).
-    DURAÇÃO DO CICLO: ${weeks} semanas.
-    FREQUÊNCIA: ${runningDays} dias de corrida e ${gymDays} dias de fortalecimento/academia por semana.
-    CONTEXTO ADICIONAL: ${goalDescription}.
-    RITMOS ALVO (CORRIDA): ${pacesContext}.
+    DADOS DO ATLETA:
+    - NOME: ${athlete.name}
+    - NÍVEL: ${athlete.experience}
+    - VDOT: ${athlete.metrics.vdot}
+    - BIOMETRIA: ${athlete.age} anos, ${athlete.weight}kg, ${athlete.height}cm.
+    - HISTÓRICO DE LESÕES (CRÍTICO): ${athlete.injuryHistory || 'Nenhum reportado'}. (Se houver lesão, seja mais conservador no volume e evite muitos treinos de impacto seguidos).
+
+    PARÂMETROS DO CICLO:
+    - DATA DE INÍCIO: ${startDate || today}.
+    - DATA DA PROVA: ${raceDate} (${raceWeekday}).
+    - META: ${raceGoal || raceDistance} (${raceDistance}).
+    - DURAÇÃO: ${weeks} semanas.
+    - DIAS DISPONÍVEIS: ${preferredDaysText}. 
+    - FREQUÊNCIA ALVO: ${runningDays} corridas e ${gymDays} treinos de força por semana.
+    - CONTEXTO ADICIONAL: ${goalDescription}.
+    - RITMOS ALVO: ${pacesContext}.
  
-    REGRAS DE OURO DA PERIODIZAÇÃO:
-    1. A PROVA ALVO (${raceDistance}) é o evento FINAL absoluto do plano. Ela deve ocorrer na ÚLTIMA SEMANA (Semana ${weeks}), OBRIGATORIAMENTE no dia: ${raceWeekday}. Se a prova é no domingo, o treino de domingo da última semana DEVE ser a prova.
-    2. O plano deve ter ${weeks} semanas completas. Cada semana deve ter 7 dias, começando na Segunda-feira e terminando no Domingo.
-    3. Para TRIATHLON/DUATHLON/IRONMAN: O plano DEVE incluir sessões de Natação, Ciclismo e Transição (Brick), além da Corrida e Fortalecimento, seguindo a lógica de Joe Friel (Preparação, Base, Construção, Pico e Polimento).
-    4. Aplique a regra 80/20: A grande maioria do volume deve ser em intensidades baixas (Z1/Z2), com sessões de alta intensidade (Z4/Z5) pontuais e estratégicas.
-    5. O treino "Longão" (ou treino longo da modalidade principal do dia) deve ser OBRIGATORIAMENTE aos DOMINGOS (exceto na semana da prova, onde a prova é o evento principal).
-    6. RESTRIÇÃO DE TEMPO: Se o treinador descreveu "máximo 50 minutos" ou algo similar para a semana, limite os treinos de segunda a sábado a volumes que caibam nesse tempo (ex: 6km a 8km). O volume total maior deve ser concentrado no Longão de Domingo.
-    7. DISTRIBUIÇÃO: Distribua os ${runningDays} treinos de corrida e ${gymDays} de academia de forma equilibrada. Não coloque treinos intensos em dias seguidos.
-    8. POLIMENTO: A última semana deve ter uma redução drástica de volume (Tapering) para chegar descansado na prova.
+    REGRAS OBRIGATÓRIAS:
+    1. A PROVA deve ser o único treino do dia ${raceWeekday} na Semana ${weeks}.
+    2. RESPEITE OS DIAS DISPONÍVEIS: Tente prescrever treinos APENAS nos dias selecionados (${preferredDaysText}). Se não houver dias suficientes selecionados para a frequência alvo, priorize os selecionados e complete onde for menos prejudicial.
+    3. No caso de lesões reportadas, inclua notas específicas do Coach orientando o cuidado.
+    4. Use a nomenclatura exata: "Regenerativo", "Longão", "Limiar", "Intervalado", "Descanso", "Fortalecimento", "Velocidade", "Natação", "Ciclismo", "Transição".
+    5. Para o "Fortalecimento", especifique se é funcional, hipertrofia ou resistência de força.
+    6. INDIVIDUALIZAÇÃO: Se o atleta é "Elite", o volume deve ser condizente (ex: 70-120km/sem para maratona). Se é "Iniciante", comece com volumes baixos e caminhas/corridas intercaladas se necessário.
 
     ESTRATÉGIA DE PROVA (raceStrategy):
     - Detalhe o plano de ritmos e tática para atingir a meta "${raceGoal}".

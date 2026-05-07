@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { Workout } from '../types';
-import { Book, Plus, Clock, Zap, Info, Trash2, Edit2, Save, X, AlertTriangle, Search } from 'lucide-react';
+import { Workout, Exercise } from '../types';
+import { Book, Plus, Clock, Zap, Info, Trash2, Edit2, Save, X, AlertTriangle, Search, Dumbbell, ListOrdered } from 'lucide-react';
 
 const Library: React.FC = () => {
   const { workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout } = useApp();
@@ -15,7 +15,7 @@ const Library: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [formWorkout, setFormWorkout] = useState<Partial<Workout>>({
-    title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3
+    title: '', type: 'Regenerativo', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3, exercises: []
   });
   
   // Filter workouts
@@ -37,13 +37,47 @@ const Library: React.FC = () => {
     // Reset
     setShowForm(false);
     setEditingId(null);
-    setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
+    setFormWorkout({ title: '', type: 'Regenerativo', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3, exercises: [] });
   };
 
   const handleEdit = (workout: Workout) => {
     setEditingId(workout.id);
-    setFormWorkout(workout);
+    setFormWorkout({
+      ...workout,
+      exercises: workout.exercises || []
+    });
     setShowForm(true);
+  };
+
+  const addExercise = () => {
+    const newExercise: Exercise = {
+      id: crypto.randomUUID(),
+      name: '',
+      sets: '',
+      reps: '',
+      load: '',
+      order: (formWorkout.exercises?.length || 0) + 1
+    };
+    setFormWorkout({
+      ...formWorkout,
+      exercises: [...(formWorkout.exercises || []), newExercise]
+    });
+  };
+
+  const updateExercise = (id: string, field: keyof Exercise, value: any) => {
+    setFormWorkout({
+      ...formWorkout,
+      exercises: (formWorkout.exercises || []).map(ex => 
+        ex.id === id ? { ...ex, [field]: value } : ex
+      )
+    });
+  };
+
+  const removeExercise = (id: string) => {
+    setFormWorkout({
+      ...formWorkout,
+      exercises: (formWorkout.exercises || []).filter(ex => ex.id !== id)
+    });
   };
 
   // Open Delete Modal
@@ -62,11 +96,12 @@ const Library: React.FC = () => {
 
   const mapType = (type: string) => {
       switch(type) {
-          case 'Recovery': return 'Recuperação';
-          case 'Long Run': return 'Longão';
-          case 'Tempo': return 'Tempo';
-          case 'Interval': return 'Intervalado';
-          case 'Speed': return 'Velocidade';
+          case 'Regenerativo': return 'Regenerativo';
+          case 'Longão': return 'Longão';
+          case 'Limiar': return 'Limiar';
+          case 'Intervalado': return 'Intervalado';
+          case 'Velocidade': return 'Velocidade';
+          case 'Fortalecimento': return 'Fortalecimento';
           default: return type;
       }
   }
@@ -115,7 +150,7 @@ const Library: React.FC = () => {
           onClick={() => {
             setShowForm(true);
             setEditingId(null);
-            setFormWorkout({ title: '', type: 'Recovery', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3 });
+            setFormWorkout({ title: '', type: 'Regenerativo', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3, exercises: [] });
           }}
           className="w-full md:w-auto bg-emerald-950 hover:bg-black text-white px-8 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105"
         >
@@ -124,7 +159,7 @@ const Library: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {['Recovery', 'Long Run', 'Tempo', 'Interval', 'Speed'].map(type => {
+        {['Regenerativo', 'Longão', 'Limiar', 'Intervalado', 'Velocidade'].map(type => {
           const count = workouts.filter(w => w.type === type).length;
           return (
             <div key={type} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
@@ -186,11 +221,12 @@ const Library: React.FC = () => {
                 value={formWorkout.type}
                 onChange={e => setFormWorkout({...formWorkout, type: e.target.value as any})}
               >
-                <option value="Recovery" className="bg-slate-900">Recuperação (Regenerativo)</option>
-                <option value="Long Run" className="bg-slate-900">Longão (Resistência)</option>
-                <option value="Tempo" className="bg-slate-900">Tempo (Ritmo de Prova/Limiar)</option>
-                <option value="Interval" className="bg-slate-900">Intervalado (VO2Max)</option>
-                <option value="Speed" className="bg-slate-900">Velocidade (Repetições Curtas)</option>
+                <option value="Regenerativo" className="bg-slate-900">Regenerativo</option>
+                <option value="Longão" className="bg-slate-900">Longão</option>
+                <option value="Limiar" className="bg-slate-900">Limiar</option>
+                <option value="Intervalado" className="bg-slate-900">Intervalado</option>
+                <option value="Velocidade" className="bg-slate-900">Velocidade</option>
+                <option value="Fortalecimento" className="bg-slate-900">Fortalecimento</option>
               </select>
             </div>
 
@@ -203,6 +239,80 @@ const Library: React.FC = () => {
                 value={formWorkout.description}
                 onChange={e => setFormWorkout({...formWorkout, description: e.target.value})}
               />
+            </div>
+
+            {/* Exercícios Detalhados (Modo Elite Torneio) */}
+            <div className="md:col-span-2 space-y-4">
+              <div className="flex justify-between items-center px-1">
+                <label className="pro-label flex items-center gap-2">
+                  <ListOrdered className="w-4 h-4 text-emerald-400" /> Detalhamento de Exercícios (Elite)
+                </label>
+                <button 
+                  type="button"
+                  onClick={addExercise}
+                  className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-500/20 transition-all uppercase italic flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Adicionar Exercício
+                </button>
+              </div>
+
+              {formWorkout.exercises && formWorkout.exercises.length > 0 ? (
+                <div className="space-y-3">
+                  {formWorkout.exercises.map((ex, idx) => (
+                    <div key={ex.id} className="grid grid-cols-12 gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 group animate-fade-in">
+                      <div className="col-span-1 flex items-center justify-center">
+                        <span className="text-[10px] font-black text-slate-500">#{idx + 1}</span>
+                      </div>
+                      <div className="col-span-5 md:col-span-4">
+                        <input 
+                          placeholder="Nome do Exercício"
+                          className="pro-input w-full text-xs"
+                          value={ex.name}
+                          onChange={e => updateExercise(ex.id, 'name', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input 
+                          placeholder="Séries"
+                          className="pro-input w-full text-xs text-center"
+                          value={ex.sets}
+                          onChange={e => updateExercise(ex.id, 'sets', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input 
+                          placeholder="Reps"
+                          className="pro-input w-full text-xs text-center"
+                          value={ex.reps}
+                          onChange={e => updateExercise(ex.id, 'reps', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-2 md:col-span-2">
+                        <input 
+                          placeholder="Carga"
+                          className="pro-input w-full text-xs text-center"
+                          value={ex.load}
+                          onChange={e => updateExercise(ex.id, 'load', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-12 md:col-span-1 flex items-center justify-end">
+                        <button 
+                          type="button"
+                          onClick={() => removeExercise(ex.id)}
+                          className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 border-2 border-dashed border-white/5 rounded-3xl text-center">
+                   <Dumbbell className="w-8 h-8 text-white/10 mx-auto mb-2" />
+                   <p className="text-[10px] font-bold text-slate-500 italic">Nenhum exercício registrado. Ideal para treinos de fortalecimento.</p>
+                </div>
+              )}
             </div>
 
             {/* Métricas */}
@@ -264,12 +374,12 @@ const Library: React.FC = () => {
         {filteredWorkouts.length > 0 ? filteredWorkouts.map(w => (
           <div key={w.id} className="bg-white rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-xl transition-all group relative flex flex-col overflow-hidden">
             
-            {/* Type Indicator Bar */}
+            {/* Indicator Bar */}
             <div className={`h-2 w-full ${
-              w.type === 'Recovery' ? 'bg-emerald-400' : 
-              w.type === 'Tempo' ? 'bg-amber-500' :
-              w.type === 'Interval' ? 'bg-red-500' :
-              w.type === 'Long Run' ? 'bg-emerald-600' :
+              w.type === 'Regenerativo' ? 'bg-emerald-400' : 
+              w.type === 'Limiar' ? 'bg-amber-500' :
+              w.type === 'Intervalado' ? 'bg-red-500' :
+              w.type === 'Longão' ? 'bg-emerald-600' :
               'bg-purple-500'
             }`} />
 
@@ -277,10 +387,10 @@ const Library: React.FC = () => {
               <div className="flex justify-between items-start mb-4">
                 <span className={`
                   px-3 py-1 text-[10px] font-black uppercase italic tracking-widest rounded-lg border
-                  ${w.type === 'Recovery' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                    w.type === 'Tempo' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                    w.type === 'Interval' ? 'bg-red-50 text-red-700 border-red-100' :
-                    w.type === 'Long Run' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                  ${w.type === 'Regenerativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                    w.type === 'Limiar' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                    w.type === 'Intervalado' ? 'bg-red-50 text-red-700 border-red-100' :
+                    w.type === 'Longão' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
                     'bg-purple-50 text-purple-700 border-purple-100'}
                 `}>
                   {mapType(w.type)}

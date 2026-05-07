@@ -41,7 +41,7 @@ export default function Login() {
       <div className="w-full max-w-sm relative z-10 animate-fade-in-up">
         <div className="flex flex-col items-center mb-10">
           <div className="mb-6 p-0.5 bg-white rounded-3xl shadow-[0_0_40px_rgba(16,185,129,0.2)] border border-white/10 overflow-hidden transform hover:scale-110 transition-transform duration-500">
-            <img src="/prorunlb_pwa_192_with_text.png?v=6" alt="ProRun LB" className="w-20 h-20 object-contain" />
+            <img src="/prorunlb_pwa_192_with_text.png" alt="ProRun LB" className="w-20 h-20 object-contain" />
           </div>
           <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
             ProRun <span className="text-emerald-500">LB</span>

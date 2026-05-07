@@ -22,9 +22,10 @@ import {
   Zap,
   Flag,
   Play,
-  PlayCircle
+  PlayCircle,
+  Dumbbell
 } from 'lucide-react';
-import { WorkoutType, UserAchievement } from '../types';
+import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
 import { motion, AnimatePresence } from 'motion/react';
@@ -99,6 +100,7 @@ const AthletePortal: React.FC = () => {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [newGoal, setNewGoal] = useState({ title: '', type: 'distance' as const, targetValue: 5, deadline: getAppNow().toISOString().split('T')[0] });
   const [selectedAchievement, setSelectedAchievement] = useState<UserAchievement | null>(null);
+  const [localExercises, setLocalExercises] = useState<Exercise[]>([]);
   const { addUserGoal } = useApp();
 
   const handleAddGoal = async () => {
@@ -241,8 +243,8 @@ const AthletePortal: React.FC = () => {
 
   const weeklyProgress = useMemo(() => {
     if (!currentWeek) return { completed: 0, total: 0 };
-    const completed = currentWeek.workouts.filter((w: any) => w.completed).length;
     const total = currentWeek.workouts.filter((w: any) => w.type !== 'Descanso').length;
+    const completed = currentWeek.workouts.filter((w: any) => w.completed && w.type !== 'Descanso').length;
     return { completed, total };
   }, [currentWeek]);
 
@@ -304,7 +306,8 @@ const AthletePortal: React.FC = () => {
         selectedWorkout.dayIndex, 
         newStatus, 
         feedbackText,
-        rpeValue
+        rpeValue,
+        localExercises
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -339,8 +342,15 @@ const AthletePortal: React.FC = () => {
     setSelectedWorkout({ weekIndex: wIdx, dayIndex: dIdx, data: workout });
     setFeedbackText(workout.feedback || '');
     setRpeValue(workout.rpe || 0);
+    setLocalExercises(workout.exercises || []);
     setSaveSuccess(false);
     setIsSaving(false);
+  };
+
+  const updateLocalExercise = (id: string, field: keyof Exercise, value: string) => {
+    setLocalExercises(prev => prev.map(ex => 
+      ex.id === id ? { ...ex, [field]: value } : ex
+    ));
   };
 
   return (
@@ -696,68 +706,121 @@ const AthletePortal: React.FC = () => {
                 "{selectedWorkout.data.customDescription}"
               </div>
 
-              {/* Hub de Ritmos do Atleta */}
-              <div className="space-y-4">
-                <label className="pro-label flex items-center gap-2 px-1">
-                  <Flag className="w-3.5 h-3.5 text-emerald-400" /> Seus Ritmos Alvo
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {paces.map((p, idx) => (
-                    <div key={idx} className="bg-white/5 p-3 rounded-2xl border border-white/5 shadow-sm flex flex-col justify-center">
-                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">{p.zone}</span>
-                      <span className="text-sm font-black text-emerald-400 italic tracking-tighter">{p.minPace} min/km</span>
-                      {p.heartRateRange && (
-                        <span className="text-[7px] font-bold text-slate-600 uppercase">{p.heartRateRange} bpm</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <label className="pro-label flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-amber-500" /> Esforço Percebido (PSE)
-                  </label>
-                  <span className={`text-[10px] font-black italic uppercase tracking-tighter ${getRPEColor(rpeValue)}`}>
-                    {getRPELabel(rpeValue)}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-5 gap-2">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                    <button
-                      key={num}
-                      disabled={isSaving}
-                      onClick={() => setRpeValue(num)}
-                      className={`h-12 rounded-xl font-black text-sm transition-all border-2 flex items-center justify-center
-                        ${rpeValue === num 
-                          ? 'bg-emerald-500 text-white border-emerald-500 scale-105 shadow-[0_0_20px_rgba(16,185,129,0.3)]' 
-                          : 'bg-white/5 text-slate-500 border-white/5 hover:border-emerald-500/50 hover:text-emerald-400'}
-                      `}
-                    >
-                      {num}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Cronômetro de Suporte</span>
-                    <span className="text-[8px] text-slate-600 font-bold uppercase italic">Use para marcar intervalos ou tempo total</span>
+              {/* Se for Descanso, não mostramos PSE nem Cronômetro */}
+              {selectedWorkout.data.type === 'Descanso' ? (
+                <div className="bg-blue-500/10 p-8 rounded-[2rem] border border-blue-500/20 text-center space-y-4">
+                  <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto text-3xl">
+                    🧘
                   </div>
-                  <TimerComponent />
+                  <h4 className="text-xl font-black text-white italic uppercase tracking-tighter">Recuperação Necessária</h4>
+                  <p className="text-slate-400 text-sm font-medium italic">
+                    O descanso é parte fundamental do seu treino. Aproveite para focar na mobilidade, sono de qualidade e hidratação.
+                  </p>
                 </div>
-                <textarea 
-                  disabled={isSaving}
-                  className="pro-input w-full h-32 focus:ring-4 focus:ring-emerald-500/20"
-                  placeholder="Relate sensações, dores ou conquistas..."
-                  value={feedbackText}
-                  onChange={e => setFeedbackText(e.target.value)}
-                />
-              </div>
+              ) : (
+                <>
+                  {/* Hub de Ritmos do Atleta */}
+                  <div className="space-y-4">
+                    <label className="pro-label flex items-center gap-2 px-1">
+                      <Flag className="w-3.5 h-3.5 text-emerald-400" /> Seus Ritmos Alvo
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {paces.map((p, idx) => (
+                        <div key={idx} className="bg-white/5 p-3 rounded-2xl border border-white/5 shadow-sm flex flex-col justify-center">
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">{p.zone}</span>
+                          <span className="text-sm font-black text-emerald-400 italic tracking-tighter">{p.minPace} min/km</span>
+                          {p.heartRateRange && (
+                            <span className="text-[7px] font-bold text-slate-600 uppercase">{p.heartRateRange} bpm</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Detalhamento de Exercícios (Elite Torneio Mode) */}
+                  {localExercises.length > 0 && (
+                    <div className="space-y-4">
+                      <label className="pro-label flex items-center gap-2 px-1">
+                        <Dumbbell className="w-3.5 h-3.5 text-purple-400" /> Detalhamento Técnico
+                      </label>
+                      <div className="space-y-3">
+                        {localExercises.sort((a, b) => a.order - b.order).map((ex) => (
+                          <div key={ex.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-3">
+                            <div className="flex justify-between items-center">
+                              <h4 className="text-xs font-black text-white uppercase italic">{ex.name}</h4>
+                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{ex.sets} séries</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-1">Repetições</label>
+                                <input 
+                                  className="pro-input w-full py-2 text-xs text-center"
+                                  value={ex.reps}
+                                  onChange={e => updateLocalExercise(ex.id, 'reps', e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-1">Carga Utilizada</label>
+                                <input 
+                                  className="pro-input w-full py-2 text-xs text-center border-purple-500/30 focus:border-purple-500"
+                                  value={ex.load}
+                                  onChange={e => updateLocalExercise(ex.id, 'load', e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[9px] text-slate-500 italic px-1 font-medium">As cargas e repetições sugeridas pelo Coach foram pré-preenchidas. Ajuste conforme sua execução real.</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="pro-label flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-amber-500" /> Esforço Percebido (PSE)
+                      </label>
+                      <span className={`text-[10px] font-black italic uppercase tracking-tighter ${getRPEColor(rpeValue)}`}>
+                        {getRPELabel(rpeValue)}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-5 gap-2">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                        <button
+                          key={num}
+                          disabled={isSaving}
+                          onClick={() => setRpeValue(num)}
+                          className={`h-12 rounded-xl font-black text-sm transition-all border-2 flex items-center justify-center
+                            ${rpeValue === num 
+                              ? 'bg-emerald-500 text-white border-emerald-500 scale-105 shadow-[0_0_20px_rgba(16,185,129,0.3)]' 
+                              : 'bg-white/5 text-slate-500 border-white/5 hover:border-emerald-500/50 hover:text-emerald-400'}
+                          `}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Cronômetro de Suporte</span>
+                        <span className="text-[8px] text-slate-600 font-bold uppercase italic">Use para marcar intervalos ou tempo total</span>
+                      </div>
+                      <TimerComponent />
+                    </div>
+                    <textarea 
+                      disabled={isSaving}
+                      className="pro-input w-full h-32 focus:ring-4 focus:ring-emerald-500/20"
+                      placeholder="Relate sensações, dores ou conquistas..."
+                      value={feedbackText}
+                      onChange={e => setFeedbackText(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="p-6 md:p-8 bg-slate-900 border-t border-white/5 flex-shrink-0 font-sans">
@@ -765,7 +828,8 @@ const AthletePortal: React.FC = () => {
                 onClick={handleToggleComplete} 
                 disabled={isSaving}
                 className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 
-                  ${saveSuccess ? 'bg-emerald-500 text-white' : 'bg-emerald-950 text-white hover:bg-black active:scale-95'} 
+                  ${saveSuccess ? 'bg-emerald-500 text-white' : 
+                    selectedWorkout.data.type === 'Descanso' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-emerald-950 text-white hover:bg-black active:scale-95'} 
                   disabled:opacity-50`}
               >
                 {isSaving ? (
@@ -774,7 +838,9 @@ const AthletePortal: React.FC = () => {
                     <span>{saveSuccess ? 'SINCRONIZADO!' : 'SINCRONIZANDO...'}</span>
                   </div>
                 ) : (
-                  selectedWorkout.data.completed ? 'DESMARCAR CONCLUÍDO' : 'CONCLUIR TREINO'
+                  selectedWorkout.data.completed 
+                    ? (selectedWorkout.data.type === 'Descanso' ? 'DESMARCAR DESCANSO' : 'DESMARCAR CONCLUÍDO') 
+                    : (selectedWorkout.data.type === 'Descanso' ? 'MARCAR COMO DESCANSO' : 'CONCLUIR TREINO')
                 )}
               </button>
             </div>

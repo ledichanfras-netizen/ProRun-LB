@@ -5,7 +5,21 @@ import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
 import { updateGamificationData } from '../services/gamificationService';
-import { supabase } from '../lib/supabase';
+import {
+  fetchAthletesData,
+  fetchWorkoutsLibraryData,
+  fetchAthletePlansData,
+  fetchNotificationsData,
+  fetchSubscriptionData,
+  upsertAthleteData,
+  deleteAthleteData,
+  upsertWorkoutData,
+  deleteWorkoutData,
+  upsertAthletePlanData,
+  deleteAthletePlanData,
+  upsertNotificationData,
+  deleteNotificationData
+} from '../services/supabaseRepository';
 import { sanitizeInput } from '../utils/sanitization';
 import { getAppNow } from '../utils/time';
 
@@ -133,32 +147,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setNotifications(prev => [newNotif, ...prev]);
     
     try {
-      await supabase.from('app_notifications').insert({
-        title: newNotif.title,
-        message: newNotif.message,
-        type: newNotif.type,
-        icon: newNotif.icon,
-        category: newNotif.category,
-        link: newNotif.link,
-        timestamp: newNotif.timestamp
-      });
+      await upsertNotificationData(newNotif);
     } catch (e) {
-      console.warn("Could not sync notification to cloud", e);
+      console.warn('Could not sync notification to cloud', e);
     }
   }, []);
 
   const markAsRead = useCallback(async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     try {
-      await supabase.from('app_notifications').update({ read: true }).eq('id', id);
-    } catch (e) {}
+      await upsertNotificationData({ id, read: true } as AppNotification);
+    } catch (e) {
+      console.warn(e);
+    }
   }, []);
 
   const removeNotification = useCallback(async (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
     try {
-      await supabase.from('app_notifications').delete().eq('id', id);
-    } catch (e) {}
+      await deleteNotificationData(id);
+    } catch (e) {
+      console.warn(e);
+    }
   }, []);
 
   const addUserGoal = async (athleteId: string, goalData: any) => {
@@ -208,7 +218,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const refreshSubscription = async () => {
     try {
-       const { data, error } = await supabase.from('subscriptions').select('*').limit(1);
+       const { data, error } = await fetchSubscriptionData();
        if (!error && data && data.length > 0) {
          setSubscription(data[0] as Subscription);
        }
@@ -268,30 +278,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       // Simple select without order to avoid 400 errors if columns don't exist
       const [athletesRes, workoutsRes, plansRes, notifsRes] = await Promise.all([
-        supabase.from('athletes').select('data'),
-        supabase.from('workouts_library').select('data'),
-        supabase.from('athlete_plans').select('*'),
-        supabase.from('app_notifications').select('*').order('timestamp', { ascending: false }).limit(20)
+        fetchAthletesData(),
+        fetchWorkoutsLibraryData(),
+        fetchAthletePlansData(),
+        fetchNotificationsData()
       ]);
 
       if (athletesRes.error) {
-        console.error("[Sync] Erro ao buscar atletas:", athletesRes.error);
+        console.error('[Sync] Erro ao buscar atletas:', athletesRes.error);
       }
       if (workoutsRes.error) {
-        console.error("[Sync] Erro ao buscar biblioteca de treinos:", workoutsRes.error);
+        console.error('[Sync] Erro ao buscar biblioteca de treinos:', workoutsRes.error);
       }
       if (plansRes.error) {
-        console.error("[Sync] Erro ao buscar planos:", plansRes.error);
+        console.error('[Sync] Erro ao buscar planos:', plansRes.error);
       }
       if (notifsRes.data) {
         setNotifications(notifsRes.data as any);
       }
 
-      const hasCriticalError = (athletesRes.error && athletesRes.status === 404) || 
+      const hasCriticalError = (athletesRes.error && athletesRes.status === 404) ||
                                (workoutsRes.error && workoutsRes.status === 404);
 
       if (hasCriticalError) {
-         console.warn("[Sync] Tabelas não encontradas. O App usará armazenamento local temporário.");
+         console.warn('[Sync] Tabelas não encontradas. O App usará armazenamento local temporário.');
          setIsCloudConnected(false);
       } else {
          setIsCloudConnected(athletesRes.error || workoutsRes.error ? false : true);
@@ -385,9 +395,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addAthlete = async (athlete: Athlete) => {
     setAthletes(prev => [athlete, ...prev]);
     try {
-      await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
+      await upsertAthleteData(athlete);
     } catch (err) {
-      console.error("Error adding athlete:", err);
+      console.error('Error adding athlete:', err);
     }
   };
   
@@ -397,9 +407,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const athlete = updatedAthletes.find(a => a.id === id);
     if (athlete) {
       try {
-        await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
+        await upsertAthleteData(athlete);
       } catch (err) {
-        console.error("Error updating athlete:", err);
+        console.error('Error updating athlete:', err);
       }
     }
   };
@@ -428,10 +438,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteAthlete = async (id: string) => {
     setAthletes(prev => prev.filter(a => a.id !== id));
     try {
-      await supabase.from('athletes').delete().eq('id', id);
-      await supabase.from('athlete_plans').delete().eq('athlete_id', id);
+      await deleteAthleteData(id);
+      await deleteAthletePlanData(id);
     } catch (err) {
-      console.error("Error deleting athlete:", err);
+      console.error('Error deleting athlete:', err);
     }
   };
 
@@ -451,9 +461,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await upsertAthleteData(updatePayload);
     } catch (err) {
-      console.error("Error saving assessment:", err);
+      console.error('Error saving assessment:', err);
     }
   };
 
@@ -475,9 +485,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await upsertAthleteData(updatePayload);
     } catch (err) {
-      console.error("Error updating assessment:", err);
+      console.error('Error updating assessment:', err);
     }
   };
 
@@ -490,18 +500,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await upsertAthleteData(updatePayload);
     } catch (err) {
-      console.error("Error deleting assessment:", err);
+      console.error('Error deleting assessment:', err);
     }
   };
 
   const addWorkout = async (workout: Workout) => {
     setWorkouts(prev => [workout, ...prev]);
     try {
-      await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
+      await upsertWorkoutData(workout);
     } catch (err) {
-      console.error("Error adding workout:", err);
+      console.error('Error adding workout:', err);
     }
   };
 
@@ -511,9 +521,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const workout = updatedWorkouts.find(w => w.id === id);
     if (workout) {
       try {
-        await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
+        await upsertWorkoutData(workout);
       } catch (err) {
-        console.error("Error updating workout:", err);
+        console.error('Error updating workout:', err);
       }
     }
   };
@@ -521,18 +531,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteLibraryWorkout = async (id: string) => {
     setWorkouts(prev => prev.filter(w => w.id !== id));
     try {
-      await supabase.from('workouts_library').delete().eq('id', id);
+      await deleteWorkoutData(id);
     } catch (err) {
-      console.error("Error deleting workout:", err);
+      console.error('Error deleting workout:', err);
     }
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
     setAthletePlans(prev => ({ ...prev, [athleteId]: plan }));
     try {
-      await supabase.from('athlete_plans').upsert({ athlete_id: athleteId, plan_data: plan });
+      await upsertAthletePlanData(athleteId, plan);
     } catch (err) {
-      console.error("Error saving plan:", err);
+      console.error('Error saving plan:', err);
     }
   };
 
@@ -583,9 +593,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
 
     try {
-      await supabase.from('athlete_plans').upsert({ athlete_id: athleteId, plan_data: updatedPlan });
+      await upsertAthletePlanData(athleteId, updatedPlan);
     } catch (err) {
-      console.error("Error updating workout status:", err);
+      console.error('Error updating workout status:', err);
     }
   };
 

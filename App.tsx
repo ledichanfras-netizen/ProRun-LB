@@ -2,6 +2,7 @@
 import React, { Component, ErrorInfo, ReactNode, Suspense, lazy, useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
 import { OnboardingWizard } from './components/OnboardingWizard';
@@ -199,12 +200,14 @@ function AppContent() {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <SplashScreen />
-        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <AppContent />
-        </Router>
-      </AppProvider>
+      <ThemeProvider>
+        <AppProvider>
+          <SplashScreen />
+          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <AppContent />
+          </Router>
+        </AppProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 };

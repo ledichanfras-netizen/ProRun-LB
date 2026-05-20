@@ -2,7 +2,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
+import { loginSchema } from '../utils/validation';
 import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info, Cloud, CloudOff } from 'lucide-react';
+import { Button } from '../components/ui/Button';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -16,16 +18,24 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    const validation = loginSchema.safeParse({ username, password });
+    if (!validation.success) {
+      setError(validation.error.errors.map(err => err.message).join(' '));
+      setLoading(false);
+      return;
+    }
+
     try {
       const result = await login(username, password);
       if (result.success) {
         navigate('/');
       } else {
-        setError(result.message || "Credenciais incorretas.");
+        setError(result.message || 'Credenciais incorretas.');
       }
     } catch (err: any) {
-      setError("Ocorreu um erro ao tentar acessar.");
-      console.error("Erro no login:", err?.message || "Erro desconhecido");
+      setError('Ocorreu um erro ao tentar acessar.');
+      console.error('Erro no login:', err?.message || 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
@@ -90,11 +100,7 @@ export default function Login() {
               </div>
             </div>
 
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black py-5 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 uppercase italic tracking-widest text-xs"
-            >
+            <Button type="submit" disabled={loading} className="w-full justify-center">
               {loading ? (
                 <div className="w-5 h-5 border-2 border-emerald-950 border-t-transparent rounded-full animate-spin"></div>
               ) : (
@@ -102,7 +108,7 @@ export default function Login() {
                   Acessar Sistema <ArrowRight className="w-4 h-4" />
                 </>
               )}
-            </button>
+            </Button>
           </form>
         </div>
 

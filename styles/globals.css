@@ -153,3 +153,20 @@ html[data-theme='light'] {
     transform: translateX(0);
   }
 }
+
+.animate-progress-indeterminate {
+  width: 100%;
+  animation: progressIndeterminate 1.8s infinite ease-in-out;
+}
+
+@keyframes progressIndeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

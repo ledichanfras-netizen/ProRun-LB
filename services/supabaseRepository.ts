@@ -40,14 +40,14 @@ export const deleteWorkoutData = async (id: string) => {
 export const upsertAthletePlanData = async (athleteId: string, plan: AthletePlan) => {
   return supabase.from('athlete_plans').upsert({
     id: athleteId,
-    athlete_id: athleteId,
-    plan_data: plan,
     weeks: plan.weeks,
     race_strategy: plan.raceStrategy,
     motivational_message: plan.motivationalMessage,
     specific_goal: plan.specificGoal,
-    created_at: plan.created_at,
-    updated_at: plan.updated_at
+    start_date: plan.startDate,
+    end_date: plan.endDate,
+    training_days: plan.trainingDays,
+    updated_at: new Date().toISOString()
   });
 };
 

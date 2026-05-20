@@ -177,7 +177,7 @@ const Periodization: React.FC = () => {
         trainingDays: trainingDays
       };
       setFullPlan(newPlan);
-      saveAthletePlan(activeAthlete.id, newPlan);
+      await saveAthletePlan(activeAthlete.id, newPlan);
       setIsEditing(true);
     } catch (e: any) {
       alert("Erro na IA: " + e.message);
@@ -201,53 +201,66 @@ const Periodization: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (activeAthlete && fullPlan) {
-      saveAthletePlan(activeAthlete.id, fullPlan);
-      
-      // Notificar Atleta sobre nova planilha
-      addNotification({
-        title: 'Sua planilha foi atualizada!',
-        message: 'Coach Leandro publicou novos treinos no seu ciclo. Toque para ver.',
-        type: 'success',
-        link: '/athlete-portal',
-        category: 'plan'
-      });
+      setLoading(true);
+      try {
+        await saveAthletePlan(activeAthlete.id, fullPlan);
 
-      setIsEditing(false);
-      alert('Planilha publicada com sucesso!');
+        // Notificar Atleta sobre nova planilha
+        addNotification({
+          title: 'Sua planilha foi atualizada!',
+          message: 'Coach Leandro publicou novos treinos no seu ciclo. Toque para ver.',
+          type: 'success',
+          link: '/athlete-portal',
+          category: 'plan'
+        });
+
+        setIsEditing(false);
+        alert('Planilha publicada com sucesso!');
+      } catch (e: any) {
+        alert("Erro ao salvar planilha: " + e.message);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const handleManualCreate = () => {
+  const handleManualCreate = async () => {
     if (!activeAthlete) return;
-    
-    const manualWeeks: TrainingWeek[] = Array.from({ length: weeks }, (_, i) => ({
-      id: crypto.randomUUID(),
-      weekNumber: i + 1,
-      phase: i < weeks / 2 ? 'Base' : 'Construção',
-      totalVolume: 0,
-      isVisible: true,
-      workouts: diasSemanaFull.map(day => ({
-        day,
-        type: 'Descanso' as WorkoutType,
-        customDescription: 'Descanso total.',
-        distance: 0
-      }))
-    }));
+    setLoading(true);
+    try {
+      const manualWeeks: TrainingWeek[] = Array.from({ length: weeks }, (_, i) => ({
+        id: crypto.randomUUID(),
+        weekNumber: i + 1,
+        phase: i < weeks / 2 ? 'Base' : 'Construção',
+        totalVolume: 0,
+        isVisible: true,
+        workouts: diasSemanaFull.map(day => ({
+          day,
+          type: 'Descanso' as WorkoutType,
+          customDescription: 'Descanso total.',
+          distance: 0
+        }))
+      }));
 
-    const newPlan: AthletePlan = {
-      weeks: manualWeeks,
-      specificGoal: raceGoal || raceDistance,
-      raceStrategy: 'Periodização manual iniciada.',
-      motivationalMessage: 'Foco no processo!',
-      startDate: startDate || getAppNow().toISOString().split('T')[0],
-      trainingDays: trainingDays
-    };
+      const newPlan: AthletePlan = {
+        weeks: manualWeeks,
+        specificGoal: raceGoal || raceDistance,
+        raceStrategy: 'Periodização manual iniciada.',
+        motivationalMessage: 'Foco no processo!',
+        startDate: startDate || getAppNow().toISOString().split('T')[0],
+        trainingDays: trainingDays
+      };
 
-    setFullPlan(newPlan);
-    saveAthletePlan(activeAthlete.id, newPlan);
-    setIsEditing(true);
+      setFullPlan(newPlan);
+      await saveAthletePlan(activeAthlete.id, newPlan);
+      setIsEditing(true);
+    } catch (e: any) {
+      alert("Erro ao criar planilha manual: " + e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addWeek = () => {
@@ -537,7 +550,14 @@ const Periodization: React.FC = () => {
                <button onClick={() => setIsEditing(!isEditing)} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition border-2 ${isEditing ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200'}`}>
                  {isEditing ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />} {isEditing ? 'Travar' : 'Editar'}
                </button>
-               <button onClick={handleSave} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg uppercase text-xs italic tracking-widest"><Save className="w-4 h-4" /> Publicar</button>
+               <button
+                 onClick={handleSave}
+                 disabled={loading}
+                 className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg uppercase text-xs italic tracking-widest disabled:opacity-50"
+               >
+                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                 {loading ? 'SALVANDO...' : 'Publicar'}
+               </button>
              </>
            )}
         </div>

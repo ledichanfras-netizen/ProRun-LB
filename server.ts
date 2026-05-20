@@ -29,7 +29,7 @@ const setSecurityHeaders = (_req: express.Request, res: express.Response, next: 
 };
 
 const rateLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const key = req.ip;
+  const key = req.ip || 'unknown';
   const now = Date.now();
   const current = clientRequests.get(key) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
 
@@ -73,7 +73,7 @@ async function startServer() {
   app.post('/api/ai-analysis', async (req, res) => {
     const parsed = analyzeRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.errors.map(err => err.message).join(' ') });
+      return res.status(400).json({ error: parsed.error.issues.map((err: any) => err.message).join(' ') });
     }
 
     const { athlete, plan } = parsed.data;
@@ -125,7 +125,7 @@ async function startServer() {
   app.post('/api/generate-plan', async (req, res) => {
     const parsed = generatePlanRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.errors.map(err => err.message).join(' ') });
+      return res.status(400).json({ error: parsed.error.issues.map((err: any) => err.message).join(' ') });
     }
 
     const { athlete, planDetails } = parsed.data;

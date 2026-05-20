@@ -5,6 +5,7 @@ import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
 import { updateGamificationData } from '../services/gamificationService';
+import { supabase } from '../lib/supabase';
 import {
   fetchAthletesData,
   fetchWorkoutsLibraryData,
@@ -121,7 +122,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Listen to Supabase Auth Changes for future expansion
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event: string, session: any) => {
       console.log(`Supabase Auth Event: ${event}`);
       if (event === 'SIGNED_OUT') {
         logout();

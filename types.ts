@@ -141,8 +141,6 @@ export interface AthletePlan {
   startDate?: string;
   endDate?: string;
   trainingDays?: number[];
-  created_at?: string;
-  updated_at?: string;
 }
 
 export interface HistoryEntry {

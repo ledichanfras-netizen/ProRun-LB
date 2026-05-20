@@ -2,7 +2,6 @@
 import React, { Component, ErrorInfo, ReactNode, Suspense, lazy, useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
-import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
 import { OnboardingWizard } from './components/OnboardingWizard';
@@ -132,35 +131,13 @@ function AppContent() {
     );
   }
 
-  if (isLoading && userRole) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#020617] text-white overflow-hidden relative">
-        {/* Background Patterns for consistency */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-900 rounded-full blur-[120px]" />
-        </div>
-
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="w-16 h-16 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-8"></div>
-
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-emerald-500 text-[11px] font-black uppercase tracking-[0.3em]">
-                Sincronizando ProRun LB
-              </span>
-            </div>
-            <span className="text-emerald-500/30 text-[8px] font-bold uppercase tracking-[0.1em] italic">
-              Otimizando Engine de Performance...
-            </span>
-          </div>
-        </div>
-
-        <div className="absolute bottom-12">
-          <span className="text-white/10 text-[8px] font-black uppercase tracking-[0.4em]">
-            lb performance systems
-          </span>
+      <div className="flex flex-col items-center justify-center h-screen bg-[#020617] text-white">
+        <div className="w-12 h-12 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-emerald-500 text-[11px] font-black uppercase tracking-[0.3em] animate-pulse">Sincronizando ProRun LB</span>
+          <span className="text-emerald-500/30 text-[8px] font-bold uppercase tracking-[0.1em]">Aguardando Engine de Performance...</span>
         </div>
       </div>
     );
@@ -222,14 +199,12 @@ function AppContent() {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <AppProvider>
-          <SplashScreen />
-          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <AppContent />
-          </Router>
-        </AppProvider>
-      </ThemeProvider>
+      <AppProvider>
+        <SplashScreen />
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <AppContent />
+        </Router>
+      </AppProvider>
     </ErrorBoundary>
   );
 };

@@ -14,14 +14,10 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
-      alias: {
-        'react': path.resolve(__dirname, 'node_modules/react'),
-        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
-      },
       dedupe: ['react', 'react-dom']
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-router-dom', 'lucide-react', 'recharts']
+      include: ['react', 'react-dom', 'react-router-dom', 'lucide-react', 'recharts', 'motion', 'motion/react', 'framer-motion']
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY || env.API_KEY || ''),

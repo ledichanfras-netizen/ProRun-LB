@@ -1,12 +1,27 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { Athlete, ExperienceLevel } from '../types';
 import { getAppNow } from '../utils/time';
 import { Plus, Search, Trash2, Edit2, CheckCircle, X, AlertTriangle, Calendar, UserPlus, TrendingUp, Award, Info, ChevronDown } from 'lucide-react';
 
 const Athletes: React.FC = () => {
-  const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId } = useApp();
+  const { athletes, addAthlete, updateAthlete, deleteAthlete, setSelectedAthleteId, selectedAthleteId, getAthleteMetrics } = useApp();
+  const location = useLocation();
+
+  // Filter tab state ('all' or 'risk')
+  const [filterTab, setFilterTab] = useState<'all' | 'risk'>('all');
+  
+  // Sync filter tab with URL query parameter or router state
+  useEffect(() => {
+    const isRisk = new URLSearchParams(location.search).get('filter') === 'risk' || location.state?.filter === 'risk';
+    if (isRisk) {
+      setFilterTab('risk');
+    } else {
+      setFilterTab('all');
+    }
+  }, [location]);
   
   // Search State
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,11 +39,17 @@ const Athletes: React.FC = () => {
     name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: ''
   });
 
-  // Filter Athletes
-  const filteredAthletes = athletes.filter(a => 
-    a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    a.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter Athletes (taking into account both searchTerm and risk-filter)
+  const filteredAthletes = athletes.filter(a => {
+    const matchesSearch = a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      a.email.toLowerCase().includes(searchTerm.toLowerCase());
+      
+    if (filterTab === 'risk') {
+      const isAtRisk = getAthleteMetrics ? (getAthleteMetrics(a.id).completionRate < 50) : false;
+      return matchesSearch && isAtRisk;
+    }
+    return matchesSearch;
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,6 +219,31 @@ const Athletes: React.FC = () => {
         )}
       </div>
 
+      {/* Filtros por Categoria de Engajamento */}
+      <div className="flex items-center gap-2 bg-slate-900/60 p-1.5 rounded-2xl border border-white/5 w-fit">
+        <button
+          onClick={() => setFilterTab('all')}
+          className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all ${
+            filterTab === 'all'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          Todos ({athletes.length})
+        </button>
+        <button
+          onClick={() => setFilterTab('risk')}
+          className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all gap-2 flex items-center ${
+            filterTab === 'risk'
+              ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
+              : 'text-slate-400 hover:text-red-400'
+          }`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5" />
+          Em Risco ({athletes.filter(a => getAthleteMetrics ? (getAthleteMetrics(a.id).completionRate < 50) : false).length})
+        </button>
+      </div>
+
       {isFormOpen && (
         <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl border border-white/5 animate-fade-in-up">
           <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
@@ -344,7 +390,20 @@ const Athletes: React.FC = () => {
                           {athlete.name.charAt(0)}
                        </div>
                        <div>
-                          <div className="font-black text-white uppercase italic tracking-tighter">{athlete.name}</div>
+                          <div className="font-black text-white uppercase italic tracking-tighter flex flex-wrap items-center gap-2">
+                            <span>{athlete.name}</span>
+                            {getAthleteMetrics && (
+                              getAthleteMetrics(athlete.id).completionRate < 50 ? (
+                                <span className="inline-flex items-center gap-1 bg-red-500/10 text-red-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-red-500/20 italic tracking-wider">
+                                  <AlertTriangle className="w-2.5 h-2.5" /> EM RISCO ({getAthleteMetrics(athlete.id).completionRate.toFixed(0)}%)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/15 italic tracking-wider">
+                                  {getAthleteMetrics(athlete.id).completionRate.toFixed(0)}% Adesão
+                                </span>
+                              )
+                            )}
+                          </div>
                           <div className="text-[10px] text-slate-500 font-bold lowercase">{athlete.email}</div>
                        </div>
                     </div>

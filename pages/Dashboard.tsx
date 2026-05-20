@@ -189,7 +189,7 @@ export default function Dashboard() {
       {userRole === 'coach' && !selectedAthleteId && teamMetrics && (
         <div className="space-y-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+            <Link to="/athletes" className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total de Atletas</p>
                 <p className="text-3xl font-black text-slate-800">{teamMetrics.totalAthletes}</p>
@@ -197,7 +197,7 @@ export default function Dashboard() {
               <div className="bg-slate-50 p-3 rounded-2xl text-slate-600">
                 <UserIcon className="w-6 h-6" />
               </div>
-            </div>
+            </Link>
             
             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
               <div>
@@ -209,7 +209,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+            <Link to="/athletes?filter=risk" state={{ filter: 'risk' }} className="bg-white p-6 rounded-[2rem] shadow-sm border border-red-100 hover:border-red-200 flex items-center justify-between hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Em Risco</p>
                 <p className="text-3xl font-black text-red-600">{teamMetrics.riskAthletes}</p>
@@ -217,7 +217,7 @@ export default function Dashboard() {
               <div className="bg-red-50 p-3 rounded-2xl text-red-600 border border-red-100">
                 <AlertTriangle className="w-6 h-6" />
               </div>
-            </div>
+            </Link>
 
             <div className="bg-emerald-950 p-6 rounded-[2rem] shadow-xl flex items-center justify-between">
               <div>

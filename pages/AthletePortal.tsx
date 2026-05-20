@@ -702,8 +702,27 @@ const AthletePortal: React.FC = () => {
             </div>
             
             <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-900">
-              <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'bg-white/5 border-white/10 text-white'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
-                "{selectedWorkout.data.customDescription}"
+              <div className="space-y-4">
+                <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'bg-white/5 border-white/10 text-white'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
+                  "{selectedWorkout.data.customDescription}"
+                </div>
+
+                {((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || 
+                  (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0) || 
+                  (selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0)) && (
+                  <div className="flex justify-center gap-3">
+                    {((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0)) && (
+                      <span className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 text-xs font-black uppercase px-4 py-2 rounded-2xl border border-emerald-500/25 italic tracking-wider">
+                        📏 {selectedWorkout.data.distance || selectedWorkout.data.distanceKm} KM
+                      </span>
+                    )}
+                    {(selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0) && (
+                      <span className="inline-flex items-center gap-2 bg-blue-500/10 text-blue-400 text-xs font-black uppercase px-4 py-2 rounded-2xl border border-blue-500/25 italic tracking-wider">
+                        ⏱️ {selectedWorkout.data.durationMinutes} Minutos
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Se for Descanso, não mostramos PSE nem Cronômetro */}

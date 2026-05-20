@@ -2,40 +2,30 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { loginSchema } from '../utils/validation';
 import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info, Cloud, CloudOff } from 'lucide-react';
-import { Button } from '../components/ui/Button';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { login, isCloudConnected, isLoading } = useApp();
+  const { login, isCloudConnected } = useApp();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    const validation = loginSchema.safeParse({ username, password });
-    if (!validation.success) {
-      setError(validation.error.issues.map((err: any) => err.message).join(' '));
-      setLoading(false);
-      return;
-    }
-
     try {
       const result = await login(username, password);
       if (result.success) {
         navigate('/');
       } else {
-        setError(result.message || 'Credenciais incorretas.');
+        setError(result.message || "Credenciais incorretas.");
       }
     } catch (err: any) {
-      setError('Ocorreu um erro ao tentar acessar.');
-      console.error('Erro no login:', err?.message || 'Erro desconhecido');
+      setError("Ocorreu um erro ao tentar acessar.");
+      console.error("Erro no login:", err?.message || "Erro desconhecido");
     } finally {
       setLoading(false);
     }
@@ -59,14 +49,7 @@ export default function Login() {
           <p className="text-emerald-500/60 font-bold uppercase tracking-[0.3em] text-[10px] mt-2 italic">Performance Integrada</p>
         </div>
 
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
-          {/* Sync Progress Bar */}
-          {isLoading && (
-            <div className="absolute top-0 left-0 right-0 h-1 bg-white/5 overflow-hidden">
-              <div className="h-full bg-emerald-500 animate-progress-indeterminate shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-            </div>
-          )}
-
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
           {error && (
             <div className="mb-6 bg-red-500/10 text-red-400 p-4 rounded-2xl flex items-center gap-3 text-xs font-bold animate-shake border border-red-500/20">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -107,20 +90,19 @@ export default function Login() {
               </div>
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full justify-center">
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black py-5 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 uppercase italic tracking-widest text-xs"
+            >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-emerald-950 border-t-transparent rounded-full animate-spin"></div>
-              ) : isLoading ? (
-                <div className="flex items-center gap-2">
-                   <div className="w-3 h-3 border-2 border-emerald-950/30 border-t-emerald-950 rounded-full animate-spin"></div>
-                   <span>Sincronizando...</span>
-                </div>
               ) : (
                 <>
                   Acessar Sistema <ArrowRight className="w-4 h-4" />
                 </>
               )}
-            </Button>
+            </button>
           </form>
         </div>
 

@@ -18,7 +18,6 @@ import {
   Bell
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
-import ThemeToggle from './ThemeToggle';
 import NotificationPrompt from './NotificationPrompt';
 import NotificationCenter from './NotificationCenter';
 
@@ -94,8 +93,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           <span className="font-black text-lg tracking-tighter italic uppercase">ProRun <span className="text-emerald-500">LB</span></span>
         </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
+        <div className="flex items-center gap-4">
           <button onClick={() => setIsNotificationsOpen(true)} className="relative p-1.5 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
             <Bell className="w-6 h-6 text-emerald-400" />
             {unreadCount > 0 && (

@@ -11,7 +11,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { login, isCloudConnected } = useApp();
+  const { login, isCloudConnected, isLoading } = useApp();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,7 +59,14 @@ export default function Login() {
           <p className="text-emerald-500/60 font-bold uppercase tracking-[0.3em] text-[10px] mt-2 italic">Performance Integrada</p>
         </div>
 
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+          {/* Sync Progress Bar */}
+          {isLoading && (
+            <div className="absolute top-0 left-0 right-0 h-1 bg-white/5 overflow-hidden">
+              <div className="h-full bg-emerald-500 animate-progress-indeterminate shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+            </div>
+          )}
+
           {error && (
             <div className="mb-6 bg-red-500/10 text-red-400 p-4 rounded-2xl flex items-center gap-3 text-xs font-bold animate-shake border border-red-500/20">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -103,6 +110,11 @@ export default function Login() {
             <Button type="submit" disabled={loading} className="w-full justify-center">
               {loading ? (
                 <div className="w-5 h-5 border-2 border-emerald-950 border-t-transparent rounded-full animate-spin"></div>
+              ) : isLoading ? (
+                <div className="flex items-center gap-2">
+                   <div className="w-3 h-3 border-2 border-emerald-950/30 border-t-emerald-950 rounded-full animate-spin"></div>
+                   <span>Sincronizando...</span>
+                </div>
               ) : (
                 <>
                   Acessar Sistema <ArrowRight className="w-4 h-4" />

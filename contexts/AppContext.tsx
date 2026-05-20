@@ -203,6 +203,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('proRun_templates', JSON.stringify(templates));
   }, [templates]);
 
+  useEffect(() => {
+    localStorage.setItem('proRun_cached_athletes', JSON.stringify(athletes));
+  }, [athletes]);
+
+  useEffect(() => {
+    localStorage.setItem('proRun_cached_workouts', JSON.stringify(workouts));
+  }, [workouts]);
+
+  useEffect(() => {
+    localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(athletePlans));
+  }, [athletePlans]);
+
   const saveTemplate = async (templateData: Omit<TrainingTemplate, 'id'>) => {
     const newTemplate = { ...templateData, id: crypto.randomUUID() };
     setTemplates(prev => [...prev, newTemplate]);
@@ -324,14 +336,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       if (plansRes.data && plansRes.data.length > 0) {
         console.log(`[Sync] ${plansRes.data.length} planos sincronizados.`);
-        const plans: Record<string, any> = {};
+        const plans: Record<string, AthletePlan> = {};
         plansRes.data.forEach(row => {
           const athleteId = row.id || row.athlete_id;
-          const planData = row.data || row.plan_data || row;
-          if (athleteId) plans[athleteId] = planData;
+          if (athleteId) {
+            // Map snake_case to camelCase
+            plans[athleteId] = {
+              weeks: row.weeks || [],
+              raceStrategy: row.race_strategy || row.raceStrategy || "",
+              motivationalMessage: row.motivational_message || row.motivationalMessage || "",
+              specificGoal: row.specific_goal || row.specificGoal || "",
+              startDate: row.start_date || row.startDate,
+              endDate: row.end_date || row.endDate,
+              trainingDays: row.training_days || row.trainingDays,
+              created_at: row.created_at,
+              updated_at: row.updated_at
+            };
+          }
         });
         setAthletePlans(plans);
-        localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(plans));
       }
       
     } catch (err) {

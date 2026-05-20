@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
-import { analyzeRequestSchema, generatePlanRequestSchema } from './utils/validation';
+import { analyzeRequestSchema, generatePlanRequestSchema } from './utils/validation.ts';
 
 dotenv.config();
 

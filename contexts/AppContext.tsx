@@ -316,8 +316,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const plans: Record<string, any> = {};
         plansRes.data.forEach(row => {
           const athleteId = row.id || row.athlete_id;
-          const planData = row.data || row.plan_data || row;
-          if (athleteId) plans[athleteId] = planData;
+          if (athleteId) {
+            const weeks = row.weeks || [];
+            const firstWeek = weeks[0];
+            let startDate = row.start_date || row.startDate || null;
+            let trainingDays = row.training_days || row.trainingDays || null;
+
+            // Recover embedded metadata if missing at root level
+            if (!startDate && firstWeek) {
+              startDate = firstWeek.planStartDate || firstWeek.startDate || null;
+            }
+            if (!trainingDays && firstWeek) {
+              trainingDays = firstWeek.planTrainingDays || firstWeek.trainingDays || null;
+            }
+
+            plans[athleteId] = {
+              weeks: weeks,
+              raceStrategy: row.race_strategy || row.raceStrategy || null,
+              motivationalMessage: row.motivational_message || row.motivationalMessage || null,
+              specificGoal: row.specific_goal || row.specificGoal || null,
+              startDate: startDate,
+              trainingDays: trainingDays
+            };
+          }
         });
         setAthletePlans(plans);
         localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(plans));
@@ -546,12 +567,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
-    setAthletePlans(prev => ({ ...prev, [athleteId]: plan }));
+    // Inject metadata under the first week so it is persisted in the weeks JSONB column
+    const weeksWithMetadata = plan.weeks.map((w: any, index: number) => {
+      if (index === 0) {
+        return {
+          ...w,
+          planStartDate: plan.startDate,
+          planTrainingDays: plan.trainingDays
+        };
+      }
+      return w;
+    });
+
+    const planWithMetadata = {
+      ...plan,
+      weeks: weeksWithMetadata
+    };
+
+    setAthletePlans(prev => ({ ...prev, [athleteId]: planWithMetadata }));
     try {
       // Match correct athlete_plans database columns: (id, weeks, race_strategy, motivational_message, specific_goal)
       await supabase.from('athlete_plans').upsert({
         id: athleteId,
-        weeks: plan.weeks,
+        weeks: weeksWithMetadata,
         race_strategy: plan.raceStrategy || null,
         motivational_message: plan.motivationalMessage || null,
         specific_goal: plan.specificGoal || null
@@ -602,16 +640,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
     
+    const weeksWithMetadata = updatedPlan.weeks.map((w: any, index: number) => {
+      if (index === 0) {
+        return {
+          ...w,
+          planStartDate: currentPlan.startDate,
+          planTrainingDays: currentPlan.trainingDays
+        };
+      }
+      return w;
+    });
+
+    const planWithMetadata = {
+      ...updatedPlan,
+      weeks: weeksWithMetadata
+    };
+
     setAthletePlans(prev => ({
       ...prev,
-      [athleteId]: updatedPlan
+      [athleteId]: planWithMetadata
     }));
 
     try {
       // Match correct athlete_plans database columns: (id, weeks, race_strategy, motivational_message, specific_goal)
       await supabase.from('athlete_plans').upsert({
         id: athleteId,
-        weeks: updatedPlan.weeks,
+        weeks: weeksWithMetadata,
         race_strategy: updatedPlan.raceStrategy || null,
         motivational_message: updatedPlan.motivationalMessage || null,
         specific_goal: updatedPlan.specificGoal || null

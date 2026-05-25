@@ -133,13 +133,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setNotifications(prev => [newNotif, ...prev]);
     
     try {
+      // Omit icon from DB insert payload to prevent "column icon of relation app_notifications does not exist"
       await supabase.from('app_notifications').insert({
         title: newNotif.title,
         message: newNotif.message,
-        type: newNotif.type,
-        icon: newNotif.icon,
-        category: newNotif.category,
-        link: newNotif.link,
+        type: newNotif.type || null,
+        category: newNotif.category || null,
+        link: newNotif.link || null,
         timestamp: newNotif.timestamp
       });
     } catch (e) {
@@ -352,6 +352,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [selectedAthleteId]);
 
+  useEffect(() => {
+    if (athletes && athletes.length > 0) {
+      localStorage.setItem('proRun_cached_athletes', JSON.stringify(athletes));
+    }
+  }, [athletes]);
+
+  useEffect(() => {
+    if (workouts && workouts.length > 0) {
+      localStorage.setItem('proRun_cached_workouts', JSON.stringify(workouts));
+    }
+  }, [workouts]);
+
+  useEffect(() => {
+    if (athletePlans && Object.keys(athletePlans).length > 0) {
+      localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(athletePlans));
+    }
+  }, [athletePlans]);
+
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     const sUsername = sanitizeInput(username);
     const normalize = (str: string) => str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -429,7 +447,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.filter(a => a.id !== id));
     try {
       await supabase.from('athletes').delete().eq('id', id);
-      await supabase.from('athlete_plans').delete().eq('athlete_id', id);
+      await supabase.from('athlete_plans').delete().eq('id', id);
     } catch (err) {
       console.error("Error deleting athlete:", err);
     }
@@ -530,7 +548,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
     setAthletePlans(prev => ({ ...prev, [athleteId]: plan }));
     try {
-      await supabase.from('athlete_plans').upsert({ athlete_id: athleteId, plan_data: plan });
+      // Match correct athlete_plans database columns: (id, weeks, race_strategy, motivational_message, specific_goal)
+      await supabase.from('athlete_plans').upsert({
+        id: athleteId,
+        weeks: plan.weeks,
+        race_strategy: plan.raceStrategy || null,
+        motivational_message: plan.motivationalMessage || null,
+        specific_goal: plan.specificGoal || null
+      });
     } catch (err) {
       console.error("Error saving plan:", err);
     }
@@ -583,7 +608,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
 
     try {
-      await supabase.from('athlete_plans').upsert({ athlete_id: athleteId, plan_data: updatedPlan });
+      // Match correct athlete_plans database columns: (id, weeks, race_strategy, motivational_message, specific_goal)
+      await supabase.from('athlete_plans').upsert({
+        id: athleteId,
+        weeks: updatedPlan.weeks,
+        race_strategy: updatedPlan.raceStrategy || null,
+        motivational_message: updatedPlan.motivationalMessage || null,
+        specific_goal: updatedPlan.specificGoal || null
+      });
     } catch (err) {
       console.error("Error updating workout status:", err);
     }

@@ -101,6 +101,7 @@ const AthletePortal: React.FC = () => {
   const [newGoal, setNewGoal] = useState({ title: '', type: 'distance' as const, targetValue: 5, deadline: getAppNow().toISOString().split('T')[0] });
   const [selectedAchievement, setSelectedAchievement] = useState<UserAchievement | null>(null);
   const [localExercises, setLocalExercises] = useState<Exercise[]>([]);
+  const [selectedDayPerWeek, setSelectedDayPerWeek] = useState<Record<number, number>>({});
   const { addUserGoal } = useApp();
 
   const handleAddGoal = async () => {
@@ -618,7 +619,10 @@ const AthletePortal: React.FC = () => {
                     {week.workouts.map((workout, dIdx) => (
                       <button 
                         key={dIdx}
-                        onClick={() => openWorkoutModal(originalWeekIndex, dIdx, workout)}
+                        onClick={() => {
+                          setSelectedDayPerWeek(prev => ({ ...prev, [week.weekNumber]: dIdx }));
+                          openWorkoutModal(originalWeekIndex, dIdx, workout);
+                        }}
                         className={`aspect-square rounded-xl flex flex-col items-center justify-center transition-all border-2 ${
                           workout.completed 
                             ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
@@ -632,6 +636,33 @@ const AthletePortal: React.FC = () => {
                       </button>
                     ))}
                   </div>
+
+                  {/* NOVO: Detalhe interativo do Dia Selecionado / Quilometragem & Descrição */}
+                  {(() => {
+                    const selDayIdx = selectedDayPerWeek[week.weekNumber] !== undefined ? selectedDayPerWeek[week.weekNumber] : 0;
+                    const wk = week.workouts[selDayIdx];
+                    if (!wk) return null;
+                    const weekdaysFull = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
+                    return (
+                      <div className="mb-4 p-4 bg-white rounded-2xl border border-slate-100/80 space-y-2 shadow-sm animate-fade-in">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] font-black uppercase text-slate-400">{weekdaysFull[selDayIdx]}</span>
+                          {wk.type !== 'Descanso' && (
+                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-100/50 italic">
+                              📏 {wk.distance || '--'} KM
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-black text-slate-700 uppercase italic tracking-tighter">{wk.type}</h4>
+                        <p className="text-slate-500 text-[10px] font-medium leading-relaxed italic">
+                          {wk.type === 'Descanso' 
+                            ? 'Dia reservado para repouso absoluto, focado em recuperação muscular, mobilidade e hidratação.' 
+                            : (wk.customDescription || 'Nenhuma descrição informada.')}
+                        </p>
+                      </div>
+                    );
+                  })()}
+
                   <p className="text-[9px] font-bold text-slate-400 italic px-1">
                     Foco: <span className="text-emerald-600 uppercase font-black">{week.phase}</span>
                   </p>

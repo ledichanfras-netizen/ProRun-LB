@@ -64,10 +64,18 @@ const Periodization: React.FC = () => {
   const handleSaveWeekAsTemplate = (week: TrainingWeek) => {
     const name = prompt("Nome do template de semana:", `Semana de ${week.phase}`);
     if (name) {
+      const cleanedWorkouts = week.workouts.map((w: any) => ({
+        ...w,
+        completed: false,
+        feedback: undefined,
+        rpe: undefined,
+        workoutId: crypto.randomUUID()
+      }));
+
       saveTemplate({
         name,
         description: `Template criado a partir da semana ${week.weekNumber}`,
-        workouts: week.workouts,
+        workouts: cleanedWorkouts,
         category: week.phase
       });
       alert("Template salvo com sucesso!");
@@ -78,11 +86,19 @@ const Periodization: React.FC = () => {
     if (targetWeekForTemplate === null || !fullPlan) return;
     
     const newPlan = safeDeepClone(fullPlan);
-    newPlan.weeks[targetWeekForTemplate].workouts = template.workouts;
+    const cleanedWorkouts = template.workouts.map((w: any) => ({
+      ...w,
+      completed: false,
+      feedback: undefined,
+      rpe: undefined,
+      workoutId: crypto.randomUUID()
+    }));
+
+    newPlan.weeks[targetWeekForTemplate].workouts = cleanedWorkouts;
     newPlan.weeks[targetWeekForTemplate].phase = template.category;
     
     // Recalcular volume
-    const total = template.workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
+    const total = cleanedWorkouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
     newPlan.weeks[targetWeekForTemplate].totalVolume = total;
     
     setFullPlan(newPlan);

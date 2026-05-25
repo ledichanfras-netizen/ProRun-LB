@@ -213,9 +213,32 @@ const AthletePortal: React.FC = () => {
     // 2. Heurística de progresso: Se não achou por data ou semana não está visível, 
     // pega a primeira semana visível que tenha treinos não concluídos
     if (!activeWeek || !activeWeek.isVisible) {
-      activeWeek = visibleWeeks.find(w => 
+      const firstIncompleteWeek = visibleWeeks.find(w => 
         w.workouts.some(wo => !wo.completed && wo.type !== 'Descanso')
-      ) || visibleWeeks[visibleWeeks.length - 1]; // Fallback para a última visível se tudo estiver pronto
+      );
+      
+      if (firstIncompleteWeek) {
+        const firstIncompleteIdx = visibleWeeks.indexOf(firstIncompleteWeek);
+        // Se a semana incompleta não for a primeira visível, e a semana anterior estiver 100% concluída,
+        // mas hoje NÃO for segunda-feira (ou seja, ainda estamos na semana que acabou de ser concluída, como no domingo),
+        // devemos manter a semana anterior ativa para que o treino de hoje continue mostrando o treino concluído.
+        if (firstIncompleteIdx > 0 && todayIndex !== 0) {
+          const prevWeek = visibleWeeks[firstIncompleteIdx - 1];
+          const prevFinished = prevWeek.workouts.every(wo => wo.completed || wo.type === 'Descanso');
+          const currentHasNoProgress = !firstIncompleteWeek.workouts.some(wo => wo.completed);
+          
+          if (prevFinished && currentHasNoProgress) {
+            activeWeek = prevWeek;
+          } else {
+            activeWeek = firstIncompleteWeek;
+          }
+        } else {
+          activeWeek = firstIncompleteWeek;
+        }
+      } else {
+        // Fallback para a última visível se tudo estiver pronto
+        activeWeek = visibleWeeks[visibleWeeks.length - 1];
+      }
     }
     
     if (!activeWeek || !activeWeek.workouts) return { todayWorkout: null, tomorrowWorkout: null, currentWeek: activeWeek };

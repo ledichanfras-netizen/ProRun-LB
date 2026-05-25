@@ -315,29 +315,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.log(`[Sync] ${plansRes.data.length} planos sincronizados.`);
         const plans: Record<string, any> = {};
         plansRes.data.forEach(row => {
-          const athleteId = row.id || row.athlete_id;
+          const athleteId = row.athlete_id || row.id;
           if (athleteId) {
-            const weeks = row.weeks || [];
-            const firstWeek = weeks[0];
-            let startDate = row.start_date || row.startDate || null;
-            let trainingDays = row.training_days || row.trainingDays || null;
+            if (row.plan_data) {
+              // Priority 1: Match hosted DB schema with nested plan_data JSONB column
+              const pd = row.plan_data;
+              const weeks = pd.weeks || [];
+              const firstWeek = weeks[0];
+              let startDate = pd.startDate || pd.start_date || null;
+              let trainingDays = pd.trainingDays || pd.training_days || null;
 
-            // Recover embedded metadata if missing at root level
-            if (!startDate && firstWeek) {
-              startDate = firstWeek.planStartDate || firstWeek.startDate || null;
-            }
-            if (!trainingDays && firstWeek) {
-              trainingDays = firstWeek.planTrainingDays || firstWeek.trainingDays || null;
-            }
+              if (!startDate && firstWeek) {
+                startDate = firstWeek.planStartDate || firstWeek.startDate || null;
+              }
+              if (!trainingDays && firstWeek) {
+                trainingDays = firstWeek.planTrainingDays || firstWeek.trainingDays || null;
+              }
 
-            plans[athleteId] = {
-              weeks: weeks,
-              raceStrategy: row.race_strategy || row.raceStrategy || null,
-              motivationalMessage: row.motivational_message || row.motivationalMessage || null,
-              specificGoal: row.specific_goal || row.specificGoal || null,
-              startDate: startDate,
-              trainingDays: trainingDays
-            };
+              plans[athleteId] = {
+                weeks: weeks,
+                raceStrategy: pd.raceStrategy || pd.race_strategy || null,
+                motivationalMessage: pd.motivationalMessage || pd.motivational_message || null,
+                specificGoal: pd.specificGoal || pd.specific_goal || null,
+                startDate: startDate,
+                trainingDays: trainingDays
+              };
+            } else {
+              // Priority 2: Fallback to single table columns
+              const weeks = row.weeks || [];
+              const firstWeek = weeks[0];
+              let startDate = row.start_date || row.startDate || null;
+              let trainingDays = row.training_days || row.trainingDays || null;
+
+              if (!startDate && firstWeek) {
+                startDate = firstWeek.planStartDate || firstWeek.startDate || null;
+              }
+              if (!trainingDays && firstWeek) {
+                trainingDays = firstWeek.planTrainingDays || firstWeek.trainingDays || null;
+              }
+
+              plans[athleteId] = {
+                weeks: weeks,
+                raceStrategy: row.race_strategy || row.raceStrategy || null,
+                motivationalMessage: row.motivational_message || row.motivationalMessage || null,
+                specificGoal: row.specific_goal || row.specificGoal || null,
+                startDate: startDate,
+                trainingDays: trainingDays
+              };
+            }
           }
         });
         setAthletePlans(plans);
@@ -468,7 +493,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.filter(a => a.id !== id));
     try {
       await supabase.from('athletes').delete().eq('id', id);
-      await supabase.from('athlete_plans').delete().eq('id', id);
+      try {
+        await supabase.from('athlete_plans').delete().eq('athlete_id', id);
+      } catch (e) {}
+      try {
+        await supabase.from('athlete_plans').delete().eq('id', id);
+      } catch (e) {}
     } catch (err) {
       console.error("Error deleting athlete:", err);
     }
@@ -586,14 +616,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setAthletePlans(prev => ({ ...prev, [athleteId]: planWithMetadata }));
     try {
-      // Match correct athlete_plans database columns: (id, weeks, race_strategy, motivational_message, specific_goal)
+      // Upsert using the primary schema (athlete_id and plan_data)
       await supabase.from('athlete_plans').upsert({
-        id: athleteId,
-        weeks: weeksWithMetadata,
-        race_strategy: plan.raceStrategy || null,
-        motivational_message: plan.motivationalMessage || null,
-        specific_goal: plan.specificGoal || null
+        athlete_id: athleteId,
+        plan_data: {
+          weeks: weeksWithMetadata,
+          raceStrategy: plan.raceStrategy || null,
+          motivationalMessage: plan.motivationalMessage || null,
+          specificGoal: plan.specificGoal || null,
+          startDate: plan.startDate || null,
+          trainingDays: plan.trainingDays || null
+        }
       });
+
+      // Fallback format for compatibility with alternate schemas
+      try {
+        await supabase.from('athlete_plans').upsert({
+          id: athleteId,
+          weeks: weeksWithMetadata,
+          race_strategy: plan.raceStrategy || null,
+          motivational_message: plan.motivationalMessage || null,
+          specific_goal: plan.specificGoal || null
+        });
+      } catch (innerErr) {
+        // Safe to ignore
+      }
     } catch (err) {
       console.error("Error saving plan:", err);
     }
@@ -662,14 +709,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
 
     try {
-      // Match correct athlete_plans database columns: (id, weeks, race_strategy, motivational_message, specific_goal)
+      // Upsert using the primary schema (athlete_id and plan_data)
       await supabase.from('athlete_plans').upsert({
-        id: athleteId,
-        weeks: weeksWithMetadata,
-        race_strategy: updatedPlan.raceStrategy || null,
-        motivational_message: updatedPlan.motivationalMessage || null,
-        specific_goal: updatedPlan.specificGoal || null
+        athlete_id: athleteId,
+        plan_data: {
+          weeks: weeksWithMetadata,
+          raceStrategy: updatedPlan.raceStrategy || null,
+          motivationalMessage: updatedPlan.motivationalMessage || null,
+          specificGoal: updatedPlan.specificGoal || null,
+          startDate: currentPlan.startDate || null,
+          trainingDays: currentPlan.trainingDays || null
+        }
       });
+
+      // Fallback format for compatibility with alternate schemas
+      try {
+        await supabase.from('athlete_plans').upsert({
+          id: athleteId,
+          weeks: weeksWithMetadata,
+          race_strategy: updatedPlan.raceStrategy || null,
+          motivational_message: updatedPlan.motivationalMessage || null,
+          specific_goal: updatedPlan.specificGoal || null
+        });
+      } catch (innerErr) {
+        // Safe to ignore
+      }
     } catch (err) {
       console.error("Error updating workout status:", err);
     }

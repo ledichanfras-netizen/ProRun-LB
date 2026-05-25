@@ -49,7 +49,7 @@ const Athletes: React.FC = () => {
       return matchesSearch && isAtRisk;
     }
     return matchesSearch;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

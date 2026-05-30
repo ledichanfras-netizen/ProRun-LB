@@ -126,6 +126,7 @@ export interface TrainingWeek {
     type: WorkoutType; 
     customDescription?: string;
     distance?: number;
+    actualDistance?: number;
     completed?: boolean;
     feedback?: string; 
     rpe?: number;

@@ -94,6 +94,7 @@ const AthletePortal: React.FC = () => {
 
   const [feedbackText, setFeedbackText] = useState('');
   const [rpeValue, setRpeValue] = useState<number>(0);
+  const [actualDistanceValue, setActualDistanceValue] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -323,6 +324,7 @@ const AthletePortal: React.FC = () => {
     
     try {
       const newStatus = !selectedWorkout.data.completed;
+      const parsedDistance = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : undefined;
       
       await updateWorkoutStatus(
         activeAthlete.id, 
@@ -331,7 +333,8 @@ const AthletePortal: React.FC = () => {
         newStatus, 
         feedbackText,
         rpeValue,
-        localExercises
+        localExercises,
+        parsedDistance
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -347,12 +350,13 @@ const AthletePortal: React.FC = () => {
       
       setSaveSuccess(true);
       
-      setTimeout(() => {
+        setTimeout(() => {
         setSelectedWorkout(null); 
         setIsSaving(false);
         setSaveSuccess(false);
         setFeedbackText('');
         setRpeValue(0);
+        setActualDistanceValue('');
       }, 800);
 
     } catch (err: any) {
@@ -367,6 +371,7 @@ const AthletePortal: React.FC = () => {
     setFeedbackText(workout.feedback || '');
     setRpeValue(workout.rpe || 0);
     setLocalExercises(workout.exercises || []);
+    setActualDistanceValue(workout.actualDistance !== undefined ? String(workout.actualDistance) : String(workout.distance || ''));
     setSaveSuccess(false);
     setIsSaving(false);
   };
@@ -671,8 +676,16 @@ const AthletePortal: React.FC = () => {
                         <div className="flex justify-between items-center">
                           <span className="text-[9px] font-black uppercase text-slate-400">{weekdaysFull[selDayIdx]}</span>
                           {wk.type !== 'Descanso' && (
-                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-100/50 italic">
-                              📏 {wk.distance || '--'} KM
+                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-100/50 italic flex items-center justify-center gap-1">
+                              📏{' '}
+                              {wk.completed && wk.actualDistance !== undefined ? (
+                                <>
+                                  <span className="line-through text-slate-400 font-medium mr-1">{wk.distance || 0} KM</span>
+                                  <span>{wk.actualDistance} KM Real</span>
+                                </>
+                              ) : (
+                                <span>{wk.distance || '--'} KM</span>
+                              )}
                             </span>
                           )}
                         </div>
@@ -847,6 +860,34 @@ const AthletePortal: React.FC = () => {
                       <p className="text-[9px] text-slate-500 italic px-1 font-medium">As cargas e repetições sugeridas pelo Coach foram pré-preenchidas. Ajuste conforme sua execução real.</p>
                     </div>
                   )}
+
+                  {/* Espaço para inserir a quilometragem real do Treino */}
+                  <div className="space-y-2 bg-white/5 p-5 rounded-[2rem] border border-white/5">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="pro-label flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-emerald-400" /> Distância Real Executada (KM)
+                      </label>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 italic">
+                        Planejado: {selectedWorkout.data.distance || 0} KM
+                      </span>
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-medium px-1">
+                      Insira a quilometragem total real percorrida (incluindo aquecimento e desaquecimento).
+                    </p>
+                    <div className="relative mt-2">
+                      <input 
+                        type="text"
+                        disabled={isSaving}
+                        className="pro-input w-full py-4 px-5 text-base font-black text-emerald-400 italic bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-emerald-500/50 transition-all pr-16"
+                        placeholder="Ex: 12.5"
+                        value={actualDistanceValue}
+                        onChange={e => setActualDistanceValue(e.target.value)}
+                      />
+                      <div className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 italic">
+                        KM REAL
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between px-1">

@@ -35,7 +35,7 @@ interface AppContextType {
   
   athletePlans: Record<string, AthletePlan>;
   saveAthletePlan: (athleteId: string, plan: AthletePlan) => Promise<void>;
-  updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number, exercises?: Exercise[]) => Promise<void>;
+  updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number, exercises?: Exercise[], actualDistance?: number) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
     history: HistoryEntry[], 
@@ -646,7 +646,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number, exercises?: Exercise[]) => {
+  const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number, exercises?: Exercise[], actualDistance?: number) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
@@ -658,6 +658,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     workout.feedback = sFeedback || "";
     workout.rpe = rpe !== undefined ? rpe : (workout.rpe || 0);
     if (exercises) workout.exercises = exercises;
+    if (actualDistance !== undefined) {
+      workout.actualDistance = actualDistance;
+    }
     
     // Gamification Integration
     if (completed) {
@@ -753,7 +756,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       (week.workouts || []).forEach(w => {
         if (w.distance) {
           weekPlanned += w.distance;
-          if (w.completed) weekCompleted += w.distance;
+        }
+        if (w.completed) {
+          weekCompleted += w.actualDistance !== undefined ? w.actualDistance : (w.distance || 0);
         }
         if (w.type !== 'Descanso') {
           totalWorkouts++;

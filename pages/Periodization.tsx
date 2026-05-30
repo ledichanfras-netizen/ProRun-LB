@@ -872,7 +872,14 @@ const Periodization: React.FC = () => {
                               </div>
                            ) : (
                                workout.distance && workout.distance > 0 ? (
-                                 <span className="font-black text-white text-sm whitespace-nowrap bg-white/5 px-3 py-1 rounded-full border border-white/5">{workout.distance} KM</span>
+                                 <div className="flex flex-col items-end gap-1">
+                                   <span className="font-black text-white text-xs whitespace-nowrap bg-white/5 px-3 py-1 rounded-full border border-white/5" title="Distância Planejada">{workout.distance} KM</span>
+                                   {workout.completed && workout.actualDistance !== undefined && (
+                                     <span className="text-[9px] font-black px-2 py-0.5 rounded-md uppercase italic whitespace-nowrap bg-emerald-500/15 text-emerald-400 border border-emerald-500/20" title="Distância Real Concluída">
+                                       Real: {workout.actualDistance} KM
+                                     </span>
+                                   )}
+                                 </div>
                                 ) : <span className="text-[9px] font-black text-slate-600 uppercase italic">--</span>
                            )}
                         </div>

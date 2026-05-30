@@ -97,3 +97,109 @@ export const calculatePaces = (vo2Score: number, fcThreshold?: number, fcMax?: n
     };
   });
 };
+
+export interface RacePrediction {
+  distanceName: string;
+  distanceKm: number;
+  estimatedTime: string;
+  pace: string;
+  speedKmh: string;
+  level: string;
+  levelColor: string;
+  tip: string;
+}
+
+export const estimateTimeForDistance = (vdot: number, distanceMeters: number): number => {
+  let low = 1;
+  let high = 1500;
+  for (let i = 0; i < 100; i++) {
+    const t = (low + high) / 2;
+    const velocity = distanceMeters / t;
+    const cost = -4.6 + 0.182258 * velocity + 0.000104 * Math.pow(velocity, 2);
+    const supply = vdot * (0.8 + 0.1894393 * Math.exp(-0.012778 * t) + 0.2989558 * Math.exp(-0.1932605 * t));
+    if (cost < supply) {
+      high = t;
+    } else {
+      low = t;
+    }
+    if (Math.abs(high - low) < 0.0001) break;
+  }
+  return (low + high) / 2;
+};
+
+export const calculateRacePredictions = (vdot: number): RacePrediction[] => {
+  const distances = [
+    { 
+      name: '5K', 
+      dist: 5.0, 
+      meters: 5000,
+      tip: 'Foco em treinos intervalados de alta intensidade (Z4/Z5) para elevar o teto aeróbico (VO2max).'
+    },
+    { 
+      name: '10K', 
+      dist: 10.0, 
+      meters: 10000,
+      tip: 'Foco em ritmo de limiar (Z3) e força geral para sustentar o ritmo forte por mais tempo.'
+    },
+    { 
+      name: 'Meia Maratona (21K)', 
+      dist: 21.0975, 
+      meters: 21097.5,
+      tip: 'Foco em rodagens longas progressivas e ritmo de maratona (Z2) para economia muscular.'
+    },
+    { 
+      name: 'Maratona (42K)', 
+      dist: 42.195, 
+      meters: 42195,
+      tip: 'Sessões estratégicas de volume e longos com blocos no Ritmo Alvo (Z2) para depleção controlada de glicogênio.'
+    },
+  ];
+
+  let level = 'Iniciante';
+  let levelColor = 'text-blue-500 bg-blue-500/10 border-blue-500/20';
+  if (vdot >= 65) {
+    level = 'Elite';
+    levelColor = 'text-purple-400 bg-purple-500/10 border-purple-500/20';
+  } else if (vdot >= 55) {
+    level = 'Altamente Competitivo';
+    levelColor = 'text-red-400 bg-red-500/10 border-red-500/20';
+  } else if (vdot >= 45) {
+    level = 'Avançado';
+    levelColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+  } else if (vdot >= 35) {
+    level = 'Intermediário';
+    levelColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+  }
+
+  return distances.map(item => {
+    const timeInMinutes = estimateTimeForDistance(vdot, item.meters);
+    const h = Math.floor(timeInMinutes / 60);
+    const m = Math.floor(timeInMinutes % 60);
+    const s = Math.round((timeInMinutes % 1) * 60);
+    
+    let timeStr = '';
+    if (h > 0) {
+      timeStr = `${h}h ${m < 10 ? '0' + m : m}m ${s < 10 ? '0' + s : s}s`;
+    } else {
+      timeStr = `${m}m ${s < 10 ? '0' + s : s}s`;
+    }
+
+    const paceInMinutes = timeInMinutes / item.dist;
+    const paceM = Math.floor(paceInMinutes);
+    const paceS = Math.floor((paceInMinutes - paceM) * 60);
+    const paceStr = `${paceM}:${paceS < 10 ? '0' + paceS : paceS}/km`;
+    
+    const speed = (60 / paceInMinutes).toFixed(1);
+
+    return {
+      distanceName: item.name,
+      distanceKm: item.dist,
+      estimatedTime: timeStr,
+      pace: paceStr,
+      speedKmh: `${speed} km/h`,
+      level: level,
+      levelColor: levelColor,
+      tip: item.tip
+    };
+  });
+};

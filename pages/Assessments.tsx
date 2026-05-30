@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../contexts/AppContext';
-import { calculateVO2, calculatePaces } from '../utils/calculations';
+import { calculateVO2, calculatePaces, calculateRacePredictions } from '../utils/calculations';
 import { TrainingPace, Assessment } from '../types';
 import { getAppNow } from '../utils/time';
-import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2, Download } from 'lucide-react';
+import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2, Download, TrendingUp, Medal } from 'lucide-react';
 import { PrintLayout } from '../components/PrintLayout';
 import { exportToImage } from '../utils/exporter';
 
@@ -242,6 +242,10 @@ const Assessments: React.FC = () => {
     }
   };
 
+  const racePredictions = activeAthlete
+    ? calculateRacePredictions(calculatedVo2 || activeAthlete.metrics.vdot || 30)
+    : [];
+
   return (
     <div className="space-y-6 relative animate-fade-in custom-scrollbar">
       {activeAthlete && portalRoot && createPortal(
@@ -476,6 +480,66 @@ const Assessments: React.FC = () => {
                 </table>
               </div>
             </div>
+
+            {/* Projeções de Corrida & Análise de Desempenho por Distância */}
+            {activeAthlete && (
+              <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden p-6 space-y-6 shadow-xl shadow-slate-200/40">
+                <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-50 pb-4">
+                  <div>
+                    <h2 className="font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-3 text-xl">
+                      <TrendingUp className="text-emerald-600 w-6 h-6" /> 
+                      Projeções & Desempenho por Distância
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-medium italic mt-0.5">
+                      Estimativas baseadas no VDOT de {calculatedVo2 || activeAthlete.metrics.vdot || 30}.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-slate-405 uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/50 italic text-slate-500">
+                      VDOT: {calculatedVo2 || activeAthlete.metrics.vdot || 30}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {racePredictions.map((pred) => (
+                    <div key={pred.distanceName} className="bg-slate-50 border border-slate-100 p-5 rounded-2xl hover:border-emerald-300 hover:shadow-md transition-all space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <div className="bg-emerald-50 text-emerald-600 p-2 rounded-xl border border-emerald-100">
+                            <Medal className="w-4 h-4" />
+                          </div>
+                          <span className="font-black text-slate-800 text-sm">{pred.distanceName}</span>
+                        </div>
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border italic ${pred.levelColor}`}>
+                          {pred.level}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tempo Projetado</p>
+                        <p className="text-2xl font-black text-slate-900 italic tracking-tighter">{pred.estimatedTime}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-200/60 text-xs font-bold text-slate-600">
+                        <div>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Ritmo Alvo</p>
+                          <p className="text-slate-800 font-extrabold italic">{pred.pace}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Velocidade</p>
+                          <p className="text-slate-800 font-extrabold italic">{pred.speedKmh}</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-3 rounded-xl border border-slate-100 text-[10px] text-slate-500 font-medium italic mt-2 leading-relaxed">
+                        💡 {pred.tip}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden shadow-xl shadow-slate-200/40">
                 <div className="p-4 border-b border-slate-50 bg-slate-50 font-black text-slate-400 uppercase text-[10px] tracking-widest flex items-center gap-2 italic">

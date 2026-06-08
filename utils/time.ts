@@ -26,3 +26,33 @@ export function formatAppDate(date: Date): string {
 export function formatAppDateTime(date: Date): string {
   return date.toLocaleString('pt-BR');
 }
+
+export function getWorkoutDate(planStartDate: string, weekIndex: number, dayIndex: number): Date {
+  const start = new Date(planStartDate + 'T00:00:00');
+  const startDay = start.getDay() === 0 ? 6 : start.getDay() - 1;
+  const firstMonday = new Date(start);
+  firstMonday.setDate(start.getDate() - startDay);
+  firstMonday.setHours(0, 0, 0, 0);
+  
+  const workoutDate = new Date(firstMonday);
+  workoutDate.setDate(firstMonday.getDate() + (weekIndex * 7) + dayIndex);
+  return workoutDate;
+}
+
+export function formatWorkoutDateShort(date: Date): string {
+  const d = date.getDate();
+  const m = date.getMonth() + 1;
+  return `${d < 10 ? '0' + d : d}/${m < 10 ? '0' + m : m}`;
+}
+
+export function getWeekDateRange(planStartDate: string, weekIndex: number): { start: Date; end: Date } {
+  const start = getWorkoutDate(planStartDate, weekIndex, 0); // Monday
+  const end = getWorkoutDate(planStartDate, weekIndex, 6);   // Sunday
+  return { start, end };
+}
+
+export function formatWeekDateRange(planStartDate: string, weekIndex: number): string {
+  const { start, end } = getWeekDateRange(planStartDate, weekIndex);
+  return `${formatWorkoutDateShort(start)} a ${formatWorkoutDateShort(end)}`;
+}
+

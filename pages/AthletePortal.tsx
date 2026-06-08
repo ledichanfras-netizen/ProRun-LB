@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
-import { getAppNow } from '../utils/time';
+import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../utils/time';
 import { 
   AlertCircle, 
   CheckCircle, 
@@ -468,8 +468,13 @@ const AthletePortal: React.FC = () => {
           
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-4">
-              <div className="px-3 py-1 bg-emerald-500 text-emerald-950 text-[9px] font-black uppercase rounded-lg italic tracking-tighter">
-                {todayWorkout?.workout.type.toUpperCase().includes('PROVA') ? 'Dia de Prova' : (todayWorkout?.isDescanso ? 'Recuperação' : 'Treino de Hoje')}
+              <div className="px-3 py-1 bg-emerald-500 text-emerald-950 text-[9px] font-black uppercase rounded-lg italic tracking-tighter flex items-center gap-1.5 flex-wrap">
+                <span>{todayWorkout?.workout.type.toUpperCase().includes('PROVA') ? 'Dia de Prova' : (todayWorkout?.isDescanso ? 'Recuperação' : 'Treino de Hoje')}</span>
+                {athletePlan?.startDate && todayWorkout && (
+                  <span className="opacity-70 font-black">
+                    ({formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, todayWorkout.weekIndex, todayWorkout.dayIndex))})
+                  </span>
+                )}
               </div>
               {todayWorkout?.workout.completed && (
                 <div className="flex items-center gap-1 text-emerald-400 font-black text-[9px] uppercase italic">
@@ -510,8 +515,13 @@ const AthletePortal: React.FC = () => {
               {tomorrowWorkout.isDescanso ? '🧘' : '👟'}
             </div>
             <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">
-                Amanhã {tomorrowWorkout.weekIndex !== todayWorkout?.weekIndex ? `• Semana ${allWeeks[tomorrowWorkout.weekIndex]?.weekNumber}` : ''}
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-1.5 flex-wrap">
+                <span>Amanhã {tomorrowWorkout.weekIndex !== todayWorkout?.weekIndex ? `• Semana ${allWeeks[tomorrowWorkout.weekIndex]?.weekNumber}` : ''}</span>
+                {athletePlan?.startDate && (
+                  <span className="text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded text-[8px] font-extrabold whitespace-nowrap">
+                    ({formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, tomorrowWorkout.weekIndex, tomorrowWorkout.dayIndex))})
+                  </span>
+                )}
               </p>
               <h4 className="text-sm font-black text-slate-700 uppercase italic tracking-tighter">{tomorrowWorkout.workout.type}</h4>
             </div>
@@ -636,10 +646,17 @@ const AthletePortal: React.FC = () => {
              const isCurrentWeek = currentWeek?.weekNumber === week.weekNumber;
              return (
                <div key={wIdx} className={`rounded-[2rem] p-6 border transition-all ${isCurrentWeek ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-500/5 ring-4 ring-emerald-500/5' : 'bg-slate-50 border-slate-100'}`}>
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-black uppercase italic ${isCurrentWeek ? 'text-emerald-600' : 'text-slate-500'}`}>Semana {week.weekNumber}</span>
-                      {isCurrentWeek && <span className="bg-emerald-500 text-white text-[7px] font-black px-2 py-0.5 rounded-full uppercase italic">Atual</span>}
+                  <div className="flex justify-between items-center flex-wrap gap-2 mb-4">
+                    <div className="flex flex-col gap-1 xs:flex-row xs:items-center xs:gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black uppercase italic ${isCurrentWeek ? 'text-emerald-600' : 'text-slate-500'}`}>Semana {week.weekNumber}</span>
+                        {isCurrentWeek && <span className="bg-emerald-500 text-white text-[7px] font-black px-2 py-0.5 rounded-full uppercase italic">Atual</span>}
+                      </div>
+                      {athletePlan?.startDate && (
+                        <span className="text-[8px] text-slate-400 font-extrabold uppercase bg-slate-100 border border-slate-200/50 px-1.5 py-0.5 rounded-md italic">
+                          📅 {formatWeekDateRange(athletePlan.startDate, originalWeekIndex)}
+                        </span>
+                      )}
                     </div>
                     <span className="text-[10px] font-black text-emerald-600 bg-white px-2 py-0.5 rounded-lg border border-slate-100 italic">{week.totalVolume} KM</span>
                   </div>
@@ -673,8 +690,15 @@ const AthletePortal: React.FC = () => {
                     const weekdaysFull = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
                     return (
                       <div className="mb-4 p-4 bg-white rounded-2xl border border-slate-100/80 space-y-2 shadow-sm animate-fade-in">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[9px] font-black uppercase text-slate-400">{weekdaysFull[selDayIdx]}</span>
+                        <div className="flex justify-between items-center flex-wrap gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-black uppercase text-slate-400">{weekdaysFull[selDayIdx]}</span>
+                            {athletePlan?.startDate && (
+                              <span className="text-[8px] font-extrabold italic bg-emerald-50 text-emerald-600 border border-emerald-100/50 px-1.5 py-0.5 rounded-md">
+                                {formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, originalWeekIndex, selDayIdx))}
+                              </span>
+                            )}
+                          </div>
                           {wk.type !== 'Descanso' && (
                             <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-100/50 italic flex items-center justify-center gap-1">
                               📏{' '}

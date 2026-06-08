@@ -5,7 +5,7 @@ import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType, AthletePlan, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-import { getAppNow } from '../utils/time';
+import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../utils/time';
 import { 
   Sparkles, 
   Loader2, 
@@ -727,6 +727,12 @@ const Periodization: React.FC = () => {
                       <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1">
                         <TrendingUp className="w-3 h-3 text-emerald-400" /> {week.totalVolume || 0} KM
                       </span>
+                      
+                      {fullPlan.startDate && (
+                        <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1.5 bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                          📅 {formatWeekDateRange(fullPlan.startDate, weekIndex)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
                       <button 
@@ -780,7 +786,14 @@ const Periodization: React.FC = () => {
                                  <button onClick={() => handleMoveWorkout(weekIndex, dayIndex, 'down')} disabled={dayIndex === week.workouts.length - 1} className="p-0.5 hover:bg-white/10 disabled:opacity-20 rounded transition-colors"><ChevronDown className="w-3 h-3 text-white" /></button>
                                </div>
                              )}
-                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{workout.day}</p>
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter flex items-center gap-1.5 flex-wrap">
+                               <span>{workout.day}</span>
+                               {fullPlan?.startDate && (
+                                 <span className="text-emerald-400 font-extrabold italic bg-emerald-500/10 border border-emerald-500/10 px-1.5 py-0.5 rounded text-[8px] tracking-tight whitespace-nowrap">
+                                   {formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex))}
+                                 </span>
+                                )}
+                             </p>
                            </div>
                            {isEditing ? (
                               <div className="relative w-32 sm:w-full">

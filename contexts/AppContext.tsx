@@ -99,25 +99,47 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const logout = useCallback(() => {
+    // Guard: Only proceed if actually logged in to prevent infinite reload loops
+    if (!localStorage.getItem('proRun_userRole') && !userRole) {
+      return;
+    }
     setUserRole(null);
     setSelectedAthleteId(null);
-    localStorage.clear();
-    supabase.auth.signOut();
-  }, []);
+    try {
+      localStorage.clear();
+    } catch (e) {
+      console.warn("localStorage.clear failed:", e);
+    }
+    
+    try {
+      supabase.auth.signOut();
+    } catch (e) {
+      console.warn("supabase.auth.signOut failed:", e);
+    }
+
+    // Clean redirection to the login view and reload the browser tab 
+    // to cleanly sweep memory/context without lingering dark screen states.
+    setTimeout(() => {
+      window.location.hash = '#/login';
+      window.location.reload();
+    }, 100);
+  }, [userRole]);
 
   // Listen to Supabase Auth Changes for future expansion
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       console.log(`Supabase Auth Event: ${event}`);
       if (event === 'SIGNED_OUT') {
-        logout();
+        if (localStorage.getItem('proRun_userRole') || userRole) {
+          logout();
+        }
       }
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [logout]);
+  }, [logout, userRole]);
 
   useEffect(() => {
     localStorage.setItem('proRun_notifications', JSON.stringify(notifications));

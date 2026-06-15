@@ -2,11 +2,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info, Cloud, CloudOff } from 'lucide-react';
+import { Lock, User, ArrowRight, AlertCircle, TrendingUp, Info, Cloud, CloudOff, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { login, isCloudConnected } = useApp();
@@ -79,14 +80,21 @@ export default function Login() {
               <div className="relative group">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/30 w-5 h-5 group-focus-within:text-emerald-500 transition-colors" />
                 <input 
-                  type="password" 
+                  type={showPassword ? "text" : "password"} 
                   required
                   autoComplete="current-password"
-                  className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/5 rounded-2xl focus:ring-1 focus:ring-emerald-500 focus:bg-white/10 outline-none transition text-white font-bold placeholder:text-white/10"
+                  className="w-full pl-12 pr-12 py-4 bg-white/5 border border-white/5 rounded-2xl focus:ring-1 focus:ring-emerald-500 focus:bg-white/10 outline-none transition text-white font-bold placeholder:text-white/10"
                   placeholder="Senha de acesso"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500/30 hover:text-emerald-500 transition-colors focus:outline-none p-1 flex items-center justify-center"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 

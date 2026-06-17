@@ -203,3 +203,167 @@ export const calculateRacePredictions = (vdot: number): RacePrediction[] => {
     };
   });
 };
+
+export const parsePaceToMinPerKm = (paceStr: string): number => {
+  if (!paceStr) return 0;
+  const cleanPace = paceStr.replace('/km', '').trim();
+  if (!cleanPace.includes(':')) return 0;
+  const [m, s] = cleanPace.split(':').map(Number);
+  return m + (s / 60);
+};
+
+export const formatDistanceTime = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}m ${s < 10 ? '0' + s : s}s`;
+};
+
+export interface DanielsSprintPrediction {
+  distanceName: string;
+  distanceMeters: number;
+  repTime: string;
+  repSpeed: string;
+  repPace: string;
+  intTime: string;
+  intSpeed: string;
+  intPace: string;
+}
+
+export const calculateDanielsSprintsByPaces = (
+  paces: TrainingPace[],
+  vdot: number = 30
+): DanielsSprintPrediction[] => {
+  const z4 = (paces || []).find(p => p.zone === 'Z4');
+  const z5 = (paces || []).find(p => p.zone === 'Z5');
+
+  let z4PaceMin = 0;
+  let z5PaceMin = 0;
+
+  if (z4) {
+    const minVal = parsePaceToMinPerKm(z4.minPace);
+    const maxVal = parsePaceToMinPerKm(z4.maxPace);
+    z4PaceMin = (minVal + maxVal) / 2;
+  }
+  if (z5) {
+    const minVal = parsePaceToMinPerKm(z5.minPace);
+    const maxVal = parsePaceToMinPerKm(z5.maxPace);
+    z5PaceMin = (minVal + maxVal) / 2;
+  }
+
+  // Fallback to direct calculation using VDOT
+  if (!z4PaceMin || !z5PaceMin) {
+    const vdotToUse = vdot || 30;
+    const getPaceFromIntensity = (intensity: number) => {
+      const targetVO2 = vdotToUse * intensity;
+      const a = 0.000104;
+      const b = 0.182258;
+      const c = -(targetVO2 + 4.6);
+      const v = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+      return 1000 / v;
+    };
+    if (!z4PaceMin) z4PaceMin = getPaceFromIntensity(0.98);
+    if (!z5PaceMin) z5PaceMin = getPaceFromIntensity(1.10);
+  }
+
+  const formatPaceStr = (paceMin: number): string => {
+    const m = Math.floor(paceMin);
+    const s = Math.floor((paceMin - m) * 60);
+    return `${m}:${s < 10 ? '0' + s : s}/km`;
+  };
+
+  const distances = [100, 200, 400, 600, 800];
+
+  return distances.map((dist) => {
+    const rTimeSeconds = (z5PaceMin / 1000) * dist * 60;
+    const iTimeSeconds = (z4PaceMin / 1000) * dist * 60;
+
+    const rSpeedKmh = 60 / z5PaceMin;
+    const iSpeedKmh = 60 / z4PaceMin;
+
+    return {
+      distanceName: `${dist}m`,
+      distanceMeters: dist,
+      repTime: formatDistanceTime(rTimeSeconds),
+      repSpeed: `${rSpeedKmh.toFixed(1)} km/h`,
+      repPace: formatPaceStr(z5PaceMin),
+      intTime: formatDistanceTime(iTimeSeconds),
+      intSpeed: `${iSpeedKmh.toFixed(1)} km/h`,
+      intPace: formatPaceStr(z4PaceMin),
+    };
+  });
+};
+
+export const formatPartialSpeedTime = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSecs = seconds % 60;
+  
+  const formattedSecs = remainingSecs.toFixed(1);
+  const [secInt, secDec] = formattedSecs.split('.');
+  const paddedSecs = parseInt(secInt) < 10 ? `0${secInt}` : secInt;
+  
+  if (secDec && secDec !== '0') {
+    return `${minutes}:${paddedSecs}.${secDec}`;
+  }
+  return `${minutes}:${paddedSecs}`;
+};
+
+export interface VelocidadeParcialDistance {
+  distanceName: string;
+  distanceMeters: number;
+  intensities: {
+    percentage: string;
+    value: number;
+    speedKmh: string;
+    timeStr: string;
+  }[];
+}
+
+export const calculateVelocidadesParciais = (vdot: number): VelocidadeParcialDistance[] => {
+  const vdotToUse = vdot || 30;
+  
+  // Resolução da equação quadrática para obter velocidade aeróbica máxima (vVO2max)
+  const a = 0.000104;
+  const b = 0.182258;
+  const c = -(vdotToUse + 4.60);
+  const delta = b * b - 4 * a * c;
+  
+  // V em metros por minuto
+  const vMin = (-b + Math.sqrt(delta)) / (2 * a);
+  const baseSpeedKmh = (vMin * 60) / 1000; // Velocidade base a 100% (VMA / MAS)
+
+  const distances = [100, 200, 300, 400, 500, 600, 800, 1000];
+  const percentages = [
+    { label: '120%', multiplier: 1.20 },
+    { label: '110%', multiplier: 1.10 },
+    { label: '100%', multiplier: 1.00 },
+    { label: '90%', multiplier: 0.90 },
+    { label: '80%', multiplier: 0.80 },
+    { label: '70%', multiplier: 0.70 },
+    { label: '60%', multiplier: 0.60 }
+  ];
+
+  return distances.map(dist => {
+    return {
+      distanceName: `${dist}m`,
+      distanceMeters: dist,
+      intensities: percentages.map(p => {
+        const speedKmh = baseSpeedKmh * p.multiplier;
+        const speedMs = speedKmh / 3.6;
+        const timeSeconds = dist / speedMs;
+
+        return {
+          percentage: p.label,
+          value: p.multiplier,
+          speedKmh: `${speedKmh.toFixed(1)}km/h`,
+          timeStr: formatPartialSpeedTime(timeSeconds)
+        };
+      })
+    };
+  });
+};

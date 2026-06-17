@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../contexts/AppContext';
-import { calculateVO2, calculatePaces, calculateRacePredictions } from '../utils/calculations';
+import { calculateVO2, calculatePaces, calculateRacePredictions, calculateDanielsSprintsByPaces, calculateVelocidadesParciais } from '../utils/calculations';
 import { TrainingPace, Assessment } from '../types';
 import { getAppNow } from '../utils/time';
-import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2, Download, TrendingUp, Medal } from 'lucide-react';
+import { Calculator, Save, Activity, Heart, History, Info, X, Trash2, Edit2, AlertTriangle, RefreshCw, AlertCircle, Loader2, Download, TrendingUp, Medal, Eye } from 'lucide-react';
 import { PrintLayout } from '../components/PrintLayout';
 import { exportToImage } from '../utils/exporter';
 
@@ -39,6 +39,8 @@ const Assessments: React.FC = () => {
   const [isSavingAssessment, setIsSavingAssessment] = useState(false);
   const [editablePaces, setEditablePaces] = useState<TrainingPace[]>([]);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [vParcialDist, setVParcialDist] = useState<string>('all');
 
   // Monitora mudanças para recalcular zonas na hora (Simulação)
   useEffect(() => {
@@ -274,20 +276,81 @@ const Assessments: React.FC = () => {
         </div>
       )}
 
+      {isPreviewOpen && activeAthlete && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-between bg-slate-950/95 backdrop-blur-md p-4 md:p-6 animate-fade-in">
+          {/* Header do preview */}
+          <div className="flex justify-between items-center bg-slate-900/60 p-4 rounded-3xl mb-4 border border-white/5 backdrop-blur">
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-950 p-2 rounded-xl border border-emerald-800/30">
+                <Eye className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-black text-sm uppercase italic tracking-tighter leading-none">PRÉ-VISUALIZAÇÃO DAS ZONAS</h3>
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Sua arte de treinamento gerada com exatidão científica</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleDownloadImage}
+                disabled={exportLoading}
+                className="bg-emerald-500 hover:bg-emerald-600 font-black text-slate-950 px-4 py-2.5 rounded-xl text-[10px] uppercase italic tracking-wider flex items-center gap-2 transition disabled:opacity-50 shadow-lg shadow-emerald-500/20"
+              >
+                {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {exportLoading ? 'GERANDO...' : 'Baixar JPEG de Alta Definição'}
+              </button>
+              <button 
+                onClick={() => setIsPreviewOpen(false)}
+                className="bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-xl transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Corpo do preview com rolagem suave */}
+          <div className="flex-1 overflow-auto rounded-3xl bg-slate-900/40 p-4 md:p-8 border border-white/5 flex justify-center items-start custom-scrollbar">
+            <div className="min-w-[1240px] bg-white rounded-[2.5rem] shadow-2xl p-4 overflow-hidden border border-slate-100 flex justify-center items-center">
+              <PrintLayout 
+                athlete={activeAthlete} 
+                plan={[]} 
+                paces={paces} 
+                goal="Zonas de Treinamento e Performance" 
+                totalWeeks={0}
+              />
+            </div>
+          </div>
+
+          {/* Footer Informativo do preview */}
+          <div className="mt-4 flex justify-between items-center text-slate-400 text-[10px] uppercase italic font-bold tracking-wider px-3 md:px-6">
+            <span>Atleta: {activeAthlete.name}</span>
+            <span>Estilo: Jack Daniels VDOT ({activeAthlete.metrics.vdot})</span>
+          </div>
+        </div>
+      )}
+
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter">Avaliações & Zonas</h1>
           <p className="text-slate-300 font-medium">Configuração técnica personalizada.</p>
         </div>
         {activeAthlete && (
-          <button 
-            onClick={handleDownloadImage}
-            disabled={exportLoading}
-            className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-black transition shadow-lg uppercase text-[10px] italic tracking-widest disabled:opacity-50"
-          >
-            {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {exportLoading ? 'GERANDO...' : 'Baixar Zonas'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={() => setIsPreviewOpen(true)}
+              className="bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-700 hover:text-white transition shadow-md uppercase text-[10px] italic tracking-widest"
+            >
+              <Eye className="w-4 h-4 text-emerald-400" />
+              Visualizar
+            </button>
+            <button 
+              onClick={handleDownloadImage}
+              disabled={exportLoading}
+              className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-4 py-2.5 rounded-xl font-black flex items-center gap-2 transition shadow-lg uppercase text-[10px] italic tracking-widest disabled:opacity-50"
+            >
+              {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {exportLoading ? 'GERANDO...' : 'JPEG Alta Definição'}
+            </button>
+          </div>
         )}
       </header>
 
@@ -480,6 +543,166 @@ const Assessments: React.FC = () => {
                 </table>
               </div>
             </div>
+
+            {/* Tabela de Velocidades Parciais por Intensidade */}
+            {activeAthlete && (
+              <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden p-6 space-y-6 shadow-xl shadow-slate-200/40">
+                <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-50 pb-4">
+                  <div>
+                    <h2 className="font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-3 text-xl">
+                      ⏱️ Tabela de Velocidades Parciais (Intensidade de Tiros)
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-medium italic mt-0.5">
+                      Tempos de passagem e velocidade recomendada baseados na Velocidade Máxima Aeróbica (VMA) e percentuais de intensidade.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full">
+                    <button 
+                      onClick={() => setVParcialDist('all')} 
+                      className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase italic tracking-wider transition ${vParcialDist === 'all' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      Ver Todas
+                    </button>
+                    {['100m', '200m', '300m', '400m', '500m', '600m', '800m', '1000m'].map(dist => (
+                      <button 
+                        key={dist}
+                        onClick={() => setVParcialDist(dist)} 
+                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase italic tracking-wider transition ${vParcialDist === dist ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                      >
+                        {dist}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {calculateVelocidadesParciais(calculatedVo2 || activeAthlete.metrics.vdot || 30)
+                    .filter(distData => vParcialDist === 'all' || distData.distanceName === vParcialDist)
+                    .map((distData) => (
+                      <div key={distData.distanceName} className="border border-slate-100 rounded-2xl p-4 bg-slate-50/20 shadow-xs hover:border-emerald-200 transition-all">
+                        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                          <span className="bg-emerald-600 text-white text-xs font-black px-4 py-1.5 rounded-xl uppercase tracking-widest italic shadow-sm">
+                            {distData.distanceName}
+                          </span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">Passagens por Intensidade (% vVO2max)</span>
+                        </div>
+
+                        <div className="overflow-x-auto custom-scrollbar">
+                          <table className="w-full text-center border-collapse min-w-[620px] table-fixed">
+                            <thead>
+                              <tr className="border-b border-slate-100 pb-2">
+                                <th className="pb-2 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest italic w-[80px] min-w-[80px]">Dados</th>
+                                {distData.intensities.map(item => (
+                                  <th key={item.percentage} className="pb-2 text-center text-[10px] font-black text-slate-800 uppercase tracking-widest bg-slate-100/50 rounded-lg py-1.5 px-0.5 min-w-[75px] w-[75px]">
+                                    {item.percentage}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="hover:bg-slate-50/50 transition">
+                                <td className="py-2.5 text-left font-bold text-[10px] text-slate-400 uppercase tracking-wider">
+                                  ⏱️ Tempo
+                                </td>
+                                {distData.intensities.map(item => (
+                                  <td key={item.percentage} className="py-2.5 px-0.5 text-center text-slate-950 font-black text-[12px] italic tracking-tight whitespace-nowrap">
+                                    {item.timeStr}
+                                  </td>
+                                ))}
+                              </tr>
+                              <tr className="border-t border-slate-100/50 hover:bg-slate-50/50 transition">
+                                <td className="py-2.5 text-left font-bold text-[10px] text-slate-400 uppercase tracking-wider">
+                                  ⚡ Velocidade
+                                </td>
+                                {distData.intensities.map(item => (
+                                  <td key={item.percentage} className="py-2.5 px-0.5 text-center text-slate-600 font-bold text-[10px] whitespace-nowrap">
+                                    {item.speedKmh}
+                                  </td>
+                                ))}
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tabela de Tiros Progressivos - Jack Daniels */}
+            {activeAthlete && (
+              <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden p-6 space-y-6 shadow-xl shadow-slate-200/40">
+                <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-50 pb-4">
+                  <div>
+                    <h2 className="font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-3 text-xl">
+                      👟 Tabela de Ritmos para Tiros (Fórmula Jack Daniels)
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-medium italic mt-0.5">
+                      Tempos de passagem e velocidade recomendada para tiros de intensidade mapeados por nível fisiológico.
+                    </p>
+                  </div>
+                  <span className="bg-emerald-500 text-white text-[8px] font-black px-3 py-1 rounded-lg uppercase tracking-widest italic shadow-sm">
+                    Daniels VDOT
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Repetições (Z5 - Velocidade) */}
+                  <div className="border border-purple-100 rounded-2xl p-4 bg-purple-50/5">
+                    <h3 className="text-xs font-black text-purple-700 bg-purple-100/50 px-3 py-1.5 rounded-lg inline-block uppercase italic mb-3">
+                      ⚡ Tiros de Repetição (Z5 - Velocidade / R-Pace)
+                    </h3>
+                    <div className="overflow-x-auto custom-scrollbar">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-purple-100/50 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
+                            <th className="pb-2">Distância</th>
+                            <th className="pb-2 text-center">Tempo Alvo</th>
+                            <th className="pb-2 text-right">Velocidade Média</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-purple-100/30">
+                          {calculateDanielsSprintsByPaces(paces, calculatedVo2 || activeAthlete.metrics.vdot || 30).map((s) => (
+                            <tr key={s.distanceName} className="font-semibold text-slate-700 hover:bg-purple-50/20 transition-colors">
+                              <td className="py-2.5 font-black italic text-slate-900">{s.distanceName}</td>
+                              <td className="py-2.5 text-center text-purple-700 font-black text-[14px] italic">{s.repTime}</td>
+                              <td className="py-2.5 text-right text-slate-500 font-bold text-[10px]">{s.repSpeed} <span className="text-[8px] font-medium italic text-slate-400">({s.repPace})</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Intervalados (Z4 - Intervalos) */}
+                  <div className="border border-red-100 rounded-2xl p-4 bg-red-50/5">
+                    <h3 className="text-xs font-black text-red-700 bg-red-100/50 px-3 py-1.5 rounded-lg inline-block uppercase italic mb-3">
+                      🏃‍♂️ Tiros Intervalados (Z4 - Intervalos / I-Pace)
+                    </h3>
+                    <div className="overflow-x-auto custom-scrollbar">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-red-100/50 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
+                            <th className="pb-2">Distância</th>
+                            <th className="pb-2 text-center">Tempo Alvo</th>
+                            <th className="pb-2 text-right">Velocidade Média</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-red-100/30">
+                          {calculateDanielsSprintsByPaces(paces, calculatedVo2 || activeAthlete.metrics.vdot || 30).map((s) => (
+                            <tr key={s.distanceName} className="font-semibold text-slate-700 hover:bg-red-50/20 transition-colors">
+                              <td className="py-2.5 font-black italic text-slate-900">{s.distanceName}</td>
+                              <td className="py-2.5 text-center text-red-600 font-black text-[14px] italic">{s.intTime}</td>
+                              <td className="py-2.5 text-right text-slate-500 font-bold text-[10px]">{s.intSpeed} <span className="text-[8px] font-medium italic text-slate-400">({s.intPace})</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Projeções de Corrida & Análise de Desempenho por Distância */}
             {activeAthlete && (

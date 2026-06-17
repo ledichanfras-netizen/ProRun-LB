@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Athlete, TrainingWeek, TrainingPace } from '../types';
+import { calculateDanielsSprintsByPaces, calculateVelocidadesParciais } from '../utils/calculations';
 
 export const LBSportsLogo = () => (
   <div className="flex items-center gap-4">
@@ -113,6 +114,120 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Tabela de Tiros Daniels */}
+      <div className="mb-8 bg-white border-2 border-slate-100 rounded-[2rem] p-6 shadow-lg">
+        <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-black uppercase italic text-slate-900 tracking-tight flex items-center gap-2">
+              👟 TABELA DE TIROS PROGRESSIVOS (Fórmula de Jack Daniels)
+            </h3>
+            <p className="text-[9px] text-slate-400 font-bold uppercase italic">
+              Tempos de passagem e velocidade média exata mapeados por nível fisiológico (VDOT: {athlete.metrics.vdot})
+            </p>
+          </div>
+          <span className="bg-emerald-500 text-white text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest italic">
+            Jack Daniels VDOT
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6">
+          {/* Repetições (Velocidade - Z5) */}
+          <div className="border border-purple-100 rounded-2xl p-4 bg-purple-50/10">
+            <h4 className="text-[10px] font-black text-purple-700 bg-purple-50 px-3 py-1.5 rounded-lg inline-block uppercase italic mb-3">
+              ⚡ TIROS DE REPETIÇÃO (Z5 - VELOCIDADE / R-PACE)
+            </h4>
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-purple-100/50 text-[9px] font-black text-slate-400 uppercase tracking-widest italic">
+                  <th className="py-2">Distância</th>
+                  <th className="py-2 text-center">Tempo Alvo</th>
+                  <th className="py-2 text-right">Velocidade Média</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-purple-100/30">
+                {calculateDanielsSprintsByPaces(paces, athlete.metrics.vdot).map((s) => (
+                  <tr key={s.distanceName} className="font-semibold text-slate-800">
+                    <td className="py-2 font-black italic text-slate-900">{s.distanceName}</td>
+                    <td className="py-2 text-center text-purple-700 font-extrabold text-[13px]">{s.repTime}</td>
+                    <td className="py-2 text-right text-slate-500 font-bold text-[10px]">{s.repSpeed} ({s.repPace})</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Intervalados (Z4 - I-PACE) */}
+          <div className="border border-red-100 rounded-2xl p-4 bg-red-50/10">
+            <h4 className="text-[10px] font-black text-red-700 bg-red-50 px-3 py-1.5 rounded-lg inline-block uppercase italic mb-3">
+              🏃‍♂️ TIROS INTERVALADOS (Z4 - INTERVALOS / I-PACE)
+            </h4>
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-red-100/50 text-[9px] font-black text-slate-400 uppercase tracking-widest italic">
+                  <th className="py-2">Distância</th>
+                  <th className="py-2 text-center">Tempo Alvo</th>
+                  <th className="py-2 text-right">Velocidade Média</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-100/30">
+                {calculateDanielsSprintsByPaces(paces, athlete.metrics.vdot).map((s) => (
+                  <tr key={s.distanceName} className="font-semibold text-slate-800">
+                    <td className="py-2 font-black italic text-slate-900">{s.distanceName}</td>
+                    <td className="py-2 text-center text-red-600 font-extrabold text-[13px]">{s.intTime}</td>
+                    <td className="py-2 text-right text-slate-500 font-bold text-[10px]">{s.intSpeed} ({s.intPace})</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabela de Velocidades Parciais */}
+      <div className="mb-8 bg-white border-2 border-slate-100 rounded-[2rem] p-6 shadow-lg page-break-inside-avoid">
+        <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-black uppercase italic text-slate-900 tracking-tight flex items-center gap-2">
+              ⏱️ TABELA DE VELOCIDADES PARCIAIS (VMA / MAS)
+            </h3>
+            <p className="text-[9px] text-slate-400 font-bold uppercase italic">
+              Tempos de passagem por distância calculados com exatidão científica baseada no VO2max / VDOT ({athlete.metrics.vdot}) do atleta
+            </p>
+          </div>
+          <span className="bg-emerald-600 text-white text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest italic">
+            Intensidades de Tiro
+          </span>
+        </div>
+
+        <div className="space-y-4">
+          {calculateVelocidadesParciais(athlete.metrics.vdot).slice(0, 5).map((distData) => (
+            <div key={distData.distanceName} className="border border-slate-100 rounded-2xl p-4 bg-slate-50/40">
+              <div className="flex items-center justify-between mb-2">
+                <span className="bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase italic tracking-wider">
+                  {distData.distanceName}
+                </span>
+                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Escala de Intensidades (% vVO2max)</span>
+              </div>
+              <div className="grid grid-cols-7 gap-2">
+                {distData.intensities.map((item) => (
+                  <div key={item.percentage} className="text-center bg-white border border-slate-100 p-2 rounded-xl shadow-xs">
+                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 bg-slate-50 py-0.5 rounded-md">
+                      {item.percentage}
+                    </span>
+                    <span className="block text-[11px] font-black text-slate-950 italic">
+                      {item.timeStr}
+                    </span>
+                    <span className="block text-[7px] font-extrabold text-slate-500 mt-0.5">
+                      {item.speedKmh}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-8 bg-white">

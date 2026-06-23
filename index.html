@@ -3,6 +3,32 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Clean up service workers and caches FIRST in development/dev environment to bypass any cached stale reactivity bundles.
+      if ('serviceWorker' in navigator) {
+        const isDev = window.location.hostname.includes('ais-dev-') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isDev) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            if (registrations.length > 0) {
+              for (let registration of registrations) {
+                registration.unregister();
+                console.log('[Dev SW] Service Worker unregistered from dev env.');
+              }
+              if ('caches' in window) {
+                caches.keys().then(names => {
+                  Promise.all(names.map(name => caches.delete(name))).then(() => {
+                    console.log('[Dev SW] All cache storages deleted. Reloading parent to update dependencies.');
+                    window.location.reload();
+                  });
+                });
+              } else {
+                window.location.reload();
+              }
+            }
+          });
+        }
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="ProRun LB - Performance de Elite Integrada." />
     <meta name="theme-color" content="#020617" />
@@ -83,7 +109,8 @@
     <div id="printable-portal" aria-hidden="true"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
+      // Register service worker only in non-development environments
+      if ('serviceWorker' in navigator && !window.location.hostname.includes('ais-dev-') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
             .then(reg => {

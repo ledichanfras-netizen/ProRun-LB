@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Athlete, TrainingWeek, TrainingPace } from '../types';
-import { calculateDanielsSprintsByPaces, calculateVelocidadesParciais } from '../utils/calculations';
+import { calculateDanielsSprintsByPaces } from '../utils/calculations';
 
 export const LBSportsLogo = () => (
   <div className="flex items-center gap-4">
@@ -116,12 +116,53 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
         ))}
       </div>
 
-      {/* Tabela de Tiros Daniels */}
+
+      <div className="space-y-8 bg-white">
+        {(plan || []).map((week, wIdx) => (
+          <div key={wIdx} className="bg-white border-b-2 border-slate-100 pb-8 last:border-0">
+            <div className="flex justify-between items-center mb-4 bg-white px-2">
+               <div className="flex items-center gap-4">
+                 <div className="bg-slate-900 text-white px-6 py-2 rounded-2xl font-black uppercase italic text-[12px] shadow-xl tracking-tighter min-w-[130px] flex justify-center items-center">SEMANA {week.weekNumber}</div>
+                 <div className="text-[10px] font-black uppercase text-emerald-700 tracking-[0.2em] italic bg-emerald-50 px-5 py-2 rounded-xl border border-emerald-100 shadow-sm">{week.phase}</div>
+               </div>
+               <div className="text-right">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2 italic">Volume Semanal:</span>
+                  <span className="font-black text-2xl text-slate-900 italic tracking-tighter">{week.totalVolume || 0} KM</span>
+               </div>
+            </div>
+            <div className="grid grid-cols-7 gap-3 bg-white">
+              {getFullWeek(week.workouts).map((workout, idx) => (
+                <div 
+                  key={idx} 
+                  className={`p-4 rounded-[2rem] h-full min-h-[200px] flex flex-col justify-between border-2 shadow-sm transition-all ${getWorkoutCardStyle(workout.type)}`}
+                >
+                   <div className="flex justify-between items-center mb-3">
+                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">{workout.day.substring(0, 3)}</span>
+                     <span className="text-[8px] font-black uppercase px-3 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 shadow-sm text-center">{workout.type?.substring(0, 3).toUpperCase() || 'TRN'}</span>
+                   </div>
+                   <div className="flex-1 flex flex-col items-center justify-center text-center px-2 py-3">
+                     <div className="text-[11px] leading-[1.4] font-black text-slate-800 italic break-words text-center">{workout.customDescription}</div>
+                   </div>
+                   <div className="mt-3 pt-3 border-t border-slate-200/50 flex justify-center items-center">
+                     {workout.distance && workout.distance > 0 ? (
+                       <span className="text-[11px] font-black text-emerald-900 bg-emerald-50 px-4 py-1 rounded-xl border border-emerald-100 italic">{workout.distance} KM</span>
+                     ) : (
+                       <span className="text-[8px] font-black text-slate-300 italic uppercase">OFF</span>
+                     )}
+                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabela de Tiros Progressivos */}
       <div className="mb-8 bg-white border-2 border-slate-100 rounded-[2rem] p-6 shadow-lg">
         <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
           <div>
             <h3 className="text-sm font-black uppercase italic text-slate-900 tracking-tight flex items-center gap-2">
-              👟 TABELA DE TIROS PROGRESSIVOS (Fórmula de Jack Daniels)
+              👟 TABELA DE TIROS PROGRESSIVOS
             </h3>
             <p className="text-[9px] text-slate-400 font-bold uppercase italic">
               Tempos de passagem e velocidade média exata mapeados por nível fisiológico (VDOT: {athlete.metrics.vdot})
@@ -183,91 +224,6 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
             </table>
           </div>
         </div>
-      </div>
-
-      {/* Tabela de Velocidades Parciais */}
-      <div className="mb-8 bg-white border-2 border-slate-100 rounded-[2rem] p-6 shadow-lg page-break-inside-avoid">
-        <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
-          <div>
-            <h3 className="text-sm font-black uppercase italic text-slate-900 tracking-tight flex items-center gap-2">
-              ⏱️ TABELA DE VELOCIDADES PARCIAIS (VMA / MAS)
-            </h3>
-            <p className="text-[9px] text-slate-400 font-bold uppercase italic">
-              Tempos de passagem por distância calculados com exatidão científica baseada no VO2max / VDOT ({athlete.metrics.vdot}) do atleta
-            </p>
-          </div>
-          <span className="bg-emerald-600 text-white text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest italic">
-            Intensidades de Tiro
-          </span>
-        </div>
-
-        <div className="space-y-4">
-          {calculateVelocidadesParciais(athlete.metrics.vdot).slice(0, 5).map((distData) => (
-            <div key={distData.distanceName} className="border border-slate-100 rounded-2xl p-4 bg-slate-50/40">
-              <div className="flex items-center justify-between mb-2">
-                <span className="bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase italic tracking-wider">
-                  {distData.distanceName}
-                </span>
-                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Escala de Intensidades (% vVO2max)</span>
-              </div>
-              <div className="grid grid-cols-7 gap-2">
-                {distData.intensities.map((item) => (
-                  <div key={item.percentage} className="text-center bg-white border border-slate-100 p-2 rounded-xl shadow-xs">
-                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 bg-slate-50 py-0.5 rounded-md">
-                      {item.percentage}
-                    </span>
-                    <span className="block text-[11px] font-black text-slate-950 italic">
-                      {item.timeStr}
-                    </span>
-                    <span className="block text-[7px] font-extrabold text-slate-500 mt-0.5">
-                      {item.speedKmh}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-8 bg-white">
-        {(plan || []).map((week, wIdx) => (
-          <div key={wIdx} className="bg-white border-b-2 border-slate-100 pb-8 last:border-0">
-            <div className="flex justify-between items-center mb-4 bg-white px-2">
-               <div className="flex items-center gap-4">
-                 <div className="bg-slate-900 text-white px-6 py-2 rounded-2xl font-black uppercase italic text-[12px] shadow-xl tracking-tighter min-w-[130px] flex justify-center items-center">SEMANA {week.weekNumber}</div>
-                 <div className="text-[10px] font-black uppercase text-emerald-700 tracking-[0.2em] italic bg-emerald-50 px-5 py-2 rounded-xl border border-emerald-100 shadow-sm">{week.phase}</div>
-               </div>
-               <div className="text-right">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2 italic">Volume Semanal:</span>
-                  <span className="font-black text-2xl text-slate-900 italic tracking-tighter">{week.totalVolume || 0} KM</span>
-               </div>
-            </div>
-            <div className="grid grid-cols-7 gap-3 bg-white">
-              {getFullWeek(week.workouts).map((workout, idx) => (
-                <div 
-                  key={idx} 
-                  className={`p-4 rounded-[2rem] h-full min-h-[200px] flex flex-col justify-between border-2 shadow-sm transition-all ${getWorkoutCardStyle(workout.type)}`}
-                >
-                   <div className="flex justify-between items-center mb-3">
-                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">{workout.day.substring(0, 3)}</span>
-                     <span className="text-[8px] font-black uppercase px-3 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 shadow-sm text-center">{workout.type?.substring(0, 3).toUpperCase() || 'TRN'}</span>
-                   </div>
-                   <div className="flex-1 flex flex-col items-center justify-center text-center px-2 py-3">
-                     <div className="text-[11px] leading-[1.4] font-black text-slate-800 italic break-words text-center">{workout.customDescription}</div>
-                   </div>
-                   <div className="mt-3 pt-3 border-t border-slate-200/50 flex justify-center items-center">
-                     {workout.distance && workout.distance > 0 ? (
-                       <span className="text-[11px] font-black text-emerald-900 bg-emerald-50 px-4 py-1 rounded-xl border border-emerald-100 italic">{workout.distance} KM</span>
-                     ) : (
-                       <span className="text-[8px] font-black text-slate-300 italic uppercase">OFF</span>
-                     )}
-                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );

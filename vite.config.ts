@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
       dedupe: ['react', 'react-dom']
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-router-dom', 'lucide-react', 'recharts', 'motion', 'motion/react', 'framer-motion']
+      include: ['react', 'react-dom', 'react-router-dom', 'lucide-react', 'recharts', 'framer-motion']
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY || env.API_KEY || ''),

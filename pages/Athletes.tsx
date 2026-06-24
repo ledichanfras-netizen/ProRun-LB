@@ -36,7 +36,7 @@ const Athletes: React.FC = () => {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null; name: string }>({ isOpen: false, id: null, name: '' });
 
   const [formData, setFormData] = useState<Partial<Athlete>>({
-    name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: ''
+    name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: '', gender: 'male', trackMenstrual: false
   });
 
   // Filter Athletes (taking into account both searchTerm and risk-filter)
@@ -84,7 +84,7 @@ const Athletes: React.FC = () => {
     
     setIsFormOpen(false);
     setEditingId(null);
-    setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: '' });
+    setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: '', gender: 'male', trackMenstrual: false });
   };
 
   const handleEditClick = (athlete: Athlete) => {
@@ -172,7 +172,7 @@ const Athletes: React.FC = () => {
             onClick={() => {
               setIsFormOpen(true);
               setEditingId(null);
-              setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: '' });
+              setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: '', gender: 'male', trackMenstrual: false });
             }}
             className="flex-1 md:flex-none bg-emerald-950 hover:bg-black text-white px-8 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest shadow-xl transition"
           >
@@ -312,6 +312,40 @@ const Athletes: React.FC = () => {
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
+
+            <div className="relative">
+              <label className="pro-label flex items-center gap-1">Gênero Biológico</label>
+              <div className="relative">
+                <select 
+                    className="pro-input w-full appearance-none pr-10" 
+                    value={formData.gender || 'male'}
+                    onChange={e => {
+                      const val = e.target.value as 'male' | 'female';
+                      setFormData({...formData, gender: val, trackMenstrual: val === 'female'});
+                    }}
+                    required
+                >
+                    <option value="male" className="bg-slate-900">Masculino</option>
+                    <option value="female" className="bg-slate-900">Feminino</option>
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {formData.gender === 'female' && (
+              <div className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 md:col-span-1 self-end h-[58px]">
+                <input 
+                  type="checkbox"
+                  id="trackMenstrual"
+                  className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 h-4 w-4"
+                  checked={formData.trackMenstrual || false}
+                  onChange={e => setFormData({...formData, trackMenstrual: e.target.checked})}
+                />
+                <label htmlFor="trackMenstrual" className="text-xs font-bold text-white cursor-pointer select-none">
+                  Acompanhar Ciclo Menstrual
+                </label>
+              </div>
+            )}
 
             <div>
               <label className="pro-label">Peso (kg)</label>

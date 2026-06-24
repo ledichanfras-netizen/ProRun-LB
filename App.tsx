@@ -6,7 +6,7 @@ import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { RefreshCw } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'framer-motion';
 
 // Common pages always available
 import Dashboard from './pages/Dashboard';

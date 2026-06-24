@@ -35,7 +35,22 @@ interface AppContextType {
   
   athletePlans: Record<string, AthletePlan>;
   saveAthletePlan: (athleteId: string, plan: AthletePlan) => Promise<void>;
-  updateWorkoutStatus: (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number, exercises?: Exercise[], actualDistance?: number) => Promise<void>;
+  updateWorkoutStatus: (
+    athleteId: string, 
+    weekIndex: number, 
+    dayIndex: number, 
+    completed: boolean, 
+    feedback: string, 
+    rpe?: number, 
+    exercises?: Exercise[], 
+    actualDistance?: number,
+    sleepScore?: number,
+    stressScore?: number,
+    sorenessScore?: number,
+    moodScore?: number,
+    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
+    readinessScore?: number
+  ) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
     history: HistoryEntry[], 
@@ -668,7 +683,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const updateWorkoutStatus = async (athleteId: string, weekIndex: number, dayIndex: number, completed: boolean, feedback: string, rpe?: number, exercises?: Exercise[], actualDistance?: number) => {
+  const updateWorkoutStatus = async (
+    athleteId: string, 
+    weekIndex: number, 
+    dayIndex: number, 
+    completed: boolean, 
+    feedback: string, 
+    rpe?: number, 
+    exercises?: Exercise[], 
+    actualDistance?: number,
+    sleepScore?: number,
+    stressScore?: number,
+    sorenessScore?: number,
+    moodScore?: number,
+    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
+    readinessScore?: number
+  ) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
@@ -684,6 +714,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workout.actualDistance = actualDistance;
     }
     
+    if (sleepScore !== undefined) workout.sleepScore = sleepScore;
+    if (stressScore !== undefined) workout.stressScore = stressScore;
+    if (sorenessScore !== undefined) workout.sorenessScore = sorenessScore;
+    if (moodScore !== undefined) workout.moodScore = moodScore;
+    if (menstrualPhase !== undefined) workout.menstrualPhase = menstrualPhase;
+    if (readinessScore !== undefined) workout.readinessScore = readinessScore;
+    
     // Gamification Integration
     if (completed) {
       const athlete = athletes.find(a => a.id === athleteId);
@@ -695,8 +732,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           athleteId
         );
         
-        // Update athlete state with new gamification data
-        await updateAthlete(athleteId, { gamification: updatedData });
+        const updateData: Partial<Athlete> = { gamification: updatedData };
+        
+        if (readinessScore !== undefined) {
+          updateData.lastReadiness = {
+            date: new Date().toISOString().split('T')[0],
+            sleepScore: sleepScore || 3,
+            stressScore: stressScore || 3,
+            sorenessScore: sorenessScore || 3,
+            moodScore: moodScore || 3,
+            menstrualPhase: menstrualPhase || 'none',
+            readinessScore: readinessScore
+          };
+          
+          // Also set the simple backward compatible readiness field for dashboard filters
+          if (readinessScore >= 70) {
+            updateData.readiness = 'ready';
+          } else if (readinessScore >= 40) {
+            updateData.readiness = 'recovering';
+          } else {
+            updateData.readiness = 'fatigued';
+          }
+        }
+        
+        // Update athlete state with new gamification and readiness data
+        await updateAthlete(athleteId, updateData);
         
         // Notify new achievements
         newAchievements.forEach(achievement => {

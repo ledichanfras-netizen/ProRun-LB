@@ -75,7 +75,18 @@ export interface Athlete {
     aiAnalysis?: string;
   };
   injuryHistory?: string;
+  gender?: 'male' | 'female';
+  trackMenstrual?: boolean;
   readiness?: 'ready' | 'fatigued' | 'recovering';
+  lastReadiness?: {
+    date: string;
+    sleepScore: number;
+    stressScore: number;
+    sorenessScore: number;
+    moodScore: number;
+    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
+    readinessScore: number;
+  };
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
   gamification?: GamificationData;
@@ -120,18 +131,24 @@ export interface TrainingWeek {
   totalVolume: number;
   isVisible?: boolean; 
   coachNotes?: string; 
-  workouts: {
-    day: string; 
-    workoutId?: string;
-    type: WorkoutType; 
-    customDescription?: string;
-    distance?: number;
-    actualDistance?: number;
-    completed?: boolean;
-    feedback?: string; 
-    rpe?: number;
-    exercises?: Exercise[];
-  }[];
+    workouts: {
+      day: string; 
+      workoutId?: string;
+      type: WorkoutType; 
+      customDescription?: string;
+      distance?: number;
+      actualDistance?: number;
+      completed?: boolean;
+      feedback?: string; 
+      rpe?: number;
+      exercises?: Exercise[];
+      sleepScore?: number;
+      stressScore?: number;
+      sorenessScore?: number;
+      moodScore?: number;
+      menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
+      readinessScore?: number;
+    }[];
 }
 
 export interface AthletePlan {

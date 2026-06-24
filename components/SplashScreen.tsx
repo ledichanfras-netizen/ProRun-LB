@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const SplashScreen: React.FC = () => {
   const [isVisible, setIsVisible] = useState(true);

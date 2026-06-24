@@ -28,7 +28,7 @@ import {
 import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getProgressToNextLevel } from '../services/gamificationService';
 import { 
   BarChart, 
@@ -95,6 +95,14 @@ const AthletePortal: React.FC = () => {
   const [feedbackText, setFeedbackText] = useState('');
   const [rpeValue, setRpeValue] = useState<number>(0);
   const [actualDistanceValue, setActualDistanceValue] = useState<string>('');
+  
+  // Scientific Daily Readiness States
+  const [sleepValue, setSleepValue] = useState<number>(4);
+  const [stressValue, setStressValue] = useState<number>(2);
+  const [sorenessValue, setSorenessValue] = useState<number>(2);
+  const [moodValue, setMoodValue] = useState<number>(4);
+  const [menstrualPhaseValue, setMenstrualPhaseValue] = useState<'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none'>('none');
+
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -326,6 +334,13 @@ const AthletePortal: React.FC = () => {
       const newStatus = !selectedWorkout.data.completed;
       const parsedDistance = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : undefined;
       
+      // Calculate scientific readiness score
+      const sleepPct = ((sleepValue - 1) / 4) * 100;
+      const stressPct = ((5 - stressValue) / 4) * 100;
+      const sorenessPct = ((5 - sorenessValue) / 4) * 100;
+      const moodPct = ((moodValue - 1) / 4) * 100;
+      const calculatedScore = Math.round((sleepPct * 0.30) + (stressPct * 0.20) + (sorenessPct * 0.30) + (moodPct * 0.20));
+
       await updateWorkoutStatus(
         activeAthlete.id, 
         selectedWorkout.weekIndex, 
@@ -334,7 +349,13 @@ const AthletePortal: React.FC = () => {
         feedbackText,
         rpeValue,
         localExercises,
-        parsedDistance
+        parsedDistance,
+        sleepValue,
+        stressValue,
+        sorenessValue,
+        moodValue,
+        menstrualPhaseValue,
+        calculatedScore
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -372,6 +393,11 @@ const AthletePortal: React.FC = () => {
     setRpeValue(workout.rpe || 0);
     setLocalExercises(workout.exercises || []);
     setActualDistanceValue(workout.actualDistance !== undefined ? String(workout.actualDistance) : String(workout.distance || ''));
+    setSleepValue(workout.sleepScore || 4);
+    setStressValue(workout.stressScore || 2);
+    setSorenessValue(workout.sorenessScore || 2);
+    setMoodValue(workout.moodScore || 4);
+    setMenstrualPhaseValue(workout.menstrualPhase || (activeAthlete?.lastReadiness?.menstrualPhase as any) || 'none');
     setSaveSuccess(false);
     setIsSaving(false);
   };
@@ -395,21 +421,33 @@ const AthletePortal: React.FC = () => {
               Olá, <span className="text-emerald-500">{activeAthlete.name.split(' ')[0]}</span>!
             </h1>
           </div>
-          <div className="flex gap-2">
-            {readinessLevels.map(level => (
-              <button 
-                key={level.id}
-                onClick={() => updateAthleteReadiness(activeAthlete.id, level.id as any)}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all shadow-sm border-2 ${
-                  activeAthlete.readiness === level.id 
-                    ? 'bg-white border-emerald-500 scale-105 shadow-emerald-500/10' 
-                    : 'bg-slate-50 border-transparent opacity-40 hover:opacity-100'
-                }`}
-                title={level.label}
-              >
-                {level.icon}
-              </button>
-            ))}
+          <div>
+            {activeAthlete.lastReadiness ? (
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl">
+                <div className="text-right">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Prontidão Diária</p>
+                  <p className="text-[9px] font-bold text-slate-500 italic">Atualizado recentemente</p>
+                </div>
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-800 border border-emerald-500/30">
+                  <span className={`text-sm font-black italic ${
+                    activeAthlete.lastReadiness.readinessScore >= 80 ? 'text-emerald-400' :
+                    activeAthlete.lastReadiness.readinessScore >= 50 ? 'text-amber-400' : 'text-red-400'
+                  }`}>
+                    {activeAthlete.lastReadiness.readinessScore}%
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 bg-white/5 border border-white/5 px-4 py-2.5 rounded-2xl">
+                <div className="text-right">
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic">Prontidão Diária</p>
+                  <p className="text-[9px] text-emerald-400 font-bold italic">Definir ao concluir treino</p>
+                </div>
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-800 border border-white/5 text-lg">
+                  📊
+                </div>
+              </div>
+            )}
           </div>
         </div>
         
@@ -939,6 +977,189 @@ const AthletePortal: React.FC = () => {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Questionário Científico de Prontidão Diária */}
+                  <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-5">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-emerald-400" />
+                        <h4 className="text-sm font-black text-white uppercase italic tracking-tighter">Fisiologia & Prontidão Diária</h4>
+                      </div>
+                      <span className="text-[8px] font-black bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20 uppercase tracking-widest italic">
+                        Científico
+                      </span>
+                    </div>
+
+                    {/* 1. Qualidade do Sono */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">💤 Qualidade do Sono</span>
+                        <span className="text-[10px] font-black text-emerald-400 italic">
+                          {sleepValue === 5 ? 'Excelente (8h+ profundo)' :
+                           sleepValue === 4 ? 'Bom (Restaurador)' :
+                           sleepValue === 3 ? 'Regular (Interrompido)' :
+                           sleepValue === 2 ? 'Ruim (Poucas horas)' : 'Péssimo (Insônia/Exausto)'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[1, 2, 3, 4, 5].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setSleepValue(val)}
+                            className={`py-2 text-xs font-black rounded-lg transition-all border ${
+                              sleepValue === val 
+                                ? 'bg-emerald-500 text-white border-emerald-500 font-extrabold shadow-sm scale-105' 
+                                : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10'
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2. Estresse Mental */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">🧠 Estresse Mental</span>
+                        <span className="text-[10px] font-black text-amber-400 italic">
+                          {stressValue === 1 ? 'Nenhum (Muito Calmo)' :
+                           stressValue === 2 ? 'Baixo (Controlado)' :
+                           stressValue === 3 ? 'Moderado (Produtivo)' :
+                           stressValue === 4 ? 'Alto (Preocupado)' : 'Extremo (Esgotado)'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[1, 2, 3, 4, 5].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setStressValue(val)}
+                            className={`py-2 text-xs font-black rounded-lg transition-all border ${
+                              stressValue === val 
+                                ? 'bg-amber-500 text-white border-amber-500 font-extrabold shadow-sm scale-105' 
+                                : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10'
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 3. Dor Muscular (DOMS) */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">🩹 Dor Muscular (DOMS)</span>
+                        <span className="text-[10px] font-black text-red-400 italic">
+                          {sorenessValue === 1 ? 'Nenhuma (Zero dor)' :
+                           sorenessValue === 2 ? 'Leve (Apenas estímulo)' :
+                           sorenessValue === 3 ? 'Moderada (Suportável)' :
+                           sorenessValue === 4 ? 'Forte (Dificulta corrida)' : 'Extrema (Lesão/Sem treinar)'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[1, 2, 3, 4, 5].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setSorenessValue(val)}
+                            className={`py-2 text-xs font-black rounded-lg transition-all border ${
+                              sorenessValue === val 
+                                ? 'bg-red-500 text-white border-red-500 font-extrabold shadow-sm scale-105' 
+                                : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10'
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 4. Disposição / Humor */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">🔥 Humor / Disposição</span>
+                        <span className="text-[10px] font-black text-blue-400 italic">
+                          {moodValue === 5 ? 'Incrível (Foco Máximo)' :
+                           moodValue === 4 ? 'Disposto (Motivado)' :
+                           moodValue === 3 ? 'Normal (Neutro)' :
+                           moodValue === 2 ? 'Apático (Sem vontade)' : 'Irritado / Deprimido'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[1, 2, 3, 4, 5].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setMoodValue(val)}
+                            className={`py-2 text-xs font-black rounded-lg transition-all border ${
+                              moodValue === val 
+                                ? 'bg-blue-500 text-white border-blue-500 font-extrabold shadow-sm scale-105' 
+                                : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10'
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 5. Menstrual Cycle Tracker (Feminino com trackMenstrual ativo) */}
+                    {activeAthlete.gender === 'female' && activeAthlete.trackMenstrual !== false && (
+                      <div className="pt-4 border-t border-white/5 space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-1">🌸 Fase do Ciclo Menstrual</span>
+                          <span className="text-[8px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/20 uppercase tracking-wide">
+                            Mulher Atleta
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { phase: 'follicular', label: 'Fase Folicular', icon: '⚡', desc: 'Energia em alta' },
+                            { phase: 'ovulatory', label: 'Fase Ovulatória', icon: '🔥', desc: 'Pico de força' },
+                            { phase: 'luteal', label: 'Fase Lútea (TPM)', icon: '🧘', desc: 'Fadiga / Rodagem' },
+                            { phase: 'menstrual', label: 'Fase Menstrual', icon: '🩸', desc: 'Cólicas / Escuta' },
+                          ].map((item) => (
+                            <button
+                              key={item.phase}
+                              type="button"
+                              onClick={() => setMenstrualPhaseValue(item.phase as any)}
+                              className={`p-2.5 text-left rounded-xl transition-all border flex flex-col justify-between ${
+                                menstrualPhaseValue === item.phase 
+                                  ? 'bg-purple-600 text-white border-purple-500 shadow-sm scale-[1.02]' 
+                                  : 'bg-white/5 text-slate-300 border-transparent hover:border-white/10'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 font-black text-[11px]">
+                                <span>{item.icon}</span>
+                                <span className="truncate">{item.label}</span>
+                              </div>
+                              <span className={`text-[8px] font-medium mt-1 leading-none ${menstrualPhaseValue === item.phase ? 'text-purple-100' : 'text-slate-500'}`}>
+                                {item.desc}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Science Insights for Menstrual Cycle */}
+                        {menstrualPhaseValue !== 'none' && (
+                          <div className="bg-purple-950/20 border border-purple-500/10 p-3.5 rounded-2xl space-y-1.5 text-left animate-fade-in">
+                            <p className="text-[9px] font-black text-purple-400 uppercase tracking-widest italic flex items-center gap-1">
+                              💡 Insight Científico
+                            </p>
+                            <p className="text-[10px] text-purple-200 font-medium italic leading-relaxed">
+                              {menstrualPhaseValue === 'follicular' && 'Hormônios baixos e estrogênio subindo: Excelente para tiros de alta intensidade, treinos de ritmo e força. Recuperação ultra-rápida!'}
+                              {menstrualPhaseValue === 'ovulatory' && 'Pico de estrogênio: Força e potência máxima no pico de desempenho. Atenção extra ao aquecimento para proteger ligamentos.'}
+                              {menstrualPhaseValue === 'luteal' && 'Progesterona alta: Temperatura corporal elevada e batimentos sobem mais rápido. Ideal para rodagens de resistência estável. Evite exaustão extrema.'}
+                              {menstrualPhaseValue === 'menstrual' && 'Possíveis sintomas de cólica e retenção líquida. Seu corpo está iniciando a recuperação. Escute seus sintomas e adapte o ritmo se necessário.'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">

@@ -30,8 +30,14 @@ import {
   CartesianGrid, 
   Tooltip,
   ResponsiveContainer,
-  LabelList 
+  LabelList,
+  AreaChart,
+  Area,
+  Line,
+  Legend,
+  ReferenceLine
 } from 'recharts';
+import { calculateATL_CTL_TSB } from '../utils/stressModel';
 
 export default function Dashboard() {
   const { userRole, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
@@ -144,6 +150,139 @@ export default function Dashboard() {
 
     return { totalAthletes, activeAthletes, averageCompletion, riskAthletes };
   }, [athletes, athletePlans, getAthleteMetrics, userRole]);
+
+  const stressTimeline = useMemo(() => {
+    if (!activeAthlete || !athletePlan || !athletePlan.weeks) return [];
+    const vdot = activeAthlete.metrics.vdot || 45;
+    return calculateATL_CTL_TSB(athletePlan.weeks, vdot, athletePlan.startDate);
+  }, [activeAthlete, athletePlan]);
+
+  const currentStress = useMemo(() => {
+    if (stressTimeline.length === 0) return { ctl: 0, atl: 0, tsb: 0 };
+    
+    // Se tiver data de início, vamos achar o dia de "hoje" na timeline
+    if (athletePlan?.startDate) {
+      const start = new Date(athletePlan.startDate);
+      const today = new Date();
+      
+      // Diferença em dias
+      const diffTime = today.getTime() - start.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays >= 0 && diffDays < stressTimeline.length) {
+        return stressTimeline[diffDays];
+      }
+    }
+    
+    // Fallback: usar o último dia que tem algum treino concluído
+    const lastCompletedIdx = [...stressTimeline].reverse().findIndex(d => d.trimp > 0);
+    if (lastCompletedIdx !== -1) {
+      const realIdx = stressTimeline.length - 1 - lastCompletedIdx;
+      return stressTimeline[realIdx];
+    }
+    
+    // Se nenhum estiver concluído, usar o primeiro dia ou 0
+    return stressTimeline[0] || { ctl: 0, atl: 0, tsb: 0 };
+  }, [stressTimeline, athletePlan]);
+
+  const getTsbZoneInfo = (tsb: number) => {
+    if (tsb > 10) {
+      return {
+        name: 'Recuperado e Pronto (Frescor Alto)',
+        desc: 'Seu corpo está bem descansado e pronto para render o máximo de desempenho. Excelente estado para o dia de uma prova ou teste.',
+        actionPlan: 'Momento ideal para dar o seu máximo em provas ou treinos de ritmo forte! Se você não tem competição agendada nos próximos dias, evite ficar muito tempo sem estímulo intenso para não perder o condicionamento adquirido.',
+        color: 'text-blue-600 border-blue-500/20 bg-blue-50/60',
+        badge: 'bg-blue-100 text-blue-800'
+      };
+    }
+    if (tsb >= -10 && tsb <= 10) {
+      return {
+        name: 'Equilibrado (Transição e Ajustes)',
+        desc: 'Equilíbrio ideal entre cansaço acumulado e recuperação. Seu corpo está estável fisiologicamente.',
+        actionPlan: 'Continue seguindo a planilha planejada! Esse estado é ideal para treinos de ritmo moderado e consistência de rodagem. Mantenha os bons hábitos de sono e alimentação para consolidar essa base.',
+        color: 'text-emerald-700 border-emerald-500/20 bg-emerald-50/60',
+        badge: 'bg-emerald-100 text-emerald-800'
+      };
+    }
+    if (tsb >= -30 && tsb < -10) {
+      return {
+        name: 'Zona de Evolução (Carga Ótima de Treino)',
+        desc: 'Você está no ponto ideal de estresse físico positivo. Há cansaço, mas é ele que estimula seu corpo a se adaptar e evoluir.',
+        actionPlan: 'Aqui é onde você mais ganha desempenho! Siga a planilha com foco total na consistência. Capriche na hidratação, alimentação pós-treino e garanta de 7h a 8h de sono de qualidade para recuperar bem.',
+        color: 'text-amber-700 border-amber-500/20 bg-amber-50/60',
+        badge: 'bg-amber-100 text-amber-800'
+      };
+    }
+    return {
+      name: 'Fadiga Muito Alta (Cuidado / Risco Elevado)',
+      desc: 'O cansaço acumulado está em níveis excessivos e sua energia está muito baixa. Risco aumentado de lesões ou esgotamento físico.',
+      actionPlan: 'ALERTA DE SEGURANÇA! Reduza o volume e intensidade imediatamente. Se o próximo treino for intenso, sugira ao treinador fazer uma corrida regenerativa muito leve ou tirar um dia de descanso total. Priorize o repouso hoje.',
+      color: 'text-red-700 border-red-500/20 bg-red-50/60',
+      badge: 'bg-red-100 text-red-800'
+    };
+  };
+
+  const readinessConfrontation = useMemo(() => {
+    if (!activeAthlete || !currentStress) return null;
+    
+    const sub = activeAthlete.readiness || 'ready';
+    const objTsb = currentStress.tsb;
+    
+    let title = '';
+    let status = 'neutral'; // 'success' | 'warning' | 'alert'
+    let analysis = '';
+    let recommendation = '';
+    
+    if (sub === 'fatigued') {
+      if (objTsb < -10) {
+        title = 'Coerência Fisiológica: Sobrecarga Esperada';
+        status = 'success';
+        analysis = 'O atleta se percebe cansado (😴) e a carga matemática confirma cansaço acumulado de treinos. O plano está gerando o estresse planejado de adaptação.';
+        recommendation = 'Excelente autopercepção de esforço do atleta. Mantenha os treinos planejados, mas foque em estratégias extras de liberação miofascial, sono longo e hidratação rica.';
+      } else {
+        title = 'Alerta de Recuperação Inadequada (Fatores Externos)';
+        status = 'warning';
+        analysis = 'O modelo indica que o corpo teoricamente deveria estar fresco/recuperado, mas o atleta reporta cansaço físico considerável (😴).';
+        recommendation = 'Investigue sono prejudicado, estresse do dia a dia, rotina pesada de trabalho ou alimentação inadequada. Se persistir, reduza a intensidade das rodagens hoje.';
+      }
+    } else if (sub === 'recovering') {
+      if (objTsb >= -30 && objTsb < -10) {
+        title = 'Recuperação Ativa em Curso';
+        status = 'success';
+        analysis = 'O atleta se percebe em processo de recuperação (🧘) durante um bloco ativo de treinos pesados. Alinhamento perfeito.';
+        recommendation = 'Evite treinos de qualidade máxima hoje. Priorize rodagens regenerativas leves na Zona 1 ou 2 de ritmos.';
+      } else if (objTsb >= -10) {
+        title = 'Fase de Recuperação Concluída';
+        status = 'neutral';
+        analysis = 'O atleta está focado em se recuperar e o modelo matemático já aponta prontidão física e frescor muscular.';
+        recommendation = 'O atleta está em perfeitas condições para retornar gradualmente aos treinos de volume ou intensidade moderada.';
+      } else {
+        title = 'Alerta: Cuidado, Necessidade de Repouso';
+        status = 'alert';
+        analysis = 'A carga de treinos acumulada é muito alta (corpo sobrecarregado) e o atleta já identificou a necessidade crítica de focar em se recuperar (🧘).';
+        recommendation = 'Evite tiros rápidos ou treinos de limiar. Dê preferência a um dia de descanso total (off) ou corrida super leve e curta.';
+      }
+    } else { // sub === 'ready'
+      if (objTsb < -30) {
+        title = 'Atenção: Risco Oculto de Lesão (Overconfidence)';
+        status = 'alert';
+        analysis = 'O atleta se sente excelente e pronto para voar (⚡), mas o modelo matemático indica cansaço extremo acumulado nos últimos 7 dias.';
+        recommendation = 'Risco clássico de estiramento ou lesão por excesso de confiança das pernas. O treinador deve segurar o ímpeto e não permitir extrapolar as distâncias ou velocidades previstas.';
+      } else if (objTsb >= -30 && objTsb < -10) {
+        title = 'Aproveitamento Ótimo (Consistência de Rendimento)';
+        status = 'success';
+        analysis = 'O atleta está em bloco de desenvolvimento físico produtivo e se sente forte, confiante e totalmente pronto (⚡).';
+        recommendation = 'Excelente momento de evolução! Siga a planilha de perto. Estimule o atleta a caprichar no treino chave de qualidade da semana.';
+      } else {
+        title = 'Prontidão Total Confirmada (Zona Verde)';
+        status = 'success';
+        analysis = 'O corpo está totalmente zerado de cansaço acumulado e o atleta se sente pronto e enérgico (⚡) para dar o máximo.';
+        recommendation = 'Momento perfeito para aplicar testes de esforço/VO2máx, treinos chave de tiro de alta intensidade ou simulação de prova!';
+      }
+    }
+    
+    return { title, status, analysis, recommendation, subjective: sub };
+  }, [activeAthlete, currentStress]);
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
@@ -375,6 +514,294 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* NOVO: Painel de Evolução Física e Prontidão */}
+      {activeAthlete && (
+        <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase italic tracking-tighter">
+                <Activity className="text-emerald-600 w-5 h-5" /> Nível de Energia & Evolução Física
+              </h2>
+              <p className="text-xs text-slate-500 font-medium italic mt-1">
+                Acompanhamento simples do seu condicionamento, cansaço e prontidão para correr.
+              </p>
+            </div>
+            
+            {currentStress && (
+              <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 text-xs font-bold ${getTsbZoneInfo(currentStress.tsb).color}`}>
+                <span className="w-2.5 h-2.5 rounded-full bg-current animate-pulse" />
+                <span>Estado: {getTsbZoneInfo(currentStress.tsb).name}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Cartões de Métrica Simplificados */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100/70 flex flex-col justify-between space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">1. Condicionamento</span>
+                  <h3 className="text-2xl font-black text-blue-900 mt-1">{currentStress ? Math.round(currentStress.ctl) : '0'} pt</h3>
+                </div>
+                <div className="bg-blue-500/10 p-2.5 rounded-xl text-blue-600">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                Sua bagagem acumulada de treinos. Quanto mais alto, mais treinado você está e mais volume ou intensidade seu corpo suporta.
+              </p>
+            </div>
+
+            <div className="bg-red-50/50 p-6 rounded-2xl border border-red-100/70 flex flex-col justify-between space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">2. Cansaço Acumulado</span>
+                  <h3 className="text-2xl font-black text-red-900 mt-1">{currentStress ? Math.round(currentStress.atl) : '0'} pt</h3>
+                </div>
+                <div className="bg-red-500/10 p-2.5 rounded-xl text-red-600">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                O peso físico dos treinos dos últimos dias. Sobe logo após treinos longos ou tiros rápidos, sendo necessário para gerar evolução.
+              </p>
+            </div>
+
+            <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100/70 flex flex-col justify-between space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">3. Prontidão (Forma)</span>
+                  <h3 className={`text-2xl font-black mt-1 ${currentStress && currentStress.tsb < 0 ? 'text-amber-600' : 'text-emerald-700'}`}>
+                    {currentStress ? (currentStress.tsb > 0 ? `+${Math.round(currentStress.tsb)}` : Math.round(currentStress.tsb)) : '0'} pt
+                  </h3>
+                </div>
+                <div className="bg-emerald-500/10 p-2.5 rounded-xl text-emerald-600">
+                  <Zap className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                Seu nível de energia e frescor físico. Valores positivos indicam pernas descansadas (ideal para provas). Valores muito negativos indicam sobrecarga.
+              </p>
+            </div>
+          </div>
+
+          {/* NOVO: Plano de Ação Imediato e Explicação Prática */}
+          {currentStress && (
+            <div className={`p-6 rounded-3xl border ${getTsbZoneInfo(currentStress.tsb).color} space-y-4 transition-all duration-300`}>
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${getTsbZoneInfo(currentStress.tsb).badge}`}>
+                  Análise Fisiológica Atual
+                </span>
+                <span className="text-xs font-bold text-slate-600">|</span>
+                <span className="text-xs font-black uppercase tracking-tight text-slate-700">{getTsbZoneInfo(currentStress.tsb).name}</span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">O que está acontecendo:</h4>
+                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                    {getTsbZoneInfo(currentStress.tsb).desc}
+                  </p>
+                </div>
+                <div className="space-y-1 border-t md:border-t-0 md:border-l border-slate-200/50 pt-3 md:pt-0 md:pl-4">
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    📋 Plano de Ação Imediato:
+                  </h4>
+                  <p className="text-xs text-slate-800 leading-relaxed font-bold">
+                    {getTsbZoneInfo(currentStress.tsb).actionPlan}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* NOVO: Confronto de Coerência: Prontidão Subjetiva vs Carga de Treino */}
+          {readinessConfrontation && (
+            <div className={`p-6 rounded-3xl border ${
+              readinessConfrontation.status === 'success' ? 'bg-emerald-50/40 border-emerald-500/10 text-slate-800' :
+              readinessConfrontation.status === 'warning' ? 'bg-amber-50/40 border-amber-500/10 text-slate-800' :
+              readinessConfrontation.status === 'alert' ? 'bg-rose-50/40 border-rose-500/10 text-slate-800' :
+              'bg-slate-50 border-slate-200 text-slate-800'
+            } space-y-4`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                    readinessConfrontation.status === 'success' ? 'bg-emerald-100 text-emerald-800' :
+                    readinessConfrontation.status === 'warning' ? 'bg-amber-100 text-amber-800' :
+                    readinessConfrontation.status === 'alert' ? 'bg-rose-100 text-rose-800' :
+                    'bg-slate-100 text-slate-800'
+                  }`}>
+                    Confronto de Coerência (Fisiologia vs Percepção)
+                  </span>
+                  <div className="group relative cursor-help">
+                    <Info className="w-3.5 h-3.5 text-slate-400" />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-slate-900 text-white text-[9px] font-bold p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl leading-relaxed">
+                      Cruza o cansaço real acumulado no modelo matemático com o nível de prontidão diária relatado pelo próprio atleta no portal.
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2 text-xs font-black text-slate-600">
+                  <span>Prontidão Declarada pelo Atleta:</span>
+                  <span className="px-2 py-1 bg-white rounded-lg border border-slate-100 shadow-sm flex items-center gap-1">
+                    {activeAthlete.lastReadiness ? (
+                      <>
+                        <span className="font-extrabold text-emerald-600 italic">{activeAthlete.lastReadiness.readinessScore}%</span>
+                        <span className="text-slate-300">|</span>
+                        <span>
+                          {activeAthlete.lastReadiness.readinessScore >= 80 ? '⚡ Pronto' :
+                           activeAthlete.lastReadiness.readinessScore >= 50 ? '🧘 Recuperando' : '😴 Fadigado'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {readinessConfrontation.subjective === 'fatigued' ? '😴 Fadigado' :
+                         readinessConfrontation.subjective === 'recovering' ? '🧘 Em Recuperação' : '⚡ Pronto para Correr'}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {activeAthlete.lastReadiness && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
+                  <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
+                    <span className="font-black text-slate-400 uppercase tracking-widest italic">💤 Sono</span>
+                    <span className="font-black text-slate-700">{activeAthlete.lastReadiness.sleepScore}/5</span>
+                  </div>
+                  <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
+                    <span className="font-black text-slate-400 uppercase tracking-widest italic">🧠 Estresse</span>
+                    <span className="font-black text-slate-700">{activeAthlete.lastReadiness.stressScore}/5</span>
+                  </div>
+                  <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
+                    <span className="font-black text-slate-400 uppercase tracking-widest italic">🩹 Dor (DOMS)</span>
+                    <span className="font-black text-slate-700">{activeAthlete.lastReadiness.sorenessScore}/5</span>
+                  </div>
+                  <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
+                    <span className="font-black text-slate-400 uppercase tracking-widest italic">🔥 Humor</span>
+                    <span className="font-black text-slate-700">{activeAthlete.lastReadiness.moodScore}/5</span>
+                  </div>
+                </div>
+              )}
+
+              {activeAthlete.lastReadiness?.menstrualPhase && activeAthlete.lastReadiness.menstrualPhase !== 'none' && (
+                <div className="bg-purple-50 border border-purple-200/50 p-3 rounded-2xl flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">🌸</span>
+                    <span className="font-bold text-purple-950">
+                      Ciclo Menstrual: <span className="font-extrabold uppercase tracking-tight italic">
+                        {activeAthlete.lastReadiness.menstrualPhase === 'follicular' && 'Fase Folicular (⚡ Estrogênio alto)'}
+                        {activeAthlete.lastReadiness.menstrualPhase === 'ovulatory' && 'Fase Ovulatória (🔥 Pico de força)'}
+                        {activeAthlete.lastReadiness.menstrualPhase === 'luteal' && 'Fase Lútea (🧘 Fadiga de TPM)'}
+                        {activeAthlete.lastReadiness.menstrualPhase === 'menstrual' && 'Fase Menstrual (🩸 Regenerativo)'}
+                      </span>
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-black uppercase text-purple-400 tracking-wider">Mulher Atleta</span>
+                </div>
+              )}
+
+              <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    {readinessConfrontation.status === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-500" /> :
+                     readinessConfrontation.status === 'alert' ? <AlertTriangle className="w-4 h-4 text-rose-500" /> :
+                     <Info className="w-4 h-4 text-amber-500" />}
+                    {readinessConfrontation.title}
+                  </h4>
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed mt-1">
+                    {readinessConfrontation.analysis}
+                  </p>
+                </div>
+
+                <div className="border-t border-slate-100 pt-3">
+                  <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Recomendação Técnica Integrada:</span>
+                  <p className="text-xs text-slate-800 font-bold leading-relaxed mt-0.5">
+                    {readinessConfrontation.recommendation}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Gráfico do Modelo */}
+          <div className="border border-slate-100 rounded-3xl p-4 bg-slate-50/50">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Evolução Gráfica de Performance</h3>
+            <div style={{ height: 320, width: '100%', minWidth: 0 }}>
+              {stressTimeline.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <AreaChart data={stressTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorCtl" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0}/>
+                      </linearGradient>
+                      <linearGradient id="colorAtl" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0}/>
+                      </linearGradient>
+                      <linearGradient id="colorTsb" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis 
+                      dataKey="dateStr" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#64748b', fontSize: 10, fontWeight: 700}} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#94a3b8', fontSize: 10}} 
+                    />
+                    <Tooltip 
+                      contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginTop: '10px' }} />
+                    <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
+                    
+                    <Area 
+                      type="monotone" 
+                      dataKey="ctl" 
+                      name="Condicionamento Físico" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2.5} 
+                      fillOpacity={1} 
+                      fill="url(#colorCtl)" 
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="atl" 
+                      name="Cansaço Acumulado" 
+                      stroke="#ef4444" 
+                      strokeWidth={2} 
+                      fillOpacity={1} 
+                      fill="url(#colorAtl)" 
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="tsb" 
+                      name="Nível de Prontidão" 
+                      stroke="#10b981" 
+                      strokeWidth={2} 
+                      fillOpacity={0.15} 
+                      fill="url(#colorTsb)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 italic">
+                  Aguardando registros de treinos concluídos com PSE e feedback para mapear evolução de carga...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">

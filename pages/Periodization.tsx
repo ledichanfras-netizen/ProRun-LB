@@ -31,7 +31,7 @@ import {
   Trash2,
   ListOrdered
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
 import { safeDeepClone } from '../utils/helpers';
@@ -348,6 +348,7 @@ const Periodization: React.FC = () => {
   };
 
   const [exportLoading, setExportLoading] = useState(false);
+  const [exportingWeekIdx, setExportingWeekIdx] = useState<number | null>(null);
 
   const handleDownloadImage = async () => {
     if (exportLoading || !activeAthlete) return;
@@ -361,6 +362,30 @@ const Periodization: React.FC = () => {
       console.error("Erro no download:", err?.message || "Erro desconhecido");
       alert("Erro ao gerar imagem.");
     } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleDownloadSingleWeek = async (weekIdx: number) => {
+    if (exportLoading || !activeAthlete || !fullPlan) return;
+    
+    setExportLoading(true);
+    setExportingWeekIdx(weekIdx);
+    
+    try {
+      // Aguarda a renderização do portal com apenas a semana selecionada
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      const weekNum = fullPlan.weeks[weekIdx].weekNumber;
+      const filename = `Semana_${weekNum}_${activeAthlete.name.replace(/\s+/g, '_')}`;
+      
+      const success = await exportToImage('print-layout-root', filename);
+      if (success) console.log(`Semana ${weekNum} exportada`);
+    } catch (err: any) {
+      console.error("Erro no download da semana:", err?.message || "Erro desconhecido");
+      alert("Erro ao gerar imagem da semana de treino.");
+    } finally {
+      setExportingWeekIdx(null);
       setExportLoading(false);
     }
   };
@@ -523,10 +548,11 @@ const Periodization: React.FC = () => {
       {activeAthlete && fullPlan && portalRoot && createPortal(
         <PrintLayout 
           athlete={activeAthlete} 
-          plan={printableWeeks} 
+          plan={exportingWeekIdx !== null ? [fullPlan.weeks[exportingWeekIdx]] : printableWeeks} 
           paces={athletePaces} 
           goal={raceGoal || fullPlan.specificGoal || ''} 
           totalWeeks={fullPlan.weeks.length}
+          startDate={fullPlan.startDate}
         />,
         portalRoot
       )}
@@ -748,6 +774,14 @@ const Periodization: React.FC = () => {
                          title="Salvar Template"
                       >
                          <Save className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Salvar</span>
+                      </button>
+                      <button 
+                         onClick={() => handleDownloadSingleWeek(weekIndex)}
+                         disabled={exportLoading}
+                         className="flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl border border-emerald-500/20 text-[8px] md:text-[9px] font-black uppercase text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all italic flex items-center gap-1.5 disabled:opacity-40"
+                         title="Baixar Semana"
+                      >
+                         {exportLoading && exportingWeekIdx === weekIndex ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden xs:inline">Baixar</span>
                       </button>
                       <button onClick={() => {
                           const newPlan = safeDeepClone(fullPlan);

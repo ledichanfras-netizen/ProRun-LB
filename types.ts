@@ -87,6 +87,16 @@ export interface Athlete {
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
     readinessScore: number;
   };
+  readinessHistory?: {
+    id: string;
+    date: string;
+    sleepScore: number;
+    stressScore: number;
+    sorenessScore: number;
+    moodScore: number;
+    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
+    readinessScore: number;
+  }[];
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
   gamification?: GamificationData;

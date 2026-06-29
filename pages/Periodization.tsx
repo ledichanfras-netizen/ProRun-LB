@@ -1027,7 +1027,11 @@ const Periodization: React.FC = () => {
                   </div>
                   <div className="divide-y divide-white/5">
                     {week.workouts.map((workout, dayIndex) => (
-                      <div key={dayIndex} className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center border-l-8 border-white/5 hover:bg-white/5 transition-colors">
+                      <div key={dayIndex} className={`p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center border-l-8 hover:bg-white/5 transition-colors ${
+                        workout.type === 'Prova' 
+                          ? 'border-amber-500 bg-amber-500/10' 
+                          : 'border-white/5'
+                      }`}>
                         <div className="w-full sm:w-40 flex flex-row sm:flex-col justify-between items-center sm:items-start gap-2">
                            <div className="flex items-center gap-2">
                              {isEditing && (
@@ -1052,14 +1056,20 @@ const Periodization: React.FC = () => {
                                   value={workout.type}
                                   onChange={e => updateWorkout(weekIndex, dayIndex, 'type', e.target.value)}
                                 >
-                                  {["Regenerativo", "Longão", "Limiar", "Intervalado", "Velocidade", "Descanso", "Fortalecimento", "Natação", "Ciclismo", "Transição"].map(t => (
+                                  {["Regenerativo", "Longão", "Limiar", "Intervalado", "Velocidade", "Descanso", "Fortalecimento", "Natação", "Ciclismo", "Transição", "Prova"].map(t => (
                                     <option key={t} value={t} className="bg-slate-900">{t}</option>
                                   ))}
                                 </select>
                                 <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
                               </div>
                            ) : (
-                              <p className={`text-[10px] font-black uppercase italic ${workout.type === 'Descanso' ? 'text-slate-500' : 'text-emerald-400'}`}>{workout.type}</p>
+                              <p className={`text-[10px] font-black uppercase italic ${
+                                workout.type === 'Descanso' 
+                                  ? 'text-slate-500' 
+                                  : workout.type === 'Prova' 
+                                    ? 'text-amber-400 font-extrabold tracking-widest' 
+                                    : 'text-emerald-400'
+                              }`}>{workout.type}</p>
                            )}
                         </div>
                         <div className="flex-1 w-full relative group">
@@ -1104,7 +1114,16 @@ const Periodization: React.FC = () => {
                               </div>
                            ) : (
                               <div className="space-y-1">
-                                <p className={`text-sm font-bold italic ${workout.type === 'Descanso' ? 'text-slate-500' : 'text-slate-100'}`}>{workout.customDescription}</p>
+                                <p className={`text-sm font-bold italic ${
+                                  workout.type === 'Descanso' 
+                                    ? 'text-slate-500' 
+                                    : workout.type === 'Prova' 
+                                      ? 'text-amber-300 font-black tracking-tight border-b border-amber-500/20 pb-1 mb-1' 
+                                      : 'text-slate-100'
+                                }`}>
+                                  {workout.type === 'Prova' && <span className="inline-block mr-1">🏁 PROVA ALVO:</span>}
+                                  {workout.customDescription}
+                                </p>
                                 {workout.completed && (
                                   <div className="flex flex-wrap gap-2 mt-2">
                                     {(workout.rpe || 0) > 0 && (

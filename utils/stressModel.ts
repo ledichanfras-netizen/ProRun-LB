@@ -12,6 +12,7 @@ export function getDefaultRpeForType(type: string): number {
     case 'Ciclismo': return 5;
     case 'Natação': return 6;
     case 'Fortalecimento': return 4;
+    case 'Prova': return 9;
     default: return 5;
   }
 }
@@ -46,6 +47,8 @@ export function getEstimatedPace(type: string, vdot: number): number {
     case 'Intervalado':
     case 'Velocidade':
       return clampedBase * 0.75; // 25% mais rápido
+    case 'Prova':
+      return clampedBase * 0.82; // 18% mais rápido
     default:
       return clampedBase;
   }

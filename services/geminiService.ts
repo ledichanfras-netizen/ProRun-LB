@@ -73,7 +73,7 @@ export const generateTrainingPlan = async (
     1. A PROVA deve ser o único treino do dia ${raceWeekday} na Semana ${weeks}.
     2. RESPEITE OS DIAS DISPONÍVEIS: Tente prescrever treinos APENAS nos dias selecionados (${preferredDaysText}). Se não houver dias suficientes selecionados para a frequência alvo, priorize os selecionados e complete onde for menos prejudicial.
     3. No caso de lesões reportadas, inclua notas específicas do Coach orientando o cuidado.
-    4. Use a nomenclatura exata: "Regenerativo", "Longão", "Limiar", "Intervalado", "Descanso", "Fortalecimento", "Velocidade", "Natação", "Ciclismo", "Transição".
+    4. Use a nomenclatura exata: "Regenerativo", "Longão", "Limiar", "Intervalado", "Descanso", "Fortalecimento", "Velocidade", "Natação", "Ciclismo", "Transição", "Prova".
     5. Para o "Fortalecimento", especifique se é funcional, hipertrofia ou resistência de força.
     6. INDIVIDUALIZAÇÃO: Se o atleta é "Elite", o volume deve ser condizente (ex: 70-120km/sem para maratona). Se é "Iniciante", comece com volumes baixos e caminhas/corridas intercaladas se necessário.
 
@@ -109,7 +109,7 @@ export const generateTrainingPlan = async (
                       type: Type.OBJECT,
                       properties: {
                         day: { type: Type.STRING },
-                        type: { type: Type.STRING, enum: ["Regenerativo", "Longão", "Limiar", "Intervalado", "Fortalecimento", "Descanso", "Velocidade", "Natação", "Ciclismo", "Transição"] },
+                        type: { type: Type.STRING, enum: ["Regenerativo", "Longão", "Limiar", "Intervalado", "Fortalecimento", "Descanso", "Velocidade", "Natação", "Ciclismo", "Transição", "Prova"] },
                         customDescription: { type: Type.STRING },
                         distance: { type: Type.NUMBER }
                       },

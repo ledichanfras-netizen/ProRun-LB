@@ -325,8 +325,8 @@ const AthletePortal: React.FC = () => {
 
   const isFinalWorkout = useMemo(() => {
     if (!selectedWorkout || !allWeeks.length) return false;
-    return selectedWorkout.weekIndex === (allWeeks.length - 1) && 
-           (selectedWorkout.data.type === 'Longão' || selectedWorkout.data.customDescription?.toLowerCase().includes('prova'));
+    return selectedWorkout.data.type === 'Prova' || (selectedWorkout.weekIndex === (allWeeks.length - 1) && 
+           (selectedWorkout.data.type === 'Longão' || selectedWorkout.data.customDescription?.toLowerCase().includes('prova')));
   }, [selectedWorkout, allWeeks]);
 
   const getRPEColor = (val: number) => {
@@ -979,16 +979,28 @@ const AthletePortal: React.FC = () => {
 
       {/* Card Destaque: Treino de Hoje */}
       <div className="relative group">
-        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-emerald-700 rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-        <div className="relative bg-emerald-950 rounded-[2.2rem] p-8 text-white shadow-2xl overflow-hidden border border-emerald-900">
+        <div className={`absolute -inset-1 rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-1000 ${
+          todayWorkout?.workout.type === 'Prova' 
+            ? 'bg-gradient-to-r from-amber-500 to-red-600 opacity-40 group-hover:opacity-60' 
+            : 'bg-gradient-to-r from-emerald-500 to-emerald-700'
+        }`}></div>
+        <div className={`relative rounded-[2.2rem] p-8 text-white shadow-2xl overflow-hidden border ${
+          todayWorkout?.workout.type === 'Prova'
+            ? 'bg-gradient-to-br from-slate-950 via-amber-950 to-red-950 border-amber-600/30'
+            : 'bg-emerald-950 border-emerald-900'
+        }`}>
           <div className="absolute top-0 right-0 p-4 opacity-5">
              <Trophy className="w-32 h-32 rotate-12" />
           </div>
           
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-4">
-              <div className="px-3 py-1 bg-emerald-500 text-emerald-950 text-[9px] font-black uppercase rounded-lg italic tracking-tighter flex items-center gap-1.5 flex-wrap">
-                <span>{todayWorkout?.workout.type.toUpperCase().includes('PROVA') ? 'Dia de Prova' : (todayWorkout?.isDescanso ? 'Recuperação' : 'Treino de Hoje')}</span>
+              <div className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg italic tracking-tighter flex items-center gap-1.5 flex-wrap ${
+                todayWorkout?.workout.type === 'Prova'
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'bg-emerald-500 text-emerald-950'
+              }`}>
+                <span>{todayWorkout?.workout.type.toUpperCase().includes('PROVA') ? 'Dia de Prova 🏁' : (todayWorkout?.isDescanso ? 'Recuperação' : 'Treino de Hoje')}</span>
                 {athletePlan?.startDate && todayWorkout && (
                   <span className="opacity-70 font-black">
                     ({formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, todayWorkout.weekIndex, todayWorkout.dayIndex))})
@@ -1002,11 +1014,15 @@ const AthletePortal: React.FC = () => {
               )}
             </div>
 
-            <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2 leading-tight">
+            <h2 className={`text-3xl font-black italic uppercase tracking-tighter mb-2 leading-tight ${
+              todayWorkout?.workout.type === 'Prova' ? 'text-amber-400' : ''
+            }`}>
               {todayWorkout ? todayWorkout.workout.type : 'Dia de Descanso'}
             </h2>
             
-            <p className="text-emerald-300/80 text-sm font-medium mb-8 leading-relaxed line-clamp-2">
+            <p className={`text-sm font-medium mb-8 leading-relaxed line-clamp-2 ${
+              todayWorkout?.workout.type === 'Prova' ? 'text-amber-200/80' : 'text-emerald-300/80'
+            }`}>
               {todayWorkout?.workout.type.toUpperCase().includes('PROVA') 
                 ? 'Hoje é o grande dia! Coloque em prática tudo o que treinou. Boa prova!' 
                 : (todayWorkout ? todayWorkout.workout.customDescription : 'Aproveite para recuperar as energias e focar na mobilidade.')}
@@ -1190,13 +1206,23 @@ const AthletePortal: React.FC = () => {
                         className={`aspect-square rounded-xl flex flex-col items-center justify-center transition-all border-2 ${
                           workout.completed 
                             ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                            : workout.type === 'Descanso' ? 'bg-slate-100 border-slate-100 text-slate-300' : 'bg-white border-slate-100 text-slate-300 hover:border-emerald-200'
+                            : workout.type === 'Descanso' 
+                              ? 'bg-slate-100 border-slate-100 text-slate-300' 
+                              : workout.type === 'Prova'
+                                ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/25 animate-pulse'
+                                : 'bg-white border-slate-100 text-slate-300 hover:border-emerald-200'
                         }`}
                       >
                          <span className="text-[7px] font-black uppercase mb-0.5 opacity-60">
                            {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'][dIdx]}
                          </span>
-                         {workout.completed ? <Check className="w-3 h-3" /> : <div className="w-1 h-1 rounded-full bg-current opacity-20" />}
+                         {workout.completed ? (
+                           <Check className="w-3 h-3" />
+                         ) : workout.type === 'Prova' ? (
+                           <span className="text-[10px] leading-none">🏁</span>
+                         ) : (
+                           <div className="w-1 h-1 rounded-full bg-current opacity-20" />
+                         )}
                       </button>
                     ))}
                   </div>

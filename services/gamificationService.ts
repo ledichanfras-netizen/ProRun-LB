@@ -41,6 +41,7 @@ export const updateGamificationData = (
     let xpGain = XP_PER_WORKOUT;
     if (workout.type === 'Longão') xpGain = XP_FOR_LONG_RUN;
     else if (workout.type === 'Intervalado') xpGain = XP_FOR_INTERVAL;
+    else if (workout.type === 'Prova') xpGain = 250; // Grande bônus por concluir a prova alvo!
     else if (workout.type === 'Descanso') xpGain = 20; // Pequeno bônus por registrar o descanso
     
     updatedData.xp += xpGain;

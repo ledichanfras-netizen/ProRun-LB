@@ -13,6 +13,7 @@ import {
   Trophy, 
   X, 
   Activity,
+  Archive,
   Image as ImageIcon,
   MessageSquare,
   Loader2,
@@ -118,6 +119,8 @@ const AthletePortal: React.FC = () => {
   const [portalDate, setPortalDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const [isSaving, setIsSaving] = useState(false);
+  const [activePortalTab, setActivePortalTab] = useState<'current' | 'history'>('current');
+  const [expandedArchivedId, setExpandedArchivedId] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
@@ -613,8 +616,34 @@ const AthletePortal: React.FC = () => {
         </div>
       </div>
 
-      {/* PAINEL DE CONTROLE DE PRONTIDÃO DIÁRIA */}
-      <div className="bg-slate-900 border border-slate-800 rounded-[2.2rem] p-6 text-white shadow-xl space-y-6 animate-fade-in">
+      {/* Abas do Portal do Atleta */}
+      <div className="bg-slate-900 border border-slate-800 p-1.5 rounded-[1.8rem] flex gap-1 shadow-inner">
+        <button
+          onClick={() => setActivePortalTab('current')}
+          className={`flex-1 py-3 text-center rounded-2xl font-black text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-2 ${
+            activePortalTab === 'current'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/10'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Activity className="w-4 h-4" /> Ciclo Atual
+        </button>
+        <button
+          onClick={() => setActivePortalTab('history')}
+          className={`flex-1 py-3 text-center rounded-2xl font-black text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-2 ${
+            activePortalTab === 'history'
+              ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/10'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Archive className="w-4 h-4" /> Ciclos Concluídos
+        </button>
+      </div>
+
+      {activePortalTab === 'current' ? (
+        <>
+          {/* PAINEL DE CONTROLE DE PRONTIDÃO DIÁRIA */}
+          <div className="bg-slate-900 border border-slate-800 rounded-[2.2rem] p-6 text-white shadow-xl space-y-6 animate-fade-in">
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-emerald-400" />
@@ -1268,6 +1297,144 @@ const AthletePortal: React.FC = () => {
           Volume total acumulado (KM) por semana
         </p>
       </div>
+        </>
+      ) : (
+        <div className="space-y-6 animate-fade-in px-2">
+          {/* Header of history section */}
+          <div className="bg-slate-900 border border-slate-800 rounded-[2.2rem] p-6 text-white shadow-xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-2xl">
+                <Archive className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black uppercase italic tracking-tighter text-white">Histórico de Ciclos</h3>
+                <p className="text-slate-400 text-[10px] font-bold uppercase leading-tight mt-0.5">Seus períodos de periodização concluídos e arquivados.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* List of completed/archived cycles */}
+          {!activeAthlete.archivedPlans || activeAthlete.archivedPlans.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-[2.2rem] p-10 text-center flex flex-col items-center justify-center gap-4 text-slate-400">
+              <div className="w-16 h-16 bg-slate-800/50 border border-white/5 rounded-full flex items-center justify-center text-slate-500 text-2xl">
+                📁
+              </div>
+              <div>
+                <h4 className="font-black text-white text-xs uppercase italic tracking-wider mb-1">Nenhum Ciclo Concluído</h4>
+                <p className="text-[10px] leading-relaxed max-w-xs mx-auto">Seu treinador ainda não arquivou nenhum período ou ciclo. Continue treinando firme no seu ciclo atual!</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {activeAthlete.archivedPlans.map((archived) => {
+                const isExpanded = expandedArchivedId === archived.id;
+                
+                // Calculate completion metrics
+                let totalWorkoutsPlanned = 0;
+                let totalWorkoutsCompleted = 0;
+                let totalArchivedVolume = 0;
+                
+                archived.weeks.forEach((w: any) => {
+                  totalArchivedVolume += Number(w.totalVolume) || 0;
+                  w.workouts.forEach((work: any) => {
+                    if (work.type !== 'Descanso') {
+                      totalWorkoutsPlanned++;
+                      if (work.completed) totalWorkoutsCompleted++;
+                    }
+                  });
+                });
+                
+                const completionRate = totalWorkoutsPlanned > 0 ? Math.round((totalWorkoutsCompleted / totalWorkoutsPlanned) * 100) : 0;
+                
+                return (
+                  <div key={archived.id} className="bg-slate-900 border border-slate-800 rounded-[2.2rem] overflow-hidden transition-all shadow-md">
+                    <div className="p-6 flex flex-col gap-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[8px] font-black uppercase tracking-widest text-amber-400 italic">Ciclo Finalizado</span>
+                          <h4 className="text-sm font-black text-white uppercase italic tracking-tight mt-0.5">{archived.name}</h4>
+                        </div>
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl">
+                          <p className="text-[8px] text-emerald-400 uppercase font-black tracking-widest">Aproveitamento</p>
+                          <p className="text-xs font-black text-white mt-0.5 text-center">{completionRate}%</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-400 bg-slate-950/30 p-3 rounded-2xl border border-white/5">
+                        <div className="min-w-0">
+                          <p className="text-[8px] text-slate-500 uppercase font-black">🏁 Objetivo</p>
+                          <p className="text-white truncate">{archived.specificGoal || 'Não informado'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] text-slate-500 uppercase font-black">📅 Período</p>
+                          <p className="text-white">{archived.startDate.split('-').reverse().slice(0, 2).join('/')} - {archived.endDate.split('-').reverse().slice(0, 2).join('/')}</p>
+                        </div>
+                        <div className="mt-1">
+                          <p className="text-[8px] text-slate-500 uppercase font-black">📈 Volume Total</p>
+                          <p className="text-white">{totalArchivedVolume} KM</p>
+                        </div>
+                        <div className="mt-1">
+                          <p className="text-[8px] text-slate-500 uppercase font-black">🏃 Treinos</p>
+                          <p className="text-white">{totalWorkoutsCompleted}/{totalWorkoutsPlanned} feitos</p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setExpandedArchivedId(isExpanded ? null : archived.id)}
+                        className="w-full py-2.5 bg-slate-800 hover:bg-slate-950 text-slate-300 hover:text-white rounded-xl font-bold text-[9px] uppercase tracking-wider transition-colors border border-white/5 text-center flex items-center justify-center gap-1.5"
+                      >
+                        {isExpanded ? 'Ocultar Cronograma' : 'Ver Cronograma Completo'}
+                      </button>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="border-t border-white/5 bg-slate-950/25 p-4 space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+                        {archived.weeks.map((week: any) => (
+                          <div key={week.id || week.weekNumber} className="bg-slate-900 border border-white/5 rounded-[2rem] overflow-hidden p-4 space-y-3">
+                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                              <span className="font-black text-amber-400 text-[9px] uppercase tracking-widest">SEMANA {week.weekNumber}</span>
+                              <span className="text-[9px] font-black text-slate-400 uppercase italic">{week.phase}</span>
+                            </div>
+                            <div className="space-y-2">
+                              {week.workouts.map((workout: any, dIdx: number) => (
+                                <div key={dIdx} className={`p-3 rounded-xl border text-[11px] flex flex-col gap-1 ${
+                                  workout.completed 
+                                    ? 'bg-emerald-950/10 border-emerald-500/20' 
+                                    : workout.type === 'Descanso' 
+                                      ? 'bg-slate-950/10 border-white/5 opacity-55' 
+                                      : 'bg-slate-950/30 border-white/5'
+                                }`}>
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-black text-slate-400 uppercase tracking-wider text-[8px]">{workout.day}</span>
+                                    {workout.completed ? (
+                                      <span className="text-[7px] bg-emerald-500/15 text-emerald-400 font-black px-1.5 py-0.5 rounded uppercase">Feito</span>
+                                    ) : workout.type !== 'Descanso' ? (
+                                      <span className="text-[7px] bg-slate-500/10 text-slate-400 font-bold px-1.5 py-0.5 rounded uppercase">Não Feito</span>
+                                    ) : null}
+                                  </div>
+                                  <h5 className="font-black text-white text-xs uppercase italic tracking-tight">{workout.type}</h5>
+                                  {workout.customDescription && (
+                                    <p className="text-slate-300 italic text-[10px] leading-relaxed">"{workout.customDescription}"</p>
+                                  )}
+                                  <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500 pt-1 border-t border-white/5">
+                                    {workout.distance > 0 && <span>Meta: {workout.distance} KM</span>}
+                                    {workout.actualDistance > 0 && <span className="text-emerald-400">Dist: {workout.actualDistance} KM</span>}
+                                    {workout.rpe && <span className="text-amber-400">RPE: {workout.rpe}/10</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedWorkout && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md no-print" onClick={() => !isSaving && setSelectedWorkout(null)}>

@@ -29,7 +29,9 @@ import {
   X,
   Plus,
   Trash2,
-  ListOrdered
+  ListOrdered,
+  Archive,
+  CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculatePaces } from '../utils/calculations';
@@ -37,12 +39,13 @@ import { exportToImage } from '../utils/exporter';
 import { safeDeepClone } from '../utils/helpers';
 
 const Periodization: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, clearAthletePlan, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [raceDate, setRaceDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [raceDistance, setRaceDistance] = useState('10km');
   const [raceGoal, setRaceGoal] = useState('');
+  const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<any | null>(null);
   const [goalDescription, setGoalDescription] = useState('');
   const [weeks, setWeeks] = useState(8);
   const [runningDays, setRunningDays] = useState(4);
@@ -232,6 +235,50 @@ const Periodization: React.FC = () => {
 
       setIsEditing(false);
       alert('Planilha publicada com sucesso!');
+    }
+  };
+
+  const handleArchiveCycle = async () => {
+    if (!activeAthlete || !fullPlan) return;
+    
+    const cycleName = prompt(
+      "Digite um nome para identificar este ciclo finalizado:", 
+      `Ciclo ${fullPlan.specificGoal || 'Personalizado'} - ${new Date().toLocaleDateString('pt-BR')}`
+    );
+    
+    if (!cycleName) return; // User cancelled
+    
+    const archivedEntry = {
+      id: crypto.randomUUID(),
+      name: cycleName,
+      startDate: fullPlan.startDate || '',
+      endDate: fullPlan.endDate || '',
+      specificGoal: fullPlan.specificGoal || '',
+      weeks: fullPlan.weeks,
+      archivedAt: new Date().toISOString()
+    };
+    
+    const existingArchived = activeAthlete.archivedPlans || [];
+    
+    try {
+      await updateAthlete(activeAthlete.id, {
+        archivedPlans: [archivedEntry, ...existingArchived]
+      });
+      
+      await clearAthletePlan(activeAthlete.id);
+      
+      addNotification({
+        title: 'Ciclo de Treino Concluído! 🎉',
+        message: `Seu ciclo "${cycleName}" foi finalizado com sucesso. O histórico completo está salvo no seu portal!`,
+        type: 'success',
+        link: '/athlete-portal',
+        category: 'plan'
+      });
+      
+      alert(`Ciclo "${cycleName}" finalizado e arquivado com sucesso! Você já pode iniciar uma nova periodização para o atleta.`);
+    } catch (err) {
+      console.error("Error archiving cycle:", err);
+      alert("Ocorreu um erro ao arquivar o ciclo.");
     }
   };
 
@@ -545,6 +592,128 @@ const Periodization: React.FC = () => {
           </div>
         </div>
       )}
+
+      {selectedArchivedPlan && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col text-white">
+            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-950/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-2xl">
+                  <Archive className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-400 italic">Ciclo Histórico Concluído</span>
+                  <h3 className="text-lg font-black uppercase italic tracking-tighter text-white">
+                    {selectedArchivedPlan.name}
+                  </h3>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedArchivedPlan(null)} 
+                className="p-2.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-full transition-colors border border-white/5"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Meta Summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-6 bg-slate-950/25 border-b border-white/5">
+              <div className="bg-white/5 p-3.5 rounded-2xl border border-white/5">
+                <p className="text-[8px] text-slate-400 uppercase font-black tracking-widest">🏁 Objetivo do Ciclo</p>
+                <p className="text-sm font-black text-white mt-1 italic">{selectedArchivedPlan.specificGoal || 'Não informado'}</p>
+              </div>
+              <div className="bg-white/5 p-3.5 rounded-2xl border border-white/5">
+                <p className="text-[8px] text-slate-400 uppercase font-black tracking-widest">📅 Duração</p>
+                <p className="text-sm font-black text-white mt-1 italic">{selectedArchivedPlan.startDate.split('-').reverse().join('/')} - {selectedArchivedPlan.endDate.split('-').reverse().join('/')}</p>
+              </div>
+              <div className="bg-white/5 p-3.5 rounded-2xl border border-white/5">
+                <p className="text-[8px] text-slate-400 uppercase font-black tracking-widest">📈 Total de Semanas</p>
+                <p className="text-sm font-black text-white mt-1 italic">{selectedArchivedPlan.weeks.length} semanas</p>
+              </div>
+              <div className="bg-white/5 p-3.5 rounded-2xl border border-white/5">
+                <p className="text-[8px] text-slate-400 uppercase font-black tracking-widest">🏆 Aproveitamento</p>
+                {(() => {
+                  let totalPlanned = 0;
+                  let totalCompleted = 0;
+                  selectedArchivedPlan.weeks.forEach((w: any) => {
+                    w.workouts.forEach((work: any) => {
+                      if (work.type !== 'Descanso') {
+                        totalPlanned++;
+                        if (work.completed) totalCompleted++;
+                      }
+                    });
+                  });
+                  const rate = totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) : 0;
+                  return (
+                    <p className="text-sm font-black text-emerald-400 mt-1 italic">{rate}% ({totalCompleted}/{totalPlanned} treinos)</p>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Weeks list inside archived plan */}
+            <div className="p-6 overflow-y-auto custom-scrollbar space-y-6 flex-1 bg-slate-950/10">
+              {selectedArchivedPlan.weeks.map((week: any) => (
+                <div key={week.id || week.weekNumber} className="bg-slate-900/50 border border-white/5 rounded-3xl overflow-hidden">
+                  <div className="bg-white/5 px-5 py-3 border-b border-white/5 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-amber-400 text-[10px] uppercase tracking-widest border border-amber-500/20 px-2 py-0.5 rounded-lg italic">SEMANA {week.weekNumber}</span>
+                      <span className="text-slate-400 text-[10px] font-black uppercase tracking-tighter italic">{week.phase}</span>
+                    </div>
+                    <span className="text-xs font-bold text-slate-300">Volume Planejado: {week.totalVolume || 0} KM</span>
+                  </div>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {week.workouts.map((workout: any, dIdx: number) => (
+                      <div key={dIdx} className={`p-4 rounded-2xl border flex flex-col gap-2 ${
+                        workout.completed 
+                          ? 'bg-emerald-950/15 border-emerald-500/20' 
+                          : workout.type === 'Descanso' 
+                            ? 'bg-slate-950/20 border-white/5 opacity-50' 
+                            : 'bg-slate-950/40 border-white/5'
+                      }`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">{workout.day}</span>
+                            <h4 className="font-black text-white text-xs uppercase italic tracking-tight mt-0.5">{workout.type}</h4>
+                          </div>
+                          {workout.completed ? (
+                            <span className="text-[8px] bg-emerald-500/15 text-emerald-400 font-black px-2 py-0.5 rounded-md border border-emerald-500/20 uppercase tracking-wider">Concluído</span>
+                          ) : workout.type !== 'Descanso' ? (
+                            <span className="text-[8px] bg-slate-500/10 text-slate-400 font-bold px-2 py-0.5 rounded-md border border-white/5 uppercase tracking-wider">Não Realizado</span>
+                          ) : null}
+                        </div>
+                        {workout.customDescription && (
+                          <p className="text-[11px] text-slate-300 italic leading-relaxed">{workout.customDescription}</p>
+                        )}
+                        <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 mt-1 border-t border-white/5 pt-1.5">
+                          {workout.distance > 0 && <span>Planejado: {workout.distance} KM</span>}
+                          {workout.actualDistance > 0 && <span className="text-emerald-400">Executado: {workout.actualDistance} KM</span>}
+                          {workout.rpe && <span className="text-amber-400">Esforço (RPE): {workout.rpe}/10</span>}
+                        </div>
+                        {workout.feedback && (
+                          <div className="bg-white/5 p-2 rounded-xl border border-white/5 text-[10px] text-slate-300 leading-normal mt-1 italic">
+                            <span className="text-emerald-400 font-black uppercase">Feedback: </span>"{workout.feedback}"
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="p-6 border-t border-white/5 bg-slate-950/50 flex justify-end">
+              <button 
+                onClick={() => setSelectedArchivedPlan(null)}
+                className="bg-slate-800 hover:bg-black text-white font-bold py-2.5 px-6 rounded-xl transition-all uppercase text-xs tracking-wider"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeAthlete && fullPlan && portalRoot && createPortal(
         <PrintLayout 
           athlete={activeAthlete} 
@@ -565,9 +734,16 @@ const Periodization: React.FC = () => {
           <p className="text-slate-300 font-medium italic text-sm">IA Treinador: Prescrição personalizada até o dia da prova.</p>
         </div>
         
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
            {fullPlan && (
              <>
+               <button 
+                 onClick={handleArchiveCycle} 
+                 className="bg-amber-600/20 hover:bg-amber-600 text-amber-400 hover:text-white border border-amber-500/30 hover:border-transparent px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition shadow-lg uppercase text-[10px] italic tracking-widest"
+                 title="Arquivar o ciclo atual de treinos no histórico do atleta"
+               >
+                 <Archive className="w-4 h-4" /> Arquivar Ciclo
+               </button>
                <button 
                  onClick={handleDownloadImage} 
                  disabled={exportLoading}
@@ -719,6 +895,46 @@ const Periodization: React.FC = () => {
                    <h3 className="font-black text-[10px] uppercase tracking-widest text-emerald-400">Estratégia de Prova</h3>
                  </div>
                  <p className="text-[11px] leading-relaxed italic opacity-90">{fullPlan.raceStrategy}</p>
+              </div>
+            )}
+
+            {activeAthlete?.archivedPlans && activeAthlete.archivedPlans.length > 0 && (
+              <div className="bg-slate-900/50 p-6 rounded-3xl shadow-xl border border-white/5 space-y-4 animate-fade-in">
+                <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                  <Archive className="w-4 h-4 text-amber-400" />
+                  <h3 className="font-black text-[10px] uppercase tracking-widest text-slate-300">Ciclos Arquivados ({activeAthlete.archivedPlans.length})</h3>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                  {activeAthlete.archivedPlans.map((archived) => (
+                    <div key={archived.id} className="bg-slate-950/40 p-3 rounded-2xl border border-white/5 flex flex-col gap-1.5 hover:border-amber-500/20 transition-all">
+                      <div className="flex justify-between items-start">
+                        <span className="font-black text-white text-xs italic leading-tight">{archived.name}</span>
+                        <button 
+                          onClick={() => {
+                            if (confirm("Tem certeza que deseja remover este ciclo arquivado do histórico? Esta ação é irreversível.")) {
+                              const nextArchived = (activeAthlete.archivedPlans || []).filter(p => p.id !== archived.id);
+                              updateAthlete(activeAthlete.id, { archivedPlans: nextArchived });
+                            }
+                          }}
+                          className="text-slate-500 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-slate-400">
+                        <span className="font-bold text-amber-400">🏁 {archived.specificGoal}</span>
+                        <span>•</span>
+                        <span>📅 {archived.startDate.split('-').reverse().slice(0,2).join('/')} - {archived.endDate.split('-').reverse().slice(0,2).join('/')}</span>
+                      </div>
+                      <button 
+                        onClick={() => setSelectedArchivedPlan(archived)}
+                        className="w-full mt-1 py-1.5 bg-white/5 hover:bg-amber-500/10 text-slate-300 hover:text-amber-400 border border-transparent hover:border-amber-500/20 rounded-xl font-bold text-[9px] uppercase tracking-wider transition-colors text-center"
+                      >
+                        Visualizar Detalhes
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

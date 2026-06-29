@@ -35,6 +35,7 @@ interface AppContextType {
   
   athletePlans: Record<string, AthletePlan>;
   saveAthletePlan: (athleteId: string, plan: AthletePlan) => Promise<void>;
+  clearAthletePlan: (athleteId: string) => Promise<void>;
   updateWorkoutStatus: (
     athleteId: string, 
     weekIndex: number, 
@@ -683,6 +684,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const clearAthletePlan = async (athleteId: string) => {
+    setAthletePlans(prev => {
+      const next = { ...prev };
+      delete next[athleteId];
+      return next;
+    });
+    try {
+      await supabase.from('athlete_plans').delete().eq('athlete_id', athleteId);
+      try {
+        await supabase.from('athlete_plans').delete().eq('id', athleteId);
+      } catch (innerErr) {
+        // Safe to ignore
+      }
+    } catch (err) {
+      console.error("Error clearing plan:", err);
+    }
+  };
+
   const updateWorkoutStatus = async (
     athleteId: string, 
     weekIndex: number, 
@@ -862,7 +881,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addNewAssessment, updateAssessment, deleteAssessment,
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
       selectedAthleteId, setSelectedAthleteId,
-      athletePlans, saveAthletePlan, updateWorkoutStatus,
+      athletePlans, saveAthletePlan, clearAthletePlan, updateWorkoutStatus,
       getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected,
       isFirebaseConfigured: true, 
       subscription, hasActiveSubscription, refreshSubscription,

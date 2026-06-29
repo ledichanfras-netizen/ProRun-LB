@@ -100,6 +100,15 @@ export interface Athlete {
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
   gamification?: GamificationData;
+  archivedPlans?: {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    specificGoal: string;
+    weeks: TrainingWeek[];
+    archivedAt: string;
+  }[];
 }
 
 export interface GamificationData {

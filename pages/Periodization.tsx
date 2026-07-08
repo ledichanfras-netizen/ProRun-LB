@@ -533,7 +533,13 @@ const Periodization: React.FC = () => {
               <h3 className="text-xl font-black uppercase italic tracking-tighter text-slate-900 flex items-center gap-2">
                 <CalendarDays className="text-emerald-500 w-5 h-5" /> Templates de Semana
               </h3>
-              <button onClick={() => {setShowTemplatesModal(false); setTargetWeekForTemplate(null);}} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+              <button 
+                onClick={() => {setShowTemplatesModal(false); setTargetWeekForTemplate(null);}} 
+                className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-950 rounded-full transition-all flex items-center justify-center border border-slate-200/60 shadow-sm"
+                aria-label="Fechar Templates"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
               {templates.length > 0 ? templates.map(t => (
@@ -567,7 +573,13 @@ const Periodization: React.FC = () => {
               <h3 className="text-xl font-black uppercase italic tracking-tighter text-slate-900 flex items-center gap-2">
                 <BookOpen className="text-emerald-500 w-5 h-5" /> Biblioteca de Treinos
               </h3>
-              <button onClick={() => setShowLibraryModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+              <button 
+                onClick={() => setShowLibraryModal(false)} 
+                className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-950 rounded-full transition-all flex items-center justify-center border border-slate-200/60 shadow-sm"
+                aria-label="Fechar Biblioteca"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
               {libraryWorkouts.length > 0 ? libraryWorkouts.map(w => (

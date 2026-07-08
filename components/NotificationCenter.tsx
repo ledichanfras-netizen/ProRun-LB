@@ -50,8 +50,12 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
             </div>
             <h3 className="text-lg font-black uppercase italic tracking-tighter text-white">Notificações</h3>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-            <X className="w-5 h-5 text-slate-400" />
+          <button 
+            onClick={onClose} 
+            className="p-2.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-full transition-all border border-white/10 flex items-center justify-center shadow-lg"
+            aria-label="Fechar Notificações"
+          >
+            <X className="w-5 h-5" />
           </button>
         </header>
 

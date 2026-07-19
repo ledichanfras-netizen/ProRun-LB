@@ -989,6 +989,32 @@ const Periodization: React.FC = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+                      {isEditing ? (
+                        <>
+                          <button 
+                             onClick={handleSave}
+                             className="flex-shrink-0 px-2.5 md:px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all italic flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 border border-emerald-500/20"
+                             title="Publicar Edição desta Planilha para o Atleta"
+                          >
+                             <CheckCircle className="w-3.5 h-3.5" /> <span>Publicar</span>
+                          </button>
+                          <button 
+                             onClick={() => setIsEditing(false)}
+                             className="flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[8px] md:text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-all italic flex items-center gap-1.5"
+                             title="Concluir edição sem salvar/publicar imediatamente"
+                          >
+                             <Lock className="w-3.5 h-3.5" /> <span>Concluir</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button 
+                           onClick={() => setIsEditing(true)}
+                           className="flex-shrink-0 px-2.5 md:px-3.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-400 hover:text-white text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all italic flex items-center gap-1.5 shadow-sm"
+                           title="Editar os Treinos da Planilha"
+                        >
+                           <Unlock className="w-3.5 h-3.5" /> <span>Editar</span>
+                        </button>
+                      )}
                       <button 
                          onClick={() => {setTargetWeekForTemplate(weekIndex); setShowTemplatesModal(true);}}
                          className="flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl border border-white/10 text-[8px] md:text-[9px] font-black uppercase text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all italic flex items-center gap-1.5"

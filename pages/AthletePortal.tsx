@@ -599,16 +599,16 @@ const AthletePortal: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-emerald-50 dark:bg-emerald-950 rounded-3xl p-4 shadow-lg flex flex-col justify-between overflow-hidden relative border border-emerald-200 dark:border-emerald-800/50">
+          <div className="bg-emerald-950 rounded-3xl p-4 shadow-lg flex flex-col justify-between overflow-hidden relative">
             <div className="absolute top-0 right-0 p-2 opacity-10">
-              <Zap className="w-12 h-12 text-emerald-800 dark:text-white" />
+              <Zap className="w-12 h-12 text-white" />
             </div>
             <div className="relative z-10">
-              <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest italic">Sua Labareda</p>
-              <h4 className="text-xl font-black text-slate-900 dark:text-white italic uppercase tracking-tighter flex items-center gap-2">
+              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest italic">Sua Labareda</p>
+              <h4 className="text-xl font-black text-white italic uppercase tracking-tighter flex items-center gap-2">
                 {activeAthlete.gamification?.streak || 0} Dias <Zap className="w-4 h-4 fill-orange-500 text-orange-500" />
               </h4>
-              <p className="text-[8px] font-bold text-emerald-800 dark:text-emerald-300 uppercase italic mt-1 leading-tight">
+              <p className="text-[8px] font-bold text-emerald-300 uppercase italic mt-1 leading-tight">
                 {activeAthlete.gamification?.streak === 0 ? 'Comece sua sequência hoje!' : 'Fogo no treino! Mantenha o ritmo.'}
               </p>
             </div>
@@ -617,13 +617,13 @@ const AthletePortal: React.FC = () => {
       </div>
 
       {/* Abas do Portal do Atleta */}
-      <div className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1.5 rounded-[1.8rem] flex gap-1 shadow-inner">
+      <div className="bg-slate-900 border border-slate-800 p-1.5 rounded-[1.8rem] flex gap-1 shadow-inner">
         <button
           onClick={() => setActivePortalTab('current')}
           className={`flex-1 py-3 text-center rounded-2xl font-black text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-2 ${
             activePortalTab === 'current'
               ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/10'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/5'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
           }`}
         >
           <Activity className="w-4 h-4" /> Ciclo Atual
@@ -633,7 +633,7 @@ const AthletePortal: React.FC = () => {
           className={`flex-1 py-3 text-center rounded-2xl font-black text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-2 ${
             activePortalTab === 'history'
               ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/10'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/5'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
           }`}
         >
           <Archive className="w-4 h-4" /> Ciclos Concluídos
@@ -643,7 +643,7 @@ const AthletePortal: React.FC = () => {
       {activePortalTab === 'current' ? (
         <>
           {/* PAINEL DE CONTROLE DE PRONTIDÃO DIÁRIA */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.2rem] p-6 text-slate-900 dark:text-white shadow-xl space-y-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-[2.2rem] p-6 text-white shadow-xl space-y-6 animate-fade-in">
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-emerald-400" />
@@ -657,16 +657,16 @@ const AthletePortal: React.FC = () => {
         </div>
 
         {/* 1. SELETOR DE DATA */}
-        <div className="space-y-2 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5">
+        <div className="space-y-2 bg-white/5 p-4 rounded-2xl border border-white/5">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">📅 Data da Prontidão</span>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold italic">Selecione para preencher ou editar</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📅 Data da Prontidão</span>
+            <span className="text-[10px] text-emerald-400 font-bold italic">Selecione para preencher ou editar</span>
           </div>
           <input 
             type="date"
             value={portalDate}
             onChange={(e) => setPortalDate(e.target.value)}
-            className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+            className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
           />
           {(() => {
             const hasEntry = (activeAthlete?.readinessHistory || []).some(entry => entry.date === portalDate);
@@ -986,8 +986,8 @@ const AthletePortal: React.FC = () => {
         }`}></div>
         <div className={`relative rounded-[2.2rem] p-8 text-white shadow-2xl overflow-hidden border ${
           todayWorkout?.workout.type === 'Prova'
-            ? 'bg-gradient-to-br from-amber-600 via-amber-700 to-red-900 border-amber-500/30'
-            : 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 border-emerald-500/30'
+            ? 'bg-gradient-to-br from-slate-950 via-amber-950 to-red-950 border-amber-600/30'
+            : 'bg-emerald-950 border-emerald-900'
         }`}>
           <div className="absolute top-0 right-0 p-4 opacity-5">
              <Trophy className="w-32 h-32 rotate-12" />
@@ -1464,20 +1464,20 @@ const AthletePortal: React.FC = () => {
 
       {selectedWorkout && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md no-print" onClick={() => !isSaving && setSelectedWorkout(null)}>
-          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[95vh] border border-slate-200 dark:border-white/5" onClick={e => e.stopPropagation()}>
-            <div className={`p-6 md:p-8 border-b flex justify-between items-start flex-shrink-0 ${isFinalWorkout ? 'bg-emerald-800 dark:bg-emerald-950 text-white' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'}`}>
+          <div className="bg-slate-900 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[95vh] border border-white/5" onClick={e => e.stopPropagation()}>
+            <div className={`p-6 md:p-8 border-b flex justify-between items-start flex-shrink-0 ${isFinalWorkout ? 'bg-emerald-950 text-white' : 'bg-white/5'}`}>
                <div className="flex flex-col">
-                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 italic ${isFinalWorkout ? 'text-emerald-300 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>{selectedWorkout.data.day}</span>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 italic ${isFinalWorkout ? 'text-emerald-400' : 'text-slate-400'}`}>{selectedWorkout.data.day}</span>
                   <div className="flex items-center gap-3">
-                    <h3 className="text-2xl font-black uppercase italic tracking-tighter text-slate-900 dark:text-white">{isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}</h3>
+                    <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">{isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}</h3>
                   </div>
                </div>
-               <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 text-slate-800 dark:text-white'}`}><X className="w-5 h-5" /></button>
+               <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}><X className="w-5 h-5 text-white" /></button>
             </div>
             
-            <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+            <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-900">
               <div className="space-y-4">
-                <div className={`${isFinalWorkout ? 'bg-emerald-800 dark:bg-emerald-950 border-emerald-700 text-white shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-800 dark:text-white'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
+                <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'bg-white/5 border-white/10 text-white'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
                   "{selectedWorkout.data.customDescription}"
                 </div>
 
@@ -1838,13 +1838,13 @@ const AthletePortal: React.FC = () => {
               )}
             </div>
 
-            <div className="p-6 md:p-8 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-white/5 flex-shrink-0 font-sans">
+            <div className="p-6 md:p-8 bg-slate-900 border-t border-white/5 flex-shrink-0 font-sans">
               <button 
                 onClick={handleToggleComplete} 
                 disabled={isSaving}
                 className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 
                   ${saveSuccess ? 'bg-emerald-500 text-white' : 
-                    selectedWorkout.data.type === 'Descanso' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 active:scale-95'} 
+                    selectedWorkout.data.type === 'Descanso' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-emerald-950 text-white hover:bg-black active:scale-95'}
                   disabled:opacity-50`}
               >
                 {isSaving ? (

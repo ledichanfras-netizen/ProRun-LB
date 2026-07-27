@@ -7,6 +7,7 @@ export function getDefaultRpeForType(type: string): number {
     case 'Longão': return 5;
     case 'Limiar': return 7;
     case 'Intervalado': return 8;
+    case 'Maratona': return 6;
     case 'Velocidade': return 9;
     case 'Transição': return 6;
     case 'Ciclismo': return 5;
@@ -44,6 +45,8 @@ export function getEstimatedPace(type: string, vdot: number): number {
       return clampedBase * 1.05; // 5% mais lento
     case 'Limiar':
       return clampedBase * 0.85; // 15% mais rápido
+    case 'Maratona':
+      return clampedBase * 0.90; // 10% mais rápido (ritmo maratona)
     case 'Intervalado':
     case 'Velocidade':
       return clampedBase * 0.75; // 25% mais rápido

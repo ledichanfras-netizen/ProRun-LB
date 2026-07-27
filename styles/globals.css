@@ -10,29 +10,136 @@
     height: 100%;
   }
   html {
-    @apply bg-[#020617];
+    @apply bg-[#020617] text-slate-100 transition-colors duration-200;
+  }
+  html.light-mode {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
   }
   body {
-    @apply bg-[#020617] text-slate-100 font-sans antialiased;
+    @apply bg-[#020617] text-slate-100 font-sans antialiased transition-colors duration-200;
+  }
+  html.light-mode body {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
   }
   #root {
-    @apply bg-[#020617];
+    @apply bg-[#020617] transition-colors duration-200;
+  }
+  html.light-mode #root {
+    background-color: #f8fafc !important;
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl;
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl transition-colors duration-200;
   }
+  html.light-mode .glass-card {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 12px -2px rgba(0, 0, 0, 0.03) !important;
+  }
+
   .premium-gradient {
     @apply bg-gradient-to-br from-emerald-500/20 via-transparent to-transparent;
   }
+  html.light-mode .premium-gradient {
+    @apply bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent;
+  }
+
   .pro-input {
     @apply bg-white/5 border border-white/10 text-white placeholder-slate-500 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium;
   }
+  html.light-mode .pro-input {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  }
+  html.light-mode .pro-input::placeholder {
+    color: #94a3b8 !important;
+  }
+
   .pro-label {
     @apply block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2;
   }
+  html.light-mode .pro-label {
+    color: #475569 !important;
+  }
+
+  html.light-mode option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+}
+
+/* Light Mode global overrides for cards and dark elements */
+html.light-mode .bg-\[\#020617\],
+html.light-mode .bg-\[\#050810\],
+html.light-mode .bg-\[\#0a0f1d\],
+html.light-mode .bg-\[\#080d1a\],
+html.light-mode .bg-slate-900,
+html.light-mode .bg-slate-950,
+html.light-mode .bg-slate-900\/90,
+html.light-mode .bg-slate-900\/80,
+html.light-mode .bg-slate-900\/60,
+html.light-mode .bg-slate-900\/50,
+html.light-mode .bg-black\/40,
+html.light-mode .bg-black\/60,
+html.light-mode .bg-black\/80 {
+  background-color: #ffffff !important;
+  color: #0f172a;
+}
+
+html.light-mode .border-white\/5,
+html.light-mode .border-white\/10,
+html.light-mode .border-white\/20,
+html.light-mode .border-slate-800,
+html.light-mode .border-slate-800\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light-mode .bg-white\/5,
+html.light-mode .bg-white\/10 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light-mode .hover\:bg-white\/5:hover,
+html.light-mode .hover\:bg-white\/10:hover {
+  background-color: #e2e8f0 !important;
+}
+
+html.light-mode .text-slate-100,
+html.light-mode .text-slate-200,
+html.light-mode .text-white {
+  color: #0f172a;
+}
+
+html.light-mode .text-slate-400,
+html.light-mode .text-slate-300 {
+  color: #475569;
+}
+
+html.light-mode .text-slate-500 {
+  color: #64748b;
+}
+
+/* Preserve specific contrast colors */
+html.light-mode .text-emerald-400 {
+  color: #059669 !important;
+}
+html.light-mode .text-emerald-500 {
+  color: #059669 !important;
+}
+html.light-mode .text-red-400 {
+  color: #dc2626 !important;
+}
+html.light-mode .text-amber-400 {
+  color: #d97706 !important;
+}
+html.light-mode .text-sky-400 {
+  color: #0284c7 !important;
 }
 
 .animate-fade-in-up {

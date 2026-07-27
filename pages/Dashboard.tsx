@@ -315,9 +315,9 @@ export default function Dashboard() {
             <button 
               onClick={handleAIAnalysis}
               disabled={isAnalyzing}
-              className="bg-emerald-950 text-white px-6 py-3 rounded-2xl font-black uppercase italic tracking-tighter text-xs flex items-center gap-2 hover:bg-black transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/20"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black uppercase italic tracking-tighter text-xs flex items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20 hover:scale-105"
             >
-              <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse' : ''} text-emerald-400`} />
+              <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse' : ''} text-white`} />
               {isAnalyzing ? 'Analisando...' : 'Análise IA'}
             </button>
           )}

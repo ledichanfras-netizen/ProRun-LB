@@ -77,6 +77,10 @@ interface AppContextType {
   markAsRead: (id: string) => void;
   removeNotification: (id: string) => void;
   addUserGoal: (athleteId: string, goal: Omit<UserGoal, 'id' | 'currentValue' | 'completed'>) => Promise<void>;
+
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -113,6 +117,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const saved = localStorage.getItem('proRun_notifications');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('proRun_theme');
+    return (saved === 'light' || saved === 'dark') ? saved : 'dark';
+  });
+
+  const setTheme = useCallback((newTheme: 'dark' | 'light') => {
+    setThemeState(newTheme);
+    localStorage.setItem('proRun_theme', newTheme);
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemeState(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('proRun_theme', next);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light-mode');
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.remove('light-mode');
+      document.documentElement.classList.add('dark');
+    }
+  }, [theme]);
 
   const logout = useCallback(() => {
     // Guard: Only proceed if actually logged in to prevent infinite reload loops
@@ -887,7 +919,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       subscription, hasActiveSubscription, refreshSubscription,
       templates, saveTemplate, deleteTemplate,
       notifications, addNotification, markAsRead, removeNotification,
-      addUserGoal
+      addUserGoal,
+      theme, setTheme, toggleTheme
     }}>
       {children}
     </AppContext.Provider>

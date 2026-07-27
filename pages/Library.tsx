@@ -100,6 +100,7 @@ const Library: React.FC = () => {
           case 'Longão': return 'Longão';
           case 'Limiar': return 'Limiar';
           case 'Intervalado': return 'Intervalado';
+          case 'Maratona': return 'Maratona';
           case 'Velocidade': return 'Velocidade';
           case 'Fortalecimento': return 'Fortalecimento';
           case 'Prova': return 'Prova';
@@ -160,7 +161,7 @@ const Library: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {['Regenerativo', 'Longão', 'Limiar', 'Intervalado', 'Velocidade', 'Prova'].map(type => {
+        {['Regenerativo', 'Longão', 'Limiar', 'Intervalado', 'Maratona', 'Velocidade', 'Prova'].map(type => {
           const count = workouts.filter(w => w.type === type).length;
           return (
             <div key={type} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
@@ -226,6 +227,7 @@ const Library: React.FC = () => {
                 <option value="Longão" className="bg-slate-900">Longão</option>
                 <option value="Limiar" className="bg-slate-900">Limiar</option>
                 <option value="Intervalado" className="bg-slate-900">Intervalado</option>
+                <option value="Maratona" className="bg-slate-900">Maratona (Ritmo de Maratona)</option>
                 <option value="Velocidade" className="bg-slate-900">Velocidade</option>
                 <option value="Fortalecimento" className="bg-slate-900">Fortalecimento</option>
                 <option value="Prova" className="bg-slate-900">Prova (Dia de Prova)</option>
@@ -381,6 +383,7 @@ const Library: React.FC = () => {
               w.type === 'Regenerativo' ? 'bg-emerald-400' : 
               w.type === 'Limiar' ? 'bg-amber-500' :
               w.type === 'Intervalado' ? 'bg-red-500' :
+              w.type === 'Maratona' ? 'bg-sky-500' :
               w.type === 'Longão' ? 'bg-emerald-600' :
               w.type === 'Prova' ? 'bg-amber-600' :
               'bg-purple-500'
@@ -393,6 +396,7 @@ const Library: React.FC = () => {
                   ${w.type === 'Regenerativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
                     w.type === 'Limiar' ? 'bg-amber-50 text-amber-700 border-amber-100' :
                     w.type === 'Intervalado' ? 'bg-red-50 text-red-700 border-red-100' :
+                    w.type === 'Maratona' ? 'bg-sky-50 text-sky-800 border-sky-200 font-bold' :
                     w.type === 'Longão' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
                     w.type === 'Prova' ? 'bg-amber-50 text-amber-800 border-amber-300 ring-2 ring-amber-500/25 font-bold' :
                     'bg-purple-50 text-purple-700 border-purple-100'}

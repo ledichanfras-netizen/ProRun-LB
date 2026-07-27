@@ -57,6 +57,7 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
       case 'Longão': return 'border-emerald-600 bg-emerald-50/50';
       case 'Limiar': return 'border-amber-500 bg-amber-50/50';
       case 'Intervalado': return 'border-red-500 bg-red-50/50';
+      case 'Maratona': return 'border-sky-500 bg-sky-50/50';
       case 'Velocidade': return 'border-purple-600 bg-purple-50/50';
       case 'Fortalecimento': return 'border-indigo-500 bg-indigo-50/30';
       case 'Natação': return 'border-sky-500 bg-sky-50/50';

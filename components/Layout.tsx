@@ -15,7 +15,9 @@ import {
   Cloud,
   CloudOff,
   CreditCard,
-  Bell
+  Bell,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import NotificationPrompt from './NotificationPrompt';
@@ -30,7 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const { athletes, selectedAthleteId, setSelectedAthleteId, userRole, logout, isCloudConnected, notifications } = useApp();
+  const { athletes, selectedAthleteId, setSelectedAthleteId, userRole, logout, isCloudConnected, notifications, theme, toggleTheme } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -86,14 +88,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="h-full bg-[#020617] flex flex-col md:flex-row font-sans text-slate-100 overflow-hidden">
       {/* Mobile Header */}
-      <div className="md:hidden bg-[#020617]/80 backdrop-blur-md text-white p-4 flex justify-between items-center sticky top-0 z-20 border-b border-white/5 no-print safe-top">
+      <div className="md:hidden bg-[#020617]/80 dark:bg-[#020617]/80 backdrop-blur-md text-white p-4 flex justify-between items-center sticky top-0 z-20 border-b border-white/5 no-print safe-top">
         <div className="flex items-center gap-2">
           <div className="bg-emerald-500 rounded-lg p-1 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
             <TrendingUp className="w-6 h-6 text-white" />
           </div>
           <span className="font-black text-lg tracking-tighter italic uppercase">ProRun <span className="text-emerald-500">LB</span></span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={toggleTheme} 
+            className="p-2 bg-white/10 dark:bg-white/5 hover:bg-white/20 rounded-xl transition-all border border-white/10 flex items-center justify-center text-amber-400"
+            title={theme === 'dark' ? "Ativar Modo Claro Elite" : "Ativar Modo Escuro"}
+            aria-label="Alternar Modo Claro/Escuro"
+          >
+            {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-400" />}
+          </button>
           <button onClick={() => setIsNotificationsOpen(true)} className="relative p-1.5 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
             <Bell className="w-6 h-6 text-emerald-400" />
             {unreadCount > 0 && (
@@ -139,12 +149,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
             </div>
           </div>
-          <button onClick={() => setIsNotificationsOpen(true)} className="relative p-2 hover:bg-white/5 rounded-xl transition-colors group">
-            <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-emerald-400' : 'text-slate-500 group-hover:text-white'}`} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 bg-red-500 w-2 h-2 rounded-full border border-[#050810] animate-pulse" />
-            )}
-          </button>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={toggleTheme} 
+              className="p-2 hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10 text-amber-400"
+              title={theme === 'dark' ? "Ativar Modo Claro Elite" : "Ativar Modo Escuro"}
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-400" />}
+            </button>
+            <button onClick={() => setIsNotificationsOpen(true)} className="relative p-2 hover:bg-white/5 rounded-xl transition-colors group">
+              <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-emerald-400' : 'text-slate-500 group-hover:text-white'}`} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 bg-red-500 w-2 h-2 rounded-full border border-[#050810] animate-pulse" />
+              )}
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 p-6 space-y-2 overflow-y-auto custom-scrollbar">
@@ -189,6 +208,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           )}
           
+          {/* Theme Switcher */}
+          <button
+            onClick={toggleTheme}
+            className="w-full flex items-center justify-between px-4 py-3 mb-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all font-black text-xs uppercase italic tracking-wider text-slate-200 group"
+          >
+            <span className="flex items-center gap-2.5">
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform" />
+              ) : (
+                <Moon className="w-4 h-4 text-indigo-400 group-hover:-rotate-12 transition-transform" />
+              )}
+              <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>
+            </span>
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 tracking-tighter not-italic font-bold">
+              ELITE
+            </span>
+          </button>
+
           <button 
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-3 px-6 py-4 text-slate-500 hover:text-red-400 hover:bg-red-400/5 rounded-2xl transition-all font-black text-xs uppercase italic tracking-[0.2em]"

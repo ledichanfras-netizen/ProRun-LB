@@ -448,6 +448,8 @@ const Periodization: React.FC = () => {
       'Long Run': 'Longão',
       'Tempo': 'Limiar',
       'Interval': 'Intervalado',
+      'Marathon': 'Maratona',
+      'Maratona': 'Maratona',
       'Speed': 'Velocidade',
       'Strength': 'Fortalecimento'
     };
@@ -1094,7 +1096,7 @@ const Periodization: React.FC = () => {
                                   value={workout.type}
                                   onChange={e => updateWorkout(weekIndex, dayIndex, 'type', e.target.value)}
                                 >
-                                  {["Regenerativo", "Longão", "Limiar", "Intervalado", "Velocidade", "Descanso", "Fortalecimento", "Natação", "Ciclismo", "Transição", "Prova"].map(t => (
+                                  {["Regenerativo", "Longão", "Limiar", "Intervalado", "Maratona", "Velocidade", "Descanso", "Fortalecimento", "Natação", "Ciclismo", "Transição", "Prova"].map(t => (
                                     <option key={t} value={t} className="bg-slate-900">{t}</option>
                                   ))}
                                 </select>
@@ -1106,7 +1108,9 @@ const Periodization: React.FC = () => {
                                   ? 'text-slate-500' 
                                   : workout.type === 'Prova' 
                                     ? 'text-amber-400 font-extrabold tracking-widest' 
-                                    : 'text-emerald-400'
+                                    : workout.type === 'Maratona'
+                                      ? 'text-sky-400 font-extrabold'
+                                      : 'text-emerald-400'
                               }`}>{workout.type}</p>
                            )}
                         </div>

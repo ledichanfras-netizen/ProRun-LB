@@ -112,16 +112,16 @@ const Athletes: React.FC = () => {
   return (
     <div className="space-y-6 relative animate-fade-in custom-scrollbar">
       {deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-md w-full animate-fade-in-up border-l-8 border-red-500">
-             <div className="flex items-center gap-4 text-red-600 mb-6">
-               <div className="bg-red-50 p-3 rounded-2xl"><AlertTriangle className="w-8 h-8" /></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl p-8 max-w-md w-full animate-fade-in-up border-l-8 border-red-500">
+             <div className="flex items-center gap-4 text-red-600 dark:text-red-400 mb-6">
+               <div className="bg-red-50 dark:bg-red-950/30 p-3 rounded-2xl"><AlertTriangle className="w-8 h-8" /></div>
                <h3 className="text-2xl font-black uppercase italic tracking-tighter">Excluir Atleta?</h3>
              </div>
-             <p className="text-slate-600 mb-2 font-medium italic">Você está prestes a remover permanentemente:</p>
-             <p className="font-black text-xl text-slate-800 mb-8 uppercase italic tracking-tighter">{deleteModal.name}</p>
+             <p className="text-slate-600 dark:text-slate-400 mb-2 font-medium italic">Você está prestes a remover permanentemente:</p>
+             <p className="font-black text-xl text-slate-900 dark:text-white mb-8 uppercase italic tracking-tighter">{deleteModal.name}</p>
              <div className="flex gap-4 justify-end">
-               <button onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })} className="px-6 py-3 text-slate-400 font-black text-xs uppercase hover:text-slate-600 tracking-widest italic">CANCELAR</button>
+               <button onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })} className="px-6 py-3 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-black text-xs uppercase tracking-widest italic">CANCELAR</button>
                <button onClick={executeDelete} className="px-8 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-700 font-black text-xs uppercase shadow-xl tracking-widest italic flex items-center gap-2">
                  <Trash2 className="w-4 h-4" /> CONFIRMAR EXCLUSÃO
                </button>
@@ -131,41 +131,41 @@ const Athletes: React.FC = () => {
       )}
 
       {showLevelGuide && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-emerald-950/80 backdrop-blur-md p-4" onClick={() => setShowLevelGuide(false)}>
-          <div className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-lg w-full animate-fade-in-up" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 dark:bg-emerald-950/80 backdrop-blur-md p-4" onClick={() => setShowLevelGuide(false)}>
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-[2rem] shadow-2xl p-8 max-w-lg w-full animate-fade-in-up border border-slate-200 dark:border-white/10" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black uppercase italic tracking-tighter text-slate-900 flex items-center gap-2">
+              <h3 className="text-xl font-black uppercase italic tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
                 <Info className="text-emerald-500" /> Guia de Níveis Técnicos
               </h3>
-              <button onClick={() => setShowLevelGuide(false)} className="text-slate-400 hover:bg-slate-50 p-2 rounded-full transition"><X /></button>
+              <button onClick={() => setShowLevelGuide(false)} className="text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 p-2 rounded-full transition"><X /></button>
             </div>
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-              <div className="p-4 bg-slate-50 rounded-2xl border-l-4 border-slate-300">
-                <p className="font-black text-xs uppercase text-slate-900 mb-1">Iniciante</p>
-                <p className="text-xs text-slate-600">Começou a correr recentemente ou corre de forma irregular. Foco em adaptação e constância.</p>
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border-l-4 border-amber-500">
+                <p className="font-black text-xs uppercase text-amber-800 dark:text-amber-400 mb-1">Iniciante</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">Começou a correr recentemente ou corre de forma irregular. Foco em adaptação e constância.</p>
               </div>
-              <div className="p-4 bg-emerald-50 rounded-2xl border-l-4 border-emerald-500">
-                <p className="font-black text-xs uppercase text-emerald-700 mb-1">Intermediário</p>
-                <p className="text-xs text-slate-600">Corre há mais de 6 meses, já completou provas de 5k ou 10k. Busca melhorar tempos.</p>
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-2xl border-l-4 border-emerald-500">
+                <p className="font-black text-xs uppercase text-emerald-800 dark:text-emerald-400 mb-1">Intermediário</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">Corre há mais de 6 meses, já completou provas de 5k ou 10k. Busca melhorar tempos.</p>
               </div>
-              <div className="p-4 bg-blue-50 rounded-2xl border-l-4 border-blue-500">
-                <p className="font-black text-xs uppercase text-blue-700 mb-1">Avançado</p>
-                <p className="text-xs text-slate-600">Treina com volume consistente, foca em performance e provas de longa distância (21k/42k).</p>
+              <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-2xl border-l-4 border-blue-500">
+                <p className="font-black text-xs uppercase text-blue-800 dark:text-blue-400 mb-1">Avançado</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">Treina com volume consistente, foca em performance e provas de longa distância (21k/42k).</p>
               </div>
-              <div className="p-4 bg-purple-50 rounded-2xl border-l-4 border-purple-500">
-                <p className="font-black text-xs uppercase text-purple-700 mb-1">Elite</p>
-                <p className="text-xs text-slate-600">Alta performance, treinos diários ou bi-diários, busca pódios e índices oficiais.</p>
+              <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-2xl border-l-4 border-purple-500">
+                <p className="font-black text-xs uppercase text-purple-800 dark:text-purple-400 mb-1">Elite</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">Alta performance, treinos diários ou bi-diários, busca pódios e índices oficiais.</p>
               </div>
             </div>
-            <button onClick={() => setShowLevelGuide(false)} className="w-full mt-6 bg-emerald-950 text-white py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl">ENTENDI</button>
+            <button onClick={() => setShowLevelGuide(false)} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl shadow-emerald-500/20 transition-all">ENTENDI</button>
           </div>
         </div>
       )}
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter">Gestão de Atletas</h1>
-          <p className="text-slate-300 font-medium">Controle biométrico e acesso dos atletas.</p>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Gestão de Atletas</h1>
+          <p className="text-slate-600 dark:text-slate-300 font-medium">Controle biométrico e acesso dos atletas.</p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <button 
@@ -174,7 +174,7 @@ const Athletes: React.FC = () => {
               setEditingId(null);
               setFormData({ name: '', age: 0, birthDate: '', weight: 0, height: 0, experience: 'Iniciante', email: '', injuryHistory: '', gender: 'male', trackMenstrual: false });
             }}
-            className="flex-1 md:flex-none bg-emerald-950 hover:bg-black text-white px-8 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest shadow-xl transition"
+            className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-widest shadow-xl shadow-emerald-500/20 transition-all hover:scale-105"
           >
             <Plus className="w-4 h-4" /> NOVO ATLETA
           </button>
@@ -186,7 +186,7 @@ const Athletes: React.FC = () => {
         <input 
           type="text" 
           placeholder="PESQUISAR POR NOME OU EMAIL..." 
-          className="w-full pl-12 pr-4 py-5 rounded-[1.5rem] border-none bg-slate-900 shadow-2xl focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-sm tracking-tight italic text-white placeholder-slate-500"
+          className="w-full pl-12 pr-4 py-5 rounded-[1.5rem] border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 shadow-lg focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-sm tracking-tight italic text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onFocus={() => setIsSearchFocused(true)}
@@ -194,7 +194,7 @@ const Athletes: React.FC = () => {
         />
         
         {isSearchFocused && athletes.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 rounded-2xl shadow-2xl border border-white/5 z-40 max-h-60 overflow-y-auto custom-scrollbar animate-fade-in">
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-white/5 z-40 max-h-60 overflow-y-auto custom-scrollbar animate-fade-in">
             <div className="p-2">
               {[...athletes].sort((a, b) => a.name.localeCompare(b.name)).map(athlete => (
                 <button
@@ -205,11 +205,11 @@ const Athletes: React.FC = () => {
                   }}
                   className="w-full text-left p-3 hover:bg-emerald-500/10 rounded-xl transition-colors flex items-center gap-3 group"
                 >
-                  <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400 group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-colors">
+                  <div className="w-8 h-8 bg-slate-100 dark:bg-white/5 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-600 dark:text-slate-400 group-hover:bg-emerald-500/20 group-hover:text-emerald-500 transition-colors">
                     {athlete.name.charAt(0)}
                   </div>
                   <div>
-                    <p className="text-xs font-black text-white uppercase italic tracking-tighter">{athlete.name}</p>
+                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">{athlete.name}</p>
                     <p className="text-[9px] text-slate-500 font-bold">{athlete.email}</p>
                   </div>
                 </button>
@@ -220,13 +220,13 @@ const Athletes: React.FC = () => {
       </div>
 
       {/* Filtros por Categoria de Engajamento */}
-      <div className="flex items-center gap-2 bg-slate-900/60 p-1.5 rounded-2xl border border-white/5 w-fit">
+      <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/60 p-1.5 rounded-2xl border border-slate-200 dark:border-white/5 w-fit">
         <button
           onClick={() => setFilterTab('all')}
           className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all ${
             filterTab === 'all'
               ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
-              : 'text-slate-400 hover:text-white'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           Todos ({athletes.length})
@@ -236,7 +236,7 @@ const Athletes: React.FC = () => {
           className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all gap-2 flex items-center ${
             filterTab === 'risk'
               ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
-              : 'text-slate-400 hover:text-red-400'
+              : 'text-slate-500 dark:text-slate-400 hover:text-red-500'
           }`}
         >
           <AlertTriangle className="w-3.5 h-3.5" />
@@ -245,12 +245,12 @@ const Athletes: React.FC = () => {
       </div>
 
       {isFormOpen && (
-        <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl border border-white/5 animate-fade-in-up">
-          <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
-            <h2 className="text-xl font-black uppercase italic tracking-tighter text-white">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-white/5 animate-fade-in-up">
+          <div className="flex justify-between items-center mb-8 border-b border-slate-200 dark:border-white/5 pb-4">
+            <h2 className="text-xl font-black uppercase italic tracking-tighter text-slate-900 dark:text-white">
               {editingId ? 'Editar Cadastro' : 'Novo Atleta'}
             </h2>
-            <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:bg-white/5 p-2 rounded-full transition">
+            <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 p-2 rounded-full transition">
                <X className="w-6 h-6" />
             </button>
           </div>
@@ -293,8 +293,8 @@ const Athletes: React.FC = () => {
             <div className="relative">
               <label className="pro-label flex items-center justify-between">
                 <span className="flex items-center gap-1"><Award className="w-3 h-3" /> Nível Técnico</span>
-                <button type="button" onClick={() => setShowLevelGuide(true)} className="text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1">
-                   <Info className="w-3 h-3" /> <span className="text-[8px]">IDENTIFICAR</span>
+                <button type="button" onClick={() => setShowLevelGuide(true)} className="text-emerald-600 dark:text-emerald-400 hover:underline transition flex items-center gap-1">
+                   <Info className="w-3 h-3" /> <span className="text-[8px] font-bold">IDENTIFICAR</span>
                 </button>
               </label>
               <div className="relative">
@@ -304,10 +304,10 @@ const Athletes: React.FC = () => {
                     onChange={e => setFormData({...formData, experience: e.target.value as ExperienceLevel})}
                     required
                 >
-                    <option value="Iniciante" className="bg-slate-900">Iniciante</option>
-                    <option value="Intermediário" className="bg-slate-900">Intermediário</option>
-                    <option value="Avançado" className="bg-slate-900">Avançado</option>
-                    <option value="Elite" className="bg-slate-900">Elite</option>
+                    <option value="Iniciante" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Iniciante</option>
+                    <option value="Intermediário" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Intermediário</option>
+                    <option value="Avançado" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Avançado</option>
+                    <option value="Elite" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Elite</option>
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
@@ -325,23 +325,23 @@ const Athletes: React.FC = () => {
                     }}
                     required
                 >
-                    <option value="male" className="bg-slate-900">Masculino</option>
-                    <option value="female" className="bg-slate-900">Feminino</option>
+                    <option value="male" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Masculino</option>
+                    <option value="female" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Feminino</option>
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
             {formData.gender === 'female' && (
-              <div className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 md:col-span-1 self-end h-[58px]">
+              <div className="flex items-center gap-3 bg-slate-100 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5 md:col-span-1 self-end h-[58px]">
                 <input 
                   type="checkbox"
                   id="trackMenstrual"
-                  className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 h-4 w-4"
+                  className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-emerald-500 focus:ring-emerald-500 h-4 w-4"
                   checked={formData.trackMenstrual || false}
                   onChange={e => setFormData({...formData, trackMenstrual: e.target.checked})}
                 />
-                <label htmlFor="trackMenstrual" className="text-xs font-bold text-white cursor-pointer select-none">
+                <label htmlFor="trackMenstrual" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none">
                   Acompanhar Ciclo Menstrual
                 </label>
               </div>
@@ -384,8 +384,8 @@ const Athletes: React.FC = () => {
             </div>
 
             <div className="md:col-span-3 flex justify-end gap-4 mt-6">
-              <button type="button" onClick={() => setIsFormOpen(false)} className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-white transition">CANCELAR</button>
-              <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition-all hover:scale-105">
+              <button type="button" onClick={() => setIsFormOpen(false)} className="px-6 py-3 text-slate-500 dark:text-slate-400 font-black text-xs uppercase tracking-widest italic hover:text-slate-900 dark:hover:text-white transition">CANCELAR</button>
+              <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl shadow-emerald-500/20 transition-all hover:scale-105">
                 {editingId ? '✓ ATUALIZAR DADOS' : '✓ SALVAR ATLETA'}
               </button>
             </div>
@@ -393,11 +393,11 @@ const Athletes: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-slate-900/50 rounded-[2rem] shadow-2xl border border-white/5 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900/50 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-white/5 overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
-              <tr className="bg-white/5 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
+              <tr className="bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-200 dark:border-white/5">
                 <th className="p-6 text-center w-20">Sel.</th>
                 <th className="p-6">Identificação</th>
                 <th className="p-6">Nível Técnico (Trocar)</th>
@@ -406,13 +406,13 @@ const Athletes: React.FC = () => {
                 <th className="p-6 text-center">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
               {filteredAthletes.map((athlete) => (
-                <tr key={athlete.id} className={`hover:bg-white/5 transition-colors group ${selectedAthleteId === athlete.id ? 'bg-emerald-500/10' : ''}`}>
+                <tr key={athlete.id} className={`hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group ${selectedAthleteId === athlete.id ? 'bg-emerald-500/10' : ''}`}>
                   <td className="p-6 text-center">
                     <button 
                       onClick={() => setSelectedAthleteId(athlete.id)}
-                      className={`p-3 rounded-xl transition shadow-sm ${selectedAthleteId === athlete.id ? 'bg-emerald-600 text-white shadow-emerald-500/20 scale-110' : 'bg-white/5 text-emerald-400 hover:bg-emerald-500/10 border border-white/10'}`} 
+                      className={`p-3 rounded-xl transition shadow-sm ${selectedAthleteId === athlete.id ? 'bg-emerald-600 text-white shadow-emerald-500/20 scale-110' : 'bg-slate-100 dark:bg-white/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-white/10'}`} 
                       title="Selecionar para Trabalho"
                     >
                       <CheckCircle className="w-5 h-5" />
@@ -420,19 +420,19 @@ const Athletes: React.FC = () => {
                   </td>
                   <td className="p-6">
                     <div className="flex items-center gap-4">
-                       <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black italic text-sm">
+                       <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black italic text-sm shadow-md shadow-emerald-500/20">
                           {athlete.name.charAt(0)}
                        </div>
                        <div>
-                          <div className="font-black text-white uppercase italic tracking-tighter flex flex-wrap items-center gap-2">
+                          <div className="font-black text-slate-900 dark:text-white uppercase italic tracking-tighter flex flex-wrap items-center gap-2">
                             <span>{athlete.name}</span>
                             {getAthleteMetrics && (
                               getAthleteMetrics(athlete.id).completionRate < 50 ? (
-                                <span className="inline-flex items-center gap-1 bg-red-500/10 text-red-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-red-500/20 italic tracking-wider">
+                                <span className="inline-flex items-center gap-1 bg-red-500/10 text-red-600 dark:text-red-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-red-500/20 italic tracking-wider">
                                   <AlertTriangle className="w-2.5 h-2.5" /> EM RISCO ({getAthleteMetrics(athlete.id).completionRate.toFixed(0)}%)
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/15 italic tracking-wider">
+                                <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/20 italic tracking-wider">
                                   {getAthleteMetrics(athlete.id).completionRate.toFixed(0)}% Adesão
                                 </span>
                               )
@@ -447,37 +447,37 @@ const Athletes: React.FC = () => {
                       <select 
                         className={`
                           appearance-none w-full px-4 py-2 pr-8 rounded-xl text-[10px] font-black uppercase italic tracking-widest border transition-all cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm
-                          ${athlete.experience === 'Elite' ? 'bg-purple-900/20 text-purple-400 border-purple-500/30' : 
-                            athlete.experience === 'Avançado' ? 'bg-blue-900/20 text-blue-400 border-blue-500/30' : 
-                            athlete.experience === 'Intermediário' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' : 
-                            'bg-slate-800 text-slate-400 border-white/10'}
+                          ${athlete.experience === 'Elite' ? 'bg-purple-500/15 text-purple-800 dark:text-purple-300 border-purple-500/30' : 
+                            athlete.experience === 'Avançado' ? 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border-blue-500/30' : 
+                            athlete.experience === 'Intermediário' ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30' : 
+                            'bg-amber-500/15 text-amber-900 dark:text-amber-300 border-amber-500/40 font-bold'}
                         `}
                         value={athlete.experience}
                         onChange={(e) => handleLevelChange(athlete.id, e.target.value as ExperienceLevel)}
                       >
-                        <option value="Iniciante" className="bg-slate-900">Iniciante</option>
-                        <option value="Intermediário" className="bg-slate-900">Intermediário</option>
-                        <option value="Avançado" className="bg-slate-900">Avançado</option>
-                        <option value="Elite" className="bg-slate-900">Elite</option>
+                        <option value="Iniciante" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Iniciante</option>
+                        <option value="Intermediário" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Intermediário</option>
+                        <option value="Avançado" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Avançado</option>
+                        <option value="Elite" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Elite</option>
                       </select>
-                      <ChevronDown className="w-3 h-3 absolute right-3 pointer-events-none opacity-60 text-white" />
+                      <ChevronDown className="w-3 h-3 absolute right-3 pointer-events-none text-slate-500 dark:text-slate-300 opacity-80" />
                     </div>
                   </td>
-                  <td className="p-6 text-[11px] font-black text-slate-400 uppercase italic">
+                  <td className="p-6 text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase italic">
                     {athlete.age} anos • {athlete.weight}kg • {athlete.height}cm
                   </td>
                   <td className="p-6">
                     <div className="flex items-center gap-2">
-                       <span className="text-xl font-black text-emerald-400 italic tracking-tighter">{athlete.metrics.vdot}</span>
+                       <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 italic tracking-tighter">{athlete.metrics.vdot}</span>
                        <TrendingUp className="w-3 h-3 text-emerald-500/50" />
                     </div>
                   </td>
                   <td className="p-6">
                     <div className="flex justify-center gap-3">
-                      <button onClick={() => handleEditClick(athlete)} className="p-3 text-slate-500 hover:text-emerald-400 hover:bg-white/5 bg-white/5 rounded-xl transition" title="Editar Perfil">
+                      <button onClick={() => handleEditClick(athlete)} className="p-3 text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-white/5 bg-slate-100 dark:bg-white/5 rounded-xl transition" title="Editar Perfil">
                         <Edit2 className="w-5 h-5" />
                       </button>
-                      <button onClick={(e) => confirmDelete(e, athlete.id, athlete.name)} className="p-3 text-slate-500 hover:text-red-400 hover:bg-white/5 bg-white/5 rounded-xl transition" title="Remover do Elenco">
+                      <button onClick={(e) => confirmDelete(e, athlete.id, athlete.name)} className="p-3 text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-white/5 bg-slate-100 dark:bg-white/5 rounded-xl transition" title="Remover do Elenco">
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </div>

@@ -493,7 +493,7 @@ const Assessments: React.FC = () => {
                           <div className={`w-12 h-12 flex items-center justify-center rounded-2xl font-black text-lg border-2
                             ${p.zone === 'Z1' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
                               p.zone === 'Z2' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                              p.zone === 'Z3' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              p.zone === 'Z3' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
                               p.zone === 'Z4' ? 'bg-red-50 text-red-700 border-red-200' :
                               'bg-purple-50 text-purple-700 border-purple-200'}`}>
                             {p.zone}

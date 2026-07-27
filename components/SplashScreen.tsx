@@ -46,9 +46,9 @@ const SplashScreen: React.FC = () => {
               className="relative"
             >
               <img 
-                src="/prorunlb_pwa_512.png" 
+                src="/prorunlb_pwa_512.png?v=7"
                 alt="ProRun LB Logo" 
-                className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.3)]"
+                className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-[0_0_40px_rgba(245,158,11,0.25)]"
               />
               
               {/* Pulse Ring */}
@@ -62,7 +62,7 @@ const SplashScreen: React.FC = () => {
                   repeat: Infinity,
                   ease: "easeOut"
                 }}
-                className="absolute inset-0 border-2 border-emerald-500 rounded-full"
+                className="absolute inset-0 border-2 border-amber-500 rounded-full"
               />
             </motion.div>
 
@@ -74,9 +74,9 @@ const SplashScreen: React.FC = () => {
               className="mt-8 text-center"
             >
               <h1 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none">
-                ProRun <span className="text-emerald-500">LB</span>
+                ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">LB</span>
               </h1>
-              <p className="text-emerald-500/60 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">
+              <p className="text-amber-500/60 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">
                 Performance Integrada
               </p>
             </motion.div>
@@ -91,7 +91,7 @@ const SplashScreen: React.FC = () => {
                   repeat: Infinity, 
                   ease: "linear"
                 }}
-                className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-emerald-500 to-transparent"
+                className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-amber-500 to-transparent"
               />
             </div>
           </div>

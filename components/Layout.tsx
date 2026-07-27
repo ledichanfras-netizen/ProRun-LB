@@ -90,10 +90,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Mobile Header */}
       <div className="md:hidden bg-[#020617]/80 dark:bg-[#020617]/80 backdrop-blur-md text-white p-4 flex justify-between items-center sticky top-0 z-20 border-b border-white/5 no-print safe-top">
         <div className="flex items-center gap-2">
-          <div className="bg-emerald-500 rounded-lg p-1 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-            <TrendingUp className="w-6 h-6 text-white" />
+          <div className="bg-slate-950 rounded-xl p-1 border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+            <img src="/prorunlb_pwa_192_with_text.png?v=7" alt="Logo" className="w-7 h-7 object-contain" />
           </div>
-          <span className="font-black text-lg tracking-tighter italic uppercase">ProRun <span className="text-emerald-500">LB</span></span>
+          <span className="font-black text-lg tracking-tighter italic uppercase">ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">LB</span></span>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -126,11 +126,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       `}>
         <div className="p-8 flex items-center justify-between border-b border-white/5">
           <div className="flex items-center gap-4">
-            <div className="bg-white p-1.5 rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-               <img src="/prorunlb_pwa_192_with_text.png" alt="Logo" className="w-10 h-10 object-contain" />
+            <div className="bg-slate-950 p-1.5 rounded-2xl border border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+               <img src="/prorunlb_pwa_192_with_text.png?v=7" alt="Logo" className="w-10 h-10 object-contain" />
             </div>
             <div className="flex-1">
-              <h1 className="font-black text-2xl tracking-tighter italic uppercase leading-none">ProRun <span className="text-emerald-500">LB</span></h1>
+              <h1 className="font-black text-2xl tracking-tighter italic uppercase leading-none">ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">LB</span></h1>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-[10px] text-emerald-300/80 uppercase font-black tracking-[0.2em] leading-none">
                   {userRole === 'coach' ? 'Coach' : 'Athlete'}
@@ -240,10 +240,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto p-4 md:p-10 space-y-8 pb-32">
           {showInstallBanner && (
             <div id="install-area" className="relative overflow-hidden glass-card p-8 flex flex-col md:flex-row items-center justify-between gap-6 no-print animate-fade-in group">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px] -mr-32 -mt-32" />
+              <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-[100px] -mr-32 -mt-32" />
               <div className="flex items-center gap-6 relative z-10">
-                <div className="bg-white p-1 rounded-[1.5rem] shadow-2xl border border-white/10 overflow-hidden transform group-hover:rotate-6 transition-transform">
-                  <img src="/prorunlb_pwa_192_with_text.png?v=6" alt="ProRun Logo" className="w-16 h-16 object-contain" referrerPolicy="no-referrer" />
+                <div className="bg-slate-950 p-1.5 rounded-[1.5rem] shadow-2xl border border-amber-500/30 overflow-hidden transform group-hover:rotate-6 transition-transform">
+                  <img src="/prorunlb_pwa_192_with_text.png?v=7" alt="ProRun Logo" className="w-16 h-16 object-contain" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <p className="font-black text-2xl text-white uppercase italic tracking-tighter mb-1">Experiência Completa</p>

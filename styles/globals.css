@@ -81,6 +81,7 @@ html.light-mode .bg-\[\#0a0f1d\],
 html.light-mode .bg-\[\#080d1a\],
 html.light-mode .bg-slate-900,
 html.light-mode .bg-slate-950,
+html.light-mode .bg-slate-800,
 html.light-mode .bg-slate-900\/90,
 html.light-mode .bg-slate-900\/80,
 html.light-mode .bg-slate-900\/60,
@@ -90,6 +91,12 @@ html.light-mode .bg-black\/60,
 html.light-mode .bg-black\/80 {
   background-color: #ffffff !important;
   color: #0f172a;
+}
+
+html.light-mode .bg-emerald-950 {
+  background-color: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
 }
 
 html.light-mode .border-white\/5,

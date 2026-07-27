@@ -6,14 +6,14 @@ import { formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../
 
 export const LBSportsLogo = () => (
   <div className="flex items-center gap-4">
-    <div className="bg-slate-950 p-1.5 rounded-xl shadow-lg border border-amber-500/30 flex items-center justify-center">
-       <img src="/prorunlb_pwa_192_with_text.png?v=7" alt="ProRun Logo" className="w-12 h-12 object-contain" />
+    <div className="bg-emerald-950 p-2.5 rounded-xl shadow-lg transform -rotate-3">
+       <svg viewBox="0 0 24 24" className="w-8 h-8 fill-none stroke-emerald-400" strokeWidth="3">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+       </svg>
     </div>
     <div>
-      <h1 className="text-xl font-black tracking-tighter text-slate-900 leading-none italic uppercase">
-        PRORUN <span className="text-amber-600 font-extrabold">LB</span>
-      </h1>
-      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-amber-600 mt-1">Prof. Leandro Barbosa</p>
+      <h1 className="text-xl font-black tracking-tighter text-slate-900 leading-none italic">PRORUN LB</h1>
+      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-emerald-600 mt-1">Prof. Leandro Barbosa</p>
     </div>
   </div>
 );
@@ -44,7 +44,7 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
     switch (zone) {
       case 'Z1': return 'bg-emerald-500 text-white';
       case 'Z2': return 'bg-emerald-700 text-white';
-      case 'Z3': return 'bg-amber-500 text-white';
+      case 'Z3': return 'bg-emerald-600 text-white';
       case 'Z4': return 'bg-red-600 text-white';
       case 'Z5': return 'bg-purple-600 text-white';
       default: return 'bg-slate-900 text-white';
@@ -55,15 +55,15 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
     switch (type) {
       case 'Regenerativo': return 'border-emerald-500 bg-emerald-50/30';
       case 'Longão': return 'border-emerald-600 bg-emerald-50/50';
-      case 'Limiar': return 'border-amber-500 bg-amber-50/50';
+      case 'Limiar': return 'border-emerald-500 bg-emerald-50/50';
       case 'Intervalado': return 'border-red-500 bg-red-50/50';
       case 'Maratona': return 'border-sky-500 bg-sky-50/50';
       case 'Velocidade': return 'border-purple-600 bg-purple-50/50';
       case 'Fortalecimento': return 'border-indigo-500 bg-indigo-50/30';
       case 'Natação': return 'border-sky-500 bg-sky-50/50';
-      case 'Ciclismo': return 'border-orange-500 bg-orange-50/50';
+      case 'Ciclismo': return 'border-emerald-500 bg-emerald-50/50';
       case 'Transição': return 'border-rose-500 bg-rose-50/50';
-      case 'Prova': return 'border-amber-600 bg-amber-50/70 font-bold';
+      case 'Prova': return 'border-emerald-600 bg-emerald-50/70 font-bold';
       case 'Descanso': return 'border-slate-200 bg-slate-50/50 opacity-40';
       default: return 'border-slate-200 bg-white';
     }
@@ -71,11 +71,11 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
 
   return (
     <div id="print-layout-root" className="bg-white w-full text-slate-900 font-sans p-6" style={{ width: '1200px', backgroundColor: '#ffffff', boxSizing: 'border-box' }}>
-      <div className="flex justify-between items-end border-b-4 border-slate-950 pb-4 mb-6 bg-white">
+      <div className="flex justify-between items-end border-b-4 border-emerald-950 pb-4 mb-6 bg-white">
         <LBSportsLogo />
         <div className="text-right">
           <h2 className="text-xl font-black uppercase italic tracking-tighter text-slate-900 leading-none">RELATÓRIO DE PERFORMANCE</h2>
-          <p className="text-[10px] font-black uppercase text-amber-600 mt-2">© 2025 LB SPORTS</p>
+          <p className="text-[10px] font-black uppercase text-emerald-600 mt-2">© 2025 LB SPORTS</p>
         </div>
       </div>
 

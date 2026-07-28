@@ -48,7 +48,7 @@ const SplashScreen: React.FC = () => {
               <img 
                 src="/prorunlb_pwa_512.png?v=8"
                 alt="ProRun LB Logo" 
-                className="w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-[0_0_40px_rgba(245,158,11,0.25)]"
+                className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full drop-shadow-[0_0_40px_rgba(245,158,11,0.25)]"
               />
               
               {/* Pulse Ring */}

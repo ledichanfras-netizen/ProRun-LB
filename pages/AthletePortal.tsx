@@ -606,7 +606,7 @@ const AthletePortal: React.FC = () => {
             <div className="relative z-10">
               <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest italic">Sua Labareda</p>
               <h4 className="text-xl font-black text-white italic uppercase tracking-tighter flex items-center gap-2">
-                {activeAthlete.gamification?.streak || 0} Dias <Zap className="w-4 h-4 fill-orange-500 text-orange-500" />
+                {activeAthlete.gamification?.streak || 0} Dias <Zap className="w-4 h-4 fill-emerald-500 text-emerald-500" />
               </h4>
               <p className="text-[8px] font-bold text-emerald-300 uppercase italic mt-1 leading-tight">
                 {activeAthlete.gamification?.streak === 0 ? 'Comece sua sequência hoje!' : 'Fogo no treino! Mantenha o ritmo.'}
@@ -632,7 +632,7 @@ const AthletePortal: React.FC = () => {
           onClick={() => setActivePortalTab('history')}
           className={`flex-1 py-3 text-center rounded-2xl font-black text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-2 ${
             activePortalTab === 'history'
-              ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/10'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/10'
               : 'text-slate-400 hover:text-white hover:bg-white/5'
           }`}
         >

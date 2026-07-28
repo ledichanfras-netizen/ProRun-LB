@@ -507,9 +507,9 @@ export default function Dashboard() {
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Meta</p>
-            <p className="text-[11px] font-black text-orange-600 uppercase italic line-clamp-2">{athletePlan?.specificGoal || '--'}</p>
+            <p className="text-[11px] font-black text-emerald-700 uppercase italic line-clamp-2">{athletePlan?.specificGoal || '--'}</p>
           </div>
-          <div className="bg-orange-50 p-3 rounded-2xl text-orange-600">
+          <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600">
             <Trophy className="w-6 h-6" />
           </div>
         </div>

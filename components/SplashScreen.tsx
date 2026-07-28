@@ -62,7 +62,7 @@ const SplashScreen: React.FC = () => {
                   repeat: Infinity,
                   ease: "easeOut"
                 }}
-                className="absolute inset-0 border-2 border-amber-500 rounded-full"
+                className="absolute inset-0 border-2 border-emerald-500 rounded-full"
               />
             </motion.div>
 
@@ -74,9 +74,9 @@ const SplashScreen: React.FC = () => {
               className="mt-8 text-center"
             >
               <h1 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none">
-                ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">LB</span>
+                ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500">LB</span>
               </h1>
-              <p className="text-amber-500/60 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">
+              <p className="text-emerald-500/70 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">
                 Performance Integrada
               </p>
             </motion.div>
@@ -91,7 +91,7 @@ const SplashScreen: React.FC = () => {
                   repeat: Infinity, 
                   ease: "linear"
                 }}
-                className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-amber-500 to-transparent"
+                className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-emerald-500 to-transparent"
               />
             </div>
           </div>

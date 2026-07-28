@@ -11,9 +11,9 @@ export const LBSportsLogo = () => (
     </div>
     <div>
       <h1 className="text-xl font-black tracking-tighter text-slate-900 leading-none italic uppercase">
-        PRORUN <span className="text-amber-600 font-extrabold">LB</span>
+        PRORUN <span className="text-emerald-600 font-extrabold">LB</span>
       </h1>
-      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-amber-600 mt-1">Prof. Leandro Barbosa</p>
+      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-emerald-600 mt-1">Prof. Leandro Barbosa</p>
     </div>
   </div>
 );
@@ -75,7 +75,7 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
         <LBSportsLogo />
         <div className="text-right">
           <h2 className="text-xl font-black uppercase italic tracking-tighter text-slate-900 leading-none">RELATÓRIO DE PERFORMANCE</h2>
-          <p className="text-[10px] font-black uppercase text-amber-600 mt-2">© 2025 LB SPORTS</p>
+          <p className="text-[10px] font-black uppercase text-emerald-600 mt-2">© 2025 LB SPORTS</p>
         </div>
       </div>
 

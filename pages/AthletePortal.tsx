@@ -15,6 +15,7 @@ import {
   Activity,
   Archive,
   Image as ImageIcon,
+  Download,
   MessageSquare,
   Loader2,
   Check,
@@ -129,6 +130,20 @@ const AthletePortal: React.FC = () => {
   const [localExercises, setLocalExercises] = useState<Exercise[]>([]);
   const [selectedDayPerWeek, setSelectedDayPerWeek] = useState<Record<number, number>>({});
   const { addUserGoal } = useApp();
+
+  const handleDownloadWorkoutImage = async () => {
+    if (exportLoading || !activeAthlete) return;
+    setExportLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const filename = `Treino_${activeAthlete.name.replace(/\s+/g, '_')}`;
+      await exportToImage('print-layout-root', filename);
+    } catch (err: any) {
+      console.error("Erro no download da imagem:", err);
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const handleAddGoal = async () => {
     if (!activeAthlete || !newGoal.title || !newGoal.targetValue) return;
@@ -1472,7 +1487,18 @@ const AthletePortal: React.FC = () => {
                     <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">{isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}</h3>
                   </div>
                </div>
-               <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}><X className="w-5 h-5 text-white" /></button>
+               <div className="flex items-center gap-2">
+                 <button 
+                   disabled={exportLoading}
+                   onClick={handleDownloadWorkoutImage}
+                   className="px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition-all"
+                   title="Baixar imagem do treino"
+                 >
+                   {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                   <span className="hidden xs:inline">Baixar Imagem</span>
+                 </button>
+                 <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}><X className="w-5 h-5 text-white" /></button>
+               </div>
             </div>
             
             <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-900">
@@ -1985,6 +2011,18 @@ const AthletePortal: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Portal de Impressão e Exportação de Imagens */}
+      {activeAthlete && portalRoot && createPortal(
+        <PrintLayout 
+          athlete={activeAthlete} 
+          plan={athletePlan?.weeks || []} 
+          paces={paces} 
+          goal={athletePlan?.specificGoal || "Plano de Treinamento e Performance"} 
+          totalWeeks={athletePlan?.weeks?.length || 0}
+        />,
+        portalRoot
+      )}
     </div>
   );
 };

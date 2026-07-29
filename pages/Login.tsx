@@ -76,11 +76,11 @@ export default function Login() {
             {/* Glowing ring behind logo */}
             <div className="absolute -inset-2 rounded-3xl bg-gradient-to-r from-emerald-500/30 to-emerald-400/20 blur-xl opacity-75 animate-pulse" />
             
-            <div className="relative w-28 h-28 p-1 logo-box bg-[#020617] rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.3)] border border-emerald-500/40 overflow-hidden transform hover:scale-105 hover:border-emerald-400 transition-all duration-500 flex items-center justify-center">
+            <div className="relative w-28 h-28 p-0 logo-box bg-[#020617] rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.3)] border border-emerald-500/40 overflow-hidden transform hover:scale-105 hover:border-emerald-400 transition-all duration-500 flex items-center justify-center">
               <img 
                 src="/prorunlb_pwa_192_with_text.png?v=10" 
                 alt="ProRun LB" 
-                className="w-full h-full object-cover rounded-[1.3rem]" 
+                className="w-full h-full object-cover rounded-[1.5rem]"
                 referrerPolicy="no-referrer" 
               />
             </div>

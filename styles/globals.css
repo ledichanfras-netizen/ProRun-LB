@@ -149,6 +149,13 @@ html.light-mode .text-slate-500 {
   color: #64748b !important;
 }
 
+/* Preserve dark background for logo containers in Light Mode */
+html.light-mode .logo-box,
+html.light-mode [data-logo-box] {
+  background-color: #020617 !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
 /* Preserve white text for primary colored buttons, tags, badges */
 html.light-mode .bg-emerald-500,
 html.light-mode .bg-emerald-600,

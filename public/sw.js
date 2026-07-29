@@ -1,4 +1,4 @@
-const VERSION = 'v29';
+const VERSION = 'v30';
 const CACHE_NAME = `prorun-lb-${VERSION}`;
 const STATIC_CACHE = `static-${VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${VERSION}`;
@@ -100,13 +100,11 @@ if (isDev) {
       event.respondWith(
         fetch(request)
           .then(response => {
-            if (response && response.status === 200) {
-              const clonedRes = response.clone();
-              caches.open(API_CACHE).then(cache => cache.put(request, clonedRes));
-            }
+            const clonedRes = response.clone();
+            caches.open(API_CACHE).then(cache => cache.put(request, clonedRes));
             return response;
           })
-          .catch(() => caches.match(request, { ignoreSearch: true }))
+          .catch(() => caches.match(request))
       );
       return;
     }
@@ -115,19 +113,12 @@ if (isDev) {
     const isStaticAsset = url.pathname.includes('/assets/') || url.pathname.includes('.png');
     if (isStaticAsset) {
       event.respondWith(
-        caches.match(request, { ignoreSearch: true }).then((cached) => {
+        caches.match(request).then((cached) => {
           const networkFetch = fetch(request).then((res) => {
-            if (res && res.status === 200) {
-              const contentType = res.headers.get('content-type');
-              // Evitar cachear HTML de fallback SPA como se fosse imagem
-              if (url.pathname.endsWith('.png') && contentType && !contentType.includes('image')) {
-                return res;
-              }
-              const clonedRes = res.clone();
-              caches.open(STATIC_CACHE).then(cache => cache.put(request, clonedRes));
-            }
+            const clonedRes = res.clone();
+            caches.open(STATIC_CACHE).then(cache => cache.put(request, clonedRes));
             return res;
-          }).catch(() => null);
+          });
           return cached || networkFetch;
         })
       );
@@ -137,23 +128,17 @@ if (isDev) {
     // 4. Navegação / Root -> Network First com fallback para index.html
     if (request.mode === 'navigate') {
       event.respondWith(
-        fetch(request).catch(() => caches.match('/index.html', { ignoreSearch: true }))
+        fetch(request).catch(() => caches.match('/index.html'))
       );
       return;
     }
 
     // 5. Estratégia Padrão: Stale-while-revalidate
     event.respondWith(
-      caches.match(request, { ignoreSearch: true }).then((cached) => {
+      caches.match(request).then((cached) => {
         const networkFetch = fetch(request).then((res) => {
-          if (res && res.status === 200) {
-            const contentType = res.headers.get('content-type');
-            if (url.pathname.endsWith('.png') && contentType && !contentType.includes('image')) {
-              return res;
-            }
-            const clonedRes = res.clone();
-            caches.open(DYNAMIC_CACHE).then(cache => cache.put(request, clonedRes));
-          }
+          const clonedRes = res.clone();
+          caches.open(DYNAMIC_CACHE).then(cache => cache.put(request, clonedRes));
           return res;
         }).catch(() => null);
         

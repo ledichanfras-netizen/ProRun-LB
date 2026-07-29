@@ -5,9 +5,3 @@
 [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
 [Server] Mode: Development (using Vite middleware)
 Server running on http://localhost:3000
-1:26:40 AM [vite] page reload public/sw.js
-1:26:40 AM [vite] page reload public/sw.js
-1:27:37 AM [vite] hmr update /components/Layout.tsx, /styles/globals.css
-1:27:43 AM [vite] hmr update /pages/Login.tsx, /styles/globals.css
-1:28:00 AM [vite] page reload components/PrintLayout.tsx
-1:28:16 AM [vite] hmr update /components/SplashScreen.tsx, /styles/globals.css

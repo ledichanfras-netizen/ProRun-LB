@@ -6,8 +6,8 @@ import { formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../
 
 export const LBSportsLogo = () => (
   <div className="flex items-center gap-4">
-    <div className="w-14 h-14 logo-box bg-[#020617] p-0.5 rounded-xl shadow-lg border border-emerald-500/30 flex items-center justify-center overflow-hidden">
-       <img src="/prorunlb_pwa_192_with_text.png?v=10" alt="ProRun Logo" className="w-full h-full object-cover rounded-lg" referrerPolicy="no-referrer" />
+    <div className="w-14 h-14 logo-box bg-[#020617] p-0 rounded-xl shadow-lg border border-emerald-500/30 flex items-center justify-center overflow-hidden">
+       <img src="/prorunlb_pwa_192_with_text.png?v=10" alt="ProRun Logo" className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" />
     </div>
     <div>
       <h1 className="text-xl font-black tracking-tighter text-slate-900 leading-none italic uppercase">

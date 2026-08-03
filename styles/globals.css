@@ -154,6 +154,7 @@ html.light-mode .logo-box,
 html.light-mode [data-logo-box] {
   background-color: #020617 !important;
   border-color: rgba(16, 185, 129, 0.4) !important;
+  padding: 0 !important;
 }
 
 /* Preserve white text for primary colored buttons, tags, badges */

@@ -2,6 +2,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from 'fs';
 import { fileURLToPath } from "url";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -46,7 +47,7 @@ async function startServer() {
     
     console.log(`[Server] Mode: Production. Serving from: ${distPath}`);
     
-    // In production, everything from public is in dist/
+    // In production, everything from public should be in dist/
     app.use(express.static(distPath, { 
       redirect: false,
       setHeaders: (res, filePath) => {
@@ -56,6 +57,24 @@ async function startServer() {
         }
       }
     }));
+
+    // Fallback: if for any reason an asset wasn't copied to `dist`, also
+    // serve static files directly from the `public` folder in the repo root.
+    // This helps prevent 404s for critical icons (manifest/app icons) when
+    // the build pipeline didn't include them.
+    const publicPath = path.join(rootPath, 'public');
+    if (fs.existsSync(publicPath)) {
+      console.log(`[Server] Also serving static assets from: ${publicPath}`);
+      app.use(express.static(publicPath, {
+        redirect: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.png')) {
+            res.setHeader('Content-Type', 'image/png');
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        }
+      }));
+    }
     
     app.get("*", (req, res) => {
       const isFile = req.path.includes('.');

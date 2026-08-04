@@ -206,7 +206,7 @@ function AppContent() {
           <div className="fixed bottom-4 left-1/2 z-[9999] w-[min(92vw,520px)] -translate-x-1/2 rounded-[2rem] border border-emerald-500/20 bg-[#020617]/95 p-4 shadow-[0_30px_60px_rgba(0,0,0,0.35)] backdrop-blur-lg text-white">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-3xl bg-[#081014] border border-emerald-500/20 p-3 flex items-center justify-center shadow-inner">
-                <img src="/prorunlb_pwa_192_with_text.png?v=10" alt="ProRun LB" className="w-full h-full object-cover rounded-2xl" referrerPolicy="no-referrer" />
+                <img src="/logo.png?v=10" alt="ProRun LB" className="w-full h-full object-cover rounded-2xl" referrerPolicy="no-referrer" />
               </div>
               <div className="flex-1">
                 <p className="font-black uppercase text-sm tracking-[0.24em] text-emerald-300 mb-1">ProRun LB</p>

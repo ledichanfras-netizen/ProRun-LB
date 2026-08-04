@@ -46,7 +46,7 @@ const SplashScreen: React.FC = () => {
               className="relative w-36 h-36 md:w-44 md:h-44 logo-box bg-[#020617] rounded-3xl p-0 border border-emerald-500/30 overflow-hidden shadow-[0_0_50px_rgba(16,185,129,0.3)] flex items-center justify-center"
             >
               <img 
-                src="/prorunlb_pwa_512.png?v=10"
+                src="/logo.png?v=10"
                 alt="ProRun LB Logo" 
                 className="w-full h-full object-cover rounded-[1.7rem]"
                 referrerPolicy="no-referrer"

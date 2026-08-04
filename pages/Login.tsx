@@ -78,7 +78,7 @@ export default function Login() {
             
             <div className="relative w-28 h-28 p-0 logo-box bg-[#020617] rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.3)] border border-emerald-500/40 overflow-hidden transform hover:scale-105 hover:border-emerald-400 transition-all duration-500 flex items-center justify-center">
               <img 
-                src="/prorunlb_pwa_192_with_text.png?v=10" 
+                src="/logo.png?v=10" 
                 alt="ProRun LB" 
                 className="w-full h-full object-cover rounded-[1.5rem]"
                 referrerPolicy="no-referrer" 

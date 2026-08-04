@@ -44,9 +44,7 @@ if (isDev) {
     '/',
     '/index.html',
     '/manifest.json',
-    '/prorunlb_pwa_192_with_text.png',
-    '/prorunlb_pwa_512.png',
-    '/prorunlb_maskable_with_text.png'
+    '/logo.png'
   ];
 
   // Instalação: Cacheia os assets críticos e assume o controle imediatamente
@@ -155,10 +153,10 @@ if (isDev) {
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : { title: 'ProRun LB', body: 'Hora de treinar!' };
   
-  const options = {
+    const options = {
     body: data.body,
-    icon: '/prorunlb_pwa_512.png',
-    badge: '/prorunlb_pwa_192_with_text.png',
+    icon: '/logo.png',
+    badge: '/logo.png',
     vibrate: [100, 50, 100],
     data: {
       url: data.url || '/'

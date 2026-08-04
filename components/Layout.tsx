@@ -68,8 +68,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Mobile Header */}
       <div className="md:hidden bg-[#020617]/80 dark:bg-[#020617]/80 backdrop-blur-md text-white p-4 flex justify-between items-center sticky top-0 z-20 border-b border-white/5 no-print safe-top">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 logo-box bg-[#020617] rounded-xl p-0 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center justify-center overflow-hidden">
-            <img src="/prorunlb_pwa_192_with_text.png?v=10" alt="Logo" className="w-full h-full object-cover rounded-[0.7rem]" referrerPolicy="no-referrer" />
+            <div className="w-9 h-9 logo-box bg-[#020617] rounded-xl p-0 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center justify-center overflow-hidden">
+            <img src="/logo.png?v=10" alt="Logo" className="w-full h-full object-cover rounded-[0.7rem]" referrerPolicy="no-referrer" />
           </div>
           <span className="font-black text-lg tracking-tighter italic uppercase">ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500">LB</span></span>
         </div>
@@ -105,7 +105,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="p-8 flex items-center justify-between border-b border-white/5">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 logo-box bg-[#020617] p-0 rounded-2xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.15)] flex items-center justify-center overflow-hidden">
-               <img src="/prorunlb_pwa_192_with_text.png?v=10" alt="Logo" className="w-full h-full object-cover rounded-[0.95rem]" referrerPolicy="no-referrer" />
+              <img src="/logo.png?v=10" alt="Logo" className="w-full h-full object-cover rounded-[0.95rem]" referrerPolicy="no-referrer" />
             </div>
             <div className="flex-1">
               <h1 className="font-black text-2xl tracking-tighter italic uppercase leading-none">ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500">LB</span></h1>

@@ -116,7 +116,7 @@ if (isDev) {
     const isStaticAsset = url.pathname.includes('/assets/') || url.pathname.includes('.png');
     if (isStaticAsset) {
       event.respondWith(
-        caches.match(request).then((cached) => {
+        caches.match(request, { ignoreSearch: true }).then((cached) => {
           const networkFetch = fetch(request).then((res) => {
             const clonedRes = res.clone();
             caches.open(STATIC_CACHE).then(cache => cache.put(request, clonedRes));
@@ -138,7 +138,7 @@ if (isDev) {
 
     // 5. Estratégia Padrão: Stale-while-revalidate
     event.respondWith(
-      caches.match(request).then((cached) => {
+      caches.match(request, { ignoreSearch: true }).then((cached) => {
         const networkFetch = fetch(request).then((res) => {
           const clonedRes = res.clone();
           caches.open(DYNAMIC_CACHE).then(cache => cache.put(request, clonedRes));

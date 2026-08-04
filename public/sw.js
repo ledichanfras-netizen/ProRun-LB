@@ -1,4 +1,4 @@
-const VERSION = 'v31';
+const VERSION = 'v32';
 const CACHE_NAME = `prorun-lb-${VERSION}`;
 const STATIC_CACHE = `static-${VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${VERSION}`;
@@ -61,7 +61,10 @@ if (isDev) {
               if (!response.ok) throw new Error(`Fetch failed for ${asset}`);
               const contentType = response.headers.get('content-type');
               if (asset.endsWith('.png') && contentType && !contentType.includes('image')) {
-                 throw new Error(`Invalid content type for image: ${asset}`);
+                 // Our .png files are JPEGs now, but express/vite serves them correctly or they are still image/*
+                 if (!contentType.includes('image')) {
+                    throw new Error(`Invalid content type for image: ${asset}`);
+                 }
               }
               return cache.put(asset, response);
             }).catch(err => console.error(`[SW] Pre-cache failed: ${asset}`, err))

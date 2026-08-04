@@ -30,34 +30,12 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const { athletes, selectedAthleteId, setSelectedAthleteId, userRole, logout, isCloudConnected, notifications, theme, toggleTheme } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  useEffect(() => {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-    
-    if (isIOS && !isStandalone) {
-      setShowInstallBanner(true);
-    }
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallBanner(true);
-    });
-
-    window.addEventListener('appinstalled', () => {
-      setShowInstallBanner(false);
-      setDeferredPrompt(null);
-    });
-  }, []);
-  
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
 
   // Define navigation based on Role
@@ -238,41 +216,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-full bg-[#020617] scroll-smooth">
         <div className="max-w-7xl mx-auto p-4 md:p-10 space-y-8 pb-32">
-          {showInstallBanner && (
-            <div id="install-area" className="relative overflow-hidden glass-card p-8 flex flex-col md:flex-row items-center justify-between gap-6 no-print animate-fade-in group">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px] -mr-32 -mt-32" />
-              <div className="flex items-center gap-6 relative z-10">
-                <div className="w-20 h-20 logo-box bg-[#020617] p-0 rounded-[1.5rem] shadow-2xl border border-emerald-500/30 overflow-hidden transform group-hover:rotate-6 transition-transform flex items-center justify-center">
-                  <img src="/prorunlb_pwa_192_with_text.png?v=10" alt="ProRun Logo" className="w-full h-full object-cover rounded-[1.5rem]" referrerPolicy="no-referrer" />
-                </div>
-                <div>
-                  <p className="font-black text-2xl text-white uppercase italic tracking-tighter mb-1">Experiência Completa</p>
-                  <p className="text-sm text-slate-400 font-medium italic">
-                    {/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream 
-                      ? "Toque em Compartilhar e depois em 'Adicionar à Tela de Início'." 
-                      : "Instale o app e tenha acesso instantâneo às suas métricas."}
-                  </p>
-                </div>
-              </div>
-              {!/iPad|iPhone|iPod/.test(navigator.userAgent) && (
-                <button 
-                  onClick={() => {
-                    if (deferredPrompt) {
-                      deferredPrompt.prompt();
-                      deferredPrompt.userChoice.then((choiceResult: any) => {
-                        if (choiceResult.outcome === 'accepted') {
-                          setShowInstallBanner(false);
-                        }
-                      });
-                    }
-                  }}
-                  className="relative z-10 bg-emerald-500 hover:bg-emerald-400 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase italic tracking-[0.2em] shadow-[0_15px_40px_rgba(16,185,129,0.3)] transition-all hover:scale-105 active:scale-95 flex items-center gap-3"
-                >
-                  <TrendingUp className="w-4 h-4" /> Baixar App Premium
-                </button>
-              )}
-            </div>
-          )}
           {children}
         </div>
       </main>

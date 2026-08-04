@@ -76,6 +76,36 @@ function AppContent() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showUpdateToast, setShowUpdateToast] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+
+    if (isIOS && !isStandalone) {
+      setShowInstallPrompt(true);
+    }
+
+    const handleBeforeInstallPrompt = (event: any) => {
+      event.preventDefault();
+      setDeferredPrompt(event);
+      setShowInstallPrompt(true);
+    };
+
+    const handleAppInstalled = () => {
+      setShowInstallPrompt(false);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
 
   useEffect(() => {
     // Check onboarding only for athletes
@@ -172,6 +202,48 @@ function AppContent() {
       )}
 
       <Suspense fallback={<PageLoading />}>
+        {showInstallPrompt && (
+          <div className="fixed bottom-4 left-1/2 z-[9999] w-[min(92vw,520px)] -translate-x-1/2 rounded-[2rem] border border-emerald-500/20 bg-[#020617]/95 p-4 shadow-[0_30px_60px_rgba(0,0,0,0.35)] backdrop-blur-lg text-white">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-3xl bg-[#081014] border border-emerald-500/20 p-3 flex items-center justify-center shadow-inner">
+                <img src="/prorunlb_pwa_192_with_text.png?v=10" alt="ProRun LB" className="w-full h-full object-cover rounded-2xl" referrerPolicy="no-referrer" />
+              </div>
+              <div className="flex-1">
+                <p className="font-black uppercase text-sm tracking-[0.24em] text-emerald-300 mb-1">ProRun LB</p>
+                <p className="text-[11px] leading-snug text-slate-300">Instale o app para acesso rápido e offline ao seu treino.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {!/iPad|iPhone|iPod/.test(navigator.userAgent) ? (
+                  <button
+                    onClick={() => {
+                      if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        deferredPrompt.userChoice.then((choiceResult: any) => {
+                          if (choiceResult.outcome === 'accepted') {
+                            setShowInstallPrompt(false);
+                          }
+                        });
+                      }
+                    }}
+                    className="rounded-2xl bg-emerald-500 px-4 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-950 shadow-lg shadow-emerald-500/20"
+                  >
+                    Instalar
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setShowInstallPrompt(false);
+                    }}
+                    className="rounded-2xl border border-emerald-500 px-4 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300"
+                  >
+                    Como instalar
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {userRole ? (
           <Layout>
             <Routes>

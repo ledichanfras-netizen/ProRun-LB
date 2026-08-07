@@ -130,7 +130,7 @@ const Subscriptions: React.FC = () => {
 
       <div className="bg-slate-50 rounded-[2.5rem] p-10 flex flex-col md:flex-row items-center gap-8 border border-slate-100">
         <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex-shrink-0">
-          <Zap className="w-10 h-10 text-emerald-500 fill-current" />
+          <Zap className="w-10 h-10 text-amber-500 fill-current" />
         </div>
         <div className="flex-1">
           <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-2">Para sua Assessoria?</h3>

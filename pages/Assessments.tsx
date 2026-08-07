@@ -437,7 +437,7 @@ const Assessments: React.FC = () => {
                   <button 
                     onClick={handleSaveAssessment} 
                     disabled={!calculatedVo2 || isSavingAssessment} 
-                    className={`w-full text-white py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition flex justify-center items-center gap-2 disabled:opacity-30 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                    className={`w-full text-white py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl transition flex justify-center items-center gap-2 disabled:opacity-30 ${editingId ? 'bg-orange-600 hover:bg-orange-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                   >
                     {isSavingAssessment ? (
                       <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>

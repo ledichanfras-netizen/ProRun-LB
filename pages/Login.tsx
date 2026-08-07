@@ -45,9 +45,9 @@ export default function Login() {
             <img src="/prorunlb_pwa_192_with_text.png?v=8" alt="ProRun LB" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
-            ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500">LB</span>
+            ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">LB</span>
           </h1>
-          <p className="text-emerald-500/70 font-bold uppercase tracking-[0.3em] text-[10px] mt-2 italic">Performance Integrada</p>
+          <p className="text-amber-500/60 font-bold uppercase tracking-[0.3em] text-[10px] mt-2 italic">Performance Integrada</p>
         </div>
 
         <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
@@ -60,14 +60,14 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-[10px] font-black text-emerald-500/70 uppercase tracking-widest mb-3 ml-1">Atleta / Treinador</label>
+              <label className="block text-[10px] font-black text-amber-500/50 uppercase tracking-widest mb-3 ml-1">Atleta / Treinador</label>
               <div className="relative group">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/40 w-5 h-5 group-focus-within:text-emerald-500 transition-colors" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500/30 w-5 h-5 group-focus-within:text-amber-500 transition-colors" />
                 <input 
                   type="text" 
                   required
                   autoComplete="username"
-                  className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/5 rounded-2xl focus:ring-1 focus:ring-emerald-500 focus:bg-white/10 outline-none transition text-white font-bold placeholder:text-white/10"
+                  className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/5 rounded-2xl focus:ring-1 focus:ring-amber-500 focus:bg-white/10 outline-none transition text-white font-bold placeholder:text-white/10"
                   placeholder="Nome de usuário"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
@@ -76,14 +76,14 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-emerald-500/70 uppercase tracking-widest mb-3 ml-1">Chave Biométrica</label>
+              <label className="block text-[10px] font-black text-amber-500/50 uppercase tracking-widest mb-3 ml-1">Chave Biométrica</label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/40 w-5 h-5 group-focus-within:text-emerald-500 transition-colors" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500/30 w-5 h-5 group-focus-within:text-amber-500 transition-colors" />
                 <input 
                   type={showPassword ? "text" : "password"} 
                   required
                   autoComplete="current-password"
-                  className="w-full pl-12 pr-12 py-4 bg-white/5 border border-white/5 rounded-2xl focus:ring-1 focus:ring-emerald-500 focus:bg-white/10 outline-none transition text-white font-bold placeholder:text-white/10"
+                  className="w-full pl-12 pr-12 py-4 bg-white/5 border border-white/5 rounded-2xl focus:ring-1 focus:ring-amber-500 focus:bg-white/10 outline-none transition text-white font-bold placeholder:text-white/10"
                   placeholder="Senha de acesso"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -91,7 +91,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(prev => !prev)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500/40 hover:text-emerald-500 transition-colors focus:outline-none p-1 flex items-center justify-center"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-500/30 hover:text-amber-500 transition-colors focus:outline-none p-1 flex items-center justify-center"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -101,7 +101,7 @@ export default function Login() {
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black py-5 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.25)] flex justify-center items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 uppercase italic tracking-widest text-xs cursor-pointer"
+              className="w-full bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-5 rounded-2xl shadow-[0_10px_30px_rgba(245,158,11,0.25)] flex justify-center items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 uppercase italic tracking-widest text-xs cursor-pointer"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
@@ -123,8 +123,8 @@ export default function Login() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                  <span className="text-[8px] font-black uppercase text-emerald-500/70 tracking-widest">Secure Local Storage</span>
+                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                  <span className="text-[8px] font-black uppercase text-amber-500/70 tracking-widest">Secure Local Storage</span>
                 </div>
               )}
            </div>

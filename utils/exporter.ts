@@ -2,8 +2,168 @@ import html2canvas from 'html2canvas';
 import { toJpeg } from 'html-to-image';
 
 /**
+ * Converte um base64/DataURL em um objeto File nativo.
+ */
+const dataURLtoFile = (dataurl: string, filename: string): File => {
+  const arr = dataurl.split(',');
+  const mime = arr[0].match(/:(.*?);/)![1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], filename, { type: mime });
+};
+
+/**
+ * Exibe um modal elegante e amigável em dispositivos móveis
+ * para que o atleta possa salvar ou compartilhar manualmente o treino.
+ */
+const showMobileSaveModal = (dataUrl: string, filename: string) => {
+  // Remove qualquer modal existente de mesma ID
+  const existingModal = document.getElementById('mobile-save-modal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+
+  // Injeta estilos css temporários para animação suave
+  const styleId = 'mobile-save-modal-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.innerHTML = `
+      @keyframes modalBgFadeIn {
+        from { opacity: 0; backdrop-filter: blur(0px); }
+        to { opacity: 1; backdrop-filter: blur(12px); }
+      }
+      @keyframes modalContentScaleUp {
+        from { opacity: 0; transform: scale(0.92); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .mobile-modal-bg {
+        animation: modalBgFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      .mobile-modal-content {
+        animation: modalContentScaleUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Container principal do modal
+  const modal = document.createElement('div');
+  modal.id = 'mobile-save-modal';
+  modal.className = 'fixed inset-0 z-[999999] flex flex-col items-center justify-center bg-black/85 p-4 md:p-6 mobile-modal-bg text-white font-sans';
+
+  // Caixa de Conteúdo
+  const contentBox = document.createElement('div');
+  contentBox.className = 'relative max-w-md w-full bg-[#050810] rounded-[2.5rem] border border-white/10 p-6 flex flex-col items-center gap-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] mobile-modal-content';
+
+  // Botão Fechar
+  const closeButton = document.createElement('button');
+  closeButton.className = 'absolute top-5 right-5 p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all border border-white/5';
+  closeButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  `;
+  closeButton.onclick = () => {
+    modal.remove();
+  };
+
+  // Cabeçalho do modal
+  const header = document.createElement('div');
+  header.className = 'text-center mt-2 w-full';
+  header.innerHTML = `
+    <h3 class="text-base font-black italic uppercase tracking-tight text-white flex items-center justify-center gap-2">
+      Planilha Gerada!
+    </h3>
+    <p class="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-[0.15em]">
+      Toque e segure para Salvar ou Compartilhar
+    </p>
+  `;
+
+  // Wrapper e Imagem em si
+  const imgWrapper = document.createElement('div');
+  imgWrapper.className = 'w-full max-h-[50vh] overflow-y-auto rounded-[1.5rem] border border-white/5 bg-black/50 p-1.5 flex justify-center custom-scrollbar';
+
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.alt = 'Planilha de Treino';
+  img.className = 'max-w-full h-auto object-contain rounded-xl shadow-md';
+  imgWrapper.appendChild(img);
+
+  // Texto explicativo de ajuda
+  const footerText = document.createElement('p');
+  footerText.className = 'text-[10px] text-slate-400 font-medium text-center leading-relaxed px-1';
+  footerText.innerHTML = `
+    Se o download automático foi bloqueado, <strong>mantenha o dedo pressionado (toque e segure)</strong> sobre a imagem acima e selecione <strong>"Salvar em Fotos"</strong>, <strong>"Adicionar a Fotos"</strong> ou <strong>"Compartilhar"</strong>.
+  `;
+
+  // Botões de ação
+  const buttonsContainer = document.createElement('div');
+  buttonsContainer.className = 'w-full flex flex-col gap-2 mt-2';
+
+  // Botão de compartilhamento nativo do celular
+  if (navigator.share && typeof navigator.canShare === 'function') {
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'w-full py-4 bg-emerald-500 hover:bg-emerald-600 rounded-[1.25rem] font-black text-xs uppercase italic tracking-widest text-white shadow-lg shadow-emerald-500/10 transition-all flex items-center justify-center gap-2 border border-emerald-400/20';
+    shareBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.684 10.742l4.636-2.318a2.5 2.5 0 11.758 1.518l-4.636 2.318a2.5 2.5 0 11-.758-1.518zm0 4.516l4.636 2.318a2.5 2.5 0 11-.758 1.518l-4.636-2.318a2.5 2.5 0 11.758-1.518z" />
+      </svg>
+      Compartilhar Planilha
+    `;
+    shareBtn.onclick = async () => {
+      try {
+        const file = dataURLtoFile(dataUrl, filename);
+        await navigator.share({
+          files: [file],
+          title: 'Planilha de Treino ProRun LB',
+          text: 'Confira minha planilha de treino ProRun LB!',
+        });
+      } catch (err) {
+        console.warn("[Save Modal] Compartilhamento nativo cancelado ou falhou", err);
+      }
+    };
+    buttonsContainer.appendChild(shareBtn);
+  }
+
+  // Botão de download convencional (fallback do fallback)
+  const downloadBtn = document.createElement('button');
+  downloadBtn.className = 'w-full py-3.5 bg-white/5 hover:bg-white/10 rounded-[1.25rem] border border-white/10 font-black text-xs uppercase italic tracking-widest text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2';
+  downloadBtn.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+    Tentar Baixar Diretamente
+  `;
+  downloadBtn.onclick = () => {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  buttonsContainer.appendChild(downloadBtn);
+
+  // Montagem do DOM
+  contentBox.appendChild(closeButton);
+  contentBox.appendChild(header);
+  contentBox.appendChild(imgWrapper);
+  contentBox.appendChild(footerText);
+  contentBox.appendChild(buttonsContainer);
+  modal.appendChild(contentBox);
+
+  document.body.appendChild(modal);
+};
+
+/**
  * Exporta um elemento HTML para Imagem JPEG de Alta Definição.
  * Suporta elementos normais e portais ocultos fora da tela (#printable-portal).
+ * Otimizado com Web Share API e modal de toque e segure para perfeito funcionamento no celular.
  */
 export const exportToImage = async (elementId: string, filename: string): Promise<boolean> => {
   let element = document.getElementById(elementId);
@@ -88,11 +248,40 @@ export const exportToImage = async (elementId: string, filename: string): Promis
     // Aguarda um pequeno ciclo para a renderização do layout estabilizar
     await new Promise(resolve => setTimeout(resolve, 200));
 
-    // Função interna de disparo de download
-    const triggerDownload = (dataUrl: string) => {
+    // Função interna de disparo de download ou compartilhamento nativo no celular
+    const triggerDownload = async (dataUrl: string) => {
       const cleanFilename = filename.replace(/\.[^/.]+$/, '').replace(/[^\w\s-]/gi, '_');
+      const filenameWithExt = `${cleanFilename}.jpg`;
+
+      // Detecta se é dispositivo móvel (celular/tablet)
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        // Tenta usar Web Share API primeiro se disponível e compatível com arquivos
+        if (navigator.share && typeof navigator.canShare === 'function') {
+          try {
+            const file = dataURLtoFile(dataUrl, filenameWithExt);
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                files: [file],
+                title: 'Planilha de Treino ProRun LB',
+                text: 'Confira meu relatório de treino!',
+              });
+              return;
+            }
+          } catch (shareError) {
+            console.warn("Falha ao compartilhar via Web Share API, abrindo modal de instruções...", shareError);
+          }
+        }
+
+        // Caso não suporte compartilhamento direto ou falhe, abre o modal de salvamento manual
+        showMobileSaveModal(dataUrl, filenameWithExt);
+        return;
+      }
+
+      // No Desktop, mantém o download tradicional via link programático
       const link = document.createElement('a');
-      link.download = `${cleanFilename}.jpg`;
+      link.download = filenameWithExt;
       link.href = dataUrl;
       document.body.appendChild(link);
       link.click();
@@ -112,7 +301,7 @@ export const exportToImage = async (elementId: string, filename: string): Promis
 
       const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       if (dataUrl && dataUrl.length > 1000) {
-        triggerDownload(dataUrl);
+        await triggerDownload(dataUrl);
         return true;
       }
     } catch (h2cError) {
@@ -135,7 +324,7 @@ export const exportToImage = async (elementId: string, filename: string): Promis
     });
 
     if (dataUrlFallback && dataUrlFallback.length > 1000) {
-      triggerDownload(dataUrlFallback);
+      await triggerDownload(dataUrlFallback);
       return true;
     }
 

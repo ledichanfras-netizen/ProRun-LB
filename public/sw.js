@@ -1,4 +1,4 @@
-const VERSION = 'v30';
+const VERSION = 'v35';
 const CACHE_NAME = `prorun-lb-${VERSION}`;
 const STATIC_CACHE = `static-${VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${VERSION}`;
@@ -44,7 +44,10 @@ if (isDev) {
     '/',
     '/index.html',
     '/manifest.json',
-    '/logo.png'
+    '/logo.png',
+    '/prorunlb_pwa_192_with_text.png',
+    '/prorunlb_pwa_512.png',
+    '/prorunlb_maskable_with_text.png'
   ];
 
   // Instalação: Cacheia os assets críticos e assume o controle imediatamente

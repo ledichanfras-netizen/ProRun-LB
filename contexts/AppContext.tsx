@@ -175,18 +175,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Listen to Supabase Auth Changes for future expansion
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(`Supabase Auth Event: ${event}`);
-      if (event === 'SIGNED_OUT') {
-        if (localStorage.getItem('proRun_userRole') || userRole) {
-          logout();
+    try {
+      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log(`Supabase Auth Event: ${event}`);
+        if (event === 'SIGNED_OUT') {
+          if (localStorage.getItem('proRun_userRole') || userRole) {
+            logout();
+          }
         }
-      }
-    });
+      });
 
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
+      return () => {
+        authListener?.subscription?.unsubscribe?.();
+      };
+    } catch (e) {
+      console.warn("Supabase auth listener setup skipped:", e);
+    }
   }, [logout, userRole]);
 
   useEffect(() => {
@@ -328,55 +332,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const cachedWorkouts = localStorage.getItem('proRun_cached_workouts');
     const cachedPlans = localStorage.getItem('proRun_cached_athletePlans');
 
-    if (cachedAthletes) setAthletes(JSON.parse(cachedAthletes));
-    if (cachedWorkouts) setWorkouts(JSON.parse(cachedWorkouts));
-    if (cachedPlans) setAthletePlans(JSON.parse(cachedPlans));
+    if (cachedAthletes) {
+      try { setAthletes(JSON.parse(cachedAthletes)); } catch (e) {}
+    }
+    if (cachedWorkouts) {
+      try { setWorkouts(JSON.parse(cachedWorkouts)); } catch (e) {}
+    }
+    if (cachedPlans) {
+      try { setAthletePlans(JSON.parse(cachedPlans)); } catch (e) {}
+    }
     
     setIsLoading(true);
     try {
-      console.log("[Sync] Iniciando sincronização com Supabase...");
+      console.log("[Sync] Tentando sincronização de dados com Supabase...");
       
-      // Simple select without order to avoid 400 errors if columns don't exist
+      const safeQuery = async (queryPromise: PromiseLike<any>) => {
+        try {
+          const res = await queryPromise;
+          return res;
+        } catch (err: any) {
+          return { data: null, error: err };
+        }
+      };
+
       const [athletesRes, workoutsRes, plansRes, notifsRes] = await Promise.all([
-        supabase.from('athletes').select('data'),
-        supabase.from('workouts_library').select('data'),
-        supabase.from('athlete_plans').select('*'),
-        supabase.from('app_notifications').select('*').order('timestamp', { ascending: false }).limit(20)
+        safeQuery(supabase.from('athletes').select('data')),
+        safeQuery(supabase.from('workouts_library').select('data')),
+        safeQuery(supabase.from('athlete_plans').select('*')),
+        safeQuery(supabase.from('app_notifications').select('*').order('timestamp', { ascending: false }).limit(20))
       ]);
 
       if (athletesRes.error) {
-        console.error("[Sync] Erro ao buscar atletas:", athletesRes.error);
+        console.warn("[Sync] Informação: Nuvem inacessível para atletas. Usando armazenamento local.", athletesRes.error?.message || athletesRes.error);
       }
       if (workoutsRes.error) {
-        console.error("[Sync] Erro ao buscar biblioteca de treinos:", workoutsRes.error);
+        console.warn("[Sync] Informação: Nuvem inacessível para biblioteca de treinos. Usando armazenamento local.", workoutsRes.error?.message || workoutsRes.error);
       }
       if (plansRes.error) {
-        console.error("[Sync] Erro ao buscar planos:", plansRes.error);
+        console.warn("[Sync] Informação: Nuvem inacessível para planos. Usando armazenamento local.", plansRes.error?.message || plansRes.error);
       }
       if (notifsRes.data) {
         setNotifications(notifsRes.data as any);
       }
 
-      const hasCriticalError = (athletesRes.error && athletesRes.status === 404) || 
-                               (workoutsRes.error && workoutsRes.status === 404);
-
-      if (hasCriticalError) {
-         console.warn("[Sync] Tabelas não encontradas. O App usará armazenamento local temporário.");
-         setIsCloudConnected(false);
-      } else {
-         setIsCloudConnected(athletesRes.error || workoutsRes.error ? false : true);
-      }
+      const hasError = !!(athletesRes.error || workoutsRes.error || plansRes.error);
+      setIsCloudConnected(!hasError);
 
       if (athletesRes.data && athletesRes.data.length > 0) {
         console.log(`[Sync] ${athletesRes.data.length} atletas sincronizados.`);
-        const fetchedAthletes = athletesRes.data.map(row => row.data);
+        const fetchedAthletes = athletesRes.data.map((row: any) => row.data);
         setAthletes(fetchedAthletes);
         localStorage.setItem('proRun_cached_athletes', JSON.stringify(fetchedAthletes));
       }
       
       if (workoutsRes.data && workoutsRes.data.length > 0) {
         console.log(`[Sync] ${workoutsRes.data.length} treinos sincronizados.`);
-        const fetchedWorkouts = workoutsRes.data.map(row => row.data);
+        const fetchedWorkouts = workoutsRes.data.map((row: any) => row.data);
         setWorkouts(fetchedWorkouts);
         localStorage.setItem('proRun_cached_workouts', JSON.stringify(fetchedWorkouts));
       }
@@ -384,7 +395,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (plansRes.data && plansRes.data.length > 0) {
         console.log(`[Sync] ${plansRes.data.length} planos sincronizados.`);
         const plans: Record<string, any> = {};
-        plansRes.data.forEach(row => {
+        plansRes.data.forEach((row: any) => {
           const athleteId = row.athlete_id || row.id;
           if (athleteId) {
             if (row.plan_data) {
@@ -439,8 +450,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(plans));
       }
       
-    } catch (err) {
-      console.error("Error fetching data:", err);
+    } catch (err: any) {
+      console.warn("[Sync] Operando em modo offline/local:", err?.message || err);
       setIsCloudConnected(false);
     } finally {
       setIsLoading(false);
@@ -521,7 +532,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
     } catch (err) {
-      console.error("Error adding athlete:", err);
+      console.warn("Could not sync added athlete to cloud (stored locally):", err);
     }
   };
   
@@ -533,7 +544,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
       } catch (err) {
-        console.error("Error updating athlete:", err);
+        console.warn("Could not sync updated athlete to cloud (stored locally):", err);
       }
     }
   };
@@ -570,7 +581,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await supabase.from('athlete_plans').delete().eq('id', id);
       } catch (e) {}
     } catch (err) {
-      console.error("Error deleting athlete:", err);
+      console.warn("Could not sync deleted athlete to cloud (removed locally):", err);
     }
   };
 
@@ -592,7 +603,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
     } catch (err) {
-      console.error("Error saving assessment:", err);
+      console.warn("Could not sync assessment to cloud (stored locally):", err);
     }
   };
 
@@ -616,7 +627,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
     } catch (err) {
-      console.error("Error updating assessment:", err);
+      console.warn("Could not sync assessment update to cloud (stored locally):", err);
     }
   };
 
@@ -631,7 +642,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
     } catch (err) {
-      console.error("Error deleting assessment:", err);
+      console.warn("Could not sync assessment deletion to cloud (removed locally):", err);
     }
   };
 
@@ -640,7 +651,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
     } catch (err) {
-      console.error("Error adding workout:", err);
+      console.warn("Could not sync workout to cloud (stored locally):", err);
     }
   };
 
@@ -652,7 +663,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
       } catch (err) {
-        console.error("Error updating workout:", err);
+        console.warn("Could not sync workout update to cloud (stored locally):", err);
       }
     }
   };
@@ -662,7 +673,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       await supabase.from('workouts_library').delete().eq('id', id);
     } catch (err) {
-      console.error("Error deleting workout:", err);
+      console.warn("Could not sync workout deletion to cloud (removed locally):", err);
     }
   };
 
@@ -712,7 +723,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Safe to ignore
       }
     } catch (err) {
-      console.error("Error saving plan:", err);
+      console.warn("Could not sync plan to cloud (stored locally):", err);
     }
   };
 
@@ -730,7 +741,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Safe to ignore
       }
     } catch (err) {
-      console.error("Error clearing plan:", err);
+      console.warn("Could not sync plan clearing to cloud (removed locally):", err);
     }
   };
 
@@ -871,7 +882,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Safe to ignore
       }
     } catch (err) {
-      console.error("Error updating workout status:", err);
+      console.warn("Could not sync workout status update to cloud (stored locally):", err);
     }
   };
 

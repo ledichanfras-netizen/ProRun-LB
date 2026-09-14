@@ -16,7 +16,10 @@ export const generateTrainingPlan = async (
   raceDate?: string,
   raceGoal?: string,
   startDate?: string,
-  trainingDays?: number[]
+  trainingDays?: number[],
+  runningDaysOfWeek?: number[],
+  gymDaysOfWeek?: number[],
+  longRunDayOfWeek?: number
 ): Promise<AthletePlan> => {
   
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -38,8 +41,22 @@ export const generateTrainingPlan = async (
     ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(raceDate + 'T00:00:00'))
     : 'Domingo';
 
+  const diasSemanaNome = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+
+  const longRunDayName = (longRunDayOfWeek !== undefined && longRunDayOfWeek >= 0 && longRunDayOfWeek < 7)
+    ? diasSemanaNome[longRunDayOfWeek]
+    : 'Domingo';
+
+  const runningDaysNames = runningDaysOfWeek && runningDaysOfWeek.length > 0 
+    ? runningDaysOfWeek.map(d => diasSemanaNome[d]).join(", ") 
+    : `${runningDays} dias/semana (livre escolha nos dias de treino)`;
+
+  const gymDaysNames = gymDaysOfWeek && gymDaysOfWeek.length > 0 
+    ? gymDaysOfWeek.map(d => diasSemanaNome[d]).join(", ") 
+    : gymDays > 0 ? `${gymDays} dias/semana` : "Nenhum";
+
   const preferredDaysText = trainingDays && trainingDays.length > 0 
-    ? trainingDays.map(d => ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"][d]).join(", ")
+    ? trainingDays.map(d => diasSemanaNome[d]).join(", ")
     : "Não especificado (use seu critério)";
 
   const prompt = `
@@ -64,18 +81,24 @@ export const generateTrainingPlan = async (
     - DATA DA PROVA: ${raceDate} (${raceWeekday}).
     - META: ${raceGoal || raceDistance} (${raceDistance}).
     - DURAÇÃO: ${weeks} semanas.
-    - DIAS DISPONÍVEIS: ${preferredDaysText}. 
-    - FREQUÊNCIA ALVO: ${runningDays} corridas e ${gymDays} treinos de força por semana.
+    - DIAS DE CORRIDA SELECIONADOS (${runningDays}x/semana): ${runningDaysNames}.
+    - DIA DO LONGÃO DEFINIDO: ${longRunDayName} (Treino de maior volume/rodagem longa da semana).
+    - DIAS DE ACADEMIA / FORTALECIMENTO SELECIONADOS (${gymDays}x/semana): ${gymDaysNames}.
+    - DIAS TOTAIS DISPONÍVEIS: ${preferredDaysText}. 
     - CONTEXTO ADICIONAL: ${goalDescription}.
     - RITMOS ALVO: ${pacesContext}.
  
-    REGRAS OBRIGATÓRIAS:
-    1. A PROVA deve ser o único treino do dia ${raceWeekday} na Semana ${weeks}.
-    2. RESPEITE OS DIAS DISPONÍVEIS: Tente prescrever treinos APENAS nos dias selecionados (${preferredDaysText}). Se não houver dias suficientes selecionados para a frequência alvo, priorize os selecionados e complete onde for menos prejudicial.
-    3. No caso de lesões reportadas, inclua notas específicas do Coach orientando o cuidado.
-    4. Use a nomenclatura exata: "Regenerativo", "Longão", "Limiar", "Intervalado", "Maratona", "Descanso", "Fortalecimento", "Velocidade", "Natação", "Ciclismo", "Transição", "Prova".
-    5. Para o "Fortalecimento", especifique se é funcional, hipertrofia ou resistência de força.
-    6. INDIVIDUALIZAÇÃO: Se o atleta é "Elite", o volume deve ser condizente (ex: 70-120km/sem para maratona). Se é "Iniciante", comece com volumes baixos e caminhas/corridas intercaladas se necessário.
+    REGRAS OBRIGATÓRIAS DE PRESCRIÇÃO E DISTRIBUIÇÃO DOS DIAS:
+    1. ALOCAÇÃO DO LONGÃO (REGRA ABSOLUTA): O treino de "Longão" (rodagem longa, construção aeróbica e maior volume da semana) DEVE ser prescrito OBRIGATORIAMENTE no dia ${longRunDayName}. Em todas as semanas ordinárias, marque ${longRunDayName} como tipo "Longão". Na semana ${weeks} (semana final da prova), caso a prova aconteça no dia ${raceWeekday}, ela terá o papel principal.
+    2. ALOCAÇÃO DE OUTRAS CORRIDAS (DIAS EXATOS): Aloque os outros treinos de corrida (Regenerativo, Limiar, Intervalado, Maratona, Velocidade) ESTRITAMENTE nos outros dias de corrida selecionados (${runningDaysNames}), sem colocá-los nos dias de descanso.
+    3. ALOCAÇÃO DE ACADEMIA / FORTALECIMENTO (DIAS EXATOS): Você DEVE prescrever os treinos de "Fortalecimento" (musculação/funcional/força) ESTRITAMENTE nos DIAS DE ACADEMIA SELECIONADOS: ${gymDaysNames}.
+    4. DIAS DE DESCANSO: Qualquer dia que NÃO for dia de corrida nem de academia DEVE ser preenchido como tipo "Descanso", com distance: 0 e customDescription detalhando descanso/recuperação passiva.
+    5. DIAS COMBINADOS: Se o mesmo dia foi selecionado para Corrida E Academia, prescreva a sessão de corrida combinada com o fortalecimento complementar (ex: Rodagem Z1/Z2 + Fortalecimento funcional).
+    6. CADA SEMANA DEVE CONTER OS 7 DIAS: "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo".
+    7. A PROVA deve ser o treino principal do dia ${raceWeekday} na Semana ${weeks}.
+    8. No caso de lesões reportadas, inclua notas específicas do Coach orientando o cuidado.
+    9. Use a nomenclatura exata: "Regenerativo", "Longão", "Limiar", "Intervalado", "Maratona", "Descanso", "Fortalecimento", "Velocidade", "Natação", "Ciclismo", "Transição", "Prova".
+    10. INDIVIDUALIZAÇÃO: Se o atleta é "Elite", o volume deve ser condizente (ex: 70-120km/sem para maratona). Se é "Iniciante", comece com volumes condizentes e progressão segura.
 
     ESTRATÉGIA DE PROVA (raceStrategy):
     - Detalhe o plano de ritmos e tática para atingir a meta "${raceGoal}".

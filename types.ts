@@ -178,6 +178,11 @@ export interface AthletePlan {
   startDate?: string;
   endDate?: string;
   trainingDays?: number[];
+  runningDaysOfWeek?: number[];
+  gymDaysOfWeek?: number[];
+  longRunDayOfWeek?: number;
+  runningDaysCount?: number;
+  gymDaysCount?: number;
 }
 
 export interface HistoryEntry {

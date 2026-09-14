@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Dumbbell,
   Zap,
+  Flame,
   Download,
   TrendingUp,
   BookOpen,
@@ -48,9 +49,12 @@ const Periodization: React.FC = () => {
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<any | null>(null);
   const [goalDescription, setGoalDescription] = useState('');
   const [weeks, setWeeks] = useState(8);
+  const [runningDaysOfWeek, setRunningDaysOfWeek] = useState<number[]>([0, 1, 3, 6]); // Segunda, Terça, Quinta, Domingo (exemplo padrão)
+  const [gymDaysOfWeek, setGymDaysOfWeek] = useState<number[]>([2, 4]); // Quarta, Sexta (exemplo padrão)
+  const [longRunDayOfWeek, setLongRunDayOfWeek] = useState<number>(6); // Domingo (padrão)
   const [runningDays, setRunningDays] = useState(4);
   const [gymDays, setGymDays] = useState(2);
-  const [trainingDays, setTrainingDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]); // All days by default
+  const [trainingDays, setTrainingDays] = useState<number[]>([0, 1, 2, 3, 4, 6]); // All selected days
   const [loading, setLoading] = useState(false);
   const [fullPlan, setFullPlan] = useState<AthletePlan | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -62,7 +66,48 @@ const Periodization: React.FC = () => {
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
 
+  const diasSemanaAbbr = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
   const diasSemanaFull = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+
+  const toggleRunningDay = (idx: number) => {
+    let next: number[];
+    if (runningDaysOfWeek.includes(idx)) {
+      next = runningDaysOfWeek.filter(d => d !== idx);
+      // Se removeu o dia que estava marcado como Longão, reatribui
+      if (idx === longRunDayOfWeek) {
+        if (next.includes(6)) {
+          setLongRunDayOfWeek(6); // Domingo se disponível
+        } else if (next.includes(5)) {
+          setLongRunDayOfWeek(5); // Sábado se disponível
+        } else if (next.length > 0) {
+          setLongRunDayOfWeek(next[next.length - 1]);
+        }
+      }
+    } else {
+      next = [...runningDaysOfWeek, idx].sort((a, b) => a - b);
+      // Se for o primeiro dia selecionado ou se o dia atual não for mais válido
+      if (next.length === 1) {
+        setLongRunDayOfWeek(idx);
+      } else if (!next.includes(longRunDayOfWeek)) {
+        setLongRunDayOfWeek(next.includes(6) ? 6 : next[next.length - 1]);
+      }
+    }
+    setRunningDaysOfWeek(next);
+    setRunningDays(next.length);
+    setTrainingDays(Array.from(new Set([...next, ...gymDaysOfWeek])).sort((a, b) => a - b));
+  };
+
+  const toggleGymDay = (idx: number) => {
+    let next: number[];
+    if (gymDaysOfWeek.includes(idx)) {
+      next = gymDaysOfWeek.filter(d => d !== idx);
+    } else {
+      next = [...gymDaysOfWeek, idx].sort((a, b) => a - b);
+    }
+    setGymDaysOfWeek(next);
+    setGymDays(next.length);
+    setTrainingDays(Array.from(new Set([...runningDaysOfWeek, ...next])).sort((a, b) => a - b));
+  };
 
   const handleSaveWeekAsTemplate = (week: TrainingWeek) => {
     const name = prompt("Nome do template de semana:", `Semana de ${week.phase}`);
@@ -134,10 +179,34 @@ const Periodization: React.FC = () => {
       setFullPlan(plan);
       setRaceGoal(plan.specificGoal || '');
       if (plan.startDate) setStartDate(plan.startDate);
+      if (plan.runningDaysOfWeek && plan.runningDaysOfWeek.length > 0) {
+        setRunningDaysOfWeek(plan.runningDaysOfWeek);
+        setRunningDays(plan.runningDaysOfWeek.length);
+      }
+      if (plan.longRunDayOfWeek !== undefined) {
+        setLongRunDayOfWeek(plan.longRunDayOfWeek);
+      } else if (plan.runningDaysOfWeek && plan.runningDaysOfWeek.includes(6)) {
+        setLongRunDayOfWeek(6);
+      } else if (plan.runningDaysOfWeek && plan.runningDaysOfWeek.length > 0) {
+        setLongRunDayOfWeek(plan.runningDaysOfWeek[plan.runningDaysOfWeek.length - 1]);
+      }
+      if (plan.gymDaysOfWeek && plan.gymDaysOfWeek.length > 0) {
+        setGymDaysOfWeek(plan.gymDaysOfWeek);
+        setGymDays(plan.gymDaysOfWeek.length);
+      }
+      if (plan.trainingDays && plan.trainingDays.length > 0) {
+        setTrainingDays(plan.trainingDays);
+      }
     } else {
       setFullPlan(null);
       setRaceGoal('');
       setStartDate('');
+      setRunningDaysOfWeek([0, 1, 3, 6]); // Segunda, Terça, Quinta, Domingo
+      setLongRunDayOfWeek(6); // Domingo
+      setRunningDays(4);
+      setGymDaysOfWeek([2, 4]); // Quarta, Sexta
+      setGymDays(2);
+      setTrainingDays([0, 1, 2, 3, 4, 6]);
     }
   }, [activeAthlete, athletePlans]);
 
@@ -163,19 +232,27 @@ const Periodization: React.FC = () => {
       alert("Defina a data da prova para calcular o ciclo.");
       return;
     }
+    if (runningDaysOfWeek.length === 0 && gymDaysOfWeek.length === 0) {
+      alert("Selecione pelo menos um dia de corrida ou academia para a prescrição.");
+      return;
+    }
     setLoading(true);
     try {
+      const combinedDays = Array.from(new Set([...runningDaysOfWeek, ...gymDaysOfWeek])).sort((a, b) => a - b);
       const generated = await generateTrainingPlan(
         activeAthlete, 
         goalDescription, 
         weeks, 
-        runningDays,
-        gymDays,
+        runningDaysOfWeek.length || runningDays,
+        gymDaysOfWeek.length || gymDays,
         raceDistance,
         raceDate,
         raceGoal,
         startDate,
-        trainingDays
+        combinedDays,
+        runningDaysOfWeek,
+        gymDaysOfWeek,
+        longRunDayOfWeek
       );
       
       const normalizedWeeks = (generated.weeks || []).map(w => {
@@ -193,7 +270,12 @@ const Periodization: React.FC = () => {
         weeks: normalizedWeeks, 
         specificGoal: raceGoal ? `${raceDistance} (${raceGoal})` : raceDistance,
         startDate: startDate || getAppNow().toISOString().split('T')[0],
-        trainingDays: trainingDays
+        trainingDays: combinedDays,
+        runningDaysOfWeek,
+        gymDaysOfWeek,
+        longRunDayOfWeek,
+        runningDaysCount: runningDaysOfWeek.length,
+        gymDaysCount: gymDaysOfWeek.length
       };
       setFullPlan(newPlan);
       saveAthletePlan(activeAthlete.id, newPlan);
@@ -285,27 +367,63 @@ const Periodization: React.FC = () => {
   const handleManualCreate = () => {
     if (!activeAthlete) return;
     
+    const combinedDays = Array.from(new Set([...runningDaysOfWeek, ...gymDaysOfWeek])).sort((a, b) => a - b);
+
     const manualWeeks: TrainingWeek[] = Array.from({ length: weeks }, (_, i) => ({
       id: crypto.randomUUID(),
       weekNumber: i + 1,
       phase: i < weeks / 2 ? 'Base' : 'Construção',
       totalVolume: 0,
       isVisible: true,
-      workouts: diasSemanaFull.map(day => ({
-        day,
-        type: 'Descanso' as WorkoutType,
-        customDescription: 'Descanso total.',
-        distance: 0
-      }))
+      workouts: diasSemanaFull.map((day, dayIdx) => {
+        const isRun = runningDaysOfWeek.includes(dayIdx);
+        const isGym = gymDaysOfWeek.includes(dayIdx);
+
+        if (isRun && isGym) {
+          return {
+            day,
+            type: 'Regenerativo' as WorkoutType,
+            customDescription: 'Corrida Leve (Z1/Z2) + Fortalecimento funcional.',
+            distance: 6
+          };
+        } else if (isRun) {
+          const isLongRun = dayIdx === longRunDayOfWeek;
+          return {
+            day,
+            type: (isLongRun ? 'Longão' : 'Regenerativo') as WorkoutType,
+            customDescription: isLongRun ? 'Rodagem Longa (Longão - Z2) para construção aeróbica e resistência.' : 'Corrida contínua aeróbica.',
+            distance: isLongRun ? 14 : 8
+          };
+        } else if (isGym) {
+          return {
+            day,
+            type: 'Fortalecimento' as WorkoutType,
+            customDescription: 'Treino de Força / Musculação para Corrida (Core, membros inferiores, estabilidade).',
+            distance: 0
+          };
+        } else {
+          return {
+            day,
+            type: 'Descanso' as WorkoutType,
+            customDescription: 'Descanso total.',
+            distance: 0
+          };
+        }
+      })
     }));
 
     const newPlan: AthletePlan = {
       weeks: manualWeeks,
       specificGoal: raceGoal || raceDistance,
       raceStrategy: 'Periodização manual iniciada.',
-      motivationalMessage: 'Foco no processo!',
+      motivationalMessage: 'Foco e consistência no processo!',
       startDate: startDate || getAppNow().toISOString().split('T')[0],
-      trainingDays: trainingDays
+      trainingDays: combinedDays,
+      runningDaysOfWeek,
+      gymDaysOfWeek,
+      longRunDayOfWeek,
+      runningDaysCount: runningDaysOfWeek.length,
+      gymDaysCount: gymDaysOfWeek.length
     };
 
     setFullPlan(newPlan);
@@ -839,23 +957,6 @@ const Periodization: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="relative">
-                    <label className="pro-label flex items-center gap-1"><Zap className="w-3 h-3 text-emerald-400" /> Corridas/Sem</label>
-                    <select className="pro-input w-full p-3 text-sm appearance-none" value={runningDays} onChange={e => setRunningDays(Number(e.target.value))}>
-                      {[1, 2, 3, 4, 5, 6, 7].map(d => <option key={d} value={d} className="bg-slate-900">{d} dias</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-[34px] w-4 h-4 text-slate-400 pointer-events-none" />
-                  </div>
-                  <div className="relative">
-                    <label className="pro-label flex items-center gap-1"><Dumbbell className="w-3 h-3 text-purple-400" /> Academia/Sem</label>
-                    <select className="pro-input w-full p-3 text-sm appearance-none" value={gymDays} onChange={e => setGymDays(Number(e.target.value))}>
-                      {[0, 1, 2, 3, 4, 5].map(d => <option key={d} value={d} className="bg-slate-900">{d} dias</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-[34px] w-4 h-4 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
-
                 <div className="relative">
                   <label className="pro-label">Distância da Prova</label>
                   <select className="pro-input w-full p-3 text-sm appearance-none" value={raceDistance} onChange={e => setRaceDistance(e.target.value)}>
@@ -866,29 +967,139 @@ const Periodization: React.FC = () => {
                   <ChevronDown className="absolute right-3 top-[34px] w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
 
-                <div>
-                   <label className="pro-label">Dias Disponíveis para Treino</label>
-                   <div className="flex flex-wrap gap-2 mt-2">
-                      {["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"].map((day, idx) => (
+                {/* Marcadores de Dias de Corrida */}
+                <div className="bg-slate-950/40 p-4 rounded-2xl border border-emerald-500/20 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="pro-label flex items-center gap-1.5 !mb-0 text-emerald-400 font-black">
+                      <Zap className="w-3.5 h-3.5 text-emerald-400" /> Dias de Corrida
+                    </label>
+                    <span className="text-[10px] font-black uppercase italic tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg">
+                      {runningDaysOfWeek.length} {runningDaysOfWeek.length === 1 ? 'dia' : 'dias'}/sem
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1.5 pt-1">
+                    {diasSemanaAbbr.map((abbr, idx) => {
+                      const isSelected = runningDaysOfWeek.includes(idx);
+                      const isLongRun = isSelected && longRunDayOfWeek === idx;
+                      return (
                         <button
-                          key={day}
-                          onClick={() => {
-                            if (trainingDays.includes(idx)) {
-                               setTrainingDays(trainingDays.filter(d => d !== idx));
-                            } else {
-                               setTrainingDays([...trainingDays, idx]);
-                            }
-                          }}
-                          className={`w-10 h-10 rounded-xl text-[10px] font-black uppercase italic transition-all border ${
-                            trainingDays.includes(idx) 
-                              ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                              : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'
+                          key={`run-marker-${idx}`}
+                          type="button"
+                          onClick={() => toggleRunningDay(idx)}
+                          className={`h-11 rounded-xl text-[11px] font-black uppercase italic transition-all flex flex-col items-center justify-center border relative ${
+                            isSelected
+                              ? isLongRun
+                                ? 'bg-emerald-600 border-amber-400 text-white shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/60 scale-[1.03]'
+                                : 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-600/30 scale-[1.03]'
+                              : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:border-white/20 hover:bg-white/10'
                           }`}
+                          title={`Treino de Corrida: ${diasSemanaFull[idx]}${isLongRun ? ' ★ DIA DO LONGÃO' : ''}`}
                         >
-                          {day}
+                          <span>{abbr}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full mt-0.5 transition-all ${isSelected ? (isLongRun ? 'bg-amber-300' : 'bg-white') : 'bg-transparent'}`} />
+                          {isLongRun && (
+                            <span className="absolute -top-1.5 -right-1 bg-amber-400 text-slate-950 text-[8px] font-black px-1 rounded-full uppercase leading-tight shadow flex items-center justify-center">
+                              ★
+                            </span>
+                          )}
                         </button>
-                      ))}
-                   </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-white/5">
+                    <span className="truncate pr-2">
+                      {runningDaysOfWeek.length > 0
+                        ? runningDaysOfWeek.map(i => diasSemanaFull[i].split('-')[0]).join(', ')
+                        : 'Nenhum dia de corrida marcado'}
+                    </span>
+                    <span className="text-emerald-400 font-bold shrink-0">{runningDaysOfWeek.length}x</span>
+                  </div>
+
+                  {/* Seletor Específico do Dia do Longão */}
+                  {runningDaysOfWeek.length > 0 && (
+                    <div className="pt-2 border-t border-white/5 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black uppercase italic tracking-wider text-amber-400 flex items-center gap-1">
+                          <Flame className="w-3 h-3 text-amber-400 fill-amber-400" /> Dia do Longão:
+                        </label>
+                        <span className="text-[9px] text-slate-400 italic">
+                          (Padrão Domingo, clique para alterar)
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {runningDaysOfWeek.map(dayIdx => {
+                          const isLongRun = longRunDayOfWeek === dayIdx;
+                          return (
+                            <button
+                              key={`longrun-choice-${dayIdx}`}
+                              type="button"
+                              onClick={() => setLongRunDayOfWeek(dayIdx)}
+                              className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase italic tracking-wide transition-all border flex items-center gap-1.5 ${
+                                isLongRun
+                                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md shadow-amber-400/20 scale-[1.03]'
+                                  : 'bg-white/5 border-white/10 text-slate-300 hover:border-amber-400/40 hover:text-amber-300 hover:bg-white/10'
+                              }`}
+                              title={`Definir ${diasSemanaFull[dayIdx]} como o dia do treino Longão`}
+                            >
+                              <Flame className={`w-2.5 h-2.5 ${isLongRun ? 'text-slate-950 fill-slate-950' : 'text-amber-400'}`} />
+                              <span>{diasSemanaFull[dayIdx].split('-')[0]}</span>
+                              {isLongRun && (
+                                <span className="text-[8px] bg-slate-950/20 px-1 py-0.2 rounded font-black tracking-widest">
+                                  LONGÃO
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Marcadores de Dias de Academia / Fortalecimento */}
+                <div className="bg-slate-950/40 p-4 rounded-2xl border border-purple-500/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="pro-label flex items-center gap-1.5 !mb-0 text-purple-400 font-black">
+                      <Dumbbell className="w-3.5 h-3.5 text-purple-400" /> Dias de Academia / Fortalecimento
+                    </label>
+                    <span className="text-[10px] font-black uppercase italic tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/30 px-2 py-0.5 rounded-lg">
+                      {gymDaysOfWeek.length} {gymDaysOfWeek.length === 1 ? 'dia' : 'dias'}/sem
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1.5 pt-1">
+                    {diasSemanaAbbr.map((abbr, idx) => {
+                      const isSelected = gymDaysOfWeek.includes(idx);
+                      return (
+                        <button
+                          key={`gym-marker-${idx}`}
+                          type="button"
+                          onClick={() => toggleGymDay(idx)}
+                          className={`h-11 rounded-xl text-[11px] font-black uppercase italic transition-all flex flex-col items-center justify-center border ${
+                            isSelected
+                              ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-600/30 scale-[1.03]'
+                              : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:border-white/20 hover:bg-white/10'
+                          }`}
+                          title={`Treino de Força / Academia: ${diasSemanaFull[idx]}`}
+                        >
+                          <span>{abbr}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full mt-0.5 transition-all ${isSelected ? 'bg-white' : 'bg-transparent'}`} />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-white/5">
+                    <span className="truncate pr-2">
+                      {gymDaysOfWeek.length > 0
+                        ? gymDaysOfWeek.map(i => diasSemanaFull[i].split('-')[0]).join(', ')
+                        : 'Nenhum dia de academia marcado'}
+                    </span>
+                    <span className="text-purple-400 font-bold shrink-0">{gymDaysOfWeek.length}x</span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 mt-4">

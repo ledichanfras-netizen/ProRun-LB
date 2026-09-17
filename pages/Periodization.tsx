@@ -46,7 +46,7 @@ import { safeDeepClone } from '../utils/helpers';
 import { WorkoutMap } from '../components/WorkoutMap';
 import { decodePolyline } from '../utils/gpsUtils';
 import { StructuredWorkoutModal } from '../components/StructuredWorkoutModal';
-import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure } from '../utils/workoutParser';
+import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure, formatStructuredWorkoutFullDescription } from '../utils/workoutParser';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 
 const Periodization: React.FC = () => {
@@ -594,8 +594,32 @@ const Periodization: React.FC = () => {
 
     const workout = newPlan.weeks[weekIndex].workouts[dayIndex];
     workout.type = typeMap[libWorkout.type] || 'Regenerativo';
-    workout.customDescription = libWorkout.description;
-    workout.distance = libWorkout.distanceKm;
+    
+    // Formatar descrição completa incluindo exercícios se houver
+    let desc = libWorkout.description || '';
+    if (libWorkout.exercises && libWorkout.exercises.length > 0) {
+      const exNames = libWorkout.exercises
+        .filter((e: any) => e.name && e.name.trim().length > 0)
+        .map((e: any) => `${e.name} (${e.sets || '3'}x${e.reps || '12'}${e.load ? ` ${e.load}` : ''})`)
+        .join(' • ');
+      if (exNames && !desc.toLowerCase().includes(libWorkout.exercises[0].name.toLowerCase())) {
+        desc = desc ? `${desc} | Exercícios: ${exNames}` : `Fortalecimento: ${exNames}`;
+      }
+    }
+
+    // Tentar estruturar se for treino intervalado / tiros
+    if (desc) {
+      const parsedStruct = parseWorkoutTextToStructure(desc, workout.type, athletePaces);
+      if (parsedStruct) {
+        workout.structuredWorkout = parsedStruct;
+        if (!desc || desc.trim() === '') {
+          desc = formatStructuredWorkoutFullDescription(parsedStruct);
+        }
+      }
+    }
+
+    workout.customDescription = desc;
+    workout.distance = libWorkout.distanceKm || (workout.structuredWorkout?.totalDistanceEstimatedKm) || 0;
     workout.exercises = libWorkout.exercises || [];
     
     // Atualizar volume da semana
@@ -605,6 +629,32 @@ const Periodization: React.FC = () => {
     setFullPlan(newPlan);
     setShowLibraryModal(false);
     setTargetDay(null);
+  };
+
+  const handleFinishExercises = (wIdx: number, dIdx: number) => {
+    if (!fullPlan) return;
+    const workout = fullPlan.weeks[wIdx]?.workouts[dIdx];
+    if (workout && workout.exercises && workout.exercises.length > 0) {
+      const validExercises = workout.exercises.filter((ex: Exercise) => ex.name && ex.name.trim().length > 0);
+      if (validExercises.length > 0) {
+        const exFormatted = validExercises.map((ex: Exercise) => {
+          const setsReps = ex.sets && ex.reps ? `${ex.sets}x${ex.reps}` : (ex.sets ? `${ex.sets} séries` : (ex.reps ? `${ex.reps} reps` : ''));
+          const loadStr = ex.load ? ` (${ex.load})` : '';
+          return `${ex.name}${setsReps ? ` ${setsReps}` : ''}${loadStr}`;
+        }).join(' • ');
+        
+        const isGeneric = !workout.customDescription || 
+          workout.customDescription.toLowerCase().includes('descanso') || 
+          workout.customDescription.toLowerCase().includes('treino de fortalecimento') ||
+          workout.customDescription.toLowerCase() === 'fortalecimento' ||
+          workout.customDescription.trim() === '';
+
+        if (isGeneric) {
+          updateWorkout(wIdx, dIdx, 'customDescription', `Fortalecimento: ${exFormatted}`);
+        }
+      }
+    }
+    setEditingExercises(null);
   };
 
   const handleResetWorkout = (wIdx: number, dIdx: number) => {
@@ -1576,8 +1626,8 @@ const Periodization: React.FC = () => {
 
                 <div className="p-8 border-t border-white/5 flex justify-end">
                   <button 
-                    onClick={() => setEditingExercises(null)}
-                    className="px-10 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl hover:bg-emerald-700 transition-all"
+                    onClick={() => handleFinishExercises(editingExercises.wIdx, editingExercises.dIdx)}
+                    className="px-10 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase italic tracking-widest shadow-xl hover:bg-emerald-700 transition-all cursor-pointer"
                   >
                     OK, CONCLUÍDO
                   </button>
@@ -1709,7 +1759,9 @@ const Periodization: React.FC = () => {
             workoutType={fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.type}
             athletePaces={athletePaces}
             onSave={(newStructured) => {
+              const fullDesc = newStructured.description || formatStructuredWorkoutFullDescription(newStructured);
               updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'structuredWorkout', newStructured);
+              updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'customDescription', fullDesc);
               const currentDistance = fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.distance;
               if (newStructured.totalDistanceEstimatedKm && (!currentDistance || currentDistance === 0)) {
                 updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'distance', newStructured.totalDistanceEstimatedKm);

@@ -3,6 +3,7 @@ import React from 'react';
 import { Athlete, TrainingWeek, TrainingPace } from '../types';
 import { calculateDanielsSprintsByPaces } from '../utils/calculations';
 import { formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../utils/time';
+import { formatStructuredWorkoutSummary, formatStructuredWorkoutFullDescription } from '../utils/workoutParser';
 
 export const LBSportsLogo = () => (
   <div className="flex items-center gap-4">
@@ -156,8 +157,32 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
                      </div>
                      <span className="text-[8px] font-black uppercase px-3 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 shadow-sm text-center">{workout.type?.substring(0, 3).toUpperCase() || 'TRN'}</span>
                    </div>
-                   <div className="flex-1 flex flex-col items-center justify-center text-center px-2 py-3">
-                     <div className="text-[11px] leading-[1.4] font-black text-slate-800 italic break-words text-center">{workout.customDescription}</div>
+                   <div className="flex-1 flex flex-col items-center justify-center text-center px-1 py-2">
+                     <div className="text-[11px] leading-[1.4] font-black text-slate-800 italic break-words text-center">
+                       {workout.customDescription || (workout.structuredWorkout ? formatStructuredWorkoutFullDescription(workout.structuredWorkout) : '')}
+                     </div>
+
+                     {workout.structuredWorkout && (
+                       <div className="mt-2 flex flex-col items-center gap-1 w-full">
+                         <span className="text-[8px] font-black px-2 py-0.5 bg-blue-100/90 text-blue-900 rounded-lg uppercase italic border border-blue-200 text-center leading-tight">
+                           ⚡ {formatStructuredWorkoutSummary(workout.structuredWorkout)}
+                         </span>
+                       </div>
+                     )}
+
+                     {workout.exercises && workout.exercises.length > 0 && !workout.customDescription?.toLowerCase().includes(workout.exercises[0]?.name?.toLowerCase()) && (
+                       <div className="mt-2 w-full text-left bg-purple-50/70 p-2 rounded-xl border border-purple-100 text-[8px] text-purple-900 font-bold space-y-0.5">
+                         <span className="text-[7px] font-black uppercase text-purple-700 block">🏋️ Exercícios:</span>
+                         {workout.exercises.slice(0, 4).map((ex: any, exIdx: number) => (
+                           <div key={exIdx} className="truncate">
+                             • {ex.name || 'Exercício'} ({ex.sets}x{ex.reps}{ex.load ? ` ${ex.load}` : ''})
+                           </div>
+                         ))}
+                         {workout.exercises.length > 4 && (
+                           <div className="text-[7px] text-purple-600 italic">+ {workout.exercises.length - 4} outros</div>
+                         )}
+                       </div>
+                     )}
                    </div>
                    <div className="mt-3 pt-3 border-t border-slate-200/50 flex justify-center items-center">
                      {workout.distance && workout.distance > 0 ? (

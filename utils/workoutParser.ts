@@ -370,6 +370,59 @@ export function formatStructuredWorkoutSummary(structured?: StructuredWorkout): 
 }
 
 /**
+ * Comprehensive human readable description of all phases (Aquecimento, Tiros, Intervalos, Desaquecimento)
+ * Used to automatically populate the workout sheet description for print/export and mobile execution
+ */
+export function formatStructuredWorkoutFullDescription(structured?: StructuredWorkout): string {
+  if (!structured || !structured.steps || structured.steps.length === 0) return '';
+  if (structured.description && structured.description.trim().length > 0) return structured.description;
+
+  const parts: string[] = [];
+
+  // 1. Warmup
+  const warmups = structured.steps.filter(s => s.type === 'warmup');
+  if (warmups.length > 0) {
+    const w = warmups[0];
+    const wTarget = formatStepTarget(w);
+    parts.push(`Aquecimento: ${wTarget} leve`);
+  }
+
+  // 2. Repeats / Intervals
+  const intervals = structured.steps.filter(s => s.type === 'interval');
+  if (intervals.length > 0) {
+    const firstInt = intervals[0];
+    const intTarget = formatStepTarget(firstInt);
+    const count = intervals.length;
+
+    // Pace
+    let paceStr = '';
+    if (firstInt.targetPaceMin) {
+      paceStr = `@ ${firstInt.targetPaceMin}${firstInt.targetPaceMax ? `-${firstInt.targetPaceMax}` : ''}/km`;
+    }
+
+    // Recovery
+    const recoveries = structured.steps.filter(s => s.type === 'recovery');
+    let recStr = '';
+    if (recoveries.length > 0) {
+      recStr = `rec ${formatStepTarget(recoveries[0])}`;
+    }
+
+    const intervalFull = `${count}x (${intTarget}${paceStr ? ` ${paceStr}` : ''}${recStr ? ` | ${recStr}` : ''})`;
+    parts.push(intervalFull);
+  }
+
+  // 3. Cooldown
+  const cooldowns = structured.steps.filter(s => s.type === 'cooldown');
+  if (cooldowns.length > 0) {
+    const c = cooldowns[0];
+    const cTarget = formatStepTarget(c);
+    parts.push(`Desaquecimento: ${cTarget} regenerativo`);
+  }
+
+  return parts.join(' • ');
+}
+
+/**
  * Returns formatted target display for a step
  */
 export function formatStepTarget(step: WorkoutStep): string {

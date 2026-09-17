@@ -20,7 +20,8 @@ import {
   buildStructuredWorkout, 
   parseWorkoutTextToStructure, 
   formatStepTarget,
-  getSuggestedPaces
+  getSuggestedPaces,
+  formatStructuredWorkoutFullDescription
 } from '../utils/workoutParser';
 
 interface StructuredWorkoutModalProps {
@@ -197,7 +198,12 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
       alert('Estruture ao menos uma etapa no treino.');
       return;
     }
-    onSave(previewWorkout);
+    const fullDesc = formatStructuredWorkoutFullDescription(previewWorkout);
+    const savedWorkout: StructuredWorkout = {
+      ...previewWorkout,
+      description: fullDesc
+    };
+    onSave(savedWorkout);
   };
 
   const getStepColor = (type: StepType) => {

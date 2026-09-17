@@ -161,6 +161,7 @@ export interface WorkoutStep {
 
 export interface StructuredWorkout {
   title?: string;
+  description?: string;
   steps: WorkoutStep[];
   totalDistanceEstimatedKm?: number;
   totalDurationEstimatedSeconds?: number;

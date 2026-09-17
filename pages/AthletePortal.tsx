@@ -30,7 +30,9 @@ import {
   Navigation,
   Compass,
   FileCode2,
-  Timer
+  Timer,
+  Camera,
+  Share2
 } from 'lucide-react';
 import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
@@ -39,6 +41,7 @@ import { GpsWorkoutTracker } from '../components/GpsWorkoutTracker';
 import { WorkoutMap } from '../components/WorkoutMap';
 import { decodePolyline } from '../utils/gpsUtils';
 import { formatStructuredWorkoutSummary } from '../utils/workoutParser';
+import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProgressToNextLevel } from '../services/gamificationService';
 import { 
@@ -107,6 +110,7 @@ const AthletePortal: React.FC = () => {
     data: any;
   } | null>(null);
 
+  const [shareWorkoutData, setShareWorkoutData] = useState<WorkoutShareData | null>(null);
   const [feedbackText, setFeedbackText] = useState('');
   const [rpeValue, setRpeValue] = useState<number>(0);
   const [actualDistanceValue, setActualDistanceValue] = useState<string>('');
@@ -1512,28 +1516,75 @@ const AthletePortal: React.FC = () => {
         </div>
       )}
 
-      {selectedWorkout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md no-print" onClick={() => !isSaving && setSelectedWorkout(null)}>
-          <div className="bg-slate-900 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[95vh] border border-white/5" onClick={e => e.stopPropagation()}>
-            <div className={`p-6 md:p-8 border-b flex justify-between items-start flex-shrink-0 ${isFinalWorkout ? 'bg-emerald-950 text-white' : 'bg-white/5'}`}>
-               <div className="flex flex-col">
-                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 italic ${isFinalWorkout ? 'text-emerald-400' : 'text-slate-400'}`}>{selectedWorkout.data.day}</span>
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">{isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}</h3>
-                  </div>
-               </div>
-               <div className="flex items-center gap-2">
-                 <button 
-                   disabled={exportLoading}
-                   onClick={handleDownloadWorkoutImage}
-                   className="px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition-all"
-                   title="Baixar imagem do treino"
-                 >
-                   {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                   <span className="hidden xs:inline">Baixar Imagem</span>
-                 </button>
-                 <button disabled={isSaving} onClick={() => setSelectedWorkout(null)} className={`p-3 rounded-full transition-colors ${isFinalWorkout ? 'bg-white/10 hover:bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}><X className="w-5 h-5 text-white" /></button>
-               </div>
+      {/* Modal de Detalhes do Treino (Renderizado via Portal para nunca ser encoberto pelo menu) */}
+      {selectedWorkout && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md no-print overflow-y-auto pt-16 sm:pt-6" onClick={() => !isSaving && setSelectedWorkout(null)}>
+          <div className="bg-slate-900 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[90vh] border border-white/10 relative my-auto" onClick={e => e.stopPropagation()}>
+            <div className={`p-4 sm:p-6 border-b flex-shrink-0 space-y-3 ${isFinalWorkout ? 'bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white' : 'bg-slate-950/60'}`}>
+              {/* Top line with Day, Status and Close Button */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg italic ${isFinalWorkout ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-white/10 text-emerald-400'}`}>
+                    {selectedWorkout.data.day}
+                  </span>
+                  {selectedWorkout.data.completed && (
+                    <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Concluído
+                    </span>
+                  )}
+                </div>
+                <button 
+                  disabled={isSaving} 
+                  onClick={() => setSelectedWorkout(null)} 
+                  className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors border border-white/10 flex items-center justify-center cursor-pointer"
+                  title="Fechar"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Main Title */}
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black uppercase italic tracking-tighter text-white">
+                  {isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}
+                </h3>
+              </div>
+
+              {/* Dedicated Action Buttons Bar - Always 100% visible and accessible on mobile & desktop */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShareWorkoutData({
+                      title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
+                      athleteName: activeAthlete?.name,
+                      date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
+                      distanceKm: currentGpsRoute?.totalDistanceKm || Number(actualDistanceValue) || selectedWorkout.data.distance || 0,
+                      durationSeconds: currentGpsRoute?.durationSeconds || (currentGpsRoute?.totalDistanceKm ? Math.round(currentGpsRoute.totalDistanceKm * 300) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)),
+                      avgPace: currentGpsRoute?.avgPace || (paces?.find(p => p.zone === 'Z2' || p.name.includes('Fácil'))?.minPace || '05:30'),
+                      elevationGainMeters: currentGpsRoute?.elevationGainMeters,
+                      avgHeartRate: currentGpsRoute?.avgHeartRate,
+                      route: currentGpsRoute,
+                      workoutType: selectedWorkout.data.type
+                    });
+                  }}
+                  className="px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all shadow-md shadow-emerald-950/40 cursor-pointer active:scale-95 border border-emerald-400/30"
+                  title="Gerar Card Social / Postar Treino"
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                  <span>Postar Treino</span>
+                </button>
+                <button 
+                  disabled={exportLoading}
+                  onClick={handleDownloadWorkoutImage}
+                  className="px-3 py-2.5 bg-white/5 hover:bg-white/10 text-emerald-400 border border-white/10 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all cursor-pointer active:scale-95"
+                  title="Baixar imagem da prescrição"
+                >
+                  {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span>Baixar Imagem</span>
+                </button>
+              </div>
             </div>
             
             <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-900">
@@ -1738,6 +1789,28 @@ const AthletePortal: React.FC = () => {
                           height="200px"
                           interactive={true}
                         />
+
+                        {/* Botão de Compartilhar Card de Atividade */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShareWorkoutData({
+                              title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
+                              athleteName: activeAthlete?.name,
+                              date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
+                              distanceKm: currentGpsRoute?.totalDistanceKm || Number(actualDistanceValue) || selectedWorkout.data.distance || 0,
+                              durationSeconds: currentGpsRoute?.durationSeconds || (currentGpsRoute?.totalDistanceKm ? Math.round(currentGpsRoute.totalDistanceKm * 300) : 1800),
+                              avgPace: currentGpsRoute?.avgPace || (paces?.find(p => p.zone === 'Z2' || p.name.includes('Fácil'))?.minPace || '05:30'),
+                              elevationGainMeters: currentGpsRoute?.elevationGainMeters,
+                              avgHeartRate: currentGpsRoute?.avgHeartRate,
+                              route: currentGpsRoute,
+                              workoutType: selectedWorkout.data.type
+                            });
+                          }}
+                          className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-950/40 transition-all active:scale-[0.98] cursor-pointer"
+                        >
+                          <Camera className="w-4 h-4" /> 📸 Postar Treino / Gerar Card Social
+                        </button>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -1762,6 +1835,7 @@ const AthletePortal: React.FC = () => {
                               existingRoute={currentGpsRoute}
                               structuredWorkout={selectedWorkout.data.structuredWorkout}
                               workoutDescription={selectedWorkout.data.customDescription}
+                              athletePaces={paces}
                               onRouteCaptured={(route) => {
                                 setCurrentGpsRoute(route);
                                 setActualDistanceValue(String(route.totalDistanceKm));
@@ -2074,7 +2148,8 @@ const AthletePortal: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal de Nova Meta */}
@@ -2210,6 +2285,14 @@ const AthletePortal: React.FC = () => {
           totalWeeks={athletePlan?.weeks?.length || 0}
         />,
         portalRoot
+      )}
+
+      {/* Modal de Compartilhamento Social de Treino (Card / Story) */}
+      {shareWorkoutData && (
+        <WorkoutShareModal
+          data={shareWorkoutData}
+          onClose={() => setShareWorkoutData(null)}
+        />
       )}
     </div>
   );

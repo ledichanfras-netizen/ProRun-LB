@@ -100,6 +100,33 @@ export const generateTrainingPlan = async (
     9. Use a nomenclatura exata: "Regenerativo", "Longão", "Limiar", "Intervalado", "Maratona", "Descanso", "Fortalecimento", "Velocidade", "Natação", "Ciclismo", "Transição", "Prova".
     10. INDIVIDUALIZAÇÃO: Se o atleta é "Elite", o volume deve ser condizente (ex: 70-120km/sem para maratona). Se é "Iniciante", comece com volumes condizentes e progressão segura.
 
+    PADRÃO OBRIGATÓRIO DE SINTAXE PARA O CONVERSOR DE TREINOS ESTRUTURADOS (GPS / PARSER):
+    Para que o sistema e o GPS convertam automaticamente as sessões em etapas estruturadas de áudio e ritmo para o atleta, você DEVE formatar o campo "customDescription" seguindo rigorosamente os padrões abaixo:
+
+    A) TREINOS INTERVALADOS / TIROS / VELOCIDADE (Tipos: "Intervalado", "Velocidade", "Limiar"):
+       Formato padrão: [Aquecimento] + [N]x [Distância ou Tempo] rec [Recuperação] ritmo [Pace Min a Pace Max ou Pace Exato] + [Desaquecimento]
+       Exemplos que o conversor reconhece perfeitamente:
+       - "2km aq + 6x 1000m rec 2min ritmo 04:15 a 04:25 + 1km des"
+       - "15min aq + 8x 400m rec 90s ritmo 03:40 + 10min des"
+       - "10min aq + 5x 1km rec 2min ritmo 04:10 + 10min des"
+       - "2km aq + 10x 200m rec 60s ritmo 03:20 + 1km des"
+       - "15min aq + 4x 2000m rec 3min ritmo 04:30 a 04:40 + 10min des"
+       - "10min aq + 10x 1min rec 1min ritmo 03:30 + 10min des"
+       (Use sempre os ritmos reais do atleta calculados em ${pacesContext}: Intervalado = Z4, Velocidade = Z5, Limiar = Z3).
+
+    B) TREINOS CONTÍNUOS / RODAGENS / LONGÃO (Tipos: "Regenerativo", "Longão", "Maratona"):
+       - "Rodagem regenerativa 6km ritmo 05:40 a 06:10 (Z1 leve/recuperação)."
+       - "Rodagem aeróbica 10km ritmo 05:05 a 05:30 (Z2 confortável)."
+       - "Longão 20km ritmo 05:10 a 05:35 (Z2 construção de base)."
+       - "Longão progressivo 22km: 14km ritmo 05:15 (Z2) + 8km ritmo 04:45 (Z3/ritmo de prova)."
+       - "Treino de ritmo Maratona 16km ritmo 04:50 (Z2 alta / ritmo alvo de maratona)."
+
+    C) FORTALECIMENTO:
+       - "Treino de força funcional: foco em membros inferiores, core e estabilização de quadril/glúteo médio."
+
+    D) DESCANSO:
+       - "Descanso total / Recuperação passiva."
+
     ESTRATÉGIA DE PROVA (raceStrategy):
     - Detalhe o plano de ritmos e tática para atingir a meta "${raceGoal}".
   `;
@@ -109,7 +136,7 @@ export const generateTrainingPlan = async (
       model: modelName,
       contents: prompt,
       config: {
-        systemInstruction: "Você é o Treinador Leandro Barbosa. Especialista em Performance Humana, Triathlon e Duathlon. Suas planilhas são baseadas nas metodologias de Joe Friel (Training Bible), Jack Daniels (VDOT) e 80/20 Training. Suas prescrições são precisas e respeitam as restrições de tempo de vida do atleta. Você sempre termina a periodização no dia da prova.",
+        systemInstruction: "Você é o Treinador Leandro Barbosa. Especialista em Performance Humana, Triathlon e Duathlon. Suas planilhas são baseadas nas metodologias de Joe Friel (Training Bible), Jack Daniels (VDOT) e 80/20 Training. Suas prescrições são precisas e formatadas com sintaxe padronizada para reconhecimento automático pelo conversor de treinos estruturados GPS (ex: '2km aq + 6x 1000m rec 2min ritmo 04:15 + 1km des'). Você sempre termina a periodização no dia da prova.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
         responseSchema: {

@@ -36,7 +36,8 @@ import {
   Navigation,
   MapPin,
   FileCode2,
-  Timer
+  Timer,
+  Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculatePaces } from '../utils/calculations';
@@ -45,7 +46,8 @@ import { safeDeepClone } from '../utils/helpers';
 import { WorkoutMap } from '../components/WorkoutMap';
 import { decodePolyline } from '../utils/gpsUtils';
 import { StructuredWorkoutModal } from '../components/StructuredWorkoutModal';
-import { formatStructuredWorkoutSummary } from '../utils/workoutParser';
+import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure } from '../utils/workoutParser';
+import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 
 const Periodization: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, clearAthletePlan, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
@@ -72,6 +74,7 @@ const Periodization: React.FC = () => {
   const [targetWeekForTemplate, setTargetWeekForTemplate] = useState<number | null>(null);
   const [viewingWorkoutRoute, setViewingWorkoutRoute] = useState<any | null>(null);
   const [editingStructuredWorkout, setEditingStructuredWorkout] = useState<{ wIdx: number; dIdx: number } | null>(null);
+  const [shareModalData, setShareModalData] = useState<WorkoutShareData | null>(null);
 
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
@@ -270,7 +273,14 @@ const Periodization: React.FC = () => {
            const found = w.workouts.find(work => 
              work.day && work.day.toLowerCase().includes(dayName.split('-')[0].toLowerCase())
            );
-           return found ? { ...found, day: dayName } : { day: dayName, type: 'Descanso' as WorkoutType, customDescription: 'Descanso total.', distance: 0 };
+           if (found) {
+             let structured = found.structuredWorkout;
+             if (!structured && found.customDescription && found.type !== 'Descanso' && found.type !== 'Fortalecimento') {
+               structured = parseWorkoutTextToStructure(found.customDescription, found.type, athletePaces) || undefined;
+             }
+             return { ...found, day: dayName, structuredWorkout: structured };
+           }
+           return { day: dayName, type: 'Descanso' as WorkoutType, customDescription: 'Descanso total.', distance: 0 };
         });
         return { ...w, isVisible: false, workouts: workoutsWithDescanso } as TrainingWeek;
       });
@@ -1651,7 +1661,26 @@ const Periodization: React.FC = () => {
                 />
               </div>
 
-              <div className="p-6 border-t border-white/5 flex justify-end">
+              <div className="p-6 border-t border-white/5 flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShareModalData({
+                      title: 'Treino com GPS',
+                      athleteName: activeAthlete?.name,
+                      distanceKm: viewingWorkoutRoute.totalDistanceKm,
+                      durationSeconds: viewingWorkoutRoute.durationSeconds,
+                      avgPace: viewingWorkoutRoute.avgPace,
+                      elevationGainMeters: viewingWorkoutRoute.elevationGainMeters,
+                      avgHeartRate: viewingWorkoutRoute.avgHeartRate,
+                      route: viewingWorkoutRoute
+                    });
+                  }}
+                  className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black text-xs uppercase italic tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-emerald-950/40"
+                >
+                  <Camera className="w-4 h-4" /> 📸 Gerar Card Social
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setViewingWorkoutRoute(null)}
@@ -1664,11 +1693,21 @@ const Periodization: React.FC = () => {
           </div>
         )}
 
+        {/* Modal de Compartilhamento Social de Treino */}
+        {shareModalData && (
+          <WorkoutShareModal
+            data={shareModalData}
+            onClose={() => setShareModalData(null)}
+          />
+        )}
+
         {/* Modal de Estruturação Detalhada de Treino */}
         {editingStructuredWorkout && fullPlan && (
           <StructuredWorkoutModal
             initialWorkout={fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.structuredWorkout}
             workoutDescription={fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.customDescription}
+            workoutType={fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.type}
+            athletePaces={athletePaces}
             onSave={(newStructured) => {
               updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'structuredWorkout', newStructured);
               const currentDistance = fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.distance;

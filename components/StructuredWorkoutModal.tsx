@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Timer, 
   Sparkles, 
@@ -11,19 +11,23 @@ import {
   RefreshCw, 
   ArrowRight,
   ShieldAlert,
-  Gauge
+  Gauge,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { StructuredWorkout, WorkoutStep, StepType } from '../types';
+import { StructuredWorkout, WorkoutStep, StepType, TrainingPace, WorkoutType } from '../types';
 import { 
   buildStructuredWorkout, 
   parseWorkoutTextToStructure, 
-  formatStepTarget 
+  formatStepTarget,
+  getSuggestedPaces
 } from '../utils/workoutParser';
 
 interface StructuredWorkoutModalProps {
   initialWorkout?: StructuredWorkout;
   workoutDescription?: string;
+  workoutType?: WorkoutType;
+  athletePaces?: TrainingPace[];
   onSave: (structured: StructuredWorkout) => void;
   onClose: () => void;
 }
@@ -31,6 +35,8 @@ interface StructuredWorkoutModalProps {
 export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
   initialWorkout,
   workoutDescription,
+  workoutType,
+  athletePaces,
   onSave,
   onClose
 }) => {
@@ -40,35 +46,114 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
   const [quickTextInput, setQuickTextInput] = useState(workoutDescription || '5x1000m rec 2min');
   const [parseError, setParseError] = useState<string | null>(null);
 
-  // Visual Builder States
+  // Suggested Paces based on Workout Type and Athlete
+  const paceData = useMemo(() => {
+    return getSuggestedPaces(workoutType, athletePaces);
+  }, [workoutType, athletePaces]);
+
+  // Visual Builder States - Aquecimento (Warmup)
   const [hasWarmup, setHasWarmup] = useState(true);
+  const [warmupType, setWarmupType] = useState<'distance' | 'time'>('distance');
   const [warmupDistMeters, setWarmupDistMeters] = useState(1500); // 1.5km
+  const [warmupMinutes, setWarmupMinutes] = useState(10); // 10 min
   
   const [repetitions, setRepetitions] = useState(5);
   const [intervalType, setIntervalType] = useState<'distance' | 'time'>('distance');
   const [intervalMeters, setIntervalMeters] = useState(1000); // 1000m
   const [intervalSeconds, setIntervalSeconds] = useState(240); // 4 min
-  const [targetPaceMin, setTargetPaceMin] = useState('04:10');
-  const [targetPaceMax, setTargetPaceMax] = useState('04:25');
+  const [targetPaceMin, setTargetPaceMin] = useState(paceData.suggestedPace.minPace || '04:10');
+  const [targetPaceMax, setTargetPaceMax] = useState(paceData.suggestedPace.maxPace || '04:25');
 
   const [recoveryType, setRecoveryType] = useState<'time' | 'distance'>('time');
   const [recoverySeconds, setRecoverySeconds] = useState(120); // 2 min
   const [recoveryMeters, setRecoveryMeters] = useState(400); // 400m
 
+  // Visual Builder States - Desaquecimento (Cooldown)
   const [hasCooldown, setHasCooldown] = useState(true);
+  const [cooldownType, setCooldownType] = useState<'distance' | 'time'>('distance');
   const [cooldownDistMeters, setCooldownDistMeters] = useState(1000); // 1km
+  const [cooldownMinutes, setCooldownMinutes] = useState(10); // 10 min
 
   // Current Generated Steps Preview
   const [previewWorkout, setPreviewWorkout] = useState<StructuredWorkout | null>(null);
+
+  // Generate from visual builder
+  const generateFromBuilder = (overrides?: {
+    wType?: 'distance' | 'time';
+    wVal?: number;
+    cType?: 'distance' | 'time';
+    cVal?: number;
+    pMin?: string;
+    pMax?: string;
+  }) => {
+    const activeWarmupType = overrides?.wType ?? warmupType;
+    const activeWarmupValue = overrides?.wVal ?? (activeWarmupType === 'distance' ? warmupDistMeters : warmupMinutes * 60);
+
+    const activeCooldownType = overrides?.cType ?? cooldownType;
+    const activeCooldownValue = overrides?.cVal ?? (activeCooldownType === 'distance' ? cooldownDistMeters : cooldownMinutes * 60);
+
+    const activePaceMin = overrides?.pMin ?? targetPaceMin;
+    const activePaceMax = overrides?.pMax ?? targetPaceMax;
+
+    const res = buildStructuredWorkout({
+      repetitions,
+      intervalTargetType: intervalType,
+      intervalValue: intervalType === 'distance' ? intervalMeters : intervalSeconds,
+      recoveryTargetType: recoveryType,
+      recoveryValue: recoveryType === 'time' ? recoverySeconds : recoveryMeters,
+      targetPaceMin: activePaceMin || undefined,
+      targetPaceMax: activePaceMax || undefined,
+      warmupValue: hasWarmup ? activeWarmupValue : undefined,
+      warmupTargetType: activeWarmupType,
+      cooldownValue: hasCooldown ? activeCooldownValue : undefined,
+      cooldownTargetType: activeCooldownType
+    });
+    setPreviewWorkout(res);
+  };
 
   // Initialize from initialWorkout if provided
   useEffect(() => {
     if (initialWorkout && initialWorkout.steps && initialWorkout.steps.length > 0) {
       setPreviewWorkout(initialWorkout);
+
+      const wStep = initialWorkout.steps.find(s => s.type === 'warmup');
+      if (wStep) {
+        setHasWarmup(true);
+        if (wStep.targetType === 'time') {
+          setWarmupType('time');
+          setWarmupMinutes(Math.max(1, Math.round(wStep.targetValue / 60)));
+        } else {
+          setWarmupType('distance');
+          setWarmupDistMeters(wStep.targetValue);
+        }
+      }
+
+      const cStep = initialWorkout.steps.find(s => s.type === 'cooldown');
+      if (cStep) {
+        setHasCooldown(true);
+        if (cStep.targetType === 'time') {
+          setCooldownType('time');
+          setCooldownMinutes(Math.max(1, Math.round(cStep.targetValue / 60)));
+        } else {
+          setCooldownType('distance');
+          setCooldownDistMeters(cStep.targetValue);
+        }
+      }
+
+      const intStep = initialWorkout.steps.find(s => s.type === 'interval');
+      if (intStep) {
+        if (intStep.targetPaceMin) setTargetPaceMin(intStep.targetPaceMin);
+        if (intStep.targetPaceMax) setTargetPaceMax(intStep.targetPaceMax);
+      }
     } else if (workoutDescription) {
-      const parsed = parseWorkoutTextToStructure(workoutDescription);
+      const parsed = parseWorkoutTextToStructure(workoutDescription, workoutType, athletePaces);
       if (parsed) {
         setPreviewWorkout(parsed);
+        const intStep = parsed.steps.find(s => s.type === 'interval');
+        if (intStep?.targetPaceMin) {
+          setTargetPaceMin(intStep.targetPaceMin);
+          setTargetPaceMax(intStep.targetPaceMax || '');
+        }
       } else {
         generateFromBuilder();
       }
@@ -77,28 +162,10 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
     }
   }, []);
 
-  // Generate from visual builder
-  const generateFromBuilder = () => {
-    const res = buildStructuredWorkout({
-      repetitions,
-      intervalTargetType: intervalType,
-      intervalValue: intervalType === 'distance' ? intervalMeters : intervalSeconds,
-      recoveryTargetType: recoveryType,
-      recoveryValue: recoveryType === 'time' ? recoverySeconds : recoveryMeters,
-      targetPaceMin: targetPaceMin || undefined,
-      targetPaceMax: targetPaceMax || undefined,
-      warmupValue: hasWarmup ? warmupDistMeters : undefined,
-      warmupTargetType: 'distance',
-      cooldownValue: hasCooldown ? cooldownDistMeters : undefined,
-      cooldownTargetType: 'distance'
-    });
-    setPreviewWorkout(res);
-  };
-
   // Handle Quick Text Parse
   const handleParseQuickText = () => {
     setParseError(null);
-    const parsed = parseWorkoutTextToStructure(quickTextInput);
+    const parsed = parseWorkoutTextToStructure(quickTextInput, workoutType, athletePaces);
     if (parsed) {
       setPreviewWorkout(parsed);
     } else {
@@ -109,7 +176,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
   // Quick Preset Click
   const applyPreset = (text: string) => {
     setQuickTextInput(text);
-    const parsed = parseWorkoutTextToStructure(text);
+    const parsed = parseWorkoutTextToStructure(text, workoutType, athletePaces);
     if (parsed) {
       setPreviewWorkout(parsed);
       setParseError(null);
@@ -301,7 +368,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                       checked={hasWarmup}
                       onChange={(e) => {
                         setHasWarmup(e.target.checked);
-                        setTimeout(generateFromBuilder, 50);
+                        setTimeout(() => generateFromBuilder(), 50);
                       }}
                       className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white/10 border-white/20"
                     />
@@ -309,25 +376,77 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                   </label>
                 </div>
                 {hasWarmup && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-slate-400 font-semibold">Distância:</span>
-                    {[1000, 1500, 2000, 3000].map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => {
-                          setWarmupDistMeters(m);
-                          setTimeout(generateFromBuilder, 50);
-                        }}
-                        className={`px-3 py-1 rounded-lg text-xs font-black uppercase italic ${
-                          warmupDistMeters === m
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white/5 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {m >= 1000 ? `${m / 1000}km` : `${m}m`}
-                      </button>
-                    ))}
+                  <div className="space-y-2 pt-1 border-t border-white/5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex bg-white/5 p-0.5 rounded-xl border border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWarmupType('distance');
+                            generateFromBuilder({ wType: 'distance' });
+                          }}
+                          className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all ${
+                            warmupType === 'distance' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Distância (km/m)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWarmupType('time');
+                            generateFromBuilder({ wType: 'time' });
+                          }}
+                          className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all ${
+                            warmupType === 'time' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Tempo (min)
+                        </button>
+                      </div>
+                    </div>
+
+                    {warmupType === 'distance' ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {[1000, 1500, 2000, 3000].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => {
+                              setWarmupDistMeters(m);
+                              generateFromBuilder({ wType: 'distance', wVal: m });
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase italic transition-all ${
+                              warmupDistMeters === m
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            {m >= 1000 ? `${m / 1000}km` : `${m}m`}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {[5, 10, 15, 20].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            onClick={() => {
+                              setWarmupMinutes(mins);
+                              generateFromBuilder({ wType: 'time', wVal: mins * 60 });
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase italic transition-all ${
+                              warmupMinutes === mins
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            {mins} min
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -508,18 +627,86 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                   </div>
                 </div>
 
-                {/* Ritmo Alvo Opcional */}
-                <div className="pt-2 border-t border-white/5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 mb-1.5">
-                    <Gauge className="w-3.5 h-3.5 text-amber-400" /> Ritmo Alvo do Tiro (Pace min/km - Opcional)
-                  </label>
-                  <div className="flex items-center gap-2">
+                {/* Ritmo Alvo com Integração ao Tipo de Treino */}
+                <div className="pt-3 border-t border-white/5 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                      <div>
+                        <div className="text-[11px] font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                          <span>Tipo: {workoutType || 'Intervalado'}</span>
+                          <span className="text-amber-400">➔ Zona {paceData.suggestedPace.zone} ({paceData.suggestedPace.name})</span>
+                        </div>
+                        <div className="text-[10px] text-amber-200/70 font-mono">
+                          Pace Sugerido: {paceData.suggestedPace.minPace} - {paceData.suggestedPace.maxPace} /km
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetPaceMin(paceData.suggestedPace.minPace);
+                        setTargetPaceMax(paceData.suggestedPace.maxPace);
+                        generateFromBuilder({
+                          pMin: paceData.suggestedPace.minPace,
+                          pMax: paceData.suggestedPace.maxPace
+                        });
+                      }}
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer shadow-md"
+                    >
+                      ⚡ Usar Ritmo do Tipo
+                    </button>
+                  </div>
+
+                  {/* Seleção Rápida de Zonas do Atleta */}
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">
+                      Zonas de Ritmo do Atleta:
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                      {paceData.allPaces.slice(0, 5).map((p) => {
+                        const isSelected = targetPaceMin === p.minPace && targetPaceMax === p.maxPace;
+                        return (
+                          <button
+                            key={p.zone}
+                            type="button"
+                            onClick={() => {
+                              setTargetPaceMin(p.minPace);
+                              setTargetPaceMax(p.maxPace);
+                              generateFromBuilder({
+                                pMin: p.minPace,
+                                pMax: p.maxPace
+                              });
+                            }}
+                            className={`p-1.5 rounded-lg text-left transition-all border ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-500/60 text-white shadow-sm'
+                                : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-[10px] font-black">
+                              <span className={isSelected ? 'text-amber-400' : 'text-slate-300'}>{p.zone}</span>
+                              <span className="text-[8px] opacity-70 truncate max-w-[50px]">{p.name}</span>
+                            </div>
+                            <div className="text-[9px] font-mono mt-0.5 opacity-90 truncate">
+                              {p.minPace}-{p.maxPace}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                      <Gauge className="w-3.5 h-3.5 text-amber-400" /> Pace Personalizado:
+                    </label>
                     <input
                       type="text"
                       placeholder="04:10"
                       value={targetPaceMin}
                       onChange={(e) => setTargetPaceMin(e.target.value)}
-                      className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono text-center outline-none focus:border-amber-500"
+                      className="w-20 bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-white text-xs font-mono text-center outline-none focus:border-amber-500"
                     />
                     <span className="text-slate-500 text-xs">até</span>
                     <input
@@ -527,12 +714,12 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                       placeholder="04:25"
                       value={targetPaceMax}
                       onChange={(e) => setTargetPaceMax(e.target.value)}
-                      className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono text-center outline-none focus:border-amber-500"
+                      className="w-20 bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-white text-xs font-mono text-center outline-none focus:border-amber-500"
                     />
                     <button
                       type="button"
-                      onClick={generateFromBuilder}
-                      className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase italic"
+                      onClick={() => generateFromBuilder()}
+                      className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase italic transition-all cursor-pointer"
                     >
                       Atualizar
                     </button>
@@ -552,7 +739,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                       checked={hasCooldown}
                       onChange={(e) => {
                         setHasCooldown(e.target.checked);
-                        setTimeout(generateFromBuilder, 50);
+                        setTimeout(() => generateFromBuilder(), 50);
                       }}
                       className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white/10 border-white/20"
                     />
@@ -560,25 +747,77 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                   </label>
                 </div>
                 {hasCooldown && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-slate-400 font-semibold">Distância:</span>
-                    {[1000, 1500, 2000].map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => {
-                          setCooldownDistMeters(m);
-                          setTimeout(generateFromBuilder, 50);
-                        }}
-                        className={`px-3 py-1 rounded-lg text-xs font-black uppercase italic ${
-                          cooldownDistMeters === m
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-white/5 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {m >= 1000 ? `${m / 1000}km` : `${m}m`}
-                      </button>
-                    ))}
+                  <div className="space-y-2 pt-1 border-t border-white/5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex bg-white/5 p-0.5 rounded-xl border border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCooldownType('distance');
+                            generateFromBuilder({ cType: 'distance' });
+                          }}
+                          className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all ${
+                            cooldownType === 'distance' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Distância (km/m)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCooldownType('time');
+                            generateFromBuilder({ cType: 'time' });
+                          }}
+                          className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all ${
+                            cooldownType === 'time' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Tempo (min)
+                        </button>
+                      </div>
+                    </div>
+
+                    {cooldownType === 'distance' ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {[500, 1000, 1500, 2000].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => {
+                              setCooldownDistMeters(m);
+                              generateFromBuilder({ cType: 'distance', cVal: m });
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase italic transition-all ${
+                              cooldownDistMeters === m
+                                ? 'bg-purple-600 text-white shadow-md'
+                                : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            {m >= 1000 ? `${m / 1000}km` : `${m}m`}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {[5, 10, 15, 20].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            onClick={() => {
+                              setCooldownMinutes(mins);
+                              generateFromBuilder({ cType: 'time', cVal: mins * 60 });
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase italic transition-all ${
+                              cooldownMinutes === mins
+                                ? 'bg-purple-600 text-white shadow-md'
+                                : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            {mins} min
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

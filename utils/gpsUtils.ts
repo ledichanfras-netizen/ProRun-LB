@@ -20,6 +20,7 @@ export interface RouteData {
   avgPace: string; // "05:20" min/km
   maxSpeedKmh?: number;
   elevationGainMeters?: number;
+  avgHeartRate?: number;
   source: 'live_gps' | 'gpx_file';
   recordedAt: string;
   completedSteps?: {

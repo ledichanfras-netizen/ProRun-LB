@@ -18,7 +18,9 @@ import {
   Layers,
   Flag,
   Flame,
-  Settings
+  Settings,
+  Camera,
+  Share2
 } from 'lucide-react';
 import { WorkoutMap } from './WorkoutMap';
 import { 
@@ -29,10 +31,11 @@ import {
   formatDuration, 
   parseGpxFile 
 } from '../utils/gpsUtils';
-import { StructuredWorkout, WorkoutStep, StepType, StepTargetType } from '../types';
+import { StructuredWorkout, WorkoutStep, StepType, StepTargetType, TrainingPace, WorkoutType } from '../types';
 import { workoutAudio } from '../utils/workoutAudio';
 import { formatStepTarget } from '../utils/workoutParser';
 import { StructuredWorkoutModal } from './StructuredWorkoutModal';
+import { WorkoutShareModal, WorkoutShareData } from './WorkoutShareModal';
 
 interface GpsWorkoutTrackerProps {
   workoutType: string;
@@ -40,6 +43,7 @@ interface GpsWorkoutTrackerProps {
   existingRoute?: any;
   structuredWorkout?: StructuredWorkout;
   workoutDescription?: string;
+  athletePaces?: TrainingPace[];
   onRouteCaptured: (route: RouteData) => void;
   onCancel?: () => void;
 }
@@ -61,6 +65,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   existingRoute,
   structuredWorkout: initialStructuredWorkout,
   workoutDescription,
+  athletePaces,
   onRouteCaptured,
   onCancel
 }) => {
@@ -75,6 +80,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [completedSteps, setCompletedSteps] = useState<CompletedStepRecord[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showStepsList, setShowStepsList] = useState(false);
+  const [shareModalData, setShareModalData] = useState<WorkoutShareData | null>(null);
 
   // Live GPS Tracking States
   const [isTracking, setIsTracking] = useState(false);
@@ -917,16 +923,45 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 interactive={true}
               />
 
-              <button
-                type="button"
-                onClick={confirmGpxRoute}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] cursor-pointer"
-              >
-                <Check className="w-4 h-4" /> Vincular esta Rota ao Treino
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShareModalData({
+                      title: workoutDescription?.slice(0, 45) || `${workoutType}`,
+                      distanceKm: gpxParsedRoute.totalDistanceKm,
+                      durationSeconds: gpxParsedRoute.totalDurationSeconds,
+                      avgPace: gpxParsedRoute.avgPace,
+                      elevationGainMeters: gpxParsedRoute.elevationGainMeters,
+                      avgHeartRate: gpxParsedRoute.avgHeartRate,
+                      route: gpxParsedRoute,
+                      workoutType: workoutType
+                    });
+                  }}
+                  className="bg-white/10 hover:bg-white/20 text-white font-black py-3 rounded-xl flex items-center justify-center gap-1.5 text-xs uppercase italic tracking-wider transition-all cursor-pointer"
+                >
+                  <Camera className="w-4 h-4 text-emerald-400" /> Postar Treino
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmGpxRoute}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl flex items-center justify-center gap-1.5 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  <Check className="w-4 h-4" /> Vincular Rota
+                </button>
+              </div>
             </div>
           )}
         </div>
+      )}
+
+      {/* MODAL DE COMPARTILHAMENTO / POSTAR TREINO */}
+      {shareModalData && (
+        <WorkoutShareModal
+          data={shareModalData}
+          onClose={() => setShareModalData(null)}
+        />
       )}
 
       {/* MODAL DE PRESCRIÇÃO DETALHADA */}
@@ -934,6 +969,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         <StructuredWorkoutModal
           initialWorkout={activeStructured || undefined}
           workoutDescription={workoutDescription}
+          workoutType={workoutType as WorkoutType}
+          athletePaces={athletePaces}
           onSave={(newStructured) => {
             setActiveStructured(newStructured);
             setActiveStepIndex(0);

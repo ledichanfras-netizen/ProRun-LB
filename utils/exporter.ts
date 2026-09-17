@@ -1,5 +1,94 @@
 import html2canvas from 'html2canvas';
-import { toJpeg } from 'html-to-image';
+import { toJpeg, toPng, toBlob } from 'html-to-image';
+
+export interface ExportImageOptions {
+  format?: 'png' | 'jpeg';
+  transparent?: boolean;
+  scale?: number;
+}
+
+/**
+ * Exporta um elemento HTML para Imagem PNG/JPEG de Alta Definição com suporte a transparência.
+ */
+export const exportElementAsImage = async (
+  elementId: string, 
+  filename: string,
+  options: ExportImageOptions = {}
+): Promise<{ success: boolean; dataUrl?: string; blob?: Blob }> => {
+  const { format = 'png', transparent = false, scale = 2 } = options;
+  let element = document.getElementById(elementId);
+  
+  if (!element) {
+    console.error(`ERRO: Elemento '${elementId}' não encontrado.`);
+    return { success: false };
+  }
+
+  // Pré-carrega todas as imagens
+  const images = Array.from(element.querySelectorAll('img'));
+  await Promise.all(
+    images.map(img => {
+      if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve;
+        setTimeout(resolve, 600);
+      });
+    })
+  );
+
+  await new Promise(resolve => setTimeout(resolve, 150));
+
+  const cleanFilename = filename.replace(/\.[^/.]+$/, '').replace(/[^\w\s-]/gi, '_');
+  const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+  const ext = format === 'png' ? 'png' : 'jpg';
+
+  const triggerDownload = (dataUrl: string) => {
+    const link = document.createElement('a');
+    link.download = `${cleanFilename}.${ext}`;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  try {
+    // 1. Tenta html2canvas
+    try {
+      const canvas = await html2canvas(element, {
+        scale,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: transparent ? null : '#ffffff',
+        logging: false,
+      });
+
+      const dataUrl = canvas.toDataURL(mimeType, 0.98);
+      if (dataUrl && dataUrl.length > 500) {
+        triggerDownload(dataUrl);
+        const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, mimeType, 0.98));
+        return { success: true, dataUrl, blob: blob || undefined };
+      }
+    } catch (h2cError) {
+      console.warn("html2canvas falhou, tentando toPng/toJpeg...", h2cError);
+    }
+
+    // 2. Fallback html-to-image
+    const dataUrl = format === 'png' 
+      ? await toPng(element, { pixelRatio: scale, backgroundColor: transparent ? 'transparent' : '#ffffff', skipFonts: true })
+      : await toJpeg(element, { quality: 0.98, pixelRatio: scale, backgroundColor: '#ffffff', skipFonts: true });
+
+    if (dataUrl && dataUrl.length > 500) {
+      triggerDownload(dataUrl);
+      const blob = await toBlob(element, { pixelRatio: scale, skipFonts: true });
+      return { success: true, dataUrl, blob: blob || undefined };
+    }
+
+    throw new Error("Falha na renderização de imagem");
+  } catch (err: any) {
+    console.error("Erro ao exportar imagem:", err);
+    return { success: false };
+  }
+};
 
 /**
  * Exporta um elemento HTML para Imagem JPEG de Alta Definição.

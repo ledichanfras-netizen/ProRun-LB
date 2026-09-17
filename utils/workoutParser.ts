@@ -440,3 +440,181 @@ export function formatStepTarget(step: WorkoutStep): string {
   }
   return 'Até apertar LAP';
 }
+
+/**
+ * Recalculates total distance and estimated duration for a structured workout
+ */
+export function recalculateStructuredWorkoutTotals(workout: StructuredWorkout): StructuredWorkout {
+  let estDistMeters = 0;
+  let estDurationSeconds = 0;
+
+  for (const s of workout.steps) {
+    if (s.targetType === 'distance') {
+      estDistMeters += s.targetValue;
+      // Assume baseline pace ~5:00 min/km (300s/km) if no duration
+      estDurationSeconds += (s.targetValue / 1000) * 300;
+    } else if (s.targetType === 'time') {
+      estDurationSeconds += s.targetValue;
+      // Assume distance equivalent
+      estDistMeters += (s.targetValue / 300) * 1000;
+    }
+  }
+
+  const updated: StructuredWorkout = {
+    ...workout,
+    totalDistanceEstimatedKm: estDistMeters > 0 ? Number((estDistMeters / 1000).toFixed(2)) : undefined,
+    totalDurationEstimatedSeconds: estDurationSeconds > 0 ? Math.round(estDurationSeconds) : undefined,
+  };
+  updated.description = formatStructuredWorkoutFullDescription(updated);
+  return updated;
+}
+
+/**
+ * Toggles or removes warmup from a structured workout
+ */
+export function toggleWarmupInStructuredWorkout(workout: StructuredWorkout, include?: boolean, defaultMeters = 1500): StructuredWorkout {
+  const hasWarmup = workout.steps.some(s => s.type === 'warmup');
+  const shouldInclude = include !== undefined ? include : !hasWarmup;
+  const stepsWithoutWarmup = workout.steps.filter(s => s.type !== 'warmup');
+
+  if (!shouldInclude) {
+    return recalculateStructuredWorkoutTotals({
+      ...workout,
+      steps: stepsWithoutWarmup
+    });
+  }
+
+  // Add warmup to beginning
+  const existingWarmup = workout.steps.find(s => s.type === 'warmup');
+  const warmupStep: WorkoutStep = existingWarmup || {
+    id: `step-warmup-${Date.now()}`,
+    name: 'Aquecimento',
+    type: 'warmup',
+    targetType: 'distance',
+    targetValue: defaultMeters,
+    notes: `${(defaultMeters / 1000).toFixed(1)} km ritmo leve`
+  };
+
+  return recalculateStructuredWorkoutTotals({
+    ...workout,
+    steps: [warmupStep, ...stepsWithoutWarmup]
+  });
+}
+
+/**
+ * Toggles or removes cooldown from a structured workout
+ */
+export function toggleCooldownInStructuredWorkout(workout: StructuredWorkout, include?: boolean, defaultMeters = 1000): StructuredWorkout {
+  const hasCooldown = workout.steps.some(s => s.type === 'cooldown');
+  const shouldInclude = include !== undefined ? include : !hasCooldown;
+  const stepsWithoutCooldown = workout.steps.filter(s => s.type !== 'cooldown');
+
+  if (!shouldInclude) {
+    return recalculateStructuredWorkoutTotals({
+      ...workout,
+      steps: stepsWithoutCooldown
+    });
+  }
+
+  const existingCooldown = workout.steps.find(s => s.type === 'cooldown');
+  const cooldownStep: WorkoutStep = existingCooldown || {
+    id: `step-cooldown-${Date.now()}`,
+    name: 'Desaquecimento',
+    type: 'cooldown',
+    targetType: 'distance',
+    targetValue: defaultMeters,
+    notes: `${(defaultMeters / 1000).toFixed(1)} km regenerativo`
+  };
+
+  return recalculateStructuredWorkoutTotals({
+    ...workout,
+    steps: [...stepsWithoutCooldown, cooldownStep]
+  });
+}
+
+/**
+ * Adjusts the interval count (repeats) in a structured workout by adding or removing one repeat
+ */
+export function adjustIntervalCountInStructuredWorkout(workout: StructuredWorkout, delta: number): StructuredWorkout {
+  const warmupSteps = workout.steps.filter(s => s.type === 'warmup');
+  const cooldownSteps = workout.steps.filter(s => s.type === 'cooldown');
+  const otherSteps = workout.steps.filter(s => s.type !== 'warmup' && s.type !== 'cooldown');
+  
+  // Find sample interval and recovery
+  const sampleInterval = otherSteps.find(s => s.type === 'interval');
+  const sampleRecovery = otherSteps.find(s => s.type === 'recovery');
+
+  if (!sampleInterval) return workout;
+
+  // Group into pairs of (interval + optional recovery)
+  const currentIntervals = otherSteps.filter(s => s.type === 'interval');
+  const currentCount = currentIntervals.length;
+  const newCount = Math.max(1, Math.min(30, currentCount + delta));
+
+  if (newCount === currentCount) return workout;
+
+  const newOtherSteps: WorkoutStep[] = [];
+  for (let i = 1; i <= newCount; i++) {
+    // Work
+    newOtherSteps.push({
+      ...sampleInterval,
+      id: `step-int-${i}-${Date.now()}`,
+      name: `Tiro ${i}/${newCount}`,
+      repeatIndex: i,
+      repeatTotal: newCount
+    });
+
+    // Recovery
+    if (sampleRecovery) {
+      newOtherSteps.push({
+        ...sampleRecovery,
+        id: `step-rec-${i}-${Date.now()}`,
+        name: `Recuperação ${i}/${newCount}`,
+        repeatIndex: i,
+        repeatTotal: newCount
+      });
+    }
+  }
+
+  return recalculateStructuredWorkoutTotals({
+    ...workout,
+    steps: [...warmupSteps, ...newOtherSteps, ...cooldownSteps]
+  });
+}
+
+/**
+ * Increases or decreases all recovery/rest steps duration or distance
+ */
+export function adjustRestDurationInStructuredWorkout(workout: StructuredWorkout, deltaSeconds: number): StructuredWorkout {
+  const updatedSteps = workout.steps.map(s => {
+    if (s.type === 'recovery') {
+      if (s.targetType === 'time') {
+        const newVal = Math.max(15, s.targetValue + deltaSeconds);
+        const mins = Math.floor(newVal / 60);
+        const secs = newVal % 60;
+        const notes = mins > 0 ? (secs > 0 ? `${mins}m ${secs}s trote/caminhada` : `${mins} min trote/caminhada`) : `${newVal}s trote/caminhada`;
+        return {
+          ...s,
+          targetValue: newVal,
+          notes
+        };
+      } else if (s.targetType === 'distance') {
+        // adjust distance by ~50m per 30s delta
+        const deltaMeters = Math.round((deltaSeconds / 30) * 50);
+        const newVal = Math.max(50, s.targetValue + deltaMeters);
+        return {
+          ...s,
+          targetValue: newVal,
+          notes: `${newVal}m trote/caminhada`
+        };
+      }
+    }
+    return s;
+  });
+
+  return recalculateStructuredWorkoutTotals({
+    ...workout,
+    steps: updatedSteps
+  });
+}
+

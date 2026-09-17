@@ -20,7 +20,10 @@ import {
   Flame,
   Settings,
   Camera,
-  Share2
+  Share2,
+  Sliders,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { WorkoutMap } from './WorkoutMap';
 import { 
@@ -33,9 +36,16 @@ import {
 } from '../utils/gpsUtils';
 import { StructuredWorkout, WorkoutStep, StepType, StepTargetType, TrainingPace, WorkoutType } from '../types';
 import { workoutAudio } from '../utils/workoutAudio';
-import { formatStepTarget } from '../utils/workoutParser';
+import { 
+  formatStepTarget,
+  toggleWarmupInStructuredWorkout,
+  toggleCooldownInStructuredWorkout,
+  adjustIntervalCountInStructuredWorkout,
+  adjustRestDurationInStructuredWorkout
+} from '../utils/workoutParser';
 import { StructuredWorkoutModal } from './StructuredWorkoutModal';
 import { WorkoutShareModal, WorkoutShareData } from './WorkoutShareModal';
+import { useApp } from '../contexts/AppContext';
 
 interface GpsWorkoutTrackerProps {
   workoutType: string;
@@ -69,11 +79,15 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   onRouteCaptured,
   onCancel
 }) => {
+  const { theme: appTheme } = useApp();
+  const isLight = appTheme === 'light';
   const [activeMode, setActiveMode] = useState<'live' | 'gpx'>('live');
 
   // Structured Workout State (Modo Detalhado)
   const [activeStructured, setActiveStructured] = useState<StructuredWorkout | null>(initialStructuredWorkout || null);
   const [showStructuredModal, setShowStructuredModal] = useState(false);
+  const [showTunePanel, setShowTunePanel] = useState(false);
+  const [adjustmentNotice, setAdjustmentNotice] = useState<string | null>(null);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [stepDistanceMeters, setStepDistanceMeters] = useState(0);
   const [stepDurationSeconds, setStepDurationSeconds] = useState(0);
@@ -81,6 +95,69 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showStepsList, setShowStepsList] = useState(false);
   const [shareModalData, setShareModalData] = useState<WorkoutShareData | null>(null);
+
+  const showNotification = (msg: string) => {
+    setAdjustmentNotice(msg);
+    setTimeout(() => setAdjustmentNotice(null), 3000);
+  };
+
+  const handleToggleWarmup = () => {
+    if (!activeStructured) return;
+    const updated = toggleWarmupInStructuredWorkout(activeStructured);
+    setActiveStructured(updated);
+    const hasWarm = updated.steps.some(s => s.type === 'warmup');
+    showNotification(hasWarm ? 'Aquecimento adicionado ao treino' : 'Aquecimento removido do treino');
+    if (activeStepIndex >= updated.steps.length) {
+      setActiveStepIndex(Math.max(0, updated.steps.length - 1));
+    }
+  };
+
+  const handleToggleCooldown = () => {
+    if (!activeStructured) return;
+    const updated = toggleCooldownInStructuredWorkout(activeStructured);
+    setActiveStructured(updated);
+    const hasCool = updated.steps.some(s => s.type === 'cooldown');
+    showNotification(hasCool ? 'Desaquecimento adicionado ao treino' : 'Desaquecimento removido do treino');
+    if (activeStepIndex >= updated.steps.length) {
+      setActiveStepIndex(Math.max(0, updated.steps.length - 1));
+    }
+  };
+
+  const handleAdjustIntervals = (delta: number) => {
+    if (!activeStructured) return;
+    const updated = adjustIntervalCountInStructuredWorkout(activeStructured, delta);
+    setActiveStructured(updated);
+    const intervalCount = updated.steps.filter(s => s.type === 'interval').length;
+    showNotification(delta > 0 ? `+1 Tiro adicionado (Total: ${intervalCount}x)` : `-1 Tiro removido (Total: ${intervalCount}x)`);
+    if (activeStepIndex >= updated.steps.length) {
+      setActiveStepIndex(Math.max(0, updated.steps.length - 1));
+    }
+  };
+
+  const handleAdjustRest = (deltaSeconds: number) => {
+    if (!activeStructured) return;
+    const updated = adjustRestDurationInStructuredWorkout(activeStructured, deltaSeconds);
+    setActiveStructured(updated);
+    showNotification(deltaSeconds > 0 ? `+${deltaSeconds}s no tempo de descanso` : `${deltaSeconds}s no tempo de descanso`);
+  };
+
+  const handleAdjustCurrentStep = (deltaValue: number) => {
+    if (!activeStructured || !activeStructured.steps[activeStepIndex]) return;
+    const steps = [...activeStructured.steps];
+    const cur = { ...steps[activeStepIndex] };
+    if (cur.targetType === 'distance') {
+      cur.targetValue = Math.max(100, cur.targetValue + deltaValue);
+      showNotification(`Meta da etapa atual ajustada para ${cur.targetValue}m`);
+    } else {
+      cur.targetValue = Math.max(10, cur.targetValue + deltaValue);
+      showNotification(`Meta da etapa atual ajustada para ${formatDuration(cur.targetValue)}`);
+    }
+    steps[activeStepIndex] = cur;
+    setActiveStructured({
+      ...activeStructured,
+      steps
+    });
+  };
 
   // Live GPS Tracking States
   const [isTracking, setIsTracking] = useState(false);
@@ -428,43 +505,58 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     switch (type) {
       case 'interval':
         return {
-          bg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+          bg: isLight ? 'bg-amber-100 text-amber-950 border-amber-300 font-extrabold' : 'bg-amber-500/20 text-amber-300 border-amber-500/30',
           bar: 'bg-amber-500',
-          headerBg: 'bg-amber-950/40 border-amber-500/30',
-          label: 'TIRO / TRABALHO',
-          accent: 'text-amber-400'
+          headerBg: isLight ? 'bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/15 border-amber-300/80 text-slate-900 shadow-xs' : 'bg-amber-950/40 border-amber-500/30 text-white',
+          label: '⚡ TIRO / INTENSO',
+          accent: isLight ? 'text-amber-700 font-black' : 'text-amber-400',
+          titleColor: isLight ? 'text-slate-900' : 'text-white',
+          subColor: isLight ? 'text-slate-600' : 'text-slate-400',
+          boxBg: isLight ? 'bg-white border-amber-200' : 'bg-white/5 border-white/5'
         };
       case 'recovery':
         return {
-          bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+          bg: isLight ? 'bg-emerald-100 text-emerald-950 border-emerald-300 font-extrabold' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
           bar: 'bg-emerald-500',
-          headerBg: 'bg-emerald-950/40 border-emerald-500/30',
-          label: 'RECUPERAÇÃO / DESCANSO',
-          accent: 'text-emerald-400'
+          headerBg: isLight ? 'bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-emerald-500/15 border-emerald-300/80 text-slate-900 shadow-xs' : 'bg-emerald-950/40 border-emerald-500/30 text-white',
+          label: '🌿 RECUPERAÇÃO / DESCANSO',
+          accent: isLight ? 'text-emerald-700 font-black' : 'text-emerald-400',
+          titleColor: isLight ? 'text-slate-900' : 'text-white',
+          subColor: isLight ? 'text-slate-600' : 'text-slate-400',
+          boxBg: isLight ? 'bg-white border-emerald-200' : 'bg-white/5 border-white/5'
         };
       case 'warmup':
         return {
-          bg: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+          bg: isLight ? 'bg-blue-100 text-blue-950 border-blue-300 font-extrabold' : 'bg-blue-500/20 text-blue-300 border-blue-400/30',
           bar: 'bg-blue-500',
-          headerBg: 'bg-blue-950/40 border-blue-500/30',
-          label: 'AQUECIMENTO',
-          accent: 'text-blue-400'
+          headerBg: isLight ? 'bg-gradient-to-r from-blue-500/15 via-blue-500/10 to-blue-500/15 border-blue-300/80 text-slate-900 shadow-xs' : 'bg-blue-950/40 border-blue-500/30 text-white',
+          label: '🔥 AQUECIMENTO',
+          accent: isLight ? 'text-blue-700 font-black' : 'text-blue-400',
+          titleColor: isLight ? 'text-slate-900' : 'text-white',
+          subColor: isLight ? 'text-slate-600' : 'text-slate-400',
+          boxBg: isLight ? 'bg-white border-blue-200' : 'bg-white/5 border-white/5'
         };
       case 'cooldown':
         return {
-          bg: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+          bg: isLight ? 'bg-purple-100 text-purple-950 border-purple-300 font-extrabold' : 'bg-purple-500/20 text-purple-300 border-purple-500/30',
           bar: 'bg-purple-500',
-          headerBg: 'bg-purple-950/40 border-purple-500/30',
-          label: 'DESAQUECIMENTO',
-          accent: 'text-purple-400'
+          headerBg: isLight ? 'bg-gradient-to-r from-purple-500/15 via-purple-500/10 to-purple-500/15 border-purple-300/80 text-slate-900 shadow-xs' : 'bg-purple-950/40 border-purple-500/30 text-white',
+          label: '🧘 DESAQUECIMENTO',
+          accent: isLight ? 'text-purple-700 font-black' : 'text-purple-400',
+          titleColor: isLight ? 'text-slate-900' : 'text-white',
+          subColor: isLight ? 'text-slate-600' : 'text-slate-400',
+          boxBg: isLight ? 'bg-white border-purple-200' : 'bg-white/5 border-white/5'
         };
       default:
         return {
-          bg: 'bg-slate-800 text-slate-200 border-slate-700',
+          bg: isLight ? 'bg-slate-200 text-slate-900 border-slate-300 font-extrabold' : 'bg-slate-800 text-slate-200 border-slate-700',
           bar: 'bg-emerald-500',
-          headerBg: 'bg-slate-900 border-white/10',
-          label: 'CORRIDA CONTÍNUA',
-          accent: 'text-emerald-400'
+          headerBg: isLight ? 'bg-slate-100 border-slate-300 text-slate-900 shadow-xs' : 'bg-slate-900 border-white/10 text-white',
+          label: '🏃 CORRIDA CONTÍNUA',
+          accent: isLight ? 'text-emerald-700 font-black' : 'text-emerald-400',
+          titleColor: isLight ? 'text-slate-900' : 'text-white',
+          subColor: isLight ? 'text-slate-600' : 'text-slate-400',
+          boxBg: isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/5'
         };
     }
   };
@@ -490,23 +582,37 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const currentStepPace = formatPace(stepDurationSeconds, stepDistanceMeters / 1000);
 
   return (
-    <div className="bg-slate-950/95 border border-white/10 rounded-3xl p-5 text-white space-y-5 animate-fade-in shadow-2xl">
+    <div className={`border rounded-3xl p-4 sm:p-5 space-y-5 animate-fade-in shadow-2xl transition-all ${
+      isLight 
+        ? 'bg-white border-slate-200 text-slate-900' 
+        : 'bg-slate-950/95 border-white/10 text-white'
+    }`}>
       {/* Header com Modos */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-            <Navigation className="w-4 h-4" />
+      <div className={`flex items-center justify-between border-b pb-3 flex-wrap gap-2 ${
+        isLight ? 'border-slate-200' : 'border-white/10'
+      }`}>
+        <div className="flex items-center gap-2.5">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+            isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-emerald-500/20 text-emerald-400'
+          }`}>
+            <Navigation className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-black uppercase italic tracking-tight">Execução GPS ProRun</h3>
+              <h3 className={`text-sm font-black uppercase italic tracking-tight ${
+                isLight ? 'text-slate-900' : 'text-white'
+              }`}>
+                Execução GPS ProRun
+              </h3>
               {activeStructured && (
-                <span className="text-[8px] font-black uppercase bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-400/20">
+                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
+                  isLight ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-blue-500/20 text-blue-300 border-blue-400/20'
+                }`}>
                   DETALHADA
                 </span>
               )}
             </div>
-            <p className="text-[9px] text-slate-400 font-medium">
+            <p className={`text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
               {workoutType} {plannedDistanceKm ? `• Meta: ${plannedDistanceKm} km` : ''}
             </p>
           </div>
@@ -517,22 +623,26 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           <button
             type="button"
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`p-2 rounded-xl text-xs transition-colors ${
-              soundEnabled ? 'bg-white/10 text-emerald-400' : 'bg-white/5 text-slate-500'
+            className={`p-2 rounded-xl text-xs transition-colors cursor-pointer ${
+              soundEnabled 
+                ? (isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-white/10 text-emerald-400')
+                : (isLight ? 'bg-slate-100 text-slate-500' : 'bg-white/5 text-slate-500')
             }`}
             title={soundEnabled ? 'Alertas sonoros ativados' : 'Alertas sonoros mudos'}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
-          <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+          <div className={`flex p-1 rounded-xl border ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-white/5 border-white/5'
+          }`}>
             <button
               type="button"
               onClick={() => { if (!isTracking) setActiveMode('live'); }}
-              className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase italic transition-all ${
+              className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase italic transition-all cursor-pointer ${
                 activeMode === 'live'
                   ? 'bg-emerald-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
+                  : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white')
               }`}
             >
               GPS
@@ -540,10 +650,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             <button
               type="button"
               onClick={() => { if (!isTracking) setActiveMode('gpx'); }}
-              className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase italic transition-all ${
+              className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase italic transition-all cursor-pointer ${
                 activeMode === 'gpx'
                   ? 'bg-emerald-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
+                  : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white')
               }`}
             >
               .GPX
@@ -552,47 +662,270 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         </div>
       </div>
 
+      {/* Notificação Flutuante de Ajuste no Treino */}
+      {adjustmentNotice && (
+        <div className="bg-emerald-500 text-slate-950 px-4 py-2.5 rounded-2xl font-black text-xs uppercase italic tracking-wider flex items-center gap-2 shadow-xl animate-bounce">
+          <Check className="w-4 h-4 text-slate-950" />
+          <span>{adjustmentNotice}</span>
+        </div>
+      )}
+
       {/* MODO 1: LIVE GPS NO CELULAR (COM SUPORTE A PRESCRIÇÃO DETALHADA) */}
       {activeMode === 'live' && (
         <div className="space-y-4">
           {/* BOTÃO PARA CONFIGURAR/ESTRUTURAR TIROS (SE NÃO ESTIVER CORRENDO) */}
           {!isTracking && (
-            <div className="bg-slate-900/90 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Timer className="w-4 h-4 text-blue-400 shrink-0" />
+            <div className={`p-3.5 rounded-2xl border flex items-center justify-between flex-wrap gap-2 transition-all ${
+              isLight 
+                ? 'bg-slate-50 border-slate-200 shadow-xs' 
+                : 'bg-slate-900/90 border-white/5'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <Timer className={`w-4 h-4 shrink-0 ${isLight ? 'text-blue-600' : 'text-blue-400'}`} />
                 <div className="leading-tight">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider block">
+                  <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                    isLight ? 'text-slate-900' : 'text-slate-200'
+                  }`}>
                     {activeStructured 
                       ? `Treino Estruturado: ${activeStructured.steps.length} Etapas` 
                       : 'Executar Treino de Tiros / Intervalado?'}
                   </span>
-                  <span className="text-[9px] text-slate-500">
+                  <span className={`text-[9px] font-mono ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                     {activeStructured 
-                      ? activeStructured.title || 'Pronto para seguir à risca no GPS' 
+                      ? `${activeStructured.title || 'Personalizado'} • ~${activeStructured.totalDistanceEstimatedKm || 0}km`
                       : 'Configure 5x1000m ou outros blocos com bips'}
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowStructuredModal(true)}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase italic tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0"
-              >
-                <Settings className="w-3 h-3" />
-                {activeStructured ? 'Alterar' : 'Estruturar'}
-              </button>
+              <div className="flex items-center gap-1.5">
+                {activeStructured && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTunePanel(!showTunePanel)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase italic tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                      isLight 
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200' 
+                        : 'bg-white/10 text-slate-200 border border-white/10 hover:bg-white/20'
+                    }`}
+                  >
+                    <Sliders className="w-3 h-3 text-amber-500" />
+                    {showTunePanel ? 'Fechar Ajustes' : 'Ajustes Rápidos'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowStructuredModal(true)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase italic tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0 shadow-xs"
+                >
+                  <Settings className="w-3 h-3" />
+                  {activeStructured ? 'Editar no Construtor' : 'Estruturar'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* PAINEL DE AJUSTES RÁPIDOS E FLEXIBILIDADE DO TREINO (ANTES E DURANTE A CORRIDA) */}
+          {activeStructured && (showTunePanel || isTracking) && (
+            <div className={`border p-3.5 rounded-2xl space-y-3 transition-all ${
+              isLight 
+                ? 'bg-amber-50/90 border-amber-300 text-slate-900 shadow-xs' 
+                : 'bg-slate-900/90 border-amber-500/20 text-white'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] font-black uppercase italic tracking-wider flex items-center gap-1.5 ${
+                  isLight ? 'text-amber-900' : 'text-amber-300'
+                }`}>
+                  <Sliders className="w-3.5 h-3.5 text-amber-500" />
+                  Flexibilidade do Treino (Ajustes ao Vivo)
+                </span>
+                {!isTracking && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTunePanel(false)}
+                    className={`text-[9px] ${isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Ocultar
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {/* 1. Aquecimento */}
+                <button
+                  type="button"
+                  onClick={handleToggleWarmup}
+                  className={`p-2 rounded-xl text-left border transition-all flex flex-col justify-between cursor-pointer ${
+                    isLight 
+                      ? 'bg-white border-amber-200 hover:bg-amber-100/50 text-slate-800' 
+                      : 'bg-white/5 border-white/5 hover:bg-white/10 text-slate-200'
+                  }`}
+                >
+                  <span className={`text-[9px] font-bold uppercase block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Aquecimento</span>
+                  <span className={`text-[10px] font-black flex items-center gap-1 mt-1 ${isLight ? 'text-blue-700' : 'text-blue-400'}`}>
+                    <Flame className="w-3 h-3" />
+                    {activeStructured.steps.some(s => s.type === 'warmup') ? 'Tirar Aquec.' : 'Incluir Aquec.'}
+                  </span>
+                </button>
+
+                {/* 2. Tiros (+/- 1) */}
+                <div className={`p-2 rounded-xl border flex flex-col justify-between ${
+                  isLight ? 'bg-white border-amber-200 text-slate-800' : 'bg-white/5 border-white/5 text-slate-200'
+                }`}>
+                  <span className={`text-[9px] font-bold uppercase block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Qtd. de Tiros</span>
+                  <div className="flex items-center gap-1 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustIntervals(-1)}
+                      className={`flex-1 py-1 rounded font-black text-[10px] flex items-center justify-center gap-0.5 cursor-pointer ${
+                        isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-white/10 hover:bg-white/20 text-slate-300'
+                      }`}
+                      title="Diminuir 1 tiro"
+                    >
+                      <Minus className="w-2.5 h-2.5" /> 1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustIntervals(1)}
+                      className={`flex-1 py-1 rounded font-black text-[10px] flex items-center justify-center gap-0.5 cursor-pointer ${
+                        isLight ? 'bg-amber-200 hover:bg-amber-300 text-amber-950' : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300'
+                      }`}
+                      title="Adicionar 1 tiro"
+                    >
+                      <Plus className="w-2.5 h-2.5" /> 1
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Descanso (+/- 15s/30s) */}
+                <div className={`p-2 rounded-xl border flex flex-col justify-between ${
+                  isLight ? 'bg-white border-amber-200 text-slate-800' : 'bg-white/5 border-white/5 text-slate-200'
+                }`}>
+                  <span className={`text-[9px] font-bold uppercase block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Descanso</span>
+                  <div className="flex items-center gap-1 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustRest(-15)}
+                      className={`flex-1 py-1 rounded font-black text-[10px] flex items-center justify-center cursor-pointer ${
+                        isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-white/10 hover:bg-white/20 text-slate-300'
+                      }`}
+                      title="Reduzir 15 segundos de descanso"
+                    >
+                      -15s
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustRest(15)}
+                      className={`flex-1 py-1 rounded font-black text-[10px] flex items-center justify-center cursor-pointer ${
+                        isLight ? 'bg-emerald-200 hover:bg-emerald-300 text-emerald-950' : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300'
+                      }`}
+                      title="Aumentar 15 segundos de descanso"
+                    >
+                      +15s
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustRest(30)}
+                      className={`flex-1 py-1 rounded font-black text-[10px] flex items-center justify-center cursor-pointer ${
+                        isLight ? 'bg-emerald-200 hover:bg-emerald-300 text-emerald-950' : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300'
+                      }`}
+                      title="Aumentar 30 segundos de descanso"
+                    >
+                      +30s
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. Desaquecimento */}
+                <button
+                  type="button"
+                  onClick={handleToggleCooldown}
+                  className={`p-2 rounded-xl text-left border transition-all flex flex-col justify-between cursor-pointer ${
+                    isLight 
+                      ? 'bg-white border-amber-200 hover:bg-amber-100/50 text-slate-800' 
+                      : 'bg-white/5 border-white/5 hover:bg-white/10 text-slate-200'
+                  }`}
+                >
+                  <span className={`text-[9px] font-bold uppercase block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Desaquec.</span>
+                  <span className={`text-[10px] font-black flex items-center gap-1 mt-1 ${isLight ? 'text-purple-700' : 'text-purple-400'}`}>
+                    <Layers className="w-3 h-3" />
+                    {activeStructured.steps.some(s => s.type === 'cooldown') ? 'Tirar Desaq.' : 'Incluir Desaq.'}
+                  </span>
+                </button>
+              </div>
+
+              {/* Ajuste Fino da Etapa Atual se estiver correndo */}
+              {isTracking && currentStep && !isWorkoutCompleted && (
+                <div className={`pt-2 border-t flex items-center justify-between flex-wrap gap-2 text-[10px] ${
+                  isLight ? 'border-amber-200' : 'border-white/5'
+                }`}>
+                  <span className={`font-mono ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>
+                    Ajustar Etapa Atual ({currentStep.name}):
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {currentStep.targetType === 'distance' ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustCurrentStep(-100)}
+                          className={`px-2 py-0.5 rounded font-mono cursor-pointer ${isLight ? 'bg-white border border-slate-300 text-slate-800' : 'bg-white/5 hover:bg-white/10 text-slate-300'}`}
+                        >
+                          -100m
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustCurrentStep(100)}
+                          className={`px-2 py-0.5 rounded font-mono cursor-pointer ${isLight ? 'bg-amber-200 text-amber-950 font-bold' : 'bg-white/5 hover:bg-white/10 text-amber-300'}`}
+                        >
+                          +100m
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustCurrentStep(500)}
+                          className={`px-2 py-0.5 rounded font-mono cursor-pointer ${isLight ? 'bg-amber-200 text-amber-950 font-bold' : 'bg-white/5 hover:bg-white/10 text-amber-300'}`}
+                        >
+                          +500m
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustCurrentStep(-15)}
+                          className={`px-2 py-0.5 rounded font-mono cursor-pointer ${isLight ? 'bg-white border border-slate-300 text-slate-800' : 'bg-white/5 hover:bg-white/10 text-slate-300'}`}
+                        >
+                          -15s
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustCurrentStep(30)}
+                          className={`px-2 py-0.5 rounded font-mono cursor-pointer ${isLight ? 'bg-amber-200 text-amber-950 font-bold' : 'bg-white/5 hover:bg-white/10 text-amber-300'}`}
+                        >
+                          +30s
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustCurrentStep(60)}
+                          className={`px-2 py-0.5 rounded font-mono cursor-pointer ${isLight ? 'bg-amber-200 text-amber-950 font-bold' : 'bg-white/5 hover:bg-white/10 text-amber-300'}`}
+                        >
+                          +1min
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* PAINEL HUD: ETAPA ATUAL DO TREINO (PRESCRIÇÃO DETALHADA) */}
           {activeStructured && activeStructured.steps && activeStructured.steps.length > 0 && (
-            <div className={`p-4 rounded-2xl border ${theme.headerBg} transition-all space-y-3 relative overflow-hidden shadow-inner`}>
+            <div className={`p-4 rounded-2xl border ${theme.headerBg} transition-all space-y-3 relative overflow-hidden shadow-xs`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${theme.bg}`}>
                     {theme.label}
                   </span>
-                  <span className="text-xs font-black text-white uppercase italic tracking-tight">
+                  <span className={`text-xs font-black uppercase italic tracking-tight ${theme.titleColor}`}>
                     {isWorkoutCompleted 
                       ? 'Treino Concluído! 🏁' 
                       : `Etapa ${activeStepIndex + 1} de ${activeStructured.steps.length}`}
@@ -602,7 +935,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowStepsList(!showStepsList)}
-                  className="text-[10px] font-black text-slate-400 hover:text-white flex items-center gap-1"
+                  className={`text-[10px] font-black flex items-center gap-1 cursor-pointer ${isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'}`}
                 >
                   <span>Etapas</span>
                   {showStepsList ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -613,11 +946,11 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-baseline justify-between">
                     <div>
-                      <h4 className="text-xl font-black text-white uppercase italic tracking-tighter">
+                      <h4 className={`text-xl font-black uppercase italic tracking-tighter ${theme.titleColor}`}>
                         {currentStep.name}
                       </h4>
-                      <p className="text-[10px] text-slate-400 font-mono">
-                        Meta: <strong className="text-slate-200">{formatStepTarget(currentStep)}</strong>
+                      <p className={`text-[10px] font-mono ${theme.subColor}`}>
+                        Meta: <strong className={isLight ? 'text-slate-900 font-bold' : 'text-slate-200'}>{formatStepTarget(currentStep)}</strong>
                         {currentStep.targetPaceMin && ` • Ritmo: ${currentStep.targetPaceMin} a ${currentStep.targetPaceMax || ''}`}
                       </p>
                     </div>
@@ -626,7 +959,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                       <span className={`text-2xl font-black font-mono tracking-tighter ${theme.accent}`}>
                         {remainingText}
                       </span>
-                      <span className="text-[9px] font-bold text-slate-400 block">
+                      <span className={`text-[9px] font-bold block ${theme.subColor}`}>
                         Feito: {currentStep.targetType === 'distance' 
                           ? `${Math.round(stepDistanceMeters)}m` 
                           : formatDuration(stepDurationSeconds)}
@@ -635,7 +968,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   </div>
 
                   {/* Barra de Progresso do Passo */}
-                  <div className="w-full bg-white/10 h-2.5 rounded-full overflow-hidden">
+                  <div className={`w-full h-2.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-white/10'}`}>
                     <div 
                       className={`h-full ${theme.bar} transition-all duration-300 rounded-full`}
                       style={{ width: `${stepProgressPct}%` }}
@@ -644,19 +977,19 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
                   {/* Pace Gauge & Lap Info */}
                   <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className="bg-white/5 p-2 rounded-xl text-center">
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">
+                    <div className={`p-2 rounded-xl text-center border ${theme.boxBg}`}>
+                      <span className={`text-[8px] font-black uppercase tracking-widest block ${theme.subColor}`}>
                         Pace da Etapa
                       </span>
-                      <span className="text-sm font-black text-white font-mono">
-                        {currentStepPace} <span className="text-[9px] text-slate-400">/km</span>
+                      <span className={`text-sm font-black font-mono ${theme.titleColor}`}>
+                        {currentStepPace} <span className={`text-[9px] ${theme.subColor}`}>/km</span>
                       </span>
                     </div>
-                    <div className="bg-white/5 p-2 rounded-xl text-center">
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">
+                    <div className={`p-2 rounded-xl text-center border ${theme.boxBg}`}>
+                      <span className={`text-[8px] font-black uppercase tracking-widest block ${theme.subColor}`}>
                         Ritmo Alvo
                       </span>
-                      <span className="text-sm font-black text-amber-400 font-mono">
+                      <span className={`text-sm font-black font-mono ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>
                         {currentStep.targetPaceMin ? `${currentStep.targetPaceMin}` : 'Livre'}
                       </span>
                     </div>
@@ -667,19 +1000,23 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     <button
                       type="button"
                       onClick={() => advanceStep(true)}
-                      className="w-full py-2.5 bg-white/10 hover:bg-white/20 active:scale-[0.98] text-white rounded-xl text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2 border border-white/10 transition-all cursor-pointer"
+                      className={`w-full py-2.5 rounded-xl text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                        isLight 
+                          ? 'bg-white hover:bg-slate-50 text-slate-900 border-slate-300 shadow-xs' 
+                          : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
+                      }`}
                     >
-                      <FastForward className="w-3.5 h-3.5 text-amber-400" />
+                      <FastForward className="w-3.5 h-3.5 text-amber-500" />
                       Avançar Etapa (Botão LAP)
                     </button>
                   )}
                 </div>
               ) : isWorkoutCompleted ? (
                 <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-center space-y-1">
-                  <p className="text-xs font-black uppercase italic text-emerald-300">
+                  <p className="text-xs font-black uppercase italic text-emerald-600 dark:text-emerald-300">
                     Parabéns! Todas as etapas prescritas foram concluídas!
                   </p>
-                  <p className="text-[10px] text-slate-300">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-300">
                     Você pode continuar correndo livremente ou tocar em "Concluir & Salvar" abaixo.
                   </p>
                 </div>
@@ -687,7 +1024,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
               {/* Lista Recolhível de Etapas */}
               {showStepsList && (
-                <div className="space-y-1.5 pt-2 border-t border-white/10 max-h-40 overflow-y-auto custom-scrollbar">
+                <div className={`space-y-1.5 pt-2 border-t max-h-40 overflow-y-auto custom-scrollbar ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
                   {activeStructured.steps.map((step, idx) => {
                     const isPassed = idx < activeStepIndex;
                     const isCurrent = idx === activeStepIndex;
@@ -696,10 +1033,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                         key={step.id || idx}
                         className={`flex items-center justify-between p-2 rounded-xl text-[10px] ${
                           isCurrent 
-                            ? 'bg-white/15 border border-white/20 font-black text-white' 
+                            ? (isLight ? 'bg-emerald-100 border border-emerald-300 font-black text-emerald-950' : 'bg-white/15 border border-white/20 font-black text-white') 
                             : isPassed 
-                            ? 'bg-black/20 text-slate-400 line-through opacity-70' 
-                            : 'bg-black/10 text-slate-300'
+                            ? (isLight ? 'bg-slate-100 text-slate-400 line-through opacity-70' : 'bg-black/20 text-slate-400 line-through opacity-70') 
+                            : (isLight ? 'bg-slate-50 text-slate-700 border border-slate-200' : 'bg-black/10 text-slate-300')
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -716,23 +1053,27 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           )}
 
           {/* Painel do Relógio & Métricas de Corrida (Gerais) */}
-          <div className="grid grid-cols-3 gap-2 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+          <div className={`grid grid-cols-3 gap-2 p-4 rounded-2xl border text-center transition-colors ${
+            isLight 
+              ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' 
+              : 'bg-white/5 border-white/5 text-white'
+          }`}>
             <div>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Distância Total</span>
-              <span className="text-xl font-black text-emerald-400 font-mono tracking-tighter">
+              <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Distância Total</span>
+              <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
                 {distanceKm.toFixed(2)}
               </span>
               <span className="text-[8px] font-bold text-slate-500 uppercase ml-0.5">KM</span>
             </div>
             <div>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Tempo Total</span>
-              <span className="text-xl font-black text-white font-mono tracking-tighter">
+              <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Tempo Total</span>
+              <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {formatDuration(durationSeconds)}
               </span>
             </div>
             <div>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Pace Geral</span>
-              <span className="text-xl font-black text-amber-400 font-mono tracking-tighter">
+              <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Pace Geral</span>
+              <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
                 {currentPace}
               </span>
               <span className="text-[8px] font-bold text-slate-500 uppercase ml-0.5">/KM</span>
@@ -743,23 +1084,23 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           <div className="flex items-center justify-between px-1 text-[10px]">
             <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${
-                gpsAccuracyMeters && gpsAccuracyMeters <= 15 ? 'bg-emerald-400 animate-pulse' :
-                gpsAccuracyMeters && gpsAccuracyMeters <= 35 ? 'bg-amber-400' : 'bg-red-400'
+                gpsAccuracyMeters && gpsAccuracyMeters <= 15 ? 'bg-emerald-500 animate-pulse' :
+                gpsAccuracyMeters && gpsAccuracyMeters <= 35 ? 'bg-amber-500' : 'bg-red-500'
               }`} />
-              <span className="text-slate-400 font-medium">
+              <span className={`font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 {gpsAccuracyMeters ? `Sinal GPS: ±${gpsAccuracyMeters}m` : 'Aguardando satélites...'}
               </span>
             </div>
             {isTracking && (
-              <span className="text-emerald-400 font-black italic uppercase">
+              <span className="text-emerald-500 font-black italic uppercase">
                 {isPaused ? '⏸ Em Pausa' : '● Gravando Rota'}
               </span>
             )}
           </div>
 
           {gpsError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-300 text-xs font-medium">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-600 dark:text-red-300 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0" />
               <span>{gpsError}</span>
             </div>
           )}
@@ -773,15 +1114,17 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               interactive={true}
             />
             {gpsPoints.length === 0 && !isTracking && (
-              <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px] rounded-[1.25rem] flex flex-col items-center justify-center p-4 text-center">
-                <Footprints className="w-8 h-8 text-emerald-400 mb-2 opacity-80" />
-                <p className="text-xs font-black uppercase italic tracking-wider text-white">
+              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[2px] rounded-[1.25rem] flex flex-col items-center justify-center p-4 text-center border border-emerald-500/30">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center mb-2 animate-pulse">
+                  <Footprints className="w-6 h-6 text-emerald-400" />
+                </div>
+                <p className="text-sm font-black uppercase italic tracking-wider text-white">
                   Pronto para a largada?
                 </p>
-                <p className="text-[10px] text-slate-300 max-w-xs mt-0.5">
+                <p className="text-[10px] text-slate-300 max-w-xs mt-1 font-medium">
                   {activeStructured 
-                    ? 'O app dará avisos sonoros e guiará cada tiro e recuperação automaticamente.' 
-                    : 'Toque em Iniciar para rastrear seu trajeto, distância e pace via GPS.'}
+                    ? 'O GPS dará alertas sonoros e guiará cada tiro e recuperação automaticamente.' 
+                    : 'Toque no botão verde abaixo para rastrear seu trajeto, distância e ritmo.'}
                 </p>
               </div>
             )}
@@ -789,16 +1132,22 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
           {/* Histórico de Laps Concluídos */}
           {completedSteps.length > 0 && (
-            <div className="space-y-2 bg-white/5 p-3 rounded-2xl border border-white/5">
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider block">
+            <div className={`space-y-2 p-3 rounded-2xl border ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
+            }`}>
+              <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                isLight ? 'text-slate-800' : 'text-slate-300'
+              }`}>
                 Histórico de Laps / Intervalos ({completedSteps.length})
               </span>
               <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
                 {completedSteps.map((rec, i) => (
-                  <div key={i} className="flex justify-between items-center text-[10px] bg-black/20 p-2 rounded-lg font-mono">
-                    <span className="text-slate-300 font-bold">{rec.name}</span>
-                    <span className="text-slate-400">{rec.completedDistanceMeters}m • {formatDuration(rec.completedDurationSeconds)}</span>
-                    <span className="text-amber-400 font-black">{rec.avgPace}/km</span>
+                  <div key={i} className={`flex justify-between items-center text-[10px] p-2 rounded-lg font-mono ${
+                    isLight ? 'bg-white border border-slate-200' : 'bg-black/20'
+                  }`}>
+                    <span className={`font-bold ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>{rec.name}</span>
+                    <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>{rec.completedDistanceMeters}m • {formatDuration(rec.completedDurationSeconds)}</span>
+                    <span className={`font-black ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{rec.avgPace}/km</span>
                   </div>
                 ))}
               </div>
@@ -811,9 +1160,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               <button
                 type="button"
                 onClick={startTracking}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 text-sm uppercase italic tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer"
+                className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm sm:text-base uppercase italic tracking-wider shadow-xl shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer border border-emerald-400/30 group"
               >
-                <Play className="w-4 h-4 fill-white" /> Iniciar Corrida com GPS
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+                </div>
+                <span>Iniciar Corrida com GPS</span>
               </button>
             ) : (
               <div className="grid grid-cols-2 gap-3">
@@ -853,7 +1205,11 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         <div className="space-y-4">
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-emerald-500/30 hover:border-emerald-500 bg-white/5 hover:bg-white/10 rounded-2xl p-6 text-center cursor-pointer transition-all space-y-2"
+            className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all space-y-2 ${
+              isLight 
+                ? 'border-emerald-400 bg-emerald-50/60 hover:bg-emerald-50' 
+                : 'border-emerald-500/30 hover:border-emerald-500 bg-white/5 hover:bg-white/10'
+            }`}
           >
             <input
               ref={fileInputRef}
@@ -862,26 +1218,26 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               onChange={handleGpxFileUpload}
               className="hidden"
             />
-            <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto">
               <Upload className="w-6 h-6" />
             </div>
-            <p className="text-xs font-black uppercase italic tracking-wider text-white">
+            <p className={`text-xs font-black uppercase italic tracking-wider ${isLight ? 'text-slate-900' : 'text-white'}`}>
               Selecionar Arquivo .GPX do Relógio
             </p>
-            <p className="text-[10px] text-slate-400 font-medium max-w-xs mx-auto">
+            <p className={`text-[10px] font-medium max-w-xs mx-auto ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
               Compatível com arquivos .GPX de qualquer relógio GPS ou app (Strava, Polar, Coros, Apple Watch).
             </p>
           </div>
 
           {gpxUploading && (
-            <div className="flex items-center justify-center gap-2 text-emerald-400 text-xs font-black">
+            <div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-black">
               <RefreshCw className="w-4 h-4 animate-spin" /> Processando rota do satélite...
             </div>
           )}
 
           {gpxError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-300 text-xs font-medium">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-600 dark:text-red-300 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0" />
               <span>{gpxError}</span>
             </div>
           )}
@@ -889,28 +1245,30 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           {/* Rota GPX Carregada */}
           {gpxParsedRoute && (
             <div className="space-y-4 animate-fade-in">
-              <div className="grid grid-cols-4 gap-2 bg-white/5 p-3 rounded-2xl border border-white/5 text-center">
+              <div className={`grid grid-cols-4 gap-2 p-3 rounded-2xl border text-center ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-white/5 border-white/5 text-white'
+              }`}>
                 <div>
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Distância</span>
-                  <span className="text-base font-black text-emerald-400 font-mono">
+                  <span className={`text-[8px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Distância</span>
+                  <span className={`text-base font-black font-mono ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
                     {gpxParsedRoute.totalDistanceKm}k
                   </span>
                 </div>
                 <div>
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Tempo</span>
-                  <span className="text-base font-black text-white font-mono">
+                  <span className={`text-[8px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Tempo</span>
+                  <span className={`text-base font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     {formatDuration(gpxParsedRoute.totalDurationSeconds)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Pace</span>
-                  <span className="text-base font-black text-amber-400 font-mono">
+                  <span className={`text-[8px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Pace</span>
+                  <span className={`text-base font-black font-mono ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
                     {gpxParsedRoute.avgPace}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Altimetria</span>
-                  <span className="text-base font-black text-blue-400 font-mono">
+                  <span className={`text-[8px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Altimetria</span>
+                  <span className={`text-base font-black font-mono ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
                     +{gpxParsedRoute.elevationGainMeters || 0}m
                   </span>
                 </div>
@@ -938,9 +1296,11 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                       workoutType: workoutType
                     });
                   }}
-                  className="bg-white/10 hover:bg-white/20 text-white font-black py-3 rounded-xl flex items-center justify-center gap-1.5 text-xs uppercase italic tracking-wider transition-all cursor-pointer"
+                  className={`font-black py-3 rounded-xl flex items-center justify-center gap-1.5 text-xs uppercase italic tracking-wider transition-all cursor-pointer ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300' : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
                 >
-                  <Camera className="w-4 h-4 text-emerald-400" /> Postar Treino
+                  <Camera className="w-4 h-4 text-emerald-500" /> Postar Treino
                 </button>
 
                 <button

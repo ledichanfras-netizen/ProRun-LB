@@ -98,7 +98,8 @@ const TimerComponent: React.FC = () => {
 };
 
 const AthletePortal: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete, addUserGoal } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete, addUserGoal, theme } = useApp();
+  const isLight = theme === 'light';
   const navigate = useNavigate();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   
@@ -1469,37 +1470,39 @@ const AthletePortal: React.FC = () => {
                             </div>
                             <div className="space-y-2">
                               {week.workouts.map((workout: any, dIdx: number) => (
-                                <div key={dIdx} className={`p-3 rounded-xl border text-[11px] flex flex-col gap-1 ${
+                                <div key={dIdx} className={`p-3 rounded-xl border text-[11px] flex flex-col gap-1 transition-all ${
                                   workout.completed 
-                                    ? 'bg-emerald-950/10 border-emerald-500/20' 
+                                    ? (isLight ? 'bg-emerald-50 border-emerald-300 text-slate-900' : 'bg-emerald-950/10 border-emerald-500/20 text-white') 
                                     : workout.type === 'Descanso' 
-                                      ? 'bg-slate-950/10 border-white/5 opacity-55' 
-                                      : 'bg-slate-950/30 border-white/5'
+                                      ? (isLight ? 'bg-slate-100 border-slate-200 text-slate-500 opacity-70' : 'bg-slate-950/10 border-white/5 opacity-55 text-slate-400') 
+                                      : (isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-slate-950/30 border-white/5 text-white')
                                 }`}>
                                   <div className="flex justify-between items-center">
-                                    <span className="font-black text-slate-400 uppercase tracking-wider text-[8px]">{workout.day}</span>
+                                    <span className={`font-black uppercase tracking-wider text-[8px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{workout.day}</span>
                                     {workout.completed ? (
-                                      <span className="text-[7px] bg-emerald-500/15 text-emerald-400 font-black px-1.5 py-0.5 rounded uppercase">Feito</span>
+                                      <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${isLight ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-emerald-500/15 text-emerald-400'}`}>Feito</span>
                                     ) : workout.type !== 'Descanso' ? (
-                                      <span className="text-[7px] bg-slate-500/10 text-slate-400 font-bold px-1.5 py-0.5 rounded uppercase">Não Feito</span>
+                                      <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded uppercase ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-500/10 text-slate-400'}`}>Não Feito</span>
                                     ) : null}
                                   </div>
-                                  <h5 className="font-black text-white text-xs uppercase italic tracking-tight">{workout.type}</h5>
+                                  <h5 className={`font-black text-xs uppercase italic tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>{workout.type}</h5>
                                   {workout.structuredWorkout && (
                                     <div className="flex items-center gap-1 my-1">
-                                      <span className="inline-flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded uppercase italic border border-blue-400/20">
+                                      <span className={`inline-flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded uppercase italic border ${
+                                        isLight ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-blue-500/20 text-blue-300 border-blue-400/20'
+                                      }`}>
                                         <Timer className="w-2.5 h-2.5" />
                                         <span>{formatStructuredWorkoutSummary(workout.structuredWorkout)}</span>
                                       </span>
                                     </div>
                                   )}
                                   {workout.customDescription && (
-                                    <p className="text-slate-300 italic text-[10px] leading-relaxed">"{workout.customDescription}"</p>
+                                    <p className={`italic text-[10px] leading-relaxed ${isLight ? 'text-slate-700 font-medium' : 'text-slate-300'}`}>"{workout.customDescription}"</p>
                                   )}
-                                  <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500 pt-1 border-t border-white/5">
+                                  <div className={`flex items-center gap-3 text-[9px] font-bold pt-1 border-t ${isLight ? 'border-slate-200 text-slate-500' : 'border-white/5 text-slate-500'}`}>
                                     {workout.distance > 0 && <span>Meta: {workout.distance} KM</span>}
-                                    {workout.actualDistance > 0 && <span className="text-emerald-400">Dist: {workout.actualDistance} KM</span>}
-                                    {workout.rpe && <span className="text-amber-400">RPE: {workout.rpe}/10</span>}
+                                    {workout.actualDistance > 0 && <span className={isLight ? 'text-emerald-700 font-extrabold' : 'text-emerald-400'}>Dist: {workout.actualDistance} KM</span>}
+                                    {workout.rpe && <span className={isLight ? 'text-amber-700 font-extrabold' : 'text-amber-400'}>RPE: {workout.rpe}/10</span>}
                                   </div>
                                 </div>
                               ))}
@@ -1518,17 +1521,29 @@ const AthletePortal: React.FC = () => {
 
       {/* Modal de Detalhes do Treino (Renderizado via Portal para nunca ser encoberto pelo menu) */}
       {selectedWorkout && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md no-print overflow-y-auto pt-16 sm:pt-6" onClick={() => !isSaving && setSelectedWorkout(null)}>
-          <div className="bg-slate-900 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[90vh] border border-white/10 relative my-auto" onClick={e => e.stopPropagation()}>
-            <div className={`p-4 sm:p-6 border-b flex-shrink-0 space-y-3 ${isFinalWorkout ? 'bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white' : 'bg-slate-950/60'}`}>
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-2 sm:p-6 bg-slate-950/80 backdrop-blur-md no-print overflow-y-auto pt-4 sm:pt-6" onClick={() => !isSaving && setSelectedWorkout(null)}>
+          <div className={`rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[92vh] border relative my-auto transition-colors ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/10 text-white'
+          }`} onClick={e => e.stopPropagation()}>
+            <div className={`p-4 sm:p-6 border-b flex-shrink-0 space-y-3 ${
+              isFinalWorkout 
+                ? (isLight ? 'bg-emerald-50 text-emerald-950 border-emerald-200' : 'bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white border-white/10') 
+                : (isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-slate-950/60 border-white/10 text-white')
+            }`}>
               {/* Top line with Day, Status and Close Button */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg italic ${isFinalWorkout ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-white/10 text-emerald-400'}`}>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg italic ${
+                    isFinalWorkout 
+                      ? 'bg-emerald-500 text-slate-950 font-black' 
+                      : (isLight ? 'bg-slate-200 text-slate-800 font-extrabold border border-slate-300' : 'bg-white/10 text-emerald-400')
+                  }`}>
                     {selectedWorkout.data.day}
                   </span>
                   {selectedWorkout.data.completed && (
-                    <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                      isLight ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    }`}>
                       <Check className="w-3 h-3" /> Concluído
                     </span>
                   )}
@@ -1536,7 +1551,11 @@ const AthletePortal: React.FC = () => {
                 <button 
                   disabled={isSaving} 
                   onClick={() => setSelectedWorkout(null)} 
-                  className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors border border-white/10 flex items-center justify-center cursor-pointer"
+                  className={`p-2.5 rounded-full transition-colors flex items-center justify-center cursor-pointer ${
+                    isLight 
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200' 
+                      : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
+                  }`}
                   title="Fechar"
                   aria-label="Fechar"
                 >
@@ -1546,7 +1565,9 @@ const AthletePortal: React.FC = () => {
 
               {/* Main Title */}
               <div>
-                <h3 className="text-xl sm:text-2xl font-black uppercase italic tracking-tighter text-white">
+                <h3 className={`text-xl sm:text-2xl font-black uppercase italic tracking-tighter ${
+                  isLight ? 'text-slate-900' : 'text-white'
+                }`}>
                   {isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}
                 </h3>
               </div>
@@ -1569,7 +1590,7 @@ const AthletePortal: React.FC = () => {
                       workoutType: selectedWorkout.data.type
                     });
                   }}
-                  className="px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all shadow-md shadow-emerald-950/40 cursor-pointer active:scale-95 border border-emerald-400/30"
+                  className="px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all shadow-md shadow-emerald-950/20 cursor-pointer active:scale-95 border border-emerald-400/30"
                   title="Gerar Card Social / Postar Treino"
                 >
                   <Camera className="w-4 h-4 text-white" />
@@ -1578,7 +1599,11 @@ const AthletePortal: React.FC = () => {
                 <button 
                   disabled={exportLoading}
                   onClick={handleDownloadWorkoutImage}
-                  className="px-3 py-2.5 bg-white/5 hover:bg-white/10 text-emerald-400 border border-white/10 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all cursor-pointer active:scale-95"
+                  className={`px-3 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all cursor-pointer active:scale-95 ${
+                    isLight 
+                      ? 'bg-slate-100 hover:bg-slate-200 text-emerald-800 border border-slate-300' 
+                      : 'bg-white/5 hover:bg-white/10 text-emerald-400 border border-white/10'
+                  }`}
                   title="Baixar imagem da prescrição"
                 >
                   {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -1587,9 +1612,15 @@ const AthletePortal: React.FC = () => {
               </div>
             </div>
             
-            <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-900">
+            <div className={`p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 ${
+              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+            }`}>
               <div className="space-y-4">
-                <div className={`${isFinalWorkout ? 'bg-emerald-950 border-emerald-900 text-white shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'bg-white/5 border-white/10 text-white'} p-6 rounded-3xl border text-center italic font-bold shadow-sm leading-relaxed text-sm`}>
+                <div className={`${
+                  isFinalWorkout 
+                    ? (isLight ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-sm' : 'bg-emerald-950 border-emerald-900 text-white shadow-[0_0_30px_rgba(16,185,129,0.1)]') 
+                    : (isLight ? 'bg-slate-50 border-slate-200 text-slate-800 shadow-xs' : 'bg-white/5 border-white/10 text-white')
+                } p-6 rounded-3xl border text-center italic font-bold leading-relaxed text-sm`}>
                   "{selectedWorkout.data.customDescription}"
                 </div>
 
@@ -1598,12 +1629,16 @@ const AthletePortal: React.FC = () => {
                   (selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0)) && (
                   <div className="flex justify-center gap-3">
                     {((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0)) && (
-                      <span className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 text-xs font-black uppercase px-4 py-2 rounded-2xl border border-emerald-500/25 italic tracking-wider">
+                      <span className={`inline-flex items-center gap-2 text-xs font-black uppercase px-4 py-2 rounded-2xl border italic tracking-wider ${
+                        isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                      }`}>
                         📏 {selectedWorkout.data.distance || selectedWorkout.data.distanceKm} KM
                       </span>
                     )}
                     {(selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0) && (
-                      <span className="inline-flex items-center gap-2 bg-blue-500/10 text-blue-400 text-xs font-black uppercase px-4 py-2 rounded-2xl border border-blue-500/25 italic tracking-wider">
+                      <span className={`inline-flex items-center gap-2 text-xs font-black uppercase px-4 py-2 rounded-2xl border italic tracking-wider ${
+                        isLight ? 'bg-blue-100 text-blue-900 border-blue-300' : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
+                      }`}>
                         ⏱️ {selectedWorkout.data.durationMinutes} Minutos
                       </span>
                     )}
@@ -1613,12 +1648,14 @@ const AthletePortal: React.FC = () => {
 
               {/* Se for Descanso, não mostramos PSE nem Cronômetro */}
               {selectedWorkout.data.type === 'Descanso' ? (
-                <div className="bg-blue-500/10 p-8 rounded-[2rem] border border-blue-500/20 text-center space-y-4">
+                <div className={`p-8 rounded-[2rem] border text-center space-y-4 ${
+                  isLight ? 'bg-blue-50 border-blue-200 text-slate-900' : 'bg-blue-500/10 border-blue-500/20 text-white'
+                }`}>
                   <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto text-3xl">
                     🧘
                   </div>
-                  <h4 className="text-xl font-black text-white italic uppercase tracking-tighter">Recuperação Necessária</h4>
-                  <p className="text-slate-400 text-sm font-medium italic">
+                  <h4 className={`text-xl font-black italic uppercase tracking-tighter ${isLight ? 'text-blue-950' : 'text-white'}`}>Recuperação Necessária</h4>
+                  <p className={`text-sm font-medium italic ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                     O descanso é parte fundamental do seu treino. Aproveite para focar na mobilidade, sono de qualidade e hidratação.
                   </p>
                 </div>
@@ -1626,16 +1663,18 @@ const AthletePortal: React.FC = () => {
                 <>
                   {/* Hub de Ritmos do Atleta */}
                   <div className="space-y-4">
-                    <label className="pro-label flex items-center gap-2 px-1">
-                      <Flag className="w-3.5 h-3.5 text-emerald-400" /> Seus Ritmos Alvo
+                    <label className={`pro-label flex items-center gap-2 px-1 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
+                      <Flag className="w-3.5 h-3.5 text-emerald-500" /> Seus Ritmos Alvo
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       {paces.map((p, idx) => (
-                        <div key={idx} className="bg-white/5 p-3 rounded-2xl border border-white/5 shadow-sm flex flex-col justify-center">
-                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5">{p.zone}</span>
-                          <span className="text-sm font-black text-emerald-400 italic tracking-tighter">{p.minPace} min/km</span>
+                        <div key={idx} className={`p-3 rounded-2xl border shadow-xs flex flex-col justify-center ${
+                          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-white/5 border-white/5 text-white'
+                        }`}>
+                          <span className={`text-[8px] font-black uppercase tracking-wider mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{p.zone}</span>
+                          <span className={`text-sm font-black italic tracking-tighter ${isLight ? 'text-emerald-700 font-extrabold' : 'text-emerald-400'}`}>{p.minPace} min/km</span>
                           {p.heartRateRange && (
-                            <span className="text-[7px] font-bold text-slate-600 uppercase">{p.heartRateRange} bpm</span>
+                            <span className={`text-[7px] font-bold uppercase ${isLight ? 'text-slate-500' : 'text-slate-600'}`}>{p.heartRateRange} bpm</span>
                           )}
                         </div>
                       ))}
@@ -1645,15 +1684,17 @@ const AthletePortal: React.FC = () => {
                   {/* Detalhamento de Exercícios (Elite Torneio Mode) */}
                   {localExercises.length > 0 && (
                     <div className="space-y-4">
-                      <label className="pro-label flex items-center gap-2 px-1">
-                        <Dumbbell className="w-3.5 h-3.5 text-purple-400" /> Detalhamento Técnico
+                      <label className={`pro-label flex items-center gap-2 px-1 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
+                        <Dumbbell className="w-3.5 h-3.5 text-purple-500" /> Detalhamento Técnico
                       </label>
                       <div className="space-y-3">
                         {localExercises.sort((a, b) => a.order - b.order).map((ex) => (
-                          <div key={ex.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-3">
+                          <div key={ex.id} className={`p-4 rounded-2xl border space-y-3 ${
+                            isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' : 'bg-white/5 border-white/5 text-white'
+                          }`}>
                             <div className="flex justify-between items-center">
-                              <h4 className="text-xs font-black text-white uppercase italic">{ex.name}</h4>
-                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{ex.sets} séries</span>
+                              <h4 className={`text-xs font-black uppercase italic ${isLight ? 'text-slate-900' : 'text-white'}`}>{ex.name}</h4>
+                              <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{ex.sets} séries</span>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1">
@@ -1682,40 +1723,56 @@ const AthletePortal: React.FC = () => {
 
                   {/* TREINO ESTRUTURADO (PRESCRIÇÃO DETALHADA) */}
                   {selectedWorkout.data.structuredWorkout && (
-                    <div className="space-y-3 bg-gradient-to-br from-blue-950/40 via-slate-900 to-emerald-950/30 p-5 rounded-[2rem] border border-blue-500/30 shadow-xl">
+                    <div className={`space-y-3 p-5 rounded-[2rem] border shadow-xl transition-all ${
+                      isLight 
+                        ? 'bg-gradient-to-br from-blue-50/90 via-slate-50 to-emerald-50/90 border-blue-200 text-slate-900 shadow-md' 
+                        : 'bg-gradient-to-br from-blue-950/40 via-slate-900 to-emerald-950/30 border-blue-500/30 text-white'
+                    }`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                            isLight ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'bg-blue-500/20 text-blue-400'
+                          }`}>
                             <Timer className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="text-xs font-black text-white uppercase italic tracking-tight">
+                            <h4 className={`text-xs font-black uppercase italic tracking-tight ${
+                              isLight ? 'text-slate-900' : 'text-white'
+                            }`}>
                               Prescrição Estruturada Detalhada
                             </h4>
-                            <p className="text-[9px] text-blue-300 font-medium">
+                            <p className={`text-[9px] font-medium ${
+                              isLight ? 'text-blue-950 font-bold' : 'text-blue-300'
+                            }`}>
                               {formatStructuredWorkoutSummary(selectedWorkout.data.structuredWorkout)}
                             </p>
                           </div>
                         </div>
-                        <span className="text-[8px] font-black px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded uppercase italic border border-blue-400/20">
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase italic border ${
+                          isLight ? 'bg-blue-100 text-blue-900 border-blue-300 font-extrabold' : 'bg-blue-500/20 text-blue-300 border-blue-400/20'
+                        }`}>
                           {selectedWorkout.data.structuredWorkout.steps.length} Etapas
                         </span>
                       </div>
 
                       {/* Lista das etapas com ritmos */}
-                      <div className="space-y-1 bg-black/30 p-3 rounded-2xl border border-white/5 max-h-40 overflow-y-auto custom-scrollbar">
+                      <div className={`space-y-1 p-3 rounded-2xl border max-h-40 overflow-y-auto custom-scrollbar ${
+                        isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-black/30 border-white/5'
+                      }`}>
                         {selectedWorkout.data.structuredWorkout.steps.map((step: any, sIdx: number) => (
-                          <div key={step.id || sIdx} className="flex justify-between items-center text-[10px] py-1 border-b border-white/5 last:border-0 font-mono">
+                          <div key={step.id || sIdx} className={`flex justify-between items-center text-[10px] py-1 border-b last:border-0 font-mono ${
+                            isLight ? 'border-slate-100' : 'border-white/5'
+                          }`}>
                             <div className="flex items-center gap-2">
-                              <span className="text-slate-500 text-[9px]">{sIdx + 1}.</span>
-                              <span className="text-slate-200 font-bold">{step.name}</span>
+                              <span className={`text-[9px] ${isLight ? 'text-slate-400 font-bold' : 'text-slate-500'}`}>{sIdx + 1}.</span>
+                              <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{step.name}</span>
                             </div>
                             <div className="text-right">
-                              <span className="text-emerald-400 font-bold">
+                              <span className={`font-bold ${isLight ? 'text-emerald-700 font-extrabold' : 'text-emerald-400'}`}>
                                 {step.targetType === 'distance' ? `${step.targetValue}m` : `${Math.floor(step.targetValue / 60)}min`}
                               </span>
                               {step.targetPaceMin && (
-                                <span className="text-[9px] text-amber-400 ml-1.5">
+                                <span className={`text-[9px] ml-1.5 ${isLight ? 'text-amber-800 font-extrabold' : 'text-amber-400'}`}>
                                   [{step.targetPaceMin}{step.targetPaceMax ? `-${step.targetPaceMax}` : ''}]
                                 </span>
                               )}
@@ -1737,28 +1794,36 @@ const AthletePortal: React.FC = () => {
                   )}
 
                   {/* ROTA GPS DO TREINO (GPS AO VIVO OU GPX IMPORTADO) */}
-                  <div className="space-y-3 bg-white/5 p-5 rounded-[2rem] border border-white/5">
+                  <div className={`space-y-3 p-5 rounded-[2rem] border transition-colors ${
+                    isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' : 'bg-white/5 border-white/5 text-white'
+                  }`}>
                     <div className="flex justify-between items-center px-1">
-                      <label className="pro-label flex items-center gap-2 !mb-0">
-                        <Navigation className="w-4 h-4 text-emerald-400" /> Rota & GPS do Treino
+                      <label className={`pro-label flex items-center gap-2 !mb-0 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
+                        <Navigation className="w-4 h-4 text-emerald-500" /> Rota & GPS do Treino
                       </label>
-                      <span className="text-[9px] font-black uppercase italic tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                      <span className={`text-[9px] font-black uppercase italic tracking-wider px-2 py-0.5 rounded-md border ${
+                        isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      }`}>
                         Opção 3 • Híbrido
                       </span>
                     </div>
 
                     {currentGpsRoute ? (
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between bg-slate-950/60 p-3 rounded-2xl border border-white/5">
+                        <div className={`flex items-center justify-between p-3 rounded-2xl border ${
+                          isLight ? 'bg-white border-slate-200 text-slate-900 shadow-xs' : 'bg-slate-950/60 border-white/5 text-white'
+                        }`}>
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm ${
+                              isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-emerald-500/20 text-emerald-400'
+                            }`}>
                               {currentGpsRoute.source === 'gpx_file' ? <FileCode2 className="w-4 h-4" /> : <Navigation className="w-4 h-4" />}
                             </div>
                             <div>
-                              <p className="text-xs font-black text-white uppercase italic">
+                              <p className={`text-xs font-black uppercase italic ${isLight ? 'text-slate-900' : 'text-white'}`}>
                                 {currentGpsRoute.totalDistanceKm} KM • {currentGpsRoute.avgPace}/km
                               </p>
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                              <p className={`text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                                 {currentGpsRoute.source === 'gpx_file' ? 'Importado via GPX' : 'Gravado com GPS do celular'}
                                 {currentGpsRoute.elevationGainMeters ? ` • +${currentGpsRoute.elevationGainMeters}m altimetria` : ''}
                               </p>
@@ -1771,7 +1836,7 @@ const AthletePortal: React.FC = () => {
                                 setCurrentGpsRoute(null);
                               }
                             }}
-                            className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase italic px-2 py-1 bg-red-500/10 rounded-lg border border-red-500/20"
+                            className="text-[9px] font-black text-red-500 hover:text-red-600 uppercase italic px-2 py-1 bg-red-500/10 rounded-lg border border-red-500/20"
                           >
                             Remover
                           </button>
@@ -1807,7 +1872,7 @@ const AthletePortal: React.FC = () => {
                               workoutType: selectedWorkout.data.type
                             });
                           }}
-                          className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-950/40 transition-all active:scale-[0.98] cursor-pointer"
+                          className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-950/20 transition-all active:scale-[0.98] cursor-pointer"
                         >
                           <Camera className="w-4 h-4" /> 📸 Postar Treino / Gerar Card Social
                         </button>
@@ -1815,9 +1880,11 @@ const AthletePortal: React.FC = () => {
                     ) : (
                       <div className="space-y-3">
                         {!showGpsTracker ? (
-                          <div className="bg-slate-950/40 p-4 rounded-2xl border border-white/5 flex flex-col gap-2">
-                            <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
-                              Grave o trajeto com o <strong className="text-emerald-400">GPS do celular</strong> em tempo real ou suba o arquivo <strong className="text-emerald-400">.GPX</strong> do seu relógio (Strava, Polar, Coros, Apple Watch ou qualquer relógio GPS).
+                          <div className={`p-4 rounded-2xl border flex flex-col gap-2 ${
+                            isLight ? 'bg-white border-slate-200 text-slate-800 shadow-xs' : 'bg-slate-950/40 border-white/5 text-slate-300'
+                          }`}>
+                            <p className="text-[11px] font-medium leading-relaxed">
+                              Grave o trajeto com o <strong className="text-emerald-600 dark:text-emerald-400">GPS do celular</strong> em tempo real ou suba o arquivo <strong className="text-emerald-600 dark:text-emerald-400">.GPX</strong> do seu relógio (Strava, Polar, Coros, Apple Watch ou qualquer relógio GPS).
                             </p>
                             <button
                               type="button"
@@ -1846,7 +1913,7 @@ const AthletePortal: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setShowGpsTracker(false)}
-                              className="w-full text-[10px] font-black uppercase text-slate-400 hover:text-white py-2"
+                              className={`w-full text-[10px] font-black uppercase py-2 ${isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'}`}
                             >
                               ✕ Cancelar Rastreamento
                             </button>
@@ -1857,28 +1924,34 @@ const AthletePortal: React.FC = () => {
                   </div>
 
                   {/* Espaço para inserir a quilometragem real do Treino */}
-                  <div className="space-y-2 bg-white/5 p-5 rounded-[2rem] border border-white/5">
+                  <div className={`space-y-2 p-5 rounded-[2rem] border transition-colors ${
+                    isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' : 'bg-white/5 border-white/5 text-white'
+                  }`}>
                     <div className="flex justify-between items-center px-1">
-                      <label className="pro-label flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-emerald-400" /> Distância Real Executada (KM)
+                      <label className={`pro-label flex items-center gap-2 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
+                        <TrendingUp className="w-4 h-4 text-emerald-500" /> Distância Real Executada (KM)
                       </label>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 italic">
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border italic ${
+                        isLight ? 'bg-white text-slate-700 border-slate-200' : 'bg-white/5 text-slate-400 border-white/5'
+                      }`}>
                         Planejado: {selectedWorkout.data.distance || 0} KM
                       </span>
                     </div>
-                    <p className="text-[9px] text-slate-400 font-medium px-1">
+                    <p className={`text-[9px] font-medium px-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                       Insira a quilometragem total real percorrida (preenchida automaticamente ao capturar o GPS).
                     </p>
                     <div className="relative mt-2">
                       <input 
                         type="text"
                         disabled={isSaving}
-                        className="pro-input w-full py-4 px-5 text-base font-black text-emerald-400 italic bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-emerald-500/50 transition-all pr-16"
+                        className={`pro-input w-full py-4 px-5 text-base font-black italic rounded-2xl outline-none transition-all pr-16 ${
+                          isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500 shadow-xs' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
+                        }`}
                         placeholder="Ex: 12.5"
                         value={actualDistanceValue}
                         onChange={e => setActualDistanceValue(e.target.value)}
                       />
-                      <div className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 italic">
+                      <div className={`absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black italic ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                         KM REAL
                       </div>
                     </div>
@@ -1886,7 +1959,7 @@ const AthletePortal: React.FC = () => {
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between px-1">
-                      <label className="pro-label flex items-center gap-2">
+                      <label className={`pro-label flex items-center gap-2 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
                         <Zap className="w-4 h-4 text-amber-500" /> Esforço Percebido (PSE)
                       </label>
                       <span className={`text-[10px] font-black italic uppercase tracking-tighter ${getRPEColor(rpeValue)}`}>
@@ -1902,8 +1975,10 @@ const AthletePortal: React.FC = () => {
                           onClick={() => setRpeValue(num)}
                           className={`h-12 rounded-xl font-black text-sm transition-all border-2 flex items-center justify-center
                             ${rpeValue === num 
-                              ? 'bg-emerald-500 text-white border-emerald-500 scale-105 shadow-[0_0_20px_rgba(16,185,129,0.3)]' 
-                              : 'bg-white/5 text-slate-500 border-white/5 hover:border-emerald-500/50 hover:text-emerald-400'}
+                              ? 'bg-emerald-500 text-white border-emerald-500 scale-105 shadow-md' 
+                              : (isLight 
+                                  ? 'bg-white text-slate-700 border-slate-200 hover:border-emerald-500 hover:text-emerald-700' 
+                                  : 'bg-white/5 text-slate-500 border-white/5 hover:border-emerald-500/50 hover:text-emerald-400')}
                           `}
                         >
                           {num}
@@ -1914,22 +1989,28 @@ const AthletePortal: React.FC = () => {
 
                   {/* Questionário Científico de Prontidão Diária */}
                   {activeAthlete.lastReadiness?.date === new Date().toISOString().split('T')[0] ? (
-                    <div className="bg-emerald-950/40 p-5 rounded-3xl border border-emerald-500/20 space-y-2 text-center">
-                      <p className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center justify-center gap-1.5">
+                    <div className={`p-5 rounded-3xl border space-y-2 text-center ${
+                      isLight ? 'bg-emerald-50 border-emerald-200 text-slate-900' : 'bg-emerald-950/40 border-emerald-500/20 text-white'
+                    }`}>
+                      <p className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center justify-center gap-1.5">
                         <CheckCircle className="w-4 h-4" /> Prontidão Diária Registrada!
                       </p>
-                      <p className="text-[11px] text-slate-300 font-medium">
-                        Seu score de prontidão pré-treino para hoje é de <span className="text-emerald-400 font-black">{activeAthlete.lastReadiness.readinessScore}%</span> ({activeAthlete.lastReadiness.readinessScore >= 70 ? 'Pronto para correr' : activeAthlete.lastReadiness.readinessScore >= 40 ? 'Moderar esforço' : 'Focar em recuperação'}). Ele já foi salvo e associado à sua fisiologia de hoje.
+                      <p className={`text-[11px] font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        Seu score de prontidão pré-treino para hoje é de <span className="text-emerald-700 dark:text-emerald-400 font-black">{activeAthlete.lastReadiness.readinessScore}%</span> ({activeAthlete.lastReadiness.readinessScore >= 70 ? 'Pronto para correr' : activeAthlete.lastReadiness.readinessScore >= 40 ? 'Moderar esforço' : 'Focar em recuperação'}). Ele já foi salvo e associado à sua fisiologia de hoje.
                       </p>
                     </div>
                   ) : (
-                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-5">
-                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <div className={`p-6 rounded-3xl border space-y-5 transition-colors ${
+                      isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' : 'bg-white/5 border-white/10 text-white'
+                    }`}>
+                      <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-white/5'}`}>
                         <div className="flex items-center gap-2">
-                          <Activity className="w-5 h-5 text-emerald-400" />
-                          <h4 className="text-sm font-black text-white uppercase italic tracking-tighter">Fisiologia & Prontidão Diária</h4>
+                          <Activity className="w-5 h-5 text-emerald-500" />
+                          <h4 className={`text-sm font-black uppercase italic tracking-tighter ${isLight ? 'text-slate-900' : 'text-white'}`}>Fisiologia & Prontidão Diária</h4>
                         </div>
-                        <span className="text-[8px] font-black bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20 uppercase tracking-widest italic">
+                        <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-widest italic ${
+                          isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        }`}>
                           Científico
                         </span>
                       </div>
@@ -1937,8 +2018,8 @@ const AthletePortal: React.FC = () => {
                       {/* 1. Qualidade do Sono */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">💤 Qualidade do Sono</span>
-                          <span className="text-[10px] font-black text-emerald-400 italic">
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>💤 Qualidade do Sono</span>
+                          <span className={`text-[10px] font-black italic ${isLight ? 'text-emerald-800 font-extrabold' : 'text-emerald-400'}`}>
                             {sleepValue === 5 ? 'Excelente (8h+ profundo)' :
                              sleepValue === 4 ? 'Bom (Restaurador)' :
                              sleepValue === 3 ? 'Regular (Interrompido)' :
@@ -1954,7 +2035,7 @@ const AthletePortal: React.FC = () => {
                               className={`py-2 text-xs font-black rounded-lg transition-all border ${
                                 sleepValue === val 
                                   ? 'bg-emerald-500 text-white border-emerald-500 font-extrabold shadow-sm scale-105' 
-                                  : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10'
+                                  : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10')
                               }`}
                             >
                               {val}
@@ -1966,8 +2047,8 @@ const AthletePortal: React.FC = () => {
                       {/* 2. Estresse Mental */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">🧠 Estresse Mental</span>
-                          <span className="text-[10px] font-black text-amber-400 italic">
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>🧠 Estresse Mental</span>
+                          <span className={`text-[10px] font-black italic ${isLight ? 'text-amber-800 font-extrabold' : 'text-amber-400'}`}>
                             {stressValue === 1 ? 'Nenhum (Muito Calmo)' :
                              stressValue === 2 ? 'Baixo (Controlado)' :
                              stressValue === 3 ? 'Moderado (Produtivo)' :
@@ -1983,7 +2064,7 @@ const AthletePortal: React.FC = () => {
                               className={`py-2 text-xs font-black rounded-lg transition-all border ${
                                 stressValue === val 
                                   ? 'bg-amber-500 text-white border-amber-500 font-extrabold shadow-sm scale-105' 
-                                  : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10'
+                                  : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10')
                               }`}
                             >
                               {val}
@@ -1995,8 +2076,8 @@ const AthletePortal: React.FC = () => {
                       {/* 3. Dor Muscular (DOMS) */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">🩹 Dor Muscular (DOMS)</span>
-                          <span className="text-[10px] font-black text-red-400 italic">
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>🩹 Dor Muscular (DOMS)</span>
+                          <span className={`text-[10px] font-black italic ${isLight ? 'text-red-700 font-extrabold' : 'text-red-400'}`}>
                             {sorenessValue === 1 ? 'Nenhuma (Zero dor)' :
                              sorenessValue === 2 ? 'Leve (Apenas estímulo)' :
                              sorenessValue === 3 ? 'Moderada (Suportável)' :
@@ -2012,7 +2093,7 @@ const AthletePortal: React.FC = () => {
                               className={`py-2 text-xs font-black rounded-lg transition-all border ${
                                 sorenessValue === val 
                                   ? 'bg-red-500 text-white border-red-500 font-extrabold shadow-sm scale-105' 
-                                  : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10'
+                                  : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10')
                               }`}
                             >
                               {val}
@@ -2024,8 +2105,8 @@ const AthletePortal: React.FC = () => {
                       {/* 4. Disposição / Humor */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">🔥 Humor / Disposição</span>
-                          <span className="text-[10px] font-black text-blue-400 italic">
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>🔥 Humor / Disposição</span>
+                          <span className={`text-[10px] font-black italic ${isLight ? 'text-blue-800 font-extrabold' : 'text-blue-400'}`}>
                             {moodValue === 5 ? 'Incrível (Foco Máximo)' :
                              moodValue === 4 ? 'Disposto (Motivado)' :
                              moodValue === 3 ? 'Normal (Neutro)' :
@@ -2041,7 +2122,7 @@ const AthletePortal: React.FC = () => {
                               className={`py-2 text-xs font-black rounded-lg transition-all border ${
                                 moodValue === val 
                                   ? 'bg-blue-500 text-white border-blue-500 font-extrabold shadow-sm scale-105' 
-                                  : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10'
+                                  : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10')
                               }`}
                             >
                               {val}
@@ -2052,10 +2133,12 @@ const AthletePortal: React.FC = () => {
 
                       {/* 5. Menstrual Cycle Tracker (Feminino com trackMenstrual ativo) */}
                       {activeAthlete.gender === 'female' && activeAthlete.trackMenstrual !== false && (
-                        <div className="pt-4 border-t border-white/5 space-y-3">
+                        <div className={`pt-4 border-t space-y-3 ${isLight ? 'border-slate-200' : 'border-white/5'}`}>
                           <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-1">🌸 Fase do Ciclo Menstrual</span>
-                            <span className="text-[8px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/20 uppercase tracking-wide">
+                            <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest flex items-center gap-1">🌸 Fase do Ciclo Menstrual</span>
+                            <span className={`text-[8px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wide ${
+                              isLight ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-purple-500/20 text-purple-300 border-purple-500/20'
+                            }`}>
                               Mulher Atleta
                             </span>
                           </div>
@@ -2073,14 +2156,14 @@ const AthletePortal: React.FC = () => {
                                 className={`p-2.5 text-left rounded-xl transition-all border flex flex-col justify-between ${
                                   menstrualPhaseValue === item.phase 
                                     ? 'bg-purple-600 text-white border-purple-500 shadow-sm scale-[1.02]' 
-                                    : 'bg-white/5 text-slate-300 border-transparent hover:border-white/10'
+                                    : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-300 border-transparent hover:border-white/10')
                                 }`}
                               >
                                 <div className="flex items-center gap-1.5 font-black text-[11px]">
                                   <span>{item.icon}</span>
                                   <span className="truncate">{item.label}</span>
                                 </div>
-                                <span className={`text-[8px] font-medium mt-1 leading-none ${menstrualPhaseValue === item.phase ? 'text-purple-100' : 'text-slate-500'}`}>
+                                <span className={`text-[8px] font-medium mt-1 leading-none ${menstrualPhaseValue === item.phase ? 'text-purple-100' : (isLight ? 'text-slate-500' : 'text-slate-500')}`}>
                                   {item.desc}
                                 </span>
                               </button>
@@ -2089,11 +2172,13 @@ const AthletePortal: React.FC = () => {
 
                           {/* Science Insights for Menstrual Cycle */}
                           {menstrualPhaseValue !== 'none' && (
-                            <div className="bg-purple-950/20 border border-purple-500/10 p-3.5 rounded-2xl space-y-1.5 text-left animate-fade-in">
-                              <p className="text-[9px] font-black text-purple-400 uppercase tracking-widest italic flex items-center gap-1">
+                            <div className={`border p-3.5 rounded-2xl space-y-1.5 text-left animate-fade-in ${
+                              isLight ? 'bg-purple-50 border-purple-200 text-purple-950' : 'bg-purple-950/20 border-purple-500/10 text-purple-200'
+                            }`}>
+                              <p className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest italic flex items-center gap-1">
                                 💡 Insight Científico
                               </p>
-                              <p className="text-[10px] text-purple-200 font-medium italic leading-relaxed">
+                              <p className={`text-[10px] font-medium italic leading-relaxed ${isLight ? 'text-purple-900' : 'text-purple-200'}`}>
                                 {menstrualPhaseValue === 'follicular' && 'Hormônios baixos e estrogênio subindo: Excelente para tiros de alta intensidade, treinos de ritmo e força. Recuperação ultra-rápida!'}
                                 {menstrualPhaseValue === 'ovulatory' && 'Pico de estrogênio: Força e potência máxima no pico de desempenho. Atenção extra ao aquecimento para proteger ligamentos.'}
                                 {menstrualPhaseValue === 'luteal' && 'Progesterona alta: Temperatura corporal elevada e batimentos sobem mais rápido. Ideal para rodagens de resistência estável. Evite exaustão extrema.'}
@@ -2109,8 +2194,8 @@ const AthletePortal: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Cronômetro de Suporte</span>
-                        <span className="text-[8px] text-slate-600 font-bold uppercase italic">Use para marcar intervalos ou tempo total</span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest italic ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>Cronômetro de Suporte</span>
+                        <span className={`text-[8px] font-bold uppercase italic ${isLight ? 'text-slate-500' : 'text-slate-600'}`}>Use para marcar intervalos ou tempo total</span>
                       </div>
                       <TimerComponent />
                     </div>
@@ -2126,13 +2211,15 @@ const AthletePortal: React.FC = () => {
               )}
             </div>
 
-            <div className="p-6 md:p-8 bg-slate-900 border-t border-white/5 flex-shrink-0 font-sans">
+            <div className={`p-6 md:p-8 border-t flex-shrink-0 font-sans ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-white/5'
+            }`}>
               <button 
                 onClick={handleToggleComplete} 
                 disabled={isSaving}
-                className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 
+                className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 cursor-pointer
                   ${saveSuccess ? 'bg-emerald-500 text-white' : 
-                    selectedWorkout.data.type === 'Descanso' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-emerald-950 text-white hover:bg-black active:scale-95'}
+                    selectedWorkout.data.type === 'Descanso' ? 'bg-blue-600 text-white hover:bg-blue-700' : (isLight ? 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95' : 'bg-emerald-950 text-white hover:bg-black active:scale-95')}
                   disabled:opacity-50`}
               >
                 {isSaving ? (

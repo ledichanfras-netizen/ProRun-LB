@@ -230,27 +230,28 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const isDarkText = textTheme === 'black';
 
   return createPortal(
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-6 overflow-y-auto pt-16 sm:pt-6" onClick={onClose}>
-      <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-2 sm:p-6 overflow-y-auto pt-4 sm:pt-6" onClick={onClose}>
+      <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto" onClick={e => e.stopPropagation()}>
         
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between bg-slate-950/40">
+        <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between bg-slate-950/60 sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <Camera className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-white uppercase italic tracking-wider flex items-center gap-2">
-                Card de Atividade <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">Social</span>
+              <h2 className="text-base sm:text-lg font-black text-white uppercase italic tracking-wider flex items-center gap-2">
+                Card de Atividade <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Social</span>
               </h2>
-              <p className="text-xs text-slate-400 font-medium">
+              <p className="text-[11px] text-slate-400 font-medium">
                 Gere e compartilhe seu treino em alta resolução para stories ou posts
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+            className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+            title="Fechar Visualização"
           >
             <X className="w-5 h-5" />
           </button>

@@ -21,7 +21,11 @@ import {
   parseWorkoutTextToStructure, 
   formatStepTarget,
   getSuggestedPaces,
-  formatStructuredWorkoutFullDescription
+  formatStructuredWorkoutFullDescription,
+  toggleWarmupInStructuredWorkout,
+  toggleCooldownInStructuredWorkout,
+  adjustIntervalCountInStructuredWorkout,
+  adjustRestDurationInStructuredWorkout
 } from '../utils/workoutParser';
 
 interface StructuredWorkoutModalProps {
@@ -78,6 +82,69 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
   // Current Generated Steps Preview
   const [previewWorkout, setPreviewWorkout] = useState<StructuredWorkout | null>(null);
 
+  // Sincroniza todos os estados do Construtor Visual a partir de um treino estruturado
+  const syncBuilderFromStructuredWorkout = (workout: StructuredWorkout) => {
+    if (!workout || !workout.steps) return;
+
+    // 1. Aquecimento (Warmup)
+    const wStep = workout.steps.find(s => s.type === 'warmup');
+    if (wStep) {
+      setHasWarmup(true);
+      if (wStep.targetType === 'time') {
+        setWarmupType('time');
+        setWarmupMinutes(Math.max(1, Math.round(wStep.targetValue / 60)));
+      } else {
+        setWarmupType('distance');
+        setWarmupDistMeters(wStep.targetValue || 1500);
+      }
+    } else {
+      setHasWarmup(false);
+    }
+
+    // 2. Tiros (Intervalos)
+    const intSteps = workout.steps.filter(s => s.type === 'interval');
+    if (intSteps.length > 0) {
+      setRepetitions(intSteps.length);
+      const firstInt = intSteps[0];
+      if (firstInt.targetType === 'time') {
+        setIntervalType('time');
+        setIntervalSeconds(firstInt.targetValue || 240);
+      } else {
+        setIntervalType('distance');
+        setIntervalMeters(firstInt.targetValue || 1000);
+      }
+      if (firstInt.targetPaceMin) setTargetPaceMin(firstInt.targetPaceMin);
+      if (firstInt.targetPaceMax) setTargetPaceMax(firstInt.targetPaceMax);
+    }
+
+    // 3. Descanso (Recuperação)
+    const recStep = workout.steps.find(s => s.type === 'recovery');
+    if (recStep) {
+      if (recStep.targetType === 'distance') {
+        setRecoveryType('distance');
+        setRecoveryMeters(recStep.targetValue || 400);
+      } else {
+        setRecoveryType('time');
+        setRecoverySeconds(recStep.targetValue || 120);
+      }
+    }
+
+    // 4. Desaquecimento (Cooldown)
+    const cStep = workout.steps.find(s => s.type === 'cooldown');
+    if (cStep) {
+      setHasCooldown(true);
+      if (cStep.targetType === 'time') {
+        setCooldownType('time');
+        setCooldownMinutes(Math.max(1, Math.round(cStep.targetValue / 60)));
+      } else {
+        setCooldownType('distance');
+        setCooldownDistMeters(cStep.targetValue || 1000);
+      }
+    } else {
+      setHasCooldown(false);
+    }
+  };
+
   // Generate from visual builder
   const generateFromBuilder = (overrides?: {
     wType?: 'distance' | 'time';
@@ -116,45 +183,12 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
   useEffect(() => {
     if (initialWorkout && initialWorkout.steps && initialWorkout.steps.length > 0) {
       setPreviewWorkout(initialWorkout);
-
-      const wStep = initialWorkout.steps.find(s => s.type === 'warmup');
-      if (wStep) {
-        setHasWarmup(true);
-        if (wStep.targetType === 'time') {
-          setWarmupType('time');
-          setWarmupMinutes(Math.max(1, Math.round(wStep.targetValue / 60)));
-        } else {
-          setWarmupType('distance');
-          setWarmupDistMeters(wStep.targetValue);
-        }
-      }
-
-      const cStep = initialWorkout.steps.find(s => s.type === 'cooldown');
-      if (cStep) {
-        setHasCooldown(true);
-        if (cStep.targetType === 'time') {
-          setCooldownType('time');
-          setCooldownMinutes(Math.max(1, Math.round(cStep.targetValue / 60)));
-        } else {
-          setCooldownType('distance');
-          setCooldownDistMeters(cStep.targetValue);
-        }
-      }
-
-      const intStep = initialWorkout.steps.find(s => s.type === 'interval');
-      if (intStep) {
-        if (intStep.targetPaceMin) setTargetPaceMin(intStep.targetPaceMin);
-        if (intStep.targetPaceMax) setTargetPaceMax(intStep.targetPaceMax);
-      }
+      syncBuilderFromStructuredWorkout(initialWorkout);
     } else if (workoutDescription) {
       const parsed = parseWorkoutTextToStructure(workoutDescription, workoutType, athletePaces);
       if (parsed) {
         setPreviewWorkout(parsed);
-        const intStep = parsed.steps.find(s => s.type === 'interval');
-        if (intStep?.targetPaceMin) {
-          setTargetPaceMin(intStep.targetPaceMin);
-          setTargetPaceMax(intStep.targetPaceMax || '');
-        }
+        syncBuilderFromStructuredWorkout(parsed);
       } else {
         generateFromBuilder();
       }
@@ -169,6 +203,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
     const parsed = parseWorkoutTextToStructure(quickTextInput, workoutType, athletePaces);
     if (parsed) {
       setPreviewWorkout(parsed);
+      syncBuilderFromStructuredWorkout(parsed);
     } else {
       setParseError('Não foi possível identificar repetições ou intervalos. Ex: "5x1000m rec 2min" ou "6x400m r: 1min"');
     }
@@ -180,6 +215,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
     const parsed = parseWorkoutTextToStructure(text, workoutType, athletePaces);
     if (parsed) {
       setPreviewWorkout(parsed);
+      syncBuilderFromStructuredWorkout(parsed);
       setParseError(null);
     }
   };
@@ -194,13 +230,42 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
   };
 
   const handleSave = () => {
-    if (!previewWorkout || previewWorkout.steps.length === 0) {
-      alert('Estruture ao menos uma etapa no treino.');
-      return;
+    let workoutToSave = previewWorkout;
+
+    // Se estiver na aba Modo Rápido, garante que o texto atual seja convertido caso previewWorkout não esteja atualizado
+    if (activeTab === 'quick_text' && quickTextInput.trim()) {
+      const parsed = parseWorkoutTextToStructure(quickTextInput, workoutType, athletePaces);
+      if (parsed) {
+        workoutToSave = parsed;
+      }
     }
-    const fullDesc = formatStructuredWorkoutFullDescription(previewWorkout);
+
+    if (!workoutToSave || workoutToSave.steps.length === 0) {
+      // Fallback: constrói a partir dos inputs do construtor
+      const fallback = buildStructuredWorkout({
+        repetitions,
+        intervalTargetType: intervalType,
+        intervalValue: intervalType === 'distance' ? intervalMeters : intervalSeconds,
+        recoveryTargetType: recoveryType,
+        recoveryValue: recoveryType === 'time' ? recoverySeconds : recoveryMeters,
+        targetPaceMin,
+        targetPaceMax,
+        warmupValue: hasWarmup ? (warmupType === 'distance' ? warmupDistMeters : warmupMinutes * 60) : undefined,
+        warmupTargetType: warmupType,
+        cooldownValue: hasCooldown ? (cooldownType === 'distance' ? cooldownDistMeters : cooldownMinutes * 60) : undefined,
+        cooldownTargetType: cooldownType
+      });
+      if (fallback && fallback.steps.length > 0) {
+        workoutToSave = fallback;
+      } else {
+        alert('Estruture ao menos uma etapa no treino.');
+        return;
+      }
+    }
+
+    const fullDesc = formatStructuredWorkoutFullDescription(workoutToSave);
     const savedWorkout: StructuredWorkout = {
-      ...previewWorkout,
+      ...workoutToSave,
       description: fullDesc
     };
     onSave(savedWorkout);
@@ -273,7 +338,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('quick_text')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'quick_text'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
                 : 'text-slate-400 hover:text-white bg-white/5'
@@ -285,9 +350,11 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
             type="button"
             onClick={() => {
               setActiveTab('builder');
-              generateFromBuilder();
+              if (!previewWorkout || previewWorkout.steps.length === 0) {
+                generateFromBuilder();
+              }
             }}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'builder'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
                 : 'text-slate-400 hover:text-white bg-white/5'
@@ -311,13 +378,19 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                     type="text"
                     value={quickTextInput}
                     onChange={(e) => setQuickTextInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleParseQuickText();
+                      }
+                    }}
                     placeholder="Ex: 5x1000m rec 2min ou 2km aq + 6x400m r:90s + 1km des"
                     className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm font-semibold outline-none focus:border-blue-500 transition-all font-mono"
                   />
                   <button
                     type="button"
                     onClick={handleParseQuickText}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase italic tracking-wider shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase italic tracking-wider shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
                   >
                     <ArrowRight className="w-4 h-4" /> Converter
                   </button>
@@ -334,7 +407,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
               {/* Exemplos Rápidos */}
               <div className="space-y-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                  Exemplos Rápidos (Clique para aplicar):
+                  Exemplos Rápidos (Clique para aplicar imediatamente):
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {[
@@ -343,19 +416,65 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                     '4x 2000m rec 3min',
                     '8x 300m rec 45s',
                     '10x 1min forte / 1min leve',
-                    '1.5km aq + 5x800m r: 90s + 1km des'
+                    '1.5km aq + 5x800m r: 90s + 1km des',
+                    '3km aq + 10x 400m rec 1min + 2km des',
+                    '2km aq + 4x 1500m rec 2min30s + 1km des',
+                    '12x 200m rec 45s',
+                    '3x 3000m rec 3min'
                   ].map((preset, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => applyPreset(preset)}
-                      className="px-2.5 py-1 bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/40 text-slate-300 hover:text-white text-[11px] rounded-lg border border-white/5 font-mono transition-all cursor-pointer"
+                      className={`px-3 py-1.5 text-[11px] rounded-xl font-mono font-bold transition-all cursor-pointer border ${
+                        quickTextInput === preset
+                          ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
+                          : 'bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/40 text-slate-300 hover:text-white border-white/5'
+                      }`}
                     >
                       {preset}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Card de Ação Rápida e Transição para o Construtor Visual */}
+              {previewWorkout && previewWorkout.steps.length > 0 && (
+                <div className="p-4 bg-gradient-to-r from-blue-950/60 via-slate-900 to-slate-900 border border-blue-500/30 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
+                        ✓
+                      </div>
+                      <div>
+                        <span className="text-xs font-black text-white uppercase italic block">
+                          Treino Reconhecido com Sucesso ({previewWorkout.steps.length} etapas)
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          Distância estimada: ~{previewWorkout.totalDistanceEstimatedKm || 0}km
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('builder')}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-blue-600/20 cursor-pointer"
+                    >
+                      <Layers className="w-3.5 h-3.5" /> Levar para o Construtor Visual (Ajustar Detalhes)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Salvar Treino na Planilha Agora
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -378,11 +497,11 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                       }}
                       className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white/10 border-white/20"
                     />
-                    <span className="text-xs text-slate-300 font-bold">Incluir</span>
+                    <span className="text-xs text-slate-300 font-bold">Incluir Aquecimento</span>
                   </label>
                 </div>
                 {hasWarmup && (
-                  <div className="space-y-2 pt-1 border-t border-white/5">
+                  <div className="space-y-3 pt-1 border-t border-white/5">
                     <div className="flex items-center gap-2">
                       <div className="flex bg-white/5 p-0.5 rounded-xl border border-white/5">
                         <button
@@ -395,7 +514,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                             warmupType === 'distance' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                           }`}
                         >
-                          Distância (km/m)
+                          Distância (Km / Metros)
                         </button>
                         <button
                           type="button"
@@ -407,50 +526,166 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                             warmupType === 'time' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                           }`}
                         >
-                          Tempo (min)
+                          Tempo (Minutos)
                         </button>
                       </div>
                     </div>
 
                     {warmupType === 'distance' ? (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {[1000, 1500, 2000, 3000].map((m) => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => {
-                              setWarmupDistMeters(m);
-                              generateFromBuilder({ wType: 'distance', wVal: m });
-                            }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase italic transition-all ${
-                              warmupDistMeters === m
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-                            }`}
-                          >
-                            {m >= 1000 ? `${m / 1000}km` : `${m}m`}
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Km:</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0.1"
+                              max="30"
+                              value={(warmupDistMeters / 1000).toString()}
+                              onChange={(e) => {
+                                const km = parseFloat(e.target.value) || 0;
+                                const m = Math.round(km * 1000);
+                                setWarmupDistMeters(m);
+                                generateFromBuilder({ wType: 'distance', wVal: m });
+                              }}
+                              className="w-16 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">km</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Metros:</span>
+                            <input
+                              type="number"
+                              step="100"
+                              min="100"
+                              max="30000"
+                              value={warmupDistMeters.toString()}
+                              onChange={(e) => {
+                                const m = parseInt(e.target.value) || 0;
+                                setWarmupDistMeters(m);
+                                generateFromBuilder({ wType: 'distance', wVal: m });
+                              }}
+                              className="w-16 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">m</span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const m = Math.max(100, warmupDistMeters - 500);
+                                setWarmupDistMeters(m);
+                                generateFromBuilder({ wType: 'distance', wVal: m });
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              -500m
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const m = warmupDistMeters + 500;
+                                setWarmupDistMeters(m);
+                                generateFromBuilder({ wType: 'distance', wVal: m });
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              +500m
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Atalhos Rápidos */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase">Atalhos:</span>
+                          {[800, 1000, 1500, 2000, 3000].map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                setWarmupDistMeters(m);
+                                generateFromBuilder({ wType: 'distance', wVal: m });
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
+                                warmupDistMeters === m
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {m >= 1000 ? `${m / 1000}km` : `${m}m`}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {[5, 10, 15, 20].map((mins) => (
-                          <button
-                            key={mins}
-                            type="button"
-                            onClick={() => {
-                              setWarmupMinutes(mins);
-                              generateFromBuilder({ wType: 'time', wVal: mins * 60 });
-                            }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase italic transition-all ${
-                              warmupMinutes === mins
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-                            }`}
-                          >
-                            {mins} min
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Tempo:</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="120"
+                              value={warmupMinutes.toString()}
+                              onChange={(e) => {
+                                const mins = parseInt(e.target.value) || 1;
+                                setWarmupMinutes(mins);
+                                generateFromBuilder({ wType: 'time', wVal: mins * 60 });
+                              }}
+                              className="w-14 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">min</span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const mins = Math.max(1, warmupMinutes - 1);
+                                setWarmupMinutes(mins);
+                                generateFromBuilder({ wType: 'time', wVal: mins * 60 });
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              -1m
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const mins = warmupMinutes + 1;
+                                setWarmupMinutes(mins);
+                                generateFromBuilder({ wType: 'time', wVal: mins * 60 });
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              +1m
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Atalhos Rápidos */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase">Atalhos:</span>
+                          {[5, 8, 10, 12, 15, 20].map((mins) => (
+                            <button
+                              key={mins}
+                              type="button"
+                              onClick={() => {
+                                setWarmupMinutes(mins);
+                                generateFromBuilder({ wType: 'time', wVal: mins * 60 });
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
+                                warmupMinutes === mins
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {mins} min
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -464,35 +699,75 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                 </span>
 
                 {/* Repetições */}
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                    Número de Repetições
+                    Número de Repetições (Tiros)
                   </label>
-                  <div className="flex items-center gap-2">
-                    {[3, 4, 5, 6, 8, 10, 12].map((num) => (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
                       <button
-                        key={num}
                         type="button"
                         onClick={() => {
-                          setRepetitions(num);
+                          const r = Math.max(1, repetitions - 1);
+                          setRepetitions(r);
                           setTimeout(generateFromBuilder, 50);
                         }}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-black ${
-                          repetitions === num
-                            ? 'bg-amber-500 text-slate-950 shadow-md font-mono'
-                            : 'bg-white/5 text-slate-400 hover:text-white'
-                        }`}
+                        className="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center text-xs"
                       >
-                        {num}x
+                        -
                       </button>
-                    ))}
+                      <input
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={repetitions.toString()}
+                        onChange={(e) => {
+                          const r = Math.max(1, parseInt(e.target.value) || 1);
+                          setRepetitions(r);
+                          setTimeout(generateFromBuilder, 50);
+                        }}
+                        className="w-12 bg-transparent text-amber-400 font-mono font-black text-sm text-center outline-none"
+                      />
+                      <span className="text-xs font-bold text-slate-400">vezes</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const r = repetitions + 1;
+                          setRepetitions(r);
+                          setTimeout(generateFromBuilder, 50);
+                        }}
+                        className="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center text-xs"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {[3, 4, 5, 6, 8, 10, 12, 15].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => {
+                            setRepetitions(num);
+                            setTimeout(generateFromBuilder, 50);
+                          }}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-black ${
+                            repetitions === num
+                              ? 'bg-amber-500 text-slate-950 shadow-md font-mono'
+                              : 'bg-white/5 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {num}x
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
                 {/* Tiro (Trabalho) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-white/5">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-white/5">
+                  <div className="space-y-2.5">
+                    <label className="text-[10px] font-black text-amber-400 uppercase tracking-widest block">
                       Tiro (Trabalho)
                     </label>
                     <div className="flex gap-2">
@@ -506,7 +781,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                           intervalType === 'distance' ? 'bg-amber-500 text-slate-950' : 'bg-white/5 text-slate-400'
                         }`}
                       >
-                        Metros
+                        Distância (Km / m)
                       </button>
                       <button
                         type="button"
@@ -518,52 +793,135 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                           intervalType === 'time' ? 'bg-amber-500 text-slate-950' : 'bg-white/5 text-slate-400'
                         }`}
                       >
-                        Tempo
+                        Tempo (min / s)
                       </button>
                     </div>
 
                     {intervalType === 'distance' ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {[400, 500, 800, 1000, 1200, 1500, 2000].map((dist) => (
-                          <button
-                            key={dist}
-                            type="button"
-                            onClick={() => {
-                              setIntervalMeters(dist);
-                              setTimeout(generateFromBuilder, 50);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-black ${
-                              intervalMeters === dist ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-300'
-                            }`}
-                          >
-                            {dist >= 1000 ? `${dist / 1000}k` : `${dist}m`}
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Metros:</span>
+                            <input
+                              type="number"
+                              step="50"
+                              min="50"
+                              max="50000"
+                              value={intervalMeters.toString()}
+                              onChange={(e) => {
+                                const m = parseInt(e.target.value) || 0;
+                                setIntervalMeters(m);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="w-16 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">m</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Km:</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0.05"
+                              max="50"
+                              value={(intervalMeters / 1000).toString()}
+                              onChange={(e) => {
+                                const km = parseFloat(e.target.value) || 0;
+                                setIntervalMeters(Math.round(km * 1000));
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="w-14 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">km</span>
+                          </div>
+                        </div>
+
+                        {/* Atalhos Rápidos */}
+                        <div className="flex flex-wrap gap-1">
+                          {[200, 300, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 3000].map((dist) => (
+                            <button
+                              key={dist}
+                              type="button"
+                              onClick={() => {
+                                setIntervalMeters(dist);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
+                                intervalMeters === dist ? 'bg-amber-500 text-slate-950 shadow-sm' : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {dist >= 1000 ? `${dist / 1000}k` : `${dist}m`}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {[30, 60, 90, 120, 180, 240, 300].map((sec) => (
-                          <button
-                            key={sec}
-                            type="button"
-                            onClick={() => {
-                              setIntervalSeconds(sec);
-                              setTimeout(generateFromBuilder, 50);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-black ${
-                              intervalSeconds === sec ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-300'
-                            }`}
-                          >
-                            {sec >= 60 ? `${sec / 60}min` : `${sec}s`}
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Minutos:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="120"
+                              value={Math.floor(intervalSeconds / 60).toString()}
+                              onChange={(e) => {
+                                const mins = parseInt(e.target.value) || 0;
+                                const secs = intervalSeconds % 60;
+                                setIntervalSeconds(mins * 60 + secs);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="w-12 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">min</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Segundos:</span>
+                            <input
+                              type="number"
+                              step="5"
+                              min="0"
+                              max="59"
+                              value={(intervalSeconds % 60).toString()}
+                              onChange={(e) => {
+                                const secs = parseInt(e.target.value) || 0;
+                                const mins = Math.floor(intervalSeconds / 60);
+                                setIntervalSeconds(mins * 60 + secs);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="w-12 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">s</span>
+                          </div>
+                        </div>
+
+                        {/* Atalhos Rápidos */}
+                        <div className="flex flex-wrap gap-1">
+                          {[30, 45, 60, 90, 120, 180, 240, 300, 360].map((sec) => (
+                            <button
+                              key={sec}
+                              type="button"
+                              onClick={() => {
+                                setIntervalSeconds(sec);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
+                                intervalSeconds === sec ? 'bg-amber-500 text-slate-950 shadow-sm' : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {sec >= 60 ? `${sec / 60}min` : `${sec}s`}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
 
                   {/* Recuperação */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                  <div className="space-y-2.5">
+                    <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">
                       Recuperação (Descanso)
                     </label>
                     <div className="flex gap-2">
@@ -577,7 +935,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                           recoveryType === 'time' ? 'bg-emerald-500 text-slate-950' : 'bg-white/5 text-slate-400'
                         }`}
                       >
-                        Tempo
+                        Tempo (min / s)
                       </button>
                       <button
                         type="button"
@@ -589,45 +947,152 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                           recoveryType === 'distance' ? 'bg-emerald-500 text-slate-950' : 'bg-white/5 text-slate-400'
                         }`}
                       >
-                        Metros
+                        Distância (m)
                       </button>
                     </div>
 
                     {recoveryType === 'time' ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {[45, 60, 90, 120, 180].map((sec) => (
-                          <button
-                            key={sec}
-                            type="button"
-                            onClick={() => {
-                              setRecoverySeconds(sec);
-                              setTimeout(generateFromBuilder, 50);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-black ${
-                              recoverySeconds === sec ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-300'
-                            }`}
-                          >
-                            {sec >= 60 ? `${sec / 60}min` : `${sec}s`}
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Segundos:</span>
+                            <input
+                              type="number"
+                              step="5"
+                              min="5"
+                              max="1800"
+                              value={recoverySeconds.toString()}
+                              onChange={(e) => {
+                                const sec = parseInt(e.target.value) || 0;
+                                setRecoverySeconds(sec);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="w-14 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">s ({Math.floor(recoverySeconds / 60)}m{recoverySeconds % 60 ? `${recoverySeconds % 60}s` : ''})</span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const sec = Math.max(15, recoverySeconds - 15);
+                                setRecoverySeconds(sec);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              -15s
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const sec = recoverySeconds + 15;
+                                setRecoverySeconds(sec);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              +15s
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const sec = recoverySeconds + 30;
+                                setRecoverySeconds(sec);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              +30s
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Atalhos Rápidos */}
+                        <div className="flex flex-wrap gap-1">
+                          {[30, 45, 60, 75, 90, 120, 150, 180, 240].map((sec) => (
+                            <button
+                              key={sec}
+                              type="button"
+                              onClick={() => {
+                                setRecoverySeconds(sec);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
+                                recoverySeconds === sec ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {sec >= 60 ? `${Math.floor(sec / 60)}m${sec % 60 ? `${sec % 60}s` : ''}` : `${sec}s`}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {[200, 400, 500].map((m) => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => {
-                              setRecoveryMeters(m);
-                              setTimeout(generateFromBuilder, 50);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-black ${
-                              recoveryMeters === m ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-300'
-                            }`}
-                          >
-                            {m}m
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Metros:</span>
+                            <input
+                              type="number"
+                              step="50"
+                              min="50"
+                              max="5000"
+                              value={recoveryMeters.toString()}
+                              onChange={(e) => {
+                                const m = parseInt(e.target.value) || 0;
+                                setRecoveryMeters(m);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="w-16 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">m</span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const m = Math.max(50, recoveryMeters - 50);
+                                setRecoveryMeters(m);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              -50m
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const m = recoveryMeters + 50;
+                                setRecoveryMeters(m);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              +50m
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Atalhos Rápidos */}
+                        <div className="flex flex-wrap gap-1">
+                          {[100, 150, 200, 300, 400, 500, 800].map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                setRecoveryMeters(m);
+                                setTimeout(generateFromBuilder, 50);
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
+                                recoveryMeters === m ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {m}m
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -749,11 +1214,11 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                       }}
                       className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white/10 border-white/20"
                     />
-                    <span className="text-xs text-slate-300 font-bold">Incluir</span>
+                    <span className="text-xs text-slate-300 font-bold">Incluir Desaquecimento</span>
                   </label>
                 </div>
                 {hasCooldown && (
-                  <div className="space-y-2 pt-1 border-t border-white/5">
+                  <div className="space-y-3 pt-1 border-t border-white/5">
                     <div className="flex items-center gap-2">
                       <div className="flex bg-white/5 p-0.5 rounded-xl border border-white/5">
                         <button
@@ -766,7 +1231,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                             cooldownType === 'distance' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                           }`}
                         >
-                          Distância (km/m)
+                          Distância (Km / Metros)
                         </button>
                         <button
                           type="button"
@@ -778,50 +1243,166 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                             cooldownType === 'time' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                           }`}
                         >
-                          Tempo (min)
+                          Tempo (Minutos)
                         </button>
                       </div>
                     </div>
 
                     {cooldownType === 'distance' ? (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {[500, 1000, 1500, 2000].map((m) => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => {
-                              setCooldownDistMeters(m);
-                              generateFromBuilder({ cType: 'distance', cVal: m });
-                            }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase italic transition-all ${
-                              cooldownDistMeters === m
-                                ? 'bg-purple-600 text-white shadow-md'
-                                : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-                            }`}
-                          >
-                            {m >= 1000 ? `${m / 1000}km` : `${m}m`}
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Km:</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0.1"
+                              max="30"
+                              value={(cooldownDistMeters / 1000).toString()}
+                              onChange={(e) => {
+                                const km = parseFloat(e.target.value) || 0;
+                                const m = Math.round(km * 1000);
+                                setCooldownDistMeters(m);
+                                generateFromBuilder({ cType: 'distance', cVal: m });
+                              }}
+                              className="w-16 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">km</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Metros:</span>
+                            <input
+                              type="number"
+                              step="100"
+                              min="100"
+                              max="30000"
+                              value={cooldownDistMeters.toString()}
+                              onChange={(e) => {
+                                const m = parseInt(e.target.value) || 0;
+                                setCooldownDistMeters(m);
+                                generateFromBuilder({ cType: 'distance', cVal: m });
+                              }}
+                              className="w-16 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">m</span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const m = Math.max(100, cooldownDistMeters - 500);
+                                setCooldownDistMeters(m);
+                                generateFromBuilder({ cType: 'distance', cVal: m });
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              -500m
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const m = cooldownDistMeters + 500;
+                                setCooldownDistMeters(m);
+                                generateFromBuilder({ cType: 'distance', cVal: m });
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              +500m
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Atalhos Rápidos */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase">Atalhos:</span>
+                          {[500, 1000, 1500, 2000].map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                setCooldownDistMeters(m);
+                                generateFromBuilder({ cType: 'distance', cVal: m });
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
+                                cooldownDistMeters === m
+                                  ? 'bg-purple-600 text-white shadow-md'
+                                  : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {m >= 1000 ? `${m / 1000}km` : `${m}m`}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {[5, 10, 15, 20].map((mins) => (
-                          <button
-                            key={mins}
-                            type="button"
-                            onClick={() => {
-                              setCooldownMinutes(mins);
-                              generateFromBuilder({ cType: 'time', cVal: mins * 60 });
-                            }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase italic transition-all ${
-                              cooldownMinutes === mins
-                                ? 'bg-purple-600 text-white shadow-md'
-                                : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-                            }`}
-                          >
-                            {mins} min
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Tempo:</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="120"
+                              value={cooldownMinutes.toString()}
+                              onChange={(e) => {
+                                const mins = parseInt(e.target.value) || 1;
+                                setCooldownMinutes(mins);
+                                generateFromBuilder({ cType: 'time', cVal: mins * 60 });
+                              }}
+                              className="w-14 bg-transparent text-white font-mono font-bold text-xs text-center outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">min</span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const mins = Math.max(1, cooldownMinutes - 1);
+                                setCooldownMinutes(mins);
+                                generateFromBuilder({ cType: 'time', cVal: mins * 60 });
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              -1m
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const mins = cooldownMinutes + 1;
+                                setCooldownMinutes(mins);
+                                generateFromBuilder({ cType: 'time', cVal: mins * 60 });
+                              }}
+                              className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-bold font-mono"
+                            >
+                              +1m
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Atalhos Rápidos */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase">Atalhos:</span>
+                          {[5, 8, 10, 15, 20].map((mins) => (
+                            <button
+                              key={mins}
+                              type="button"
+                              onClick={() => {
+                                setCooldownMinutes(mins);
+                                generateFromBuilder({ cType: 'time', cVal: mins * 60 });
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
+                                cooldownMinutes === mins
+                                  ? 'bg-purple-600 text-white shadow-md'
+                                  : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {mins} min
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -830,10 +1411,10 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
             </div>
           )}
 
-          {/* LISTA PREVIEW DAS ETAPAS GERADAS (ESTRUTURAÇÃO DETALHADA) */}
+          {/* LISTA PREVIEW DAS ETAPAS GERADAS (ESTRUTURAÇÃO DETALHADA) COM AJUSTES RÁPIDOS */}
           {previewWorkout && previewWorkout.steps.length > 0 && (
             <div className="space-y-3 pt-2 border-t border-white/5">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-white uppercase italic tracking-wider">
                     Sequência de Execução ({previewWorkout.steps.length} Etapas)
@@ -843,6 +1424,54 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                       ~{previewWorkout.totalDistanceEstimatedKm} KM TOTAL
                     </span>
                   )}
+                </div>
+
+                {/* Barra de Ajustes Rápidos Globais */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = adjustIntervalCountInStructuredWorkout(previewWorkout, 1);
+                      setPreviewWorkout(updated);
+                      setRepetitions(prev => prev + 1);
+                    }}
+                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                  >
+                    +1 Tiro
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = adjustIntervalCountInStructuredWorkout(previewWorkout, -1);
+                      setPreviewWorkout(updated);
+                      setRepetitions(prev => Math.max(1, prev - 1));
+                    }}
+                    className="px-2 py-1 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                  >
+                    -1 Tiro
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = adjustRestDurationInStructuredWorkout(previewWorkout, 15);
+                      setPreviewWorkout(updated);
+                      setRecoverySeconds(prev => prev + 15);
+                    }}
+                    className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                  >
+                    +15s Descanso
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = adjustRestDurationInStructuredWorkout(previewWorkout, -15);
+                      setPreviewWorkout(updated);
+                      setRecoverySeconds(prev => Math.max(15, prev - 15));
+                    }}
+                    className="px-2 py-1 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                  >
+                    -15s Descanso
+                  </button>
                 </div>
               </div>
 

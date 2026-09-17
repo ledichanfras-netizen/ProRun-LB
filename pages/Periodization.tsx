@@ -1458,12 +1458,17 @@ const Periodization: React.FC = () => {
                                   {workout.customDescription}
                                 </p>
                                 {workout.structuredWorkout && (
-                                  <div className="flex items-center gap-1.5 mt-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingStructuredWorkout({ wIdx: weekIndex, dIdx: dayIndex })}
+                                    className="flex items-center gap-1.5 mt-1.5 hover:opacity-80 transition-opacity cursor-pointer text-left"
+                                    title="Clique para ver ou editar a prescrição detalhada deste treino"
+                                  >
                                     <span className="text-[9px] font-black px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-md uppercase italic border border-blue-400/20 flex items-center gap-1">
                                       <Timer className="w-2.5 h-2.5" />
                                       <span>{formatStructuredWorkoutSummary(workout.structuredWorkout)}</span>
                                     </span>
-                                  </div>
+                                  </button>
                                 )}
                                 {workout.completed && (
                                   <div className="flex flex-wrap gap-2 mt-2">
@@ -1760,11 +1765,25 @@ const Periodization: React.FC = () => {
             athletePaces={athletePaces}
             onSave={(newStructured) => {
               const fullDesc = newStructured.description || formatStructuredWorkoutFullDescription(newStructured);
-              updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'structuredWorkout', newStructured);
-              updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'customDescription', fullDesc);
-              const currentDistance = fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.distance;
-              if (newStructured.totalDistanceEstimatedKm && (!currentDistance || currentDistance === 0)) {
-                updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'distance', newStructured.totalDistanceEstimatedKm);
+              const wIdx = editingStructuredWorkout.wIdx;
+              const dIdx = editingStructuredWorkout.dIdx;
+
+              const newPlan = safeDeepClone(fullPlan);
+              if (newPlan.weeks[wIdx] && newPlan.weeks[wIdx].workouts[dIdx]) {
+                newPlan.weeks[wIdx].workouts[dIdx].structuredWorkout = newStructured;
+                newPlan.weeks[wIdx].workouts[dIdx].customDescription = fullDesc;
+                if (newStructured.totalDistanceEstimatedKm) {
+                  newPlan.weeks[wIdx].workouts[dIdx].distance = newStructured.totalDistanceEstimatedKm;
+                }
+                
+                // Recalcular volume total da semana
+                const total = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
+                newPlan.weeks[wIdx].totalVolume = total;
+
+                setFullPlan(newPlan);
+                if (activeAthlete) {
+                  saveAthletePlan(activeAthlete.id, newPlan);
+                }
               }
               setEditingStructuredWorkout(null);
             }}

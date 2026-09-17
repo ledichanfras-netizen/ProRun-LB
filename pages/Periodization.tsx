@@ -32,12 +32,20 @@ import {
   Trash2,
   ListOrdered,
   Archive,
-  CheckCircle
+  CheckCircle,
+  Navigation,
+  MapPin,
+  FileCode2,
+  Timer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
 import { safeDeepClone } from '../utils/helpers';
+import { WorkoutMap } from '../components/WorkoutMap';
+import { decodePolyline } from '../utils/gpsUtils';
+import { StructuredWorkoutModal } from '../components/StructuredWorkoutModal';
+import { formatStructuredWorkoutSummary } from '../utils/workoutParser';
 
 const Periodization: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, clearAthletePlan, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
@@ -62,6 +70,8 @@ const Periodization: React.FC = () => {
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [targetDay, setTargetDay] = useState<{ weekIndex: number; dayIndex: number } | null>(null);
   const [targetWeekForTemplate, setTargetWeekForTemplate] = useState<number | null>(null);
+  const [viewingWorkoutRoute, setViewingWorkoutRoute] = useState<any | null>(null);
+  const [editingStructuredWorkout, setEditingStructuredWorkout] = useState<{ wIdx: number; dIdx: number } | null>(null);
 
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
@@ -1336,7 +1346,17 @@ const Periodization: React.FC = () => {
                                     onChange={e => updateWorkout(weekIndex, dayIndex, 'customDescription', e.target.value)}
                                   />
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
+                                  <button 
+                                    onClick={() => setEditingStructuredWorkout({ wIdx: weekIndex, dIdx: dayIndex })}
+                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center gap-1.5"
+                                    title="Estruturar Tiros / Intervalos (Prescrição Detalhada)"
+                                  >
+                                    <Timer className="w-3.5 h-3.5" />
+                                    <span className="text-[10px] font-black uppercase italic tracking-tight">
+                                      {workout.structuredWorkout ? `${workout.structuredWorkout.steps.length} Etapas` : 'Estruturar'}
+                                    </span>
+                                  </button>
                                   <button 
                                     onClick={() => {
                                       setTargetDay({ weekIndex, dayIndex });
@@ -1377,10 +1397,28 @@ const Periodization: React.FC = () => {
                                   {workout.type === 'Prova' && <span className="inline-block mr-1">🏁 PROVA ALVO:</span>}
                                   {workout.customDescription}
                                 </p>
+                                {workout.structuredWorkout && (
+                                  <div className="flex items-center gap-1.5 mt-1.5">
+                                    <span className="text-[9px] font-black px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-md uppercase italic border border-blue-400/20 flex items-center gap-1">
+                                      <Timer className="w-2.5 h-2.5" />
+                                      <span>{formatStructuredWorkoutSummary(workout.structuredWorkout)}</span>
+                                    </span>
+                                  </div>
+                                )}
                                 {workout.completed && (
                                   <div className="flex flex-wrap gap-2 mt-2">
                                     {(workout.rpe || 0) > 0 && (
                                       <span className="text-[9px] font-black px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-md uppercase italic border border-amber-500/20">Percepção: {workout.rpe}/10</span>
+                                    )}
+                                    {workout.gpsRoute && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewingWorkoutRoute({ ...workout.gpsRoute, workoutType: workout.type, workoutDate: fullPlan?.startDate ? formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex)) : undefined })}
+                                        className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-md uppercase italic border border-emerald-500/30 flex items-center gap-1 transition-all cursor-pointer"
+                                      >
+                                        <Navigation className="w-2.5 h-2.5" />
+                                        <span>Rota GPS ({workout.gpsRoute.totalDistanceKm}km)</span>
+                                      </button>
                                     )}
                                     {workout.feedback && (
                                       <div className="w-full flex items-start gap-1.5 bg-white/5 p-2 rounded-xl border border-white/5">
@@ -1536,6 +1574,111 @@ const Periodization: React.FC = () => {
                 </div>
              </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL DE VISUALIZAÇÃO DE ROTA GPS (COACH VIEW) */}
+      <AnimatePresence>
+        {viewingWorkoutRoute && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <Navigation className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase italic tracking-tight">
+                      Traçado da Rota GPS • {viewingWorkoutRoute.workoutType || 'Corrida'}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Atleta: <strong className="text-emerald-400">{activeAthlete?.name}</strong> {viewingWorkoutRoute.workoutDate ? `• Data: ${viewingWorkoutRoute.workoutDate}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingWorkoutRoute(null)}
+                  className="p-2 text-slate-400 hover:text-white rounded-xl bg-white/5"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-4 gap-2 bg-white/5 p-3 rounded-2xl border border-white/5 text-center">
+                  <div>
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Distância</span>
+                    <span className="text-base font-black text-emerald-400 font-mono">
+                      {viewingWorkoutRoute.totalDistanceKm} KM
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Pace Médio</span>
+                    <span className="text-base font-black text-amber-400 font-mono">
+                      {viewingWorkoutRoute.avgPace}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Fonte</span>
+                    <span className="text-[10px] font-black text-white uppercase italic block mt-1">
+                      {viewingWorkoutRoute.source === 'gpx_file' ? 'GPX Relógio' : 'GPS Celular'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Altimetria</span>
+                    <span className="text-base font-black text-blue-400 font-mono">
+                      +{viewingWorkoutRoute.elevationGainMeters || 0}m
+                    </span>
+                  </div>
+                </div>
+
+                <WorkoutMap
+                  points={
+                    viewingWorkoutRoute.points && viewingWorkoutRoute.points.length > 0
+                      ? viewingWorkoutRoute.points
+                      : viewingWorkoutRoute.polyline
+                      ? decodePolyline(viewingWorkoutRoute.polyline)
+                      : []
+                  }
+                  height="300px"
+                  interactive={true}
+                />
+              </div>
+
+              <div className="p-6 border-t border-white/5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewingWorkoutRoute(null)}
+                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-xs uppercase italic tracking-wider transition-all cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal de Estruturação Detalhada de Treino */}
+        {editingStructuredWorkout && fullPlan && (
+          <StructuredWorkoutModal
+            initialWorkout={fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.structuredWorkout}
+            workoutDescription={fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.customDescription}
+            onSave={(newStructured) => {
+              updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'structuredWorkout', newStructured);
+              const currentDistance = fullPlan.weeks[editingStructuredWorkout.wIdx]?.workouts[editingStructuredWorkout.dIdx]?.distance;
+              if (newStructured.totalDistanceEstimatedKm && (!currentDistance || currentDistance === 0)) {
+                updateWorkout(editingStructuredWorkout.wIdx, editingStructuredWorkout.dIdx, 'distance', newStructured.totalDistanceEstimatedKm);
+              }
+              setEditingStructuredWorkout(null);
+            }}
+            onClose={() => setEditingStructuredWorkout(null)}
+          />
         )}
       </AnimatePresence>
     </div>

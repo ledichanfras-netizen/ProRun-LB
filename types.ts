@@ -143,6 +143,29 @@ export interface UserGoal {
 
 export type WorkoutType = 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Maratona' | 'Descanso' | 'Fortalecimento' | 'Velocidade' | 'Natação' | 'Ciclismo' | 'Transição' | 'Prova';
 
+export type StepType = 'warmup' | 'interval' | 'recovery' | 'cooldown' | 'steady';
+export type StepTargetType = 'distance' | 'time' | 'lap_button';
+
+export interface WorkoutStep {
+  id: string;
+  name: string; // Ex: "Aquecimento", "Tiro 1/5", "Recuperação 1/5", "Desaquecimento"
+  type: StepType;
+  targetType: StepTargetType;
+  targetValue: number; // Metros (ex: 1000) se 'distance', Segundos (ex: 120) se 'time'
+  targetPaceMin?: string; // Ex: "04:10"
+  targetPaceMax?: string; // Ex: "04:20"
+  notes?: string;
+  repeatIndex?: number; // 1 a repeatTotal
+  repeatTotal?: number; // Ex: 5
+}
+
+export interface StructuredWorkout {
+  title?: string;
+  steps: WorkoutStep[];
+  totalDistanceEstimatedKm?: number;
+  totalDurationEstimatedSeconds?: number;
+}
+
 export interface TrainingWeek {
   id: string;
   phase: 'Base' | 'Construção' | 'Pico' | 'Polimento';
@@ -161,12 +184,34 @@ export interface TrainingWeek {
       feedback?: string; 
       rpe?: number;
       exercises?: Exercise[];
+      structuredWorkout?: StructuredWorkout;
       sleepScore?: number;
       stressScore?: number;
       sorenessScore?: number;
       moodScore?: number;
       menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
       readinessScore?: number;
+      gpsRoute?: {
+        polyline?: string;
+        points?: [number, number][]; // [lat, lng] array
+        totalDistanceKm: number;
+        totalDurationSeconds: number;
+        avgPace: string; // "05:15" min/km
+        maxSpeedKmh?: number;
+        elevationGainMeters?: number;
+        source: 'live_gps' | 'gpx_file';
+        recordedAt: string;
+        completedSteps?: {
+          stepId: string;
+          name: string;
+          type: StepType;
+          targetType: StepTargetType;
+          targetValue: number;
+          completedDistanceMeters: number;
+          completedDurationSeconds: number;
+          avgPace: string;
+        }[];
+      };
     }[];
 }
 

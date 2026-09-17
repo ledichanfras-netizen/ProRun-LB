@@ -50,7 +50,8 @@ interface AppContextType {
     sorenessScore?: number,
     moodScore?: number,
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
-    readinessScore?: number
+    readinessScore?: number,
+    gpsRoute?: any
   ) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
@@ -759,7 +760,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     sorenessScore?: number,
     moodScore?: number,
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
-    readinessScore?: number
+    readinessScore?: number,
+    gpsRoute?: any
   ) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
@@ -782,6 +784,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (moodScore !== undefined) workout.moodScore = moodScore;
     if (menstrualPhase !== undefined) workout.menstrualPhase = menstrualPhase;
     if (readinessScore !== undefined) workout.readinessScore = readinessScore;
+    if (gpsRoute !== undefined) workout.gpsRoute = gpsRoute;
     
     // Gamification Integration
     if (completed) {

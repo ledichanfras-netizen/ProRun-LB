@@ -25,11 +25,20 @@ import {
   Flag,
   Play,
   PlayCircle,
-  Dumbbell
+  Dumbbell,
+  MapPin,
+  Navigation,
+  Compass,
+  FileCode2,
+  Timer
 } from 'lucide-react';
 import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
+import { GpsWorkoutTracker } from '../components/GpsWorkoutTracker';
+import { WorkoutMap } from '../components/WorkoutMap';
+import { decodePolyline } from '../utils/gpsUtils';
+import { formatStructuredWorkoutSummary } from '../utils/workoutParser';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProgressToNextLevel } from '../services/gamificationService';
 import { 
@@ -86,7 +95,7 @@ const TimerComponent: React.FC = () => {
 };
 
 const AthletePortal: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete, addUserGoal } = useApp();
   const navigate = useNavigate();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   
@@ -101,6 +110,8 @@ const AthletePortal: React.FC = () => {
   const [feedbackText, setFeedbackText] = useState('');
   const [rpeValue, setRpeValue] = useState<number>(0);
   const [actualDistanceValue, setActualDistanceValue] = useState<string>('');
+  const [currentGpsRoute, setCurrentGpsRoute] = useState<any>(null);
+  const [showGpsTracker, setShowGpsTracker] = useState(false);
   
   // Scientific Daily Readiness States
   const [sleepValue, setSleepValue] = useState<number>(4);
@@ -129,7 +140,6 @@ const AthletePortal: React.FC = () => {
   const [selectedAchievement, setSelectedAchievement] = useState<UserAchievement | null>(null);
   const [localExercises, setLocalExercises] = useState<Exercise[]>([]);
   const [selectedDayPerWeek, setSelectedDayPerWeek] = useState<Record<number, number>>({});
-  const { addUserGoal } = useApp();
 
   const handleDownloadWorkoutImage = async () => {
     if (exportLoading || !activeAthlete) return;
@@ -525,7 +535,8 @@ const AthletePortal: React.FC = () => {
         sorenessValue,
         moodValue,
         menstrualPhaseValue,
-        calculatedScore
+        calculatedScore,
+        currentGpsRoute
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -548,6 +559,8 @@ const AthletePortal: React.FC = () => {
         setFeedbackText('');
         setRpeValue(0);
         setActualDistanceValue('');
+        setCurrentGpsRoute(null);
+        setShowGpsTracker(false);
       }, 800);
 
     } catch (err: any) {
@@ -568,6 +581,8 @@ const AthletePortal: React.FC = () => {
     setSorenessValue(workout.sorenessScore || activeAthlete?.lastReadiness?.sorenessScore || 2);
     setMoodValue(workout.moodScore || activeAthlete?.lastReadiness?.moodScore || 4);
     setMenstrualPhaseValue(workout.menstrualPhase || (activeAthlete?.lastReadiness?.menstrualPhase as any) || 'none');
+    setCurrentGpsRoute(workout.gpsRoute || null);
+    setShowGpsTracker(false);
     setSaveSuccess(false);
     setIsSaving(false);
   };
@@ -1027,6 +1042,11 @@ const AthletePortal: React.FC = () => {
                   <CheckCircle className="w-3 h-3" /> Concluído
                 </div>
               )}
+              {todayWorkout?.workout.gpsRoute && (
+                <div className="flex items-center gap-1 text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md font-black text-[8px] uppercase italic border border-emerald-400/30">
+                  <Navigation className="w-2.5 h-2.5" /> Rota GPS Gravada ({todayWorkout.workout.gpsRoute.totalDistanceKm}k)
+                </div>
+              )}
             </div>
 
             <h2 className={`text-3xl font-black italic uppercase tracking-tighter mb-2 leading-tight ${
@@ -1042,6 +1062,13 @@ const AthletePortal: React.FC = () => {
                 ? 'Hoje é o grande dia! Coloque em prática tudo o que treinou. Boa prova!' 
                 : (todayWorkout ? todayWorkout.workout.customDescription : 'Aproveite para recuperar as energias e focar na mobilidade.')}
             </p>
+
+            {todayWorkout?.workout.structuredWorkout && (
+              <div className="mb-6 inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 backdrop-blur-md rounded-xl text-[11px] font-black uppercase italic tracking-wider text-emerald-300 border border-white/20 shadow-sm">
+                <Timer className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>DETALHADA: {formatStructuredWorkoutSummary(todayWorkout.workout.structuredWorkout)}</span>
+              </div>
+            )}
 
             {todayWorkout && todayWorkout.workout.type !== 'Descanso' && (
               <button 
@@ -1454,6 +1481,14 @@ const AthletePortal: React.FC = () => {
                                     ) : null}
                                   </div>
                                   <h5 className="font-black text-white text-xs uppercase italic tracking-tight">{workout.type}</h5>
+                                  {workout.structuredWorkout && (
+                                    <div className="flex items-center gap-1 my-1">
+                                      <span className="inline-flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded uppercase italic border border-blue-400/20">
+                                        <Timer className="w-2.5 h-2.5" />
+                                        <span>{formatStructuredWorkoutSummary(workout.structuredWorkout)}</span>
+                                      </span>
+                                    </div>
+                                  )}
                                   {workout.customDescription && (
                                     <p className="text-slate-300 italic text-[10px] leading-relaxed">"{workout.customDescription}"</p>
                                   )}
@@ -1594,6 +1629,159 @@ const AthletePortal: React.FC = () => {
                     </div>
                   )}
 
+                  {/* TREINO ESTRUTURADO (PRESCRIÇÃO DETALHADA) */}
+                  {selectedWorkout.data.structuredWorkout && (
+                    <div className="space-y-3 bg-gradient-to-br from-blue-950/40 via-slate-900 to-emerald-950/30 p-5 rounded-[2rem] border border-blue-500/30 shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                            <Timer className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black text-white uppercase italic tracking-tight">
+                              Prescrição Estruturada Detalhada
+                            </h4>
+                            <p className="text-[9px] text-blue-300 font-medium">
+                              {formatStructuredWorkoutSummary(selectedWorkout.data.structuredWorkout)}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[8px] font-black px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded uppercase italic border border-blue-400/20">
+                          {selectedWorkout.data.structuredWorkout.steps.length} Etapas
+                        </span>
+                      </div>
+
+                      {/* Lista das etapas com ritmos */}
+                      <div className="space-y-1 bg-black/30 p-3 rounded-2xl border border-white/5 max-h-40 overflow-y-auto custom-scrollbar">
+                        {selectedWorkout.data.structuredWorkout.steps.map((step: any, sIdx: number) => (
+                          <div key={step.id || sIdx} className="flex justify-between items-center text-[10px] py-1 border-b border-white/5 last:border-0 font-mono">
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-500 text-[9px]">{sIdx + 1}.</span>
+                              <span className="text-slate-200 font-bold">{step.name}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-emerald-400 font-bold">
+                                {step.targetType === 'distance' ? `${step.targetValue}m` : `${Math.floor(step.targetValue / 60)}min`}
+                              </span>
+                              {step.targetPaceMin && (
+                                <span className="text-[9px] text-amber-400 ml-1.5">
+                                  [{step.targetPaceMin}{step.targetPaceMax ? `-${step.targetPaceMax}` : ''}]
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {!showGpsTracker && (
+                        <button
+                          type="button"
+                          onClick={() => setShowGpsTracker(true)}
+                          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98] cursor-pointer"
+                        >
+                          <Play className="w-4 h-4 fill-white" /> Executar Treino Estruturado no GPS
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ROTA GPS DO TREINO (GPS AO VIVO OU GPX IMPORTADO) */}
+                  <div className="space-y-3 bg-white/5 p-5 rounded-[2rem] border border-white/5">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="pro-label flex items-center gap-2 !mb-0">
+                        <Navigation className="w-4 h-4 text-emerald-400" /> Rota & GPS do Treino
+                      </label>
+                      <span className="text-[9px] font-black uppercase italic tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                        Opção 3 • Híbrido
+                      </span>
+                    </div>
+
+                    {currentGpsRoute ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between bg-slate-950/60 p-3 rounded-2xl border border-white/5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm">
+                              {currentGpsRoute.source === 'gpx_file' ? <FileCode2 className="w-4 h-4" /> : <Navigation className="w-4 h-4" />}
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-white uppercase italic">
+                                {currentGpsRoute.totalDistanceKm} KM • {currentGpsRoute.avgPace}/km
+                              </p>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                {currentGpsRoute.source === 'gpx_file' ? 'Importado via GPX' : 'Gravado com GPS do celular'}
+                                {currentGpsRoute.elevationGainMeters ? ` • +${currentGpsRoute.elevationGainMeters}m altimetria` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm('Deseja desvincular esta rota GPS do treino?')) {
+                                setCurrentGpsRoute(null);
+                              }
+                            }}
+                            className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase italic px-2 py-1 bg-red-500/10 rounded-lg border border-red-500/20"
+                          >
+                            Remover
+                          </button>
+                        </div>
+
+                        {/* Mapa da Rota Vinculada */}
+                        <WorkoutMap
+                          points={
+                            currentGpsRoute.points && currentGpsRoute.points.length > 0
+                              ? currentGpsRoute.points
+                              : currentGpsRoute.polyline
+                              ? decodePolyline(currentGpsRoute.polyline)
+                              : []
+                          }
+                          height="200px"
+                          interactive={true}
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {!showGpsTracker ? (
+                          <div className="bg-slate-950/40 p-4 rounded-2xl border border-white/5 flex flex-col gap-2">
+                            <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+                              Grave o trajeto com o <strong className="text-emerald-400">GPS do celular</strong> em tempo real ou suba o arquivo <strong className="text-emerald-400">.GPX</strong> do seu relógio (Strava, Polar, Coros, Apple Watch ou qualquer relógio GPS).
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setShowGpsTracker(true)}
+                              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-md shadow-emerald-600/20 transition-all active:scale-[0.98]"
+                            >
+                              <Navigation className="w-4 h-4" /> Rastrear GPS / Importar GPX
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <GpsWorkoutTracker
+                              workoutType={selectedWorkout.data.type}
+                              plannedDistanceKm={selectedWorkout.data.distance}
+                              existingRoute={currentGpsRoute}
+                              structuredWorkout={selectedWorkout.data.structuredWorkout}
+                              workoutDescription={selectedWorkout.data.customDescription}
+                              onRouteCaptured={(route) => {
+                                setCurrentGpsRoute(route);
+                                setActualDistanceValue(String(route.totalDistanceKm));
+                                setShowGpsTracker(false);
+                              }}
+                              onCancel={() => setShowGpsTracker(false)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowGpsTracker(false)}
+                              className="w-full text-[10px] font-black uppercase text-slate-400 hover:text-white py-2"
+                            >
+                              ✕ Cancelar Rastreamento
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Espaço para inserir a quilometragem real do Treino */}
                   <div className="space-y-2 bg-white/5 p-5 rounded-[2rem] border border-white/5">
                     <div className="flex justify-between items-center px-1">
@@ -1605,7 +1793,7 @@ const AthletePortal: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-[9px] text-slate-400 font-medium px-1">
-                      Insira a quilometragem total real percorrida (incluindo aquecimento e desaquecimento).
+                      Insira a quilometragem total real percorrida (preenchida automaticamente ao capturar o GPS).
                     </p>
                     <div className="relative mt-2">
                       <input 

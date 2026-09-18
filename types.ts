@@ -81,6 +81,10 @@ export interface Athlete {
   lastReadiness?: {
     date: string;
     sleepScore: number;
+    sleepHours?: number;
+    bedTime?: string;
+    wakeTime?: string;
+    pse?: number;
     stressScore: number;
     sorenessScore: number;
     moodScore: number;
@@ -91,6 +95,10 @@ export interface Athlete {
     id: string;
     date: string;
     sleepScore: number;
+    sleepHours?: number;
+    bedTime?: string;
+    wakeTime?: string;
+    pse?: number;
     stressScore: number;
     sorenessScore: number;
     moodScore: number;

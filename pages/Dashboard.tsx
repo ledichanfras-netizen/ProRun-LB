@@ -665,24 +665,47 @@ export default function Dashboard() {
               </div>
 
               {activeAthlete.lastReadiness && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
-                  <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="font-black text-slate-400 uppercase tracking-widest italic">💤 Sono</span>
-                    <span className="font-black text-slate-700">{activeAthlete.lastReadiness.sleepScore}/5</span>
+                <>
+                  {(activeAthlete.lastReadiness.pse !== undefined || activeAthlete.lastReadiness.sleepHours !== undefined) && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                      <div className="bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200/60 flex items-center justify-between text-xs">
+                        <span className="font-black text-emerald-800 uppercase tracking-wider italic flex items-center gap-1">
+                          ⚡ PSE Pré-Treino
+                        </span>
+                        <span className="font-black text-emerald-700 font-mono text-sm">
+                          {activeAthlete.lastReadiness.pse !== undefined ? `${activeAthlete.lastReadiness.pse}/10` : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="bg-blue-50/80 p-2.5 rounded-xl border border-blue-200/60 flex items-center justify-between text-xs">
+                        <span className="font-black text-blue-800 uppercase tracking-wider italic flex items-center gap-1">
+                          ⏰ Horas de Sono
+                        </span>
+                        <span className="font-black text-blue-700 font-mono text-sm">
+                          {activeAthlete.lastReadiness.sleepHours ? `${activeAthlete.lastReadiness.sleepHours}h` : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100">
+                    <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
+                      <span className="font-black text-slate-400 uppercase tracking-widest italic">💤 Qualidade Sono</span>
+                      <span className="font-black text-slate-700">{activeAthlete.lastReadiness.sleepScore}/5</span>
+                    </div>
+                    <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
+                      <span className="font-black text-slate-400 uppercase tracking-widest italic">🧠 Estresse</span>
+                      <span className="font-black text-slate-700">{activeAthlete.lastReadiness.stressScore}/5</span>
+                    </div>
+                    <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
+                      <span className="font-black text-slate-400 uppercase tracking-widest italic">🩹 Dor (DOMS)</span>
+                      <span className="font-black text-slate-700">{activeAthlete.lastReadiness.sorenessScore}/5</span>
+                    </div>
+                    <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
+                      <span className="font-black text-slate-400 uppercase tracking-widest italic">🔥 Humor</span>
+                      <span className="font-black text-slate-700">{activeAthlete.lastReadiness.moodScore}/5</span>
+                    </div>
                   </div>
-                  <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="font-black text-slate-400 uppercase tracking-widest italic">🧠 Estresse</span>
-                    <span className="font-black text-slate-700">{activeAthlete.lastReadiness.stressScore}/5</span>
-                  </div>
-                  <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="font-black text-slate-400 uppercase tracking-widest italic">🩹 Dor (DOMS)</span>
-                    <span className="font-black text-slate-700">{activeAthlete.lastReadiness.sorenessScore}/5</span>
-                  </div>
-                  <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="font-black text-slate-400 uppercase tracking-widest italic">🔥 Humor</span>
-                    <span className="font-black text-slate-700">{activeAthlete.lastReadiness.moodScore}/5</span>
-                  </div>
-                </div>
+                </>
               )}
 
               {activeAthlete.lastReadiness?.menstrualPhase && activeAthlete.lastReadiness.menstrualPhase !== 'none' && (

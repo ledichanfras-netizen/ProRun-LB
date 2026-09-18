@@ -40,6 +40,8 @@ export interface WorkoutShareData {
   calories?: number;
   route?: RouteData | null;
   workoutType?: string;
+  initialPhotoUrl?: string;
+  autoOpenCamera?: boolean;
 }
 
 interface WorkoutShareModalProps {
@@ -85,13 +87,13 @@ const PRESET_QUOTES = [
 export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onClose }) => {
   // Theme and Styling State
   const [textTheme, setTextTheme] = useState<TextTheme>('white');
-  const [backgroundType, setBackgroundType] = useState<BackgroundType>('transparent');
+  const [backgroundType, setBackgroundType] = useState<BackgroundType>(data.initialPhotoUrl ? 'photo' : 'transparent');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('story');
   const [logoStyle, setLogoStyle] = useState<LogoStyle>('white');
   const [activePhraseTab, setActivePhraseTab] = useState<number>(0);
   
   // Custom Background Photo State
-  const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(null);
+  const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(data.initialPhotoUrl || null);
   const [photoBrightness, setPhotoBrightness] = useState<number>(85); // 0-100%
   const [photoDimOverlay, setPhotoDimOverlay] = useState<number>(35); // 0-100%
   const [photoBlur, setPhotoBlur] = useState<number>(0); // 0-10px
@@ -112,7 +114,14 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const [exportSuccess, setExportSuccess] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const cardElementId = 'activity-social-share-card';
+
+  useEffect(() => {
+    if (data.autoOpenCamera && cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  }, [data.autoOpenCamera]);
 
   // Extract points from route
   const points: [number, number][] = React.useMemo(() => {
@@ -572,7 +581,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 </button>
               </div>
 
-              {/* Hidden File Input */}
+              {/* Hidden File & Camera Inputs */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -580,6 +589,34 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 onChange={handlePhotoUpload}
                 className="hidden"
               />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
+
+              {/* Photo Source Actions */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="py-2.5 px-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 flex items-center justify-center gap-1.5 text-[11px] font-black uppercase italic transition-all shadow-sm"
+                >
+                  <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Tirar Foto</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="py-2.5 px-3 rounded-xl border border-white/10 bg-slate-900/80 hover:bg-white/10 text-slate-300 flex items-center justify-center gap-1.5 text-[11px] font-black uppercase italic transition-all"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Galeria</span>
+                </button>
+              </div>
 
               {/* Controls for Uploaded Photo */}
               {backgroundType === 'photo' && customPhotoUrl && (
@@ -588,13 +625,23 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
                       <Sliders className="w-3.5 h-3.5 text-emerald-400" /> Ajustes da Foto
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-[10px] font-black text-emerald-400 hover:text-emerald-300 uppercase underline"
-                    >
-                      Trocar Foto
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="text-[10px] font-black text-emerald-400 hover:text-emerald-300 uppercase underline"
+                      >
+                        Nova Foto
+                      </button>
+                      <span className="text-slate-600">|</span>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[10px] font-black text-slate-400 hover:text-slate-300 uppercase underline"
+                      >
+                        Galeria
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2 text-xs">

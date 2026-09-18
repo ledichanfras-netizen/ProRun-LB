@@ -145,6 +145,36 @@ class WorkoutAudioEngine {
   }
 
   /**
+   * Speaks text using Web Speech API (SpeechSynthesis) in Portuguese
+   */
+  public speakText(text: string, priority: boolean = false) {
+    if (!this.soundEnabled) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    try {
+      if (priority) {
+        window.speechSynthesis.cancel();
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'pt-BR';
+      utterance.rate = 1.05; // Slightly lively pace for coaching
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // Try finding a pt-BR voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const ptVoice = voices.find(v => v.lang.includes('pt-BR') || v.lang.includes('pt'));
+      if (ptVoice) {
+        utterance.voice = ptVoice;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech synthesis failed:', e);
+    }
+  }
+
+  /**
    * Haptic vibration using Vibration API
    */
   public vibrate(pattern: number | number[]) {

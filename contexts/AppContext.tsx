@@ -51,7 +51,8 @@ interface AppContextType {
     moodScore?: number,
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
     readinessScore?: number,
-    gpsRoute?: any
+    gpsRoute?: any,
+    structuredSteps?: any[]
   ) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
@@ -761,7 +762,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     moodScore?: number,
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
     readinessScore?: number,
-    gpsRoute?: any
+    gpsRoute?: any,
+    structuredSteps?: any[]
   ) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
@@ -776,6 +778,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (exercises) workout.exercises = exercises;
     if (actualDistance !== undefined) {
       workout.actualDistance = actualDistance;
+    }
+    
+    if (structuredSteps !== undefined) {
+      if (!workout.structuredWorkout) {
+        workout.structuredWorkout = {
+          id: Math.random().toString(36).substring(2, 11),
+          name: workout.type || "Treino",
+          steps: []
+        };
+      }
+      workout.structuredWorkout.steps = structuredSteps;
     }
     
     if (sleepScore !== undefined) workout.sleepScore = sleepScore;

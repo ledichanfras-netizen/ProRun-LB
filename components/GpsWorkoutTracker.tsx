@@ -23,7 +23,14 @@ import {
   Share2,
   Sliders,
   Plus,
-  Minus
+  Minus,
+  Maximize2,
+  Minimize2,
+  Mic,
+  MicOff,
+  X,
+  AlertTriangle,
+  CheckCircle2
 } from 'lucide-react';
 import { WorkoutMap } from './WorkoutMap';
 import { 
@@ -171,6 +178,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
 
+  // New UI & Audio States (Contagem Regressiva, Tela Grande Focus HUD, Confirmação ao Sair)
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
+  const [isFocusMode, setIsFocusMode] = useState(true);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+  const countdownIntervalRef = useRef<any>(null);
+
   // GPX Upload States
   const [gpxUploading, setGpxUploading] = useState(false);
   const [gpxParsedRoute, setGpxParsedRoute] = useState<RouteData | null>(null);
@@ -231,7 +244,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     } catch (err) {}
   };
 
-  // ADVANCE STEP / LAP FUNCTION
+  // ADVANCE STEP / LAP FUNCTION WITH VOICE SYNTHESIS
   const advanceStep = (manualLap: boolean = false) => {
     const { activeStructured: struct, activeStepIndex: curIdx, stepDistanceMeters: curDist, stepDurationSeconds: curDur, completedSteps: prevComp } = trackingRef.current;
     if (!struct || !struct.steps || struct.steps.length === 0) return;
@@ -257,19 +270,25 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     const nextIndex = curIdx + 1;
     if (nextIndex < struct.steps.length) {
       // Transition to next step
+      const nextStep = struct.steps[nextIndex];
       setActiveStepIndex(nextIndex);
       setStepDistanceMeters(0);
       setStepDurationSeconds(0);
       workoutAudio.playStepTransition();
+
+      // Announce Next Step via Voice
+      const targetStr = formatStepTarget(nextStep);
+      workoutAudio.speakText(`Próxima etapa: ${nextStep.name}. Meta: ${targetStr}`, true);
     } else {
       // Completed all steps of the workout!
       setActiveStepIndex(nextIndex);
       workoutAudio.playWorkoutComplete();
+      workoutAudio.speakText("Parabéns! Você concluiu todas as etapas do treino!", true);
     }
   };
 
-  // Start Live Tracking
-  const startTracking = () => {
+  // Start Live Tracking with Countdown and Voice Audio
+  const initiateStartWithCountdown = () => {
     if (!('geolocation' in navigator)) {
       setGpsError('Geolocalização não é suportada neste dispositivo.');
       return;
@@ -277,13 +296,69 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
     workoutAudio.init();
     setGpsError(null);
+
+    // Pre-start 5 second countdown with speech
+    setCountdownSeconds(5);
+    workoutAudio.playCountdown(5);
+    workoutAudio.speakText("Cinco", true);
+
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdownSeconds(prev => {
+        if (prev === null) return null;
+        const nextVal = prev - 1;
+        if (nextVal > 0) {
+          workoutAudio.playCountdown(nextVal);
+          const words: Record<number, string> = { 4: 'Quatro', 3: 'Três', 2: 'Dois', 1: 'Um' };
+          if (words[nextVal]) {
+            workoutAudio.speakText(words[nextVal], true);
+          }
+        } else if (nextVal === 0) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+          setCountdownSeconds(null);
+          workoutAudio.playStepTransition();
+          workoutAudio.speakText("Vai! Iniciando treino!", true);
+          startTrackingInternal();
+        }
+        return nextVal;
+      });
+    }, 1000);
+  };
+
+  const cancelCountdown = () => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setCountdownSeconds(null);
+  };
+
+  const skipCountdownAndStart = () => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setCountdownSeconds(null);
+    workoutAudio.playStepTransition();
+    workoutAudio.speakText("Iniciando treino!", true);
+    startTrackingInternal();
+  };
+
+  // Actual GPS Watch Initialization
+  const startTrackingInternal = () => {
     setIsTracking(true);
     setIsPaused(false);
+    setIsFocusMode(true); // Abre automaticamente a tela grande intuitiva de treino
     requestWakeLock();
 
-    // Play start chime if structured workout is enabled
-    if (activeStructured && activeStructured.steps && activeStructured.steps.length > 0) {
-      workoutAudio.playStepTransition();
+    // Announce initial step if structured workout
+    if (activeStructured && activeStructured.steps && activeStructured.steps[0]) {
+      const firstStep = activeStructured.steps[0];
+      setTimeout(() => {
+        workoutAudio.speakText(`Iniciando ${firstStep.name}. Meta: ${formatStepTarget(firstStep)}`);
+      }, 1200);
     }
 
     // Timer Interval (every 1 second)
@@ -296,8 +371,9 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           const currentStep = struct.steps[curIdx];
           if (currentStep.targetType === 'time') {
             const timeLeft = currentStep.targetValue - nextSec;
-            if (timeLeft <= 3 && timeLeft > 0) {
+            if (timeLeft <= 5 && timeLeft > 0) {
               workoutAudio.playCountdown(timeLeft);
+              workoutAudio.speakText(`${timeLeft}`);
             } else if (timeLeft <= 0) {
               // Time step completed!
               setTimeout(() => advanceStep(false), 50);
@@ -396,6 +472,23 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     }
   };
 
+  // Exit Confirmation Handlers
+  const handleRequestExit = () => {
+    if (isTracking || isPaused) {
+      setShowExitConfirmModal(true);
+    } else if (onCancel) {
+      onCancel();
+    }
+  };
+
+  const handleConfirmDiscardExit = () => {
+    pauseTracking();
+    setIsTracking(false);
+    setIsFocusMode(false);
+    setShowExitConfirmModal(false);
+    if (onCancel) onCancel();
+  };
+
   // Pause Tracking
   const pauseTracking = () => {
     setIsPaused(true);
@@ -413,7 +506,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   // Resume Tracking
   const resumeTracking = () => {
     setIsPaused(false);
-    startTracking();
+    startTrackingInternal();
   };
 
   // Finish and Save Live Track
@@ -527,14 +620,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         };
       case 'warmup':
         return {
-          bg: isLight ? 'bg-blue-100 text-blue-950 border-blue-300 font-extrabold' : 'bg-blue-500/20 text-blue-300 border-blue-400/30',
-          bar: 'bg-blue-500',
-          headerBg: isLight ? 'bg-gradient-to-r from-blue-500/15 via-blue-500/10 to-blue-500/15 border-blue-300/80 text-slate-900 shadow-xs' : 'bg-blue-950/40 border-blue-500/30 text-white',
+          bg: isLight ? 'bg-teal-100 text-teal-950 border-teal-300 font-extrabold' : 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+          bar: 'bg-teal-500',
+          headerBg: isLight ? 'bg-gradient-to-r from-teal-500/15 via-teal-500/10 to-teal-500/15 border-teal-300/80 text-slate-900 shadow-xs' : 'bg-teal-950/40 border-teal-500/30 text-white',
           label: '🔥 AQUECIMENTO',
-          accent: isLight ? 'text-blue-700 font-black' : 'text-blue-400',
+          accent: isLight ? 'text-teal-700 font-black' : 'text-teal-400',
           titleColor: isLight ? 'text-slate-900' : 'text-white',
           subColor: isLight ? 'text-slate-600' : 'text-slate-400',
-          boxBg: isLight ? 'bg-white border-blue-200' : 'bg-white/5 border-white/5'
+          boxBg: isLight ? 'bg-white border-teal-200' : 'bg-white/5 border-white/5'
         };
       case 'cooldown':
         return {
@@ -618,8 +711,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           </div>
         </div>
 
-        {/* Controles de Topo: Som & Alternador de Modo */}
-        <div className="flex items-center gap-2">
+        {/* Controles de Topo: Som, Tela Cheia, Fechar e Alternador de Modo */}
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={() => setSoundEnabled(!soundEnabled)}
@@ -628,9 +721,35 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 ? (isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-white/10 text-emerald-400')
                 : (isLight ? 'bg-slate-100 text-slate-500' : 'bg-white/5 text-slate-500')
             }`}
-            title={soundEnabled ? 'Alertas sonoros ativados' : 'Alertas sonoros mudos'}
+            title={soundEnabled ? 'Voz e alertas sonoros ativados' : 'Voz e alertas sonoros mudos'}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+
+          {isTracking && (
+            <button
+              type="button"
+              onClick={() => setIsFocusMode(!isFocusMode)}
+              className={`p-2 rounded-xl text-xs transition-colors cursor-pointer ${
+                isFocusMode 
+                  ? 'bg-blue-600 text-white shadow-sm' 
+                  : (isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-white/10 text-slate-200 hover:bg-white/20')
+              }`}
+              title={isFocusMode ? 'Sair do Modo Foco Tela Cheia' : 'Expandir Tela Grande de Execução'}
+            >
+              {isFocusMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleRequestExit}
+            className={`p-2 rounded-xl text-xs transition-colors cursor-pointer ${
+              isLight ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+            }`}
+            title="Sair da execução do treino"
+          >
+            <X className="w-4 h-4" />
           </button>
 
           <div className={`flex p-1 rounded-xl border ${
@@ -673,57 +792,6 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       {/* MODO 1: LIVE GPS NO CELULAR (COM SUPORTE A PRESCRIÇÃO DETALHADA) */}
       {activeMode === 'live' && (
         <div className="space-y-4">
-          {/* BOTÃO PARA CONFIGURAR/ESTRUTURAR TIROS (SE NÃO ESTIVER CORRENDO) */}
-          {!isTracking && (
-            <div className={`p-3.5 rounded-2xl border flex items-center justify-between flex-wrap gap-2 transition-all ${
-              isLight 
-                ? 'bg-slate-50 border-slate-200 shadow-xs' 
-                : 'bg-slate-900/90 border-white/5'
-            }`}>
-              <div className="flex items-center gap-2.5">
-                <Timer className={`w-4 h-4 shrink-0 ${isLight ? 'text-blue-600' : 'text-blue-400'}`} />
-                <div className="leading-tight">
-                  <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                    isLight ? 'text-slate-900' : 'text-slate-200'
-                  }`}>
-                    {activeStructured 
-                      ? `Treino Estruturado: ${activeStructured.steps.length} Etapas` 
-                      : 'Executar Treino de Tiros / Intervalado?'}
-                  </span>
-                  <span className={`text-[9px] font-mono ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                    {activeStructured 
-                      ? `${activeStructured.title || 'Personalizado'} • ~${activeStructured.totalDistanceEstimatedKm || 0}km`
-                      : 'Configure 5x1000m ou outros blocos com bips'}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {activeStructured && (
-                  <button
-                    type="button"
-                    onClick={() => setShowTunePanel(!showTunePanel)}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase italic tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                      isLight 
-                        ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200' 
-                        : 'bg-white/10 text-slate-200 border border-white/10 hover:bg-white/20'
-                    }`}
-                  >
-                    <Sliders className="w-3 h-3 text-amber-500" />
-                    {showTunePanel ? 'Fechar Ajustes' : 'Ajustes Rápidos'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowStructuredModal(true)}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase italic tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0 shadow-xs"
-                >
-                  <Settings className="w-3 h-3" />
-                  {activeStructured ? 'Editar no Construtor' : 'Estruturar'}
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* PAINEL DE AJUSTES RÁPIDOS E FLEXIBILIDADE DO TREINO (ANTES E DURANTE A CORRIDA) */}
           {activeStructured && (showTunePanel || isTracking) && (
             <div className={`border p-3.5 rounded-2xl space-y-3 transition-all ${
@@ -1159,7 +1227,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             {!isTracking ? (
               <button
                 type="button"
-                onClick={startTracking}
+                onClick={initiateStartWithCountdown}
                 className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm sm:text-base uppercase italic tracking-wider shadow-xl shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer border border-emerald-400/30 group"
               >
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -1340,6 +1408,316 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           }}
           onClose={() => setShowStructuredModal(false)}
         />
+      )}
+
+      {/* 1. OVERLAY DE CONTAGEM REGRESSIVA DE INÍCIO COM VOZ */}
+      {countdownSeconds !== null && (
+        <div className="fixed inset-0 z-[10000] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white animate-fade-in">
+          <div className="max-w-sm w-full space-y-6">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-400 text-xs font-black uppercase tracking-wider">
+              <Volume2 className="w-4 h-4 animate-bounce" /> Contagem por Voz & Bip
+            </div>
+            
+            <div>
+              <h2 className="text-2xl font-black uppercase italic tracking-wider text-slate-100">
+                {workoutType}
+              </h2>
+              <p className="text-xs text-slate-400 mt-1 font-mono">
+                {activeStructured ? `Treino Estruturado • ${activeStructured.steps.length} Etapas` : 'Corrida Livre com Rastreamento GPS'}
+              </p>
+            </div>
+
+            {/* Círculo com Número Gigante */}
+            <div className="relative flex items-center justify-center my-4">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-tr from-emerald-600 via-teal-500 to-emerald-400 p-1 flex items-center justify-center shadow-2xl shadow-emerald-500/40 animate-pulse">
+                <div className="w-full h-full rounded-full bg-slate-950 flex items-center justify-center border border-emerald-400/30">
+                  <span className="text-7xl sm:text-8xl font-black font-mono tracking-tighter text-emerald-400 drop-shadow-[0_0_25px_rgba(16,185,129,0.6)]">
+                    {countdownSeconds}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 font-medium">
+              Prepare-se! O rastreamento começará em instantes.
+            </p>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={cancelCountdown}
+                className="flex-1 py-3.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-black text-xs uppercase italic tracking-wider transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={skipCountdownAndStart}
+                className="flex-1 py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase italic tracking-wider transition-colors cursor-pointer shadow-lg shadow-emerald-600/30"
+              >
+                Iniciar Já!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. MODAL DE CONFIRMAÇÃO DE SAÍDA DO TREINO (EVITA CLIQUE ACIDENTAL) */}
+      {showExitConfirmModal && (
+        <div className="fixed inset-0 z-[10001] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 text-white animate-fade-in">
+          <div className="max-w-md w-full bg-slate-900 border border-red-500/40 rounded-3xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-amber-500 to-red-600" />
+            
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black uppercase italic tracking-wide text-white">
+                  Deseja realmente sair do treino?
+                </h3>
+                <p className="text-xs text-slate-300 mt-1.5 leading-relaxed font-medium">
+                  Você já percorreu <strong className="text-emerald-400 font-mono text-sm">{distanceKm.toFixed(2)} km</strong> em <strong className="text-amber-400 font-mono text-sm">{formatDuration(durationSeconds)}</strong>. Se sair sem finalizar, os dados da rota e métricas do treino em andamento serão descarte.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowExitConfirmModal(false)}
+                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black py-3.5 px-4 rounded-2xl text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Play className="w-4 h-4 fill-white" />
+                <span>Continuar Treinando</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitConfirmModal(false);
+                  finishTracking();
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 px-4 rounded-2xl text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Square className="w-4 h-4 fill-white" />
+                <span>Finalizar e Salvar Treino</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDiscardExit}
+                className="w-full bg-red-600/20 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/30 font-black py-3 px-4 rounded-2xl text-xs uppercase italic tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                <span>Sair e Descartar Progresso</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. TELA GRANDE INTUITIVA DE EXECUÇÃO DO TREINO (MODO FOCO / FULLSCREEN) */}
+      {isFocusMode && isTracking && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950 text-white flex flex-col p-3 sm:p-5 overflow-y-auto custom-scrollbar no-print animate-fade-in">
+          {/* Barra Superior do Modo Foco */}
+          <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
+                <Navigation className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-black uppercase italic tracking-wider text-white">
+                    {workoutType}
+                  </h2>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-black uppercase text-emerald-400 italic">EM EXECUÇÃO</span>
+                </div>
+                <p className="text-[10px] text-slate-400 font-mono">
+                  {gpsAccuracyMeters ? `Sinal GPS: ±${gpsAccuracyMeters}m` : 'Procurando sinal de GPS...'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className={`p-2.5 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  soundEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-slate-400'
+                }`}
+                title="Sons e voz do treino"
+              >
+                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                <span className="text-[10px] font-bold hidden sm:inline">{soundEnabled ? 'Voz On' : 'Voz Off'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsFocusMode(false)}
+                className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                title="Minimizar para janela normal"
+              >
+                <Minimize2 className="w-4 h-4" />
+                <span className="text-[10px] font-bold hidden sm:inline">Normal</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRequestExit}
+                className="p-2.5 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 hover:text-white border border-red-500/30 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                title="Sair do treino"
+              >
+                <X className="w-4 h-4" />
+                <span className="text-[10px] font-bold">Sair</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Conteúdo Principal do Modo Foco */}
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 py-3 min-h-0">
+            {/* Coluna do Mapa Grande */}
+            <div className="lg:col-span-7 flex flex-col space-y-3 min-h-[160px] sm:min-h-[260px]">
+              <div className="relative flex-1 rounded-3xl overflow-hidden border border-white/10 shadow-2xl h-44 sm:h-auto sm:min-h-[240px]">
+                <WorkoutMap
+                  points={gpsPoints}
+                  currentPosition={currentPosition}
+                  height="100%"
+                  interactive={true}
+                />
+                <div className="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-[10px] font-mono text-slate-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span>Posição em tempo real</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Coluna das Métricas do Treino & Dados da Etapa */}
+            <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+              {/* Card da Etapa Atual (Treino Estruturado) */}
+              {currentStep && !isWorkoutCompleted ? (
+                <div className={`p-4 rounded-3xl border ${theme.headerBg} space-y-3 shadow-xl relative overflow-hidden`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${theme.bg}`}>
+                      {theme.label}
+                    </span>
+                    <span className="text-xs font-black uppercase italic tracking-tight text-white">
+                      Etapa {activeStepIndex + 1} de {activeStructured?.steps.length}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-2xl font-black uppercase italic tracking-tight text-white">
+                      {currentStep.name}
+                    </h3>
+                    <p className="text-xs text-slate-300 font-mono mt-0.5">
+                      Meta: <strong className="text-amber-400">{formatStepTarget(currentStep)}</strong>
+                      {currentStep.targetPaceMin && ` • Ritmo Alvo: ${currentStep.targetPaceMin}`}
+                    </p>
+                  </div>
+
+                  {/* Barra de Progresso em Destaque */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-mono font-bold">
+                      <span className="text-slate-300">Progresso da Etapa</span>
+                      <span className={theme.accent}>{remainingText}</span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-slate-900/80 overflow-hidden border border-white/10">
+                      <div 
+                        className={`h-full ${theme.bar} transition-all duration-300 rounded-full`}
+                        style={{ width: `${stepProgressPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Próxima Etapa Preview */}
+                  {activeStructured && activeStructured.steps[activeStepIndex + 1] && (
+                    <div className="pt-1 border-t border-white/10 text-[10px] font-mono text-slate-300 flex items-center justify-between">
+                      <span>Próxima: <strong>{activeStructured.steps[activeStepIndex + 1].name}</strong></span>
+                      <span className="text-amber-300">{formatStepTarget(activeStructured.steps[activeStepIndex + 1])}</span>
+                    </div>
+                  )}
+                </div>
+              ) : isWorkoutCompleted ? (
+                <div className="p-4 bg-emerald-500/20 border border-emerald-500/40 rounded-3xl text-center space-y-1">
+                  <p className="text-sm font-black uppercase italic text-emerald-300">
+                    🏁 Treino Concluído com Sucesso!
+                  </p>
+                  <p className="text-xs text-slate-300">
+                    Você completou todas as etapas do seu treino prescrito.
+                  </p>
+                </div>
+              ) : null}
+
+              {/* Grid de Números Gigantes das Métricas */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2 sm:p-3.5 bg-slate-900/90 border border-emerald-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Distância</span>
+                  <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-emerald-400">
+                    {distanceKm.toFixed(2)} <span className="text-[8px] sm:text-xs text-slate-400">KM</span>
+                  </div>
+                </div>
+
+                <div className="p-2 sm:p-3.5 bg-slate-900/90 border border-amber-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-amber-400 block">Pace</span>
+                  <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-amber-400">
+                    {currentPace}
+                  </div>
+                </div>
+
+                <div className="p-2 sm:p-3.5 bg-slate-900/90 border border-white/10 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-slate-400 block">Tempo</span>
+                  <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-white">
+                    {formatDuration(durationSeconds)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Controles de Ação do Modo Foco */}
+              <div className="space-y-2 pt-1">
+                {currentStep && !isWorkoutCompleted && (
+                  <button
+                    type="button"
+                    onClick={() => advanceStep(true)}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                  >
+                    <FastForward className="w-4 h-4 fill-slate-950" />
+                    <span>Avançar Etapa (Botão LAP)</span>
+                  </button>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  {isPaused ? (
+                    <button
+                      type="button"
+                      onClick={resumeTracking}
+                      className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-white" /> Retomar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={pauseTracking}
+                      className="py-3.5 bg-amber-500/30 hover:bg-amber-500/50 text-amber-300 border border-amber-500/40 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Pause className="w-4 h-4 fill-amber-300" /> Pausar
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={finishTracking}
+                    className="py-3.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                  >
+                    <Square className="w-4 h-4 fill-white" /> Concluir & Salvar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -32,7 +32,9 @@ import {
   FileCode2,
   Timer,
   Camera,
-  Share2
+  Share2,
+  Plus,
+  Trash
 } from 'lucide-react';
 import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
@@ -117,6 +119,7 @@ const AthletePortal: React.FC = () => {
   const [actualDistanceValue, setActualDistanceValue] = useState<string>('');
   const [currentGpsRoute, setCurrentGpsRoute] = useState<any>(null);
   const [showGpsTracker, setShowGpsTracker] = useState(false);
+  const [localSteps, setLocalSteps] = useState<any[]>([]);
   
   // Scientific Daily Readiness States
   const [sleepValue, setSleepValue] = useState<number>(4);
@@ -509,14 +512,14 @@ const AthletePortal: React.FC = () => {
     { id: 'recovering', label: 'Recuperação', color: 'text-blue-500', icon: '🧘' }
   ];
 
-  const handleToggleComplete = async () => {
+  const handleToggleComplete = async (shouldCloseAfterSave: boolean = false) => {
     if (!selectedWorkout || !activeAthlete || isSaving) return;
 
     setIsSaving(true);
     setSaveSuccess(false);
     
     try {
-      const newStatus = !selectedWorkout.data.completed;
+      const newStatus = shouldCloseAfterSave ? selectedWorkout.data.completed : !selectedWorkout.data.completed;
       const parsedDistance = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : undefined;
       
       // Calculate scientific readiness score
@@ -541,7 +544,8 @@ const AthletePortal: React.FC = () => {
         moodValue,
         menstrualPhaseValue,
         calculatedScore,
-        currentGpsRoute
+        currentGpsRoute,
+        localSteps
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -557,15 +561,29 @@ const AthletePortal: React.FC = () => {
       
       setSaveSuccess(true);
       
-        setTimeout(() => {
-        setSelectedWorkout(null); 
+      // Update local state instantly so UI matches
+      setSelectedWorkout(prev => prev ? {
+        ...prev,
+        data: {
+          ...prev.data,
+          completed: newStatus,
+          feedback: feedbackText,
+          rpe: rpeValue,
+          actualDistance: parsedDistance
+        }
+      } : null);
+
+      setTimeout(() => {
         setIsSaving(false);
         setSaveSuccess(false);
-        setFeedbackText('');
-        setRpeValue(0);
-        setActualDistanceValue('');
-        setCurrentGpsRoute(null);
-        setShowGpsTracker(false);
+        if (shouldCloseAfterSave) {
+          setSelectedWorkout(null); 
+          setFeedbackText('');
+          setRpeValue(0);
+          setActualDistanceValue('');
+          setCurrentGpsRoute(null);
+          setShowGpsTracker(false);
+        }
       }, 800);
 
     } catch (err: any) {
@@ -587,6 +605,7 @@ const AthletePortal: React.FC = () => {
     setMoodValue(workout.moodScore || activeAthlete?.lastReadiness?.moodScore || 4);
     setMenstrualPhaseValue(workout.menstrualPhase || (activeAthlete?.lastReadiness?.menstrualPhase as any) || 'none');
     setCurrentGpsRoute(workout.gpsRoute || null);
+    setLocalSteps(workout.structuredWorkout?.steps ? JSON.parse(JSON.stringify(workout.structuredWorkout.steps)) : []);
     setShowGpsTracker(false);
     setSaveSuccess(false);
     setIsSaving(false);
@@ -1014,26 +1033,30 @@ const AthletePortal: React.FC = () => {
 
       {/* Card Destaque: Treino de Hoje */}
       <div className="relative group">
-        <div className={`absolute -inset-1 rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-1000 ${
+        <div className={`absolute -inset-1.5 rounded-[2.5rem] blur-md opacity-50 group-hover:opacity-75 transition duration-1000 animate-pulse ${
           todayWorkout?.workout.type === 'Prova' 
-            ? 'bg-gradient-to-r from-amber-500 to-red-600 opacity-40 group-hover:opacity-60' 
-            : 'bg-gradient-to-r from-emerald-500 to-emerald-700'
+            ? 'bg-gradient-to-r from-amber-500 via-orange-600 to-red-600' 
+            : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600'
         }`}></div>
-        <div className={`relative rounded-[2.2rem] p-8 text-white shadow-2xl overflow-hidden border ${
-          todayWorkout?.workout.type === 'Prova'
-            ? 'bg-gradient-to-br from-slate-950 via-amber-950 to-red-950 border-amber-600/30'
-            : 'bg-emerald-950 border-emerald-900'
+        <div className={`relative rounded-[2.2rem] p-8 shadow-2xl overflow-hidden border transition-all duration-500 ${
+          isLight
+            ? todayWorkout?.workout.type === 'Prova'
+              ? 'bg-gradient-to-br from-amber-50 via-white to-amber-50 border-amber-300 shadow-[0_15px_30px_rgba(245,158,11,0.15)] text-slate-800'
+              : 'bg-gradient-to-br from-emerald-50 via-white to-emerald-50 border-emerald-300 shadow-[0_15px_30px_rgba(16,185,129,0.15)] text-slate-800'
+            : todayWorkout?.workout.type === 'Prova'
+              ? 'bg-gradient-to-br from-slate-950 via-amber-950 to-slate-950 border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] text-white'
+              : 'bg-gradient-to-br from-emerald-950 via-slate-950 to-emerald-950 border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.4)] text-white'
         }`}>
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-             <Trophy className="w-32 h-32 rotate-12" />
+          <div className={`absolute top-0 right-0 p-4 transition-opacity ${isLight ? 'opacity-[0.03]' : 'opacity-5'}`}>
+             <Trophy className="w-32 h-32 rotate-12 text-current" />
           </div>
           
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-4">
               <div className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg italic tracking-tighter flex items-center gap-1.5 flex-wrap ${
                 todayWorkout?.workout.type === 'Prova'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'bg-emerald-500 text-emerald-950'
+                  ? isLight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-amber-500 text-slate-950'
+                  : isLight ? 'bg-emerald-100 text-emerald-950 border border-emerald-300 font-black' : 'bg-emerald-500 text-emerald-950 font-black'
               }`}>
                 <span>{todayWorkout?.workout.type.toUpperCase().includes('PROVA') ? 'Dia de Prova 🏁' : (todayWorkout?.isDescanso ? 'Recuperação' : 'Treino de Hoje')}</span>
                 {athletePlan?.startDate && todayWorkout && (
@@ -1043,45 +1066,65 @@ const AthletePortal: React.FC = () => {
                 )}
               </div>
               {todayWorkout?.workout.completed && (
-                <div className="flex items-center gap-1 text-emerald-400 font-black text-[9px] uppercase italic">
+                <div className={`flex items-center gap-1 font-black text-[9px] uppercase italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
                   <CheckCircle className="w-3 h-3" /> Concluído
                 </div>
               )}
               {todayWorkout?.workout.gpsRoute && (
-                <div className="flex items-center gap-1 text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md font-black text-[8px] uppercase italic border border-emerald-400/30">
+                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-black text-[8px] uppercase italic border ${
+                  isLight 
+                    ? 'text-emerald-800 bg-emerald-50 border-emerald-300/40' 
+                    : 'text-emerald-300 bg-emerald-500/20 border-emerald-400/30'
+                }`}>
                   <Navigation className="w-2.5 h-2.5" /> Rota GPS Gravada ({todayWorkout.workout.gpsRoute.totalDistanceKm}k)
                 </div>
               )}
             </div>
-
+ 
             <h2 className={`text-3xl font-black italic uppercase tracking-tighter mb-2 leading-tight ${
-              todayWorkout?.workout.type === 'Prova' ? 'text-amber-400' : ''
+              todayWorkout?.workout.type === 'Prova' 
+                ? isLight ? 'text-amber-800' : 'text-amber-400' 
+                : isLight ? 'text-emerald-800' : 'text-emerald-400'
             }`}>
               {todayWorkout ? todayWorkout.workout.type : 'Dia de Descanso'}
             </h2>
             
-            <p className={`text-sm font-medium mb-8 leading-relaxed line-clamp-2 ${
-              todayWorkout?.workout.type === 'Prova' ? 'text-amber-200/80' : 'text-emerald-300/80'
+            <p className={`text-sm font-semibold mb-8 leading-relaxed line-clamp-3 ${
+              isLight ? 'text-slate-700' : 'text-slate-100'
             }`}>
               {todayWorkout?.workout.type.toUpperCase().includes('PROVA') 
                 ? 'Hoje é o grande dia! Coloque em prática tudo o que treinou. Boa prova!' 
                 : (todayWorkout ? todayWorkout.workout.customDescription : 'Aproveite para recuperar as energias e focar na mobilidade.')}
             </p>
-
+ 
             {todayWorkout?.workout.structuredWorkout && (
-              <div className="mb-6 inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 backdrop-blur-md rounded-xl text-[11px] font-black uppercase italic tracking-wider text-emerald-300 border border-white/20 shadow-sm">
-                <Timer className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <div className={`mb-6 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase italic tracking-wider border shadow-xs ${
+                isLight 
+                  ? 'bg-emerald-50 text-emerald-850 border-emerald-200/60' 
+                  : 'bg-white/10 backdrop-blur-md text-emerald-300 border-white/20'
+              }`}>
+                <Timer className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`} />
                 <span>DETALHADA: {formatStructuredWorkoutSummary(todayWorkout.workout.structuredWorkout)}</span>
               </div>
             )}
-
+ 
             {todayWorkout && todayWorkout.workout.type !== 'Descanso' && (
               <button 
                 onClick={() => openWorkoutModal(todayWorkout.weekIndex, todayWorkout.dayIndex, todayWorkout.workout)}
-                className="w-full bg-white text-emerald-950 font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-black/20 hover:bg-emerald-50 transition-all active:scale-[0.98] uppercase italic tracking-tighter"
+                className={`w-full font-black py-4.5 rounded-2xl flex items-center justify-center gap-3 shadow-2xl transition-all active:scale-[0.98] uppercase italic tracking-wider text-xs sm:text-sm cursor-pointer ${
+                  todayWorkout.workout.completed
+                    ? isLight
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
+                      : 'bg-slate-800 text-slate-200 border border-white/10 hover:bg-slate-700'
+                    : isLight
+                      ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20'
+                      : 'bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 scale-[1.01] shadow-emerald-500/30'
+                }`}
               >
-                {todayWorkout.workout.completed ? <Check className="w-5 h-5" /> : <Zap className="w-5 h-5 fill-emerald-500 text-emerald-500" />} 
-                {todayWorkout.workout.completed ? 'Ver Detalhes' : 'Iniciar Treino'}
+                {todayWorkout.workout.completed 
+                  ? <Check className="w-5 h-5" /> 
+                  : <Zap className={`w-5 h-5 animate-bounce ${isLight ? 'fill-white text-white' : 'fill-slate-950 text-slate-950'}`} />} 
+                {todayWorkout.workout.completed ? 'VER DETALHES DO TREINO' : 'INICIAR TREINO DE HOJE'}
               </button>
             )}
           </div>
@@ -1572,63 +1615,57 @@ const AthletePortal: React.FC = () => {
                 </h3>
               </div>
 
-              {/* Dedicated Action Buttons Bar - Always 100% visible and accessible on mobile & desktop */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setShareWorkoutData({
-                      title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
-                      athleteName: activeAthlete?.name,
-                      date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
-                      distanceKm: currentGpsRoute?.totalDistanceKm || Number(actualDistanceValue) || selectedWorkout.data.distance || 0,
-                      durationSeconds: currentGpsRoute?.durationSeconds || (currentGpsRoute?.totalDistanceKm ? Math.round(currentGpsRoute.totalDistanceKm * 300) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)),
-                      avgPace: currentGpsRoute?.avgPace || (paces?.find(p => p.zone === 'Z2' || p.name.includes('Fácil'))?.minPace || '05:30'),
-                      elevationGainMeters: currentGpsRoute?.elevationGainMeters,
-                      avgHeartRate: currentGpsRoute?.avgHeartRate,
-                      route: currentGpsRoute,
-                      workoutType: selectedWorkout.data.type
-                    });
-                  }}
-                  className="px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all shadow-md shadow-emerald-950/20 cursor-pointer active:scale-95 border border-emerald-400/30"
-                  title="Gerar Card Social / Postar Treino"
-                >
-                  <Camera className="w-4 h-4 text-white" />
-                  <span>Postar Treino</span>
-                </button>
-                <button 
-                  disabled={exportLoading}
-                  onClick={handleDownloadWorkoutImage}
-                  className={`px-3 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all cursor-pointer active:scale-95 ${
-                    isLight 
-                      ? 'bg-slate-100 hover:bg-slate-200 text-emerald-800 border border-slate-300' 
-                      : 'bg-white/5 hover:bg-white/10 text-emerald-400 border border-white/10'
-                  }`}
-                  title="Baixar imagem da prescrição"
-                >
-                  {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  <span>Baixar Imagem</span>
-                </button>
-              </div>
+              {/* Dedicated Action Buttons Bar - Only visible after completing the workout */}
+              {selectedWorkout.data.completed && (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShareWorkoutData({
+                        title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
+                        athleteName: activeAthlete?.name,
+                        date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
+                        distanceKm: currentGpsRoute?.totalDistanceKm || Number(actualDistanceValue) || selectedWorkout.data.distance || 0,
+                        durationSeconds: currentGpsRoute?.durationSeconds || (currentGpsRoute?.totalDistanceKm ? Math.round(currentGpsRoute.totalDistanceKm * 300) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)),
+                        avgPace: currentGpsRoute?.avgPace || (paces?.find(p => p.zone === 'Z2' || p.name.includes('Fácil'))?.minPace || '05:30'),
+                        elevationGainMeters: currentGpsRoute?.elevationGainMeters,
+                        avgHeartRate: currentGpsRoute?.avgHeartRate,
+                        route: currentGpsRoute,
+                        workoutType: selectedWorkout.data.type
+                      });
+                    }}
+                    className="px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all shadow-md shadow-emerald-950/20 cursor-pointer active:scale-95 border border-emerald-400/30"
+                    title="Gerar Card Social / Postar Treino"
+                  >
+                    <Camera className="w-4 h-4 text-white" />
+                    <span>Postar Treino</span>
+                  </button>
+                  <button 
+                    disabled={exportLoading}
+                    onClick={handleDownloadWorkoutImage}
+                    className={`px-3 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all cursor-pointer active:scale-95 ${
+                      isLight 
+                        ? 'bg-slate-100 hover:bg-slate-200 text-emerald-800 border border-slate-300' 
+                        : 'bg-white/5 hover:bg-white/10 text-emerald-400 border border-white/10'
+                    }`}
+                    title="Baixar imagem da prescrição"
+                  >
+                    {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    <span>Baixar Imagem</span>
+                  </button>
+                </div>
+              )}
             </div>
             
             <div className={`p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 ${
               isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
             }`}>
               <div className="space-y-4">
-                <div className={`${
-                  isFinalWorkout 
-                    ? (isLight ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-sm' : 'bg-emerald-950 border-emerald-900 text-white shadow-[0_0_30px_rgba(16,185,129,0.1)]') 
-                    : (isLight ? 'bg-slate-50 border-slate-200 text-slate-800 shadow-xs' : 'bg-white/5 border-white/10 text-white')
-                } p-6 rounded-3xl border text-center italic font-bold leading-relaxed text-sm`}>
-                  "{selectedWorkout.data.customDescription}"
-                </div>
-
                 {((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || 
                   (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0) || 
                   (selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0)) && (
                   <div className="flex justify-center gap-3">
-                    {((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0)) && (
+                    {selectedWorkout.data.completed && ((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0)) && (
                       <span className={`inline-flex items-center gap-2 text-xs font-black uppercase px-4 py-2 rounded-2xl border italic tracking-wider ${
                         isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
                       }`}>
@@ -1661,77 +1698,17 @@ const AthletePortal: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {/* Hub de Ritmos do Atleta */}
-                  <div className="space-y-4">
-                    <label className={`pro-label flex items-center gap-2 px-1 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
-                      <Flag className="w-3.5 h-3.5 text-emerald-500" /> Seus Ritmos Alvo
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {paces.map((p, idx) => (
-                        <div key={idx} className={`p-3 rounded-2xl border shadow-xs flex flex-col justify-center ${
-                          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-white/5 border-white/5 text-white'
-                        }`}>
-                          <span className={`text-[8px] font-black uppercase tracking-wider mb-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{p.zone}</span>
-                          <span className={`text-sm font-black italic tracking-tighter ${isLight ? 'text-emerald-700 font-extrabold' : 'text-emerald-400'}`}>{p.minPace} min/km</span>
-                          {p.heartRateRange && (
-                            <span className={`text-[7px] font-bold uppercase ${isLight ? 'text-slate-500' : 'text-slate-600'}`}>{p.heartRateRange} bpm</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Detalhamento de Exercícios (Elite Torneio Mode) */}
-                  {localExercises.length > 0 && (
-                    <div className="space-y-4">
-                      <label className={`pro-label flex items-center gap-2 px-1 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
-                        <Dumbbell className="w-3.5 h-3.5 text-purple-500" /> Detalhamento Técnico
-                      </label>
-                      <div className="space-y-3">
-                        {localExercises.sort((a, b) => a.order - b.order).map((ex) => (
-                          <div key={ex.id} className={`p-4 rounded-2xl border space-y-3 ${
-                            isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' : 'bg-white/5 border-white/5 text-white'
-                          }`}>
-                            <div className="flex justify-between items-center">
-                              <h4 className={`text-xs font-black uppercase italic ${isLight ? 'text-slate-900' : 'text-white'}`}>{ex.name}</h4>
-                              <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{ex.sets} séries</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-1">Repetições</label>
-                                <input 
-                                  className="pro-input w-full py-2 text-xs text-center"
-                                  value={ex.reps}
-                                  onChange={e => updateLocalExercise(ex.id, 'reps', e.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-1">Carga Utilizada</label>
-                                <input 
-                                  className="pro-input w-full py-2 text-xs text-center border-purple-500/30 focus:border-purple-500"
-                                  value={ex.load}
-                                  onChange={e => updateLocalExercise(ex.id, 'load', e.target.value)}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[9px] text-slate-500 italic px-1 font-medium">As cargas e repetições sugeridas pelo Coach foram pré-preenchidas. Ajuste conforme sua execução real.</p>
-                    </div>
-                  )}
-
-                  {/* TREINO ESTRUTURADO (PRESCRIÇÃO DETALHADA) */}
-                  {selectedWorkout.data.structuredWorkout && (
-                    <div className={`space-y-3 p-5 rounded-[2rem] border shadow-xl transition-all ${
+                  {/* PRESCRIÇÃO ESTRUTURADA DETALHADA (GREEN THEME) */}
+                  {!selectedWorkout.data.completed && (
+                    <div className={`space-y-4 p-5 sm:p-6 rounded-[2rem] border shadow-xl transition-all ${
                       isLight 
-                        ? 'bg-gradient-to-br from-blue-50/90 via-slate-50 to-emerald-50/90 border-blue-200 text-slate-900 shadow-md' 
-                        : 'bg-gradient-to-br from-blue-950/40 via-slate-900 to-emerald-950/30 border-blue-500/30 text-white'
+                        ? 'bg-gradient-to-br from-emerald-50/90 via-slate-50 to-teal-50/90 border-emerald-200 text-slate-900 shadow-md' 
+                        : 'bg-gradient-to-br from-emerald-950/20 via-slate-900 to-teal-950/20 border-emerald-500/20 text-white'
                     }`}>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between border-b pb-3 border-emerald-500/10">
                         <div className="flex items-center gap-2.5">
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                            isLight ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'bg-blue-500/20 text-blue-400'
+                            isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-emerald-500/20 text-emerald-400'
                           }`}>
                             <Timer className="w-4 h-4" />
                           </div>
@@ -1741,499 +1718,287 @@ const AthletePortal: React.FC = () => {
                             }`}>
                               Prescrição Estruturada Detalhada
                             </h4>
-                            <p className={`text-[9px] font-medium ${
-                              isLight ? 'text-blue-950 font-bold' : 'text-blue-300'
+                            <p className={`text-[9px] font-bold uppercase tracking-wider ${
+                              isLight ? 'text-emerald-800' : 'text-emerald-400'
                             }`}>
-                              {formatStructuredWorkoutSummary(selectedWorkout.data.structuredWorkout)}
+                              {localSteps.length} Etapas • Personalizável
                             </p>
                           </div>
                         </div>
-                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase italic border ${
-                          isLight ? 'bg-blue-100 text-blue-900 border-blue-300 font-extrabold' : 'bg-blue-500/20 text-blue-300 border-blue-400/20'
+                        <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider border italic ${
+                          isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-extrabold' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                         }`}>
-                          {selectedWorkout.data.structuredWorkout.steps.length} Etapas
+                          Ajustável
                         </span>
                       </div>
 
-                      {/* Lista das etapas com ritmos */}
-                      <div className={`space-y-1 p-3 rounded-2xl border max-h-40 overflow-y-auto custom-scrollbar ${
-                        isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-black/30 border-white/5'
-                      }`}>
-                        {selectedWorkout.data.structuredWorkout.steps.map((step: any, sIdx: number) => (
-                          <div key={step.id || sIdx} className={`flex justify-between items-center text-[10px] py-1 border-b last:border-0 font-mono ${
-                            isLight ? 'border-slate-100' : 'border-white/5'
+                      {/* Steps List Editor */}
+                      <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                        {localSteps.map((step: any, sIdx: number) => (
+                          <div key={step.id || sIdx} className={`p-3 rounded-2xl border space-y-2 relative transition-all ${
+                            isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-black/30 border-white/5'
                           }`}>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[9px] ${isLight ? 'text-slate-400 font-bold' : 'text-slate-500'}`}>{sIdx + 1}.</span>
-                              <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{step.name}</span>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                <span className="text-[10px] font-black text-emerald-500 font-mono">#{sIdx + 1}</span>
+                                <input
+                                  type="text"
+                                  className={`w-full bg-transparent font-black text-xs uppercase italic outline-none border-b border-transparent focus:border-emerald-500/30 ${
+                                    isLight ? 'text-slate-800' : 'text-slate-100'
+                                  }`}
+                                  value={step.name || ''}
+                                  onChange={(e) => {
+                                    const updated = [...localSteps];
+                                    updated[sIdx].name = e.target.value;
+                                    setLocalSteps(updated);
+                                  }}
+                                  placeholder="Nome da Etapa"
+                                />
+                              </div>
+                              
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = localSteps.filter((_, i) => i !== sIdx);
+                                  setLocalSteps(updated);
+                                }}
+                                className="text-red-500 hover:text-red-400 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors"
+                                title="Excluir Etapa"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                            <div className="text-right">
-                              <span className={`font-bold ${isLight ? 'text-emerald-700 font-extrabold' : 'text-emerald-400'}`}>
-                                {step.targetType === 'distance' ? `${step.targetValue}m` : `${Math.floor(step.targetValue / 60)}min`}
-                              </span>
-                              {step.targetPaceMin && (
-                                <span className={`text-[9px] ml-1.5 ${isLight ? 'text-amber-800 font-extrabold' : 'text-amber-400'}`}>
-                                  [{step.targetPaceMin}{step.targetPaceMax ? `-${step.targetPaceMax}` : ''}]
-                                </span>
-                              )}
+
+                            <div className="grid grid-cols-3 gap-2">
+                              {/* Target Type */}
+                              <div className="space-y-0.5">
+                                <label className="text-[8px] font-black uppercase text-slate-500">Tipo</label>
+                                <select
+                                  className={`w-full p-1.5 rounded-lg text-[10px] font-bold bg-transparent border cursor-pointer ${
+                                    isLight ? 'border-slate-200 text-slate-800' : 'border-white/10 text-slate-300'
+                                  }`}
+                                  value={step.targetType || 'distance'}
+                                  onChange={(e) => {
+                                    const updated = [...localSteps];
+                                    updated[sIdx].targetType = e.target.value;
+                                    if (e.target.value === 'distance') {
+                                      updated[sIdx].targetValue = 1000;
+                                    } else {
+                                      updated[sIdx].targetValue = 300;
+                                    }
+                                    setLocalSteps(updated);
+                                  }}
+                                >
+                                  <option value="distance" className={isLight ? 'text-slate-900 bg-white' : 'text-white bg-slate-900'}>Distância</option>
+                                  <option value="time" className={isLight ? 'text-slate-900 bg-white' : 'text-white bg-slate-900'}>Tempo</option>
+                                </select>
+                              </div>
+
+                              {/* Value Input */}
+                              <div className="space-y-0.5">
+                                <label className="text-[8px] font-black uppercase text-slate-500">
+                                  {step.targetType === 'distance' ? 'Metros' : 'Minutos'}
+                                </label>
+                                <input
+                                  type="number"
+                                  className={`w-full p-1 rounded-lg text-[10px] font-mono font-bold bg-transparent border text-center ${
+                                    isLight ? 'border-slate-200 text-slate-800' : 'border-white/10 text-slate-200'
+                                  }`}
+                                  value={step.targetType === 'distance' ? step.targetValue : Math.round(step.targetValue / 60)}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    const updated = [...localSteps];
+                                    if (step.targetType === 'distance') {
+                                      updated[sIdx].targetValue = val;
+                                    } else {
+                                      updated[sIdx].targetValue = val * 60;
+                                    }
+                                    setLocalSteps(updated);
+                                  }}
+                                />
+                              </div>
+
+                              {/* Pace Input */}
+                              <div className="space-y-0.5">
+                                <label className="text-[8px] font-black uppercase text-slate-500">Ritmo</label>
+                                <input
+                                  type="text"
+                                  className={`w-full p-1 rounded-lg text-[10px] font-mono font-bold bg-transparent border text-center ${
+                                    isLight ? 'border-slate-200 text-slate-800' : 'border-white/10 text-slate-200'
+                                  }`}
+                                  placeholder="Ex: 05:00"
+                                  value={step.targetPaceMin || ''}
+                                  onChange={(e) => {
+                                    const updated = [...localSteps];
+                                    updated[sIdx].targetPaceMin = e.target.value;
+                                    setLocalSteps(updated);
+                                  }}
+                                />
+                              </div>
                             </div>
                           </div>
                         ))}
                       </div>
 
-                      {!showGpsTracker && (
-                        <button
-                          type="button"
-                          onClick={() => setShowGpsTracker(true)}
-                          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98] cursor-pointer"
-                        >
-                          <Play className="w-4 h-4 fill-white" /> Executar Treino Estruturado no GPS
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ROTA GPS DO TREINO (GPS AO VIVO OU GPX IMPORTADO) */}
-                  <div className={`space-y-3 p-5 rounded-[2rem] border transition-colors ${
-                    isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' : 'bg-white/5 border-white/5 text-white'
-                  }`}>
-                    <div className="flex justify-between items-center px-1">
-                      <label className={`pro-label flex items-center gap-2 !mb-0 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
-                        <Navigation className="w-4 h-4 text-emerald-500" /> Rota & GPS do Treino
-                      </label>
-                      <span className={`text-[9px] font-black uppercase italic tracking-wider px-2 py-0.5 rounded-md border ${
-                        isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      }`}>
-                        Opção 3 • Híbrido
-                      </span>
-                    </div>
-
-                    {currentGpsRoute ? (
-                      <div className="space-y-3">
-                        <div className={`flex items-center justify-between p-3 rounded-2xl border ${
-                          isLight ? 'bg-white border-slate-200 text-slate-900 shadow-xs' : 'bg-slate-950/60 border-white/5 text-white'
-                        }`}>
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm ${
-                              isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-emerald-500/20 text-emerald-400'
-                            }`}>
-                              {currentGpsRoute.source === 'gpx_file' ? <FileCode2 className="w-4 h-4" /> : <Navigation className="w-4 h-4" />}
-                            </div>
-                            <div>
-                              <p className={`text-xs font-black uppercase italic ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                                {currentGpsRoute.totalDistanceKm} KM • {currentGpsRoute.avgPace}/km
-                              </p>
-                              <p className={`text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                                {currentGpsRoute.source === 'gpx_file' ? 'Importado via GPX' : 'Gravado com GPS do celular'}
-                                {currentGpsRoute.elevationGainMeters ? ` • +${currentGpsRoute.elevationGainMeters}m altimetria` : ''}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm('Deseja desvincular esta rota GPS do treino?')) {
-                                setCurrentGpsRoute(null);
-                              }
-                            }}
-                            className="text-[9px] font-black text-red-500 hover:text-red-600 uppercase italic px-2 py-1 bg-red-500/10 rounded-lg border border-red-500/20"
-                          >
-                            Remover
-                          </button>
-                        </div>
-
-                        {/* Mapa da Rota Vinculada */}
-                        <WorkoutMap
-                          points={
-                            currentGpsRoute.points && currentGpsRoute.points.length > 0
-                              ? currentGpsRoute.points
-                              : currentGpsRoute.polyline
-                              ? decodePolyline(currentGpsRoute.polyline)
-                              : []
-                          }
-                          height="200px"
-                          interactive={true}
-                        />
-
-                        {/* Botão de Compartilhar Card de Atividade */}
+                      {/* Add Step and Start Run Actions */}
+                      <div className="space-y-2 pt-2 border-t border-emerald-500/10">
                         <button
                           type="button"
                           onClick={() => {
-                            setShareWorkoutData({
-                              title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
-                              athleteName: activeAthlete?.name,
-                              date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
-                              distanceKm: currentGpsRoute?.totalDistanceKm || Number(actualDistanceValue) || selectedWorkout.data.distance || 0,
-                              durationSeconds: currentGpsRoute?.durationSeconds || (currentGpsRoute?.totalDistanceKm ? Math.round(currentGpsRoute.totalDistanceKm * 300) : 1800),
-                              avgPace: currentGpsRoute?.avgPace || (paces?.find(p => p.zone === 'Z2' || p.name.includes('Fácil'))?.minPace || '05:30'),
-                              elevationGainMeters: currentGpsRoute?.elevationGainMeters,
-                              avgHeartRate: currentGpsRoute?.avgHeartRate,
-                              route: currentGpsRoute,
-                              workoutType: selectedWorkout.data.type
-                            });
+                            setLocalSteps([
+                              ...localSteps,
+                              {
+                                id: Math.random().toString(36).substring(2, 11),
+                                name: "Intervalo Novo",
+                                targetType: "distance",
+                                targetValue: 400,
+                                targetPaceMin: "05:00"
+                              }
+                            ]);
                           }}
-                          className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-950/20 transition-all active:scale-[0.98] cursor-pointer"
+                          className={`w-full py-2.5 rounded-xl border-2 border-dashed font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            isLight 
+                              ? 'border-emerald-300 text-emerald-800 hover:bg-emerald-50' 
+                              : 'border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/5'
+                          }`}
                         >
-                          <Camera className="w-4 h-4" /> 📸 Postar Treino / Gerar Card Social
+                          <Plus className="w-4 h-4" /> Adicionar Nova Etapa
                         </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {!showGpsTracker ? (
-                          <div className={`p-4 rounded-2xl border flex flex-col gap-2 ${
-                            isLight ? 'bg-white border-slate-200 text-slate-800 shadow-xs' : 'bg-slate-950/40 border-white/5 text-slate-300'
-                          }`}>
-                            <p className="text-[11px] font-medium leading-relaxed">
-                              Grave o trajeto com o <strong className="text-emerald-600 dark:text-emerald-400">GPS do celular</strong> em tempo real ou suba o arquivo <strong className="text-emerald-600 dark:text-emerald-400">.GPX</strong> do seu relógio (Strava, Polar, Coros, Apple Watch ou qualquer relógio GPS).
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => setShowGpsTracker(true)}
-                              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-md shadow-emerald-600/20 transition-all active:scale-[0.98]"
-                            >
-                              <Navigation className="w-4 h-4" /> Rastrear GPS / Importar GPX
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            <GpsWorkoutTracker
-                              workoutType={selectedWorkout.data.type}
-                              plannedDistanceKm={selectedWorkout.data.distance}
-                              existingRoute={currentGpsRoute}
-                              structuredWorkout={selectedWorkout.data.structuredWorkout}
-                              workoutDescription={selectedWorkout.data.customDescription}
-                              athletePaces={paces}
-                              onRouteCaptured={(route) => {
-                                setCurrentGpsRoute(route);
-                                setActualDistanceValue(String(route.totalDistanceKm));
-                                setShowGpsTracker(false);
-                              }}
-                              onCancel={() => setShowGpsTracker(false)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowGpsTracker(false)}
-                              className={`w-full text-[10px] font-black uppercase py-2 ${isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'}`}
-                            >
-                              ✕ Cancelar Rastreamento
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Espaço para inserir a quilometragem real do Treino */}
-                  <div className={`space-y-2 p-5 rounded-[2rem] border transition-colors ${
-                    isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' : 'bg-white/5 border-white/5 text-white'
-                  }`}>
-                    <div className="flex justify-between items-center px-1">
-                      <label className={`pro-label flex items-center gap-2 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
-                        <TrendingUp className="w-4 h-4 text-emerald-500" /> Distância Real Executada (KM)
-                      </label>
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border italic ${
-                        isLight ? 'bg-white text-slate-700 border-slate-200' : 'bg-white/5 text-slate-400 border-white/5'
-                      }`}>
-                        Planejado: {selectedWorkout.data.distance || 0} KM
-                      </span>
-                    </div>
-                    <p className={`text-[9px] font-medium px-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                      Insira a quilometragem total real percorrida (preenchida automaticamente ao capturar o GPS).
-                    </p>
-                    <div className="relative mt-2">
-                      <input 
-                        type="text"
-                        disabled={isSaving}
-                        className={`pro-input w-full py-4 px-5 text-base font-black italic rounded-2xl outline-none transition-all pr-16 ${
-                          isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500 shadow-xs' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
-                        }`}
-                        placeholder="Ex: 12.5"
-                        value={actualDistanceValue}
-                        onChange={e => setActualDistanceValue(e.target.value)}
-                      />
-                      <div className={`absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black italic ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                        KM REAL
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between px-1">
-                      <label className={`pro-label flex items-center gap-2 ${isLight ? 'text-slate-800 font-extrabold' : 'text-slate-200'}`}>
-                        <Zap className="w-4 h-4 text-amber-500" /> Esforço Percebido (PSE)
-                      </label>
-                      <span className={`text-[10px] font-black italic uppercase tracking-tighter ${getRPEColor(rpeValue)}`}>
-                        {getRPELabel(rpeValue)}
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-5 gap-2">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                         <button
-                          key={num}
-                          disabled={isSaving}
-                          onClick={() => setRpeValue(num)}
-                          className={`h-12 rounded-xl font-black text-sm transition-all border-2 flex items-center justify-center
-                            ${rpeValue === num 
-                              ? 'bg-emerald-500 text-white border-emerald-500 scale-105 shadow-md' 
-                              : (isLight 
-                                  ? 'bg-white text-slate-700 border-slate-200 hover:border-emerald-500 hover:text-emerald-700' 
-                                  : 'bg-white/5 text-slate-500 border-white/5 hover:border-emerald-500/50 hover:text-emerald-400')}
-                          `}
+                          type="button"
+                          onClick={() => setShowGpsTracker(true)}
+                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer"
                         >
-                          {num}
+                          <Play className="w-4 h-4 fill-white" /> Iniciar Corrida com GPS
                         </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Questionário Científico de Prontidão Diária */}
-                  {activeAthlete.lastReadiness?.date === new Date().toISOString().split('T')[0] ? (
-                    <div className={`p-5 rounded-3xl border space-y-2 text-center ${
-                      isLight ? 'bg-emerald-50 border-emerald-200 text-slate-900' : 'bg-emerald-950/40 border-emerald-500/20 text-white'
-                    }`}>
-                      <p className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center justify-center gap-1.5">
-                        <CheckCircle className="w-4 h-4" /> Prontidão Diária Registrada!
-                      </p>
-                      <p className={`text-[11px] font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                        Seu score de prontidão pré-treino para hoje é de <span className="text-emerald-700 dark:text-emerald-400 font-black">{activeAthlete.lastReadiness.readinessScore}%</span> ({activeAthlete.lastReadiness.readinessScore >= 70 ? 'Pronto para correr' : activeAthlete.lastReadiness.readinessScore >= 40 ? 'Moderar esforço' : 'Focar em recuperação'}). Ele já foi salvo e associado à sua fisiologia de hoje.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className={`p-6 rounded-3xl border space-y-5 transition-colors ${
-                      isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' : 'bg-white/5 border-white/10 text-white'
-                    }`}>
-                      <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-white/5'}`}>
-                        <div className="flex items-center gap-2">
-                          <Activity className="w-5 h-5 text-emerald-500" />
-                          <h4 className={`text-sm font-black uppercase italic tracking-tighter ${isLight ? 'text-slate-900' : 'text-white'}`}>Fisiologia & Prontidão Diária</h4>
-                        </div>
-                        <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-widest italic ${
-                          isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        }`}>
-                          Científico
-                        </span>
                       </div>
-
-                      {/* 1. Qualidade do Sono */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>💤 Qualidade do Sono</span>
-                          <span className={`text-[10px] font-black italic ${isLight ? 'text-emerald-800 font-extrabold' : 'text-emerald-400'}`}>
-                            {sleepValue === 5 ? 'Excelente (8h+ profundo)' :
-                             sleepValue === 4 ? 'Bom (Restaurador)' :
-                             sleepValue === 3 ? 'Regular (Interrompido)' :
-                             sleepValue === 2 ? 'Ruim (Poucas horas)' : 'Péssimo (Insônia/Exausto)'}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-5 gap-1.5">
-                          {[1, 2, 3, 4, 5].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setSleepValue(val)}
-                              className={`py-2 text-xs font-black rounded-lg transition-all border ${
-                                sleepValue === val 
-                                  ? 'bg-emerald-500 text-white border-emerald-500 font-extrabold shadow-sm scale-105' 
-                                  : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10')
-                              }`}
-                            >
-                              {val}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 2. Estresse Mental */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>🧠 Estresse Mental</span>
-                          <span className={`text-[10px] font-black italic ${isLight ? 'text-amber-800 font-extrabold' : 'text-amber-400'}`}>
-                            {stressValue === 1 ? 'Nenhum (Muito Calmo)' :
-                             stressValue === 2 ? 'Baixo (Controlado)' :
-                             stressValue === 3 ? 'Moderado (Produtivo)' :
-                             stressValue === 4 ? 'Alto (Preocupado)' : 'Extremo (Esgotado)'}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-5 gap-1.5">
-                          {[1, 2, 3, 4, 5].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setStressValue(val)}
-                              className={`py-2 text-xs font-black rounded-lg transition-all border ${
-                                stressValue === val 
-                                  ? 'bg-amber-500 text-white border-amber-500 font-extrabold shadow-sm scale-105' 
-                                  : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10')
-                              }`}
-                            >
-                              {val}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 3. Dor Muscular (DOMS) */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>🩹 Dor Muscular (DOMS)</span>
-                          <span className={`text-[10px] font-black italic ${isLight ? 'text-red-700 font-extrabold' : 'text-red-400'}`}>
-                            {sorenessValue === 1 ? 'Nenhuma (Zero dor)' :
-                             sorenessValue === 2 ? 'Leve (Apenas estímulo)' :
-                             sorenessValue === 3 ? 'Moderada (Suportável)' :
-                             sorenessValue === 4 ? 'Forte (Dificulta corrida)' : 'Extrema (Lesão/Sem treinar)'}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-5 gap-1.5">
-                          {[1, 2, 3, 4, 5].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setSorenessValue(val)}
-                              className={`py-2 text-xs font-black rounded-lg transition-all border ${
-                                sorenessValue === val 
-                                  ? 'bg-red-500 text-white border-red-500 font-extrabold shadow-sm scale-105' 
-                                  : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10')
-                              }`}
-                            >
-                              {val}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 4. Disposição / Humor */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>🔥 Humor / Disposição</span>
-                          <span className={`text-[10px] font-black italic ${isLight ? 'text-blue-800 font-extrabold' : 'text-blue-400'}`}>
-                            {moodValue === 5 ? 'Incrível (Foco Máximo)' :
-                             moodValue === 4 ? 'Disposto (Motivado)' :
-                             moodValue === 3 ? 'Normal (Neutro)' :
-                             moodValue === 2 ? 'Apático (Sem vontade)' : 'Irritado / Deprimido'}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-5 gap-1.5">
-                          {[1, 2, 3, 4, 5].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setMoodValue(val)}
-                              className={`py-2 text-xs font-black rounded-lg transition-all border ${
-                                moodValue === val 
-                                  ? 'bg-blue-500 text-white border-blue-500 font-extrabold shadow-sm scale-105' 
-                                  : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-400 border-transparent hover:border-white/10')
-                              }`}
-                            >
-                              {val}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 5. Menstrual Cycle Tracker (Feminino com trackMenstrual ativo) */}
-                      {activeAthlete.gender === 'female' && activeAthlete.trackMenstrual !== false && (
-                        <div className={`pt-4 border-t space-y-3 ${isLight ? 'border-slate-200' : 'border-white/5'}`}>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest flex items-center gap-1">🌸 Fase do Ciclo Menstrual</span>
-                            <span className={`text-[8px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wide ${
-                              isLight ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-purple-500/20 text-purple-300 border-purple-500/20'
-                            }`}>
-                              Mulher Atleta
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            {[
-                              { phase: 'follicular', label: 'Fase Folicular', icon: '⚡', desc: 'Energia em alta' },
-                              { phase: 'ovulatory', label: 'Fase Ovulatória', icon: '🔥', desc: 'Pico de força' },
-                              { phase: 'luteal', label: 'Fase Lútea (TPM)', icon: '🧘', desc: 'Fadiga / Rodagem' },
-                              { phase: 'menstrual', label: 'Fase Menstrual', icon: '🩸', desc: 'Cólicas / Escuta' },
-                            ].map((item) => (
-                              <button
-                                key={item.phase}
-                                type="button"
-                                onClick={() => setMenstrualPhaseValue(item.phase as any)}
-                                className={`p-2.5 text-left rounded-xl transition-all border flex flex-col justify-between ${
-                                  menstrualPhaseValue === item.phase 
-                                    ? 'bg-purple-600 text-white border-purple-500 shadow-sm scale-[1.02]' 
-                                    : (isLight ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100' : 'bg-white/5 text-slate-300 border-transparent hover:border-white/10')
-                                }`}
-                              >
-                                <div className="flex items-center gap-1.5 font-black text-[11px]">
-                                  <span>{item.icon}</span>
-                                  <span className="truncate">{item.label}</span>
-                                </div>
-                                <span className={`text-[8px] font-medium mt-1 leading-none ${menstrualPhaseValue === item.phase ? 'text-purple-100' : (isLight ? 'text-slate-500' : 'text-slate-500')}`}>
-                                  {item.desc}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Science Insights for Menstrual Cycle */}
-                          {menstrualPhaseValue !== 'none' && (
-                            <div className={`border p-3.5 rounded-2xl space-y-1.5 text-left animate-fade-in ${
-                              isLight ? 'bg-purple-50 border-purple-200 text-purple-950' : 'bg-purple-950/20 border-purple-500/10 text-purple-200'
-                            }`}>
-                              <p className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest italic flex items-center gap-1">
-                                💡 Insight Científico
-                              </p>
-                              <p className={`text-[10px] font-medium italic leading-relaxed ${isLight ? 'text-purple-900' : 'text-purple-200'}`}>
-                                {menstrualPhaseValue === 'follicular' && 'Hormônios baixos e estrogênio subindo: Excelente para tiros de alta intensidade, treinos de ritmo e força. Recuperação ultra-rápida!'}
-                                {menstrualPhaseValue === 'ovulatory' && 'Pico de estrogênio: Força e potência máxima no pico de desempenho. Atenção extra ao aquecimento para proteger ligamentos.'}
-                                {menstrualPhaseValue === 'luteal' && 'Progesterona alta: Temperatura corporal elevada e batimentos sobem mais rápido. Ideal para rodagens de resistência estável. Evite exaustão extrema.'}
-                                {menstrualPhaseValue === 'menstrual' && 'Possíveis sintomas de cólica e retenção líquida. Seu corpo está iniciando a recuperação. Escute seus sintomas e adapte o ritmo se necessário.'}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   )}
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex flex-col">
-                        <span className={`text-[10px] font-black uppercase tracking-widest italic ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>Cronômetro de Suporte</span>
-                        <span className={`text-[8px] font-bold uppercase italic ${isLight ? 'text-slate-500' : 'text-slate-600'}`}>Use para marcar intervalos ou tempo total</span>
+                  {/* RELATÓRIO DE EXECUÇÃO (ENVIAR AO TREINADOR) - Only visible after marking the workout as completed */}
+                  {selectedWorkout.data.completed && (
+                    <div className={`p-6 rounded-[2rem] border space-y-6 transition-all ${
+                      isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-sm' : 'bg-white/5 border-white/5 text-white'
+                    }`}>
+                      <div className="flex items-center justify-between border-b pb-3 border-emerald-500/10">
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-5 h-5 text-emerald-500" />
+                          <h4 className={`text-sm font-black uppercase italic tracking-tighter ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                            Relatório de Execução do Treino
+                          </h4>
+                        </div>
                       </div>
-                      <TimerComponent />
+
+                      {/* 1. Distância Real */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                            <TrendingUp className="w-4 h-4 text-emerald-500" /> Distância Real (KM)
+                          </label>
+                          <span className="text-[9px] font-black uppercase text-slate-500 italic">
+                            Planejado: {selectedWorkout.data.distance || 0} KM
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input 
+                            type="text"
+                            disabled={isSaving}
+                            className={`pro-input w-full py-4 px-5 text-sm font-black italic rounded-2xl outline-none transition-all pr-16 ${
+                              isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
+                            }`}
+                            placeholder="Ex: 10.5"
+                            value={actualDistanceValue}
+                            onChange={e => setActualDistanceValue(e.target.value)}
+                          />
+                          <div className="absolute right-5 top-1/2 -translate-y-1/2 text-[9px] font-black italic text-slate-500">
+                            KM REAL
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2. Percepção de Esforço (PSE) */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                            <Zap className="w-4 h-4 text-amber-500" /> Percepção de Esforço (PSE)
+                          </label>
+                          <span className={`text-[10px] font-black italic uppercase tracking-tighter ${getRPEColor(rpeValue)}`}>
+                            {getRPELabel(rpeValue)}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() => setRpeValue(num)}
+                              className={`h-10 rounded-xl font-black text-xs transition-all border flex items-center justify-center
+                                ${rpeValue === num 
+                                  ? 'bg-emerald-500 text-white border-emerald-500 font-extrabold shadow-sm' 
+                                  : (isLight 
+                                      ? 'bg-white text-slate-700 border-slate-200 hover:border-emerald-500 hover:text-emerald-700' 
+                                      : 'bg-white/5 text-slate-400 border-white/5 hover:border-emerald-500/50 hover:text-emerald-400')}
+                              `}
+                            >
+                              {num}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 3. Feedback do Treino */}
+                      <div className="space-y-2">
+                        <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                          <MessageSquare className="w-4 h-4 text-emerald-500" /> Feedback para o Treinador
+                        </label>
+                        <textarea 
+                          disabled={isSaving}
+                          className="pro-input w-full h-28 focus:ring-4 focus:ring-emerald-500/20 text-xs py-3 px-4 rounded-2xl"
+                          placeholder="Relate suas sensações, ritmos mantidos, cansaço ou qualquer observação relevante para o Coach..."
+                          value={feedbackText}
+                          onChange={e => setFeedbackText(e.target.value)}
+                        />
+                      </div>
                     </div>
-                    <textarea 
-                      disabled={isSaving}
-                      className="pro-input w-full h-32 focus:ring-4 focus:ring-emerald-500/20"
-                      placeholder="Relate sensações, dores ou conquistas..."
-                      value={feedbackText}
-                      onChange={e => setFeedbackText(e.target.value)}
-                    />
-                  </div>
+                  )}
                 </>
               )}
             </div>
 
-            <div className={`p-6 md:p-8 border-t flex-shrink-0 font-sans ${
-              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-white/5'
-            }`}>
-              <button 
-                onClick={handleToggleComplete} 
-                disabled={isSaving}
-                className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 cursor-pointer
-                  ${saveSuccess ? 'bg-emerald-500 text-white' : 
-                    selectedWorkout.data.type === 'Descanso' ? 'bg-blue-600 text-white hover:bg-blue-700' : (isLight ? 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95' : 'bg-emerald-950 text-white hover:bg-black active:scale-95')}
-                  disabled:opacity-50`}
-              >
-                {isSaving ? (
-                  <div className="flex items-center gap-3">
-                    {saveSuccess ? <Check className="w-6 h-6 animate-fade-in" /> : <Loader2 className="w-6 h-6 animate-spin" />}
-                    <span>{saveSuccess ? 'SINCRONIZADO!' : 'SINCRONIZANDO...'}</span>
-                  </div>
-                ) : (
-                  selectedWorkout.data.completed 
-                    ? (selectedWorkout.data.type === 'Descanso' ? 'DESMARCAR DESCANSO' : 'DESMARCAR CONCLUÍDO') 
-                    : (selectedWorkout.data.type === 'Descanso' ? 'MARCAR COMO DESCANSO' : 'CONCLUIR TREINO')
-                )}
-              </button>
-            </div>
+            {selectedWorkout.data.completed && (
+              <div className={`p-6 md:p-8 border-t flex-shrink-0 font-sans ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-white/5'
+              }`}>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => handleToggleComplete(false)} 
+                    disabled={isSaving}
+                    className={`py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer
+                      ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-white/5 hover:bg-white/10 text-slate-300'}
+                      disabled:opacity-50`}
+                  >
+                    {selectedWorkout.data.type === 'Descanso' ? 'DESMARCAR DESCANSO' : 'DESMARCAR CONCLUÍDO'}
+                  </button>
+                  <button 
+                    onClick={() => handleToggleComplete(true)} 
+                    disabled={isSaving}
+                    className="py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSaving ? (
+                      <div className="flex items-center gap-2">
+                        {saveSuccess ? <Check className="w-5 h-5 animate-fade-in" /> : <Loader2 className="w-5 h-5 animate-spin" />}
+                        <span>{saveSuccess ? 'SALVO!' : 'SALVANDO...'}</span>
+                      </div>
+                    ) : (
+                      'SALVAR E FECHAR'
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>,
         document.body
@@ -2380,6 +2145,30 @@ const AthletePortal: React.FC = () => {
           data={shareWorkoutData}
           onClose={() => setShareWorkoutData(null)}
         />
+      )}
+
+      {/* Standalone Fullscreen GPS Running Portal */}
+      {showGpsTracker && selectedWorkout && createPortal(
+        <div className="fixed inset-0 z-[10000] bg-black overflow-hidden select-none">
+          <GpsWorkoutTracker
+            workoutType={selectedWorkout.data.type}
+            plannedDistanceKm={selectedWorkout.data.distance}
+            existingRoute={currentGpsRoute}
+            structuredWorkout={{
+              ...selectedWorkout.data.structuredWorkout,
+              steps: localSteps
+            }}
+            workoutDescription={selectedWorkout.data.customDescription}
+            athletePaces={paces}
+            onRouteCaptured={(route) => {
+              setCurrentGpsRoute(route);
+              setActualDistanceValue(String(route.totalDistanceKm));
+              setShowGpsTracker(false);
+            }}
+            onCancel={() => setShowGpsTracker(false)}
+          />
+        </div>,
+        document.body
       )}
     </div>
   );

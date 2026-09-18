@@ -52,7 +52,8 @@ interface AppContextType {
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
     readinessScore?: number,
     gpsRoute?: any,
-    structuredSteps?: any[]
+    structuredSteps?: any[],
+    actualDuration?: string
   ) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
@@ -763,7 +764,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
     readinessScore?: number,
     gpsRoute?: any,
-    structuredSteps?: any[]
+    structuredSteps?: any[],
+    actualDuration?: string
   ) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
@@ -778,6 +780,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (exercises) workout.exercises = exercises;
     if (actualDistance !== undefined) {
       workout.actualDistance = actualDistance;
+    }
+    if (actualDuration !== undefined) {
+      workout.actualDuration = actualDuration;
     }
     
     if (structuredSteps !== undefined) {

@@ -514,8 +514,35 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     pauseTracking();
     setIsTracking(false);
 
+    // If no GPS coordinates or very short, save as an indoor/manual workout (e.g. treadmill or lost signal)
     if (gpsPoints.length < 2 && distanceKm < 0.05) {
-      alert('Treino muito curto para gerar rota GPS.');
+      let finalCompleted = [...completedSteps];
+      if (activeStructured && activeStructured.steps && activeStepIndex < activeStructured.steps.length && stepDurationSeconds > 5) {
+        const curStep = activeStructured.steps[activeStepIndex];
+        finalCompleted.push({
+          stepId: curStep.id,
+          name: curStep.name,
+          type: curStep.type,
+          targetType: curStep.targetType,
+          targetValue: curStep.targetValue,
+          completedDistanceMeters: Math.round(stepDistanceMeters),
+          completedDurationSeconds: stepDurationSeconds,
+          avgPace: "00:00"
+        });
+      }
+
+      const routeData: RouteData = {
+        polyline: '',
+        points: [],
+        totalDistanceKm: 0,
+        totalDurationSeconds: durationSeconds,
+        avgPace: "00:00",
+        source: 'manual_or_indoor',
+        recordedAt: new Date().toISOString(),
+        completedSteps: finalCompleted.length > 0 ? finalCompleted : undefined
+      };
+
+      onRouteCaptured(routeData);
       return;
     }
 

@@ -99,6 +99,56 @@ const TimerComponent: React.FC = () => {
   );
 };
 
+const formatSecondsToTimeString = (secs: number): string => {
+  if (isNaN(secs) || secs <= 0) return '';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.round(secs % 60);
+  if (h > 0) {
+    return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
+const calculatePace = (distanceStr: string, durationStr: string): string => {
+  const distance = parseFloat(String(distanceStr).replace(',', '.'));
+  if (isNaN(distance) || distance <= 0) return '--:--';
+  
+  let seconds = 0;
+  const parts = String(durationStr).trim().split(':').map(Number);
+  if (parts.some(isNaN) || parts.length === 0) return '--:--';
+  
+  if (parts.length === 1) {
+    // just minutes
+    seconds = parts[0] * 60;
+  } else if (parts.length === 2) {
+    // MM:SS
+    seconds = parts[0] * 60 + parts[1];
+  } else if (parts.length === 3) {
+    // HH:MM:SS
+    seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else {
+    return '--:--';
+  }
+  
+  if (seconds <= 0) return '--:--';
+  
+  const paceSecondsPerKm = seconds / distance;
+  const mins = Math.floor(paceSecondsPerKm / 60);
+  const secs = Math.round(paceSecondsPerKm % 60);
+  
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+};
+
+const parseDurationStringToSeconds = (durationStr: string): number => {
+  const parts = String(durationStr).trim().split(':').map(Number);
+  if (parts.some(isNaN) || parts.length === 0) return 0;
+  if (parts.length === 1) return parts[0] * 60;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return 0;
+};
+
 const AthletePortal: React.FC = () => {
   const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete, addUserGoal, theme } = useApp();
   const isLight = theme === 'light';
@@ -117,6 +167,7 @@ const AthletePortal: React.FC = () => {
   const [feedbackText, setFeedbackText] = useState('');
   const [rpeValue, setRpeValue] = useState<number>(0);
   const [actualDistanceValue, setActualDistanceValue] = useState<string>('');
+  const [actualDurationValue, setActualDurationValue] = useState<string>('');
   const [currentGpsRoute, setCurrentGpsRoute] = useState<any>(null);
   const [showGpsTracker, setShowGpsTracker] = useState(false);
   const [localSteps, setLocalSteps] = useState<any[]>([]);
@@ -545,7 +596,8 @@ const AthletePortal: React.FC = () => {
         menstrualPhaseValue,
         calculatedScore,
         currentGpsRoute,
-        localSteps
+        localSteps,
+        actualDurationValue
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -569,7 +621,8 @@ const AthletePortal: React.FC = () => {
           completed: newStatus,
           feedback: feedbackText,
           rpe: rpeValue,
-          actualDistance: parsedDistance
+          actualDistance: parsedDistance,
+          actualDuration: actualDurationValue
         }
       } : null);
 
@@ -581,6 +634,7 @@ const AthletePortal: React.FC = () => {
           setFeedbackText('');
           setRpeValue(0);
           setActualDistanceValue('');
+          setActualDurationValue('');
           setCurrentGpsRoute(null);
           setShowGpsTracker(false);
         }
@@ -599,6 +653,15 @@ const AthletePortal: React.FC = () => {
     setRpeValue(workout.rpe || 0);
     setLocalExercises(workout.exercises || []);
     setActualDistanceValue(workout.actualDistance !== undefined ? String(workout.actualDistance) : String(workout.distance || ''));
+    let initialDuration = '';
+    if (workout.actualDuration) {
+      initialDuration = String(workout.actualDuration);
+    } else if (workout.gpsRoute?.totalDurationSeconds) {
+      initialDuration = formatSecondsToTimeString(workout.gpsRoute.totalDurationSeconds);
+    } else if (workout.durationMinutes) {
+      initialDuration = `${workout.durationMinutes}:00`;
+    }
+    setActualDurationValue(initialDuration);
     setSleepValue(workout.sleepScore || activeAthlete?.lastReadiness?.sleepScore || 4);
     setStressValue(workout.stressScore || activeAthlete?.lastReadiness?.stressScore || 2);
     setSorenessValue(workout.sorenessScore || activeAthlete?.lastReadiness?.sorenessScore || 2);
@@ -1621,13 +1684,17 @@ const AthletePortal: React.FC = () => {
                   <button 
                     type="button"
                     onClick={() => {
+                      const finalDist = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (currentGpsRoute?.totalDistanceKm || selectedWorkout.data.distance || 0);
+                      const finalDurSec = actualDurationValue !== '' ? parseDurationStringToSeconds(actualDurationValue) : (currentGpsRoute?.durationSeconds || (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800));
+                      const finalPace = calculatePace(String(finalDist), actualDurationValue !== '' ? actualDurationValue : formatSecondsToTimeString(finalDurSec));
+
                       setShareWorkoutData({
                         title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
                         athleteName: activeAthlete?.name,
                         date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
-                        distanceKm: currentGpsRoute?.totalDistanceKm || Number(actualDistanceValue) || selectedWorkout.data.distance || 0,
-                        durationSeconds: currentGpsRoute?.durationSeconds || (currentGpsRoute?.totalDistanceKm ? Math.round(currentGpsRoute.totalDistanceKm * 300) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)),
-                        avgPace: currentGpsRoute?.avgPace || (paces?.find(p => p.zone === 'Z2' || p.name.includes('Fácil'))?.minPace || '05:30'),
+                        distanceKm: finalDist,
+                        durationSeconds: finalDurSec,
+                        avgPace: finalPace !== '--:--' ? finalPace : (currentGpsRoute?.avgPace || '05:30'),
                         elevationGainMeters: currentGpsRoute?.elevationGainMeters,
                         avgHeartRate: currentGpsRoute?.avgHeartRate,
                         route: currentGpsRoute,
@@ -1890,31 +1957,76 @@ const AthletePortal: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* 1. Distância Real */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                            <TrendingUp className="w-4 h-4 text-emerald-500" /> Distância Real (KM)
-                          </label>
-                          <span className="text-[9px] font-black uppercase text-slate-500 italic">
-                            Planejado: {selectedWorkout.data.distance || 0} KM
-                          </span>
-                        </div>
-                        <div className="relative">
-                          <input 
-                            type="text"
-                            disabled={isSaving}
-                            className={`pro-input w-full py-4 px-5 text-sm font-black italic rounded-2xl outline-none transition-all pr-16 ${
-                              isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
-                            }`}
-                            placeholder="Ex: 10.5"
-                            value={actualDistanceValue}
-                            onChange={e => setActualDistanceValue(e.target.value)}
-                          />
-                          <div className="absolute right-5 top-1/2 -translate-y-1/2 text-[9px] font-black italic text-slate-500">
-                            KM REAL
+                      {/* 1. Métricas Reais do Treino */}
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Distância */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                              <TrendingUp className="w-4 h-4 text-emerald-500" /> Distância (KM)
+                            </label>
+                          </div>
+                          <div className="relative">
+                            <input 
+                              type="text"
+                              disabled={isSaving}
+                              className={`pro-input w-full py-4 px-4 text-sm font-black italic rounded-2xl outline-none transition-all pr-12 ${
+                                isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
+                              }`}
+                              placeholder="Ex: 10.5"
+                              value={actualDistanceValue}
+                              onChange={e => setActualDistanceValue(e.target.value)}
+                            />
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
+                              KM
+                            </div>
+                          </div>
+                          <div className="text-[9px] font-black uppercase text-slate-500/80 italic pl-1">
+                            Plano: {selectedWorkout.data.distance || 0} KM
                           </div>
                         </div>
+
+                        {/* Tempo */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                              <Timer className="w-4 h-4 text-amber-500" /> Tempo Total
+                            </label>
+                          </div>
+                          <div className="relative">
+                            <input 
+                              type="text"
+                              disabled={isSaving}
+                              className={`pro-input w-full py-4 px-4 text-sm font-black italic rounded-2xl outline-none transition-all pr-14 ${
+                                isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
+                              }`}
+                              placeholder="Ex: 45:00"
+                              value={actualDurationValue}
+                              onChange={e => setActualDurationValue(e.target.value)}
+                            />
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
+                              MIN/SEG
+                            </div>
+                          </div>
+                          <div className="text-[9px] font-black uppercase text-slate-500/80 italic pl-1">
+                            Plano: {selectedWorkout.data.durationMinutes || '--'} min
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Real-time Pace calculation badge */}
+                      <div className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
+                        isLight ? 'bg-emerald-50/50 border-emerald-100' : 'bg-emerald-500/5 border-emerald-500/10'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-4 h-4 text-emerald-500" />
+                          <span className={`text-[10px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                            Ritmo Médio Calculado (Pace)
+                          </span>
+                        </div>
+                        <span className="text-sm font-mono font-black italic text-emerald-500">
+                          {calculatePace(actualDistanceValue, actualDurationValue)} / KM
+                        </span>
                       </div>
 
                       {/* 2. Percepção de Esforço (PSE) */}
@@ -2163,6 +2275,13 @@ const AthletePortal: React.FC = () => {
             onRouteCaptured={(route) => {
               setCurrentGpsRoute(route);
               setActualDistanceValue(String(route.totalDistanceKm));
+              setSelectedWorkout(prev => prev ? {
+                ...prev,
+                data: {
+                  ...prev.data,
+                  completed: true
+                }
+              } : null);
               setShowGpsTracker(false);
             }}
             onCancel={() => setShowGpsTracker(false)}

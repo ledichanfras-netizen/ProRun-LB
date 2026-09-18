@@ -21,7 +21,7 @@ export interface RouteData {
   maxSpeedKmh?: number;
   elevationGainMeters?: number;
   avgHeartRate?: number;
-  source: 'live_gps' | 'gpx_file';
+  source: 'live_gps' | 'gpx_file' | 'manual_or_indoor';
   recordedAt: string;
   completedSteps?: {
     stepId: string;

@@ -81,7 +81,6 @@ export default function Login() {
                 src="/logo.png?v=11"
                 alt="ProRun LB" 
                 className="w-full h-full object-cover rounded-[1.5rem]"
-                referrerPolicy="no-referrer" 
               />
             </div>
           </motion.div>

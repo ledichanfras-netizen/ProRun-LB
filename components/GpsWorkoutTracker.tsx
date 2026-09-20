@@ -30,7 +30,8 @@ import {
   MicOff,
   X,
   AlertTriangle,
-  CheckCircle2
+  CheckCircle2,
+  HeartPulse
 } from 'lucide-react';
 import { WorkoutMap } from './WorkoutMap';
 import { 
@@ -53,6 +54,7 @@ import {
 import { StructuredWorkoutModal } from './StructuredWorkoutModal';
 import { WorkoutShareModal, WorkoutShareData } from './WorkoutShareModal';
 import { useApp } from '../contexts/AppContext';
+import { HeartRateMonitor, HeartRateMeasurement } from '../utils/heartRateMonitor';
 
 interface GpsWorkoutTrackerProps {
   workoutType: string;
@@ -177,6 +179,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
   const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [heartRateBpm, setHeartRateBpm] = useState<number | null>(null);
+  const [heartRateAverage, setHeartRateAverage] = useState<number | null>(null);
+  const [heartRateMax, setHeartRateMax] = useState<number | null>(null);
+  const [heartRateSamples, setHeartRateSamples] = useState<number[]>([]);
+  const [heartRateStatus, setHeartRateStatus] = useState<'idle' | 'connecting' | 'connected' | 'unsupported' | 'error'>('idle');
+  const [heartRateDeviceName, setHeartRateDeviceName] = useState<string | null>(null);
+  const [heartRateError, setHeartRateError] = useState<string | null>(null);
+  const heartRateMonitorRef = useRef(new HeartRateMonitor());
 
   // New UI & Audio States (Contagem Regressiva, Tela Grande Focus HUD, Confirmação ao Sair)
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
@@ -244,6 +254,47 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     } catch (err) {}
   };
 
+  const handleHeartRateMeasurement = (measurement: HeartRateMeasurement) => {
+    setHeartRateBpm(measurement.bpm);
+    setHeartRateSamples(prev => {
+      const next = [...prev, measurement.bpm].slice(-600);
+      setHeartRateAverage(Math.round(next.reduce((sum, value) => sum + value, 0) / next.length));
+      setHeartRateMax(Math.max(...next));
+      return next;
+    });
+  };
+
+  const connectHeartRate = async () => {
+    const monitor = heartRateMonitorRef.current;
+    if (!monitor.isSupported) {
+      setHeartRateStatus('unsupported');
+      setHeartRateError('Use Chrome ou Edge em um dispositivo compatível com Bluetooth LE.');
+      return;
+    }
+
+    setHeartRateStatus('connecting');
+    setHeartRateError(null);
+    try {
+      const device = await monitor.connect(handleHeartRateMeasurement, () => {
+        setHeartRateStatus('idle');
+        setHeartRateDeviceName(null);
+        setHeartRateBpm(null);
+      });
+      setHeartRateDeviceName(device.name);
+      setHeartRateStatus('connected');
+    } catch (error: any) {
+      setHeartRateStatus('error');
+      setHeartRateError(error?.message || 'Não foi possível conectar o sensor.');
+    }
+  };
+
+  const disconnectHeartRate = async () => {
+    await heartRateMonitorRef.current.disconnect();
+    setHeartRateStatus('idle');
+    setHeartRateDeviceName(null);
+    setHeartRateBpm(null);
+  };
+
   // ADVANCE STEP / LAP FUNCTION WITH VOICE SYNTHESIS
   const advanceStep = (manualLap: boolean = false) => {
     const { activeStructured: struct, activeStepIndex: curIdx, stepDistanceMeters: curDist, stepDurationSeconds: curDur, completedSteps: prevComp } = trackingRef.current;
@@ -296,6 +347,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
     workoutAudio.init();
     setGpsError(null);
+    setHeartRateBpm(null);
+    setHeartRateAverage(null);
+    setHeartRateMax(null);
+    setHeartRateSamples([]);
 
     // Pre-start 5 second countdown with speech
     setCountdownSeconds(5);
@@ -513,6 +568,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const finishTracking = () => {
     pauseTracking();
     setIsTracking(false);
+    void heartRateMonitorRef.current.disconnect();
 
     // If no GPS coordinates or very short, save as an indoor/manual workout (e.g. treadmill or lost signal)
     if (gpsPoints.length < 2 && distanceKm < 0.05) {
@@ -539,6 +595,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         avgPace: "00:00",
         source: 'manual_or_indoor',
         recordedAt: new Date().toISOString(),
+        avgHeartRate: heartRateAverage || undefined,
         completedSteps: finalCompleted.length > 0 ? finalCompleted : undefined
       };
 
@@ -573,6 +630,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       avgPace,
       source: 'live_gps',
       recordedAt: new Date().toISOString(),
+      avgHeartRate: heartRateAverage || undefined,
       completedSteps: finalCompleted.length > 0 ? finalCompleted : undefined
     };
 
@@ -584,6 +642,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+      void heartRateMonitorRef.current.disconnect();
       releaseWakeLock();
     };
   }, []);
@@ -1146,6 +1205,74 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               )}
             </div>
           )}
+
+          {/* Sensor cardíaco BLE */}
+          <div className={`rounded-2xl border p-3.5 transition-all ${
+            heartRateStatus === 'connected'
+              ? (isLight ? 'bg-rose-50 border-rose-200' : 'bg-rose-500/10 border-rose-500/30')
+              : (isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5')
+          }`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  heartRateStatus === 'connected' ? 'bg-rose-500 text-white' : (isLight ? 'bg-rose-100 text-rose-600' : 'bg-rose-500/15 text-rose-400')
+                }`}>
+                  <HeartPulse className={`w-5 h-5 ${heartRateStatus === 'connected' ? 'animate-pulse' : ''}`} />
+                </div>
+                <div className="min-w-0">
+                  <div className={`text-[10px] font-black uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    Sensor cardíaco
+                  </div>
+                  <div className={`text-[10px] truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {heartRateStatus === 'connected' ? `${heartRateDeviceName} conectado` : 'Bluetooth LE • padrão universal'}
+                  </div>
+                </div>
+              </div>
+
+              {heartRateStatus === 'connected' ? (
+                <button
+                  type="button"
+                  onClick={disconnectHeartRate}
+                  className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase cursor-pointer ${isLight ? 'bg-white text-rose-700 border border-rose-200' : 'bg-white/10 text-rose-300'}`}
+                >
+                  Desconectar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={connectHeartRate}
+                  disabled={heartRateStatus === 'connecting'}
+                  className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white text-[9px] font-black uppercase tracking-wide cursor-pointer transition-colors"
+                >
+                  {heartRateStatus === 'connecting' ? 'Conectando...' : 'Conectar sensor'}
+                </button>
+              )}
+            </div>
+
+            {heartRateStatus === 'connected' && (
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-rose-500/15 text-center">
+                <div>
+                  <span className={`block text-[8px] font-black uppercase tracking-widest ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Agora</span>
+                  <span className={`font-mono text-2xl font-black ${isLight ? 'text-rose-600' : 'text-rose-300'}`}>{heartRateBpm || '--'}</span>
+                  <span className="text-[8px] font-bold text-slate-500 ml-1">BPM</span>
+                </div>
+                <div>
+                  <span className={`block text-[8px] font-black uppercase tracking-widest ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Média</span>
+                  <span className={`font-mono text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>{heartRateAverage || '--'}</span>
+                  <span className="text-[8px] font-bold text-slate-500 ml-1">BPM</span>
+                </div>
+                <div>
+                  <span className={`block text-[8px] font-black uppercase tracking-widest ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Máxima</span>
+                  <span className={`font-mono text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>{heartRateMax || '--'}</span>
+                  <span className="text-[8px] font-bold text-slate-500 ml-1">BPM</span>
+                </div>
+              </div>
+            )}
+
+            {heartRateError && (
+              <div className={`mt-2 text-[10px] font-medium ${isLight ? 'text-rose-700' : 'text-rose-300'}`}>{heartRateError}</div>
+            )}
+          </div>
 
           {/* Painel do Relógio & Métricas de Corrida (Gerais) */}
           <div className={`grid grid-cols-3 gap-2 p-4 rounded-2xl border text-center transition-colors ${

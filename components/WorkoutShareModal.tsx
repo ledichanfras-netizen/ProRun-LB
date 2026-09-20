@@ -247,7 +247,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
         await navigator.share({
           files: [file],
           title: `Treino ProRun - ${data.distanceKm}km`,
-          text: `🏃‍♂️ ${data.distanceKm}km • Pace ${data.avgPace}/km • Tempo ${formatDuration(data.durationSeconds)}`
+          text: `🏃‍♂️ ${data.distanceKm}km • Pace ${data.avgPace}/km • Tempo ${formatDuration(data.durationSeconds)}${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
         });
       } else {
         setExportSuccess(true);
@@ -638,6 +638,36 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     </p>
                   </div>
                 </div>
+
+                {showHeartRate && data.avgHeartRate && (
+                  <div
+                    className="mt-2 flex items-center justify-center gap-1.5 border-t pt-1.5"
+                    style={{ borderColor: isDarkText ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.2)' }}
+                  >
+                    <Heart
+                      className={aspectRatio === 'square' ? 'w-3 h-3' : 'w-3.5 h-3.5'}
+                      style={{ color: isDarkText ? '#e11d48' : '#fb7185' }}
+                    />
+                    <span
+                      className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider"
+                      style={{
+                        color: isDarkText ? '#000000' : '#ffffff',
+                        textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                      }}
+                    >
+                      Frequência cardíaca média
+                    </span>
+                    <strong
+                      className={aspectRatio === 'square' ? 'text-xs' : 'text-sm'}
+                      style={{
+                        color: isDarkText ? '#e11d48' : '#fb7185',
+                        textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                      }}
+                    >
+                      {data.avgHeartRate} bpm
+                    </strong>
+                  </div>
+                )}
 
                 {/* Footer Brand Watermark */}
                 <div className="pt-1 sm:pt-1.5 pb-0.5 flex items-center justify-between shrink-0 leading-tight">

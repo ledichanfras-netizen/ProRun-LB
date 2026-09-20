@@ -3456,6 +3456,7 @@ const AthletePortal: React.FC = () => {
                           route: currentGpsRoute || selectedWorkout.data.gpsRoute,
                           workoutType: selectedWorkout.data.type,
                           initialBackgroundType: 'photo',
+                          initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
                           rpe: rpeValue || selectedWorkout.data.rpe
                         });
                         setSelectedWorkout(null);

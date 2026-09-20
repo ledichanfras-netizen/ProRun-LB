@@ -4,7 +4,7 @@ import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, Ath
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
-import { updateGamificationData } from '../services/gamificationService';
+import { updateGamificationData, countCompletedWorkouts } from '../services/gamificationService';
 import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../utils/sanitization';
 import { getAppNow } from '../utils/time';
@@ -451,6 +451,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
         setAthletePlans(plans);
         localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(plans));
+
+        // Auto-heal and reconcile athlete gamification totalWorkouts with real completed workouts
+        setAthletes(prevAthletes => {
+          let hasChanges = false;
+          const reconciled = prevAthletes.map(ath => {
+            const trueCount = countCompletedWorkouts(plans, ath.id, ath.archivedPlans);
+            if (ath.gamification && ath.gamification.totalWorkouts !== trueCount) {
+              hasChanges = true;
+              return {
+                ...ath,
+                gamification: {
+                  ...ath.gamification,
+                  totalWorkouts: trueCount
+                }
+              };
+            }
+            return ath;
+          });
+          if (hasChanges) {
+            localStorage.setItem('proRun_cached_athletes', JSON.stringify(reconciled));
+          }
+          return hasChanges ? reconciled : prevAthletes;
+        });
       }
       
     } catch (err: any) {
@@ -771,6 +794,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
     
+    const wasAlreadyCompleted = Boolean(currentPlan.weeks[weekIndex]?.workouts[dayIndex]?.completed);
     const updatedPlan = safeDeepClone(currentPlan);
     const workout = updatedPlan.weeks[weekIndex].workouts[dayIndex];
     
@@ -804,44 +828,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (readinessScore !== undefined) workout.readinessScore = readinessScore;
     if (gpsRoute !== undefined) workout.gpsRoute = gpsRoute;
     
-    // Gamification Integration
-    if (completed) {
-      const athlete = athletes.find(a => a.id === athleteId);
-      if (athlete) {
-        const { updatedData, newAchievements } = updateGamificationData(
-          athlete.gamification,
-          workout,
-          athletePlans,
-          athleteId
-        );
-        
-        const updateData: Partial<Athlete> = { gamification: updatedData };
-        
-        if (readinessScore !== undefined) {
-          updateData.lastReadiness = {
-            date: new Date().toISOString().split('T')[0],
-            sleepScore: sleepScore || 3,
-            stressScore: stressScore || 3,
-            sorenessScore: sorenessScore || 3,
-            moodScore: moodScore || 3,
-            menstrualPhase: menstrualPhase || 'none',
-            readinessScore: readinessScore
-          };
-          
-          // Also set the simple backward compatible readiness field for dashboard filters
-          if (readinessScore >= 70) {
-            updateData.readiness = 'ready';
-          } else if (readinessScore >= 40) {
-            updateData.readiness = 'recovering';
-          } else {
-            updateData.readiness = 'fatigued';
-          }
+    // Gamification Integration (handles new completion, edits, or unmarking without inflating counts)
+    const athlete = athletes.find(a => a.id === athleteId);
+    if (athlete) {
+      const simulatedPlans = {
+        ...athletePlans,
+        [athleteId]: updatedPlan
+      };
+
+      const { updatedData, newAchievements } = updateGamificationData(
+        athlete.gamification,
+        workout,
+        simulatedPlans,
+        athleteId,
+        {
+          wasAlreadyCompleted,
+          isUncompleting: wasAlreadyCompleted && !completed,
+          archivedPlans: athlete.archivedPlans
         }
+      );
+      
+      const updateData: Partial<Athlete> = { gamification: updatedData };
+      
+      if (readinessScore !== undefined) {
+        updateData.lastReadiness = {
+          date: new Date().toISOString().split('T')[0],
+          sleepScore: sleepScore || 3,
+          stressScore: stressScore || 3,
+          sorenessScore: sorenessScore || 3,
+          moodScore: moodScore || 3,
+          menstrualPhase: menstrualPhase || 'none',
+          readinessScore: readinessScore
+        };
         
-        // Update athlete state with new gamification and readiness data
-        await updateAthlete(athleteId, updateData);
-        
-        // Notify new achievements
+        // Also set the simple backward compatible readiness field for dashboard filters
+        if (readinessScore >= 70) {
+          updateData.readiness = 'ready';
+        } else if (readinessScore >= 40) {
+          updateData.readiness = 'recovering';
+        } else {
+          updateData.readiness = 'fatigued';
+        }
+      }
+      
+      // Update athlete state with new gamification and readiness data
+      await updateAthlete(athleteId, updateData);
+      
+      // Notify new achievements only if newly earned
+      if (newAchievements && newAchievements.length > 0) {
         newAchievements.forEach(achievement => {
           addNotification({
             title: `Nova Conquista: ${achievement.name}`,

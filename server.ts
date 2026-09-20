@@ -51,6 +51,7 @@ async function startServer() {
     app.use(express.static(distPath, { 
       redirect: false,
       setHeaders: (res, filePath) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
         if (filePath.endsWith('.png')) {
           res.setHeader('Content-Type', 'image/png');
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -68,6 +69,7 @@ async function startServer() {
       app.use(express.static(publicPath, {
         redirect: false,
         setHeaders: (res, filePath) => {
+          res.setHeader('Access-Control-Allow-Origin', '*');
           if (filePath.endsWith('.png')) {
             res.setHeader('Content-Type', 'image/png');
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');

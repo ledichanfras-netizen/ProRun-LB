@@ -51,13 +51,67 @@ export const exportElementAsImage = async (
     document.body.removeChild(link);
   };
 
+  const dataURLToBlob = (dataUrl: string): Blob => {
+    const parts = dataUrl.split(',');
+    const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/png';
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
+
+  // Find all hidden ancestors and temporarily unhide them off-screen
+  const hiddenAncestors: { 
+    element: HTMLElement; 
+    originalDisplay: string; 
+    originalVisibility: string; 
+    originalPosition: string; 
+    originalLeft: string;
+    originalTop: string;
+  }[] = [];
+  
+  let curr: HTMLElement | null = element;
+  let topHidden: HTMLElement | null = null;
+  
+  while (curr && curr !== document.body) {
+    const style = window.getComputedStyle(curr);
+    if (style.display === 'none' || curr.classList.contains('hidden') || style.visibility === 'hidden') {
+      hiddenAncestors.push({
+        element: curr,
+        originalDisplay: curr.style.display,
+        originalVisibility: curr.style.visibility,
+        originalPosition: curr.style.position,
+        originalLeft: curr.style.left,
+        originalTop: curr.style.top
+      });
+      topHidden = curr;
+    }
+    curr = curr.parentElement;
+  }
+
+  // If there are hidden ancestors, force them visible off-screen so we can export
+  if (hiddenAncestors.length > 0) {
+    hiddenAncestors.forEach(({ element: el }) => {
+      el.style.setProperty('display', 'flex', 'important');
+      el.style.setProperty('visibility', 'visible', 'important');
+    });
+    if (topHidden) {
+      topHidden.style.setProperty('position', 'fixed', 'important');
+      topHidden.style.setProperty('left', '-9999px', 'important');
+      topHidden.style.setProperty('top', '0', 'important');
+    }
+  }
+
   try {
     // 1. Tenta html2canvas
     try {
       const canvas = await html2canvas(element, {
         scale,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false, // DO NOT allow taint, prevents security error during canvas export
         backgroundColor: transparent ? null : '#ffffff',
         logging: false,
       });
@@ -65,28 +119,37 @@ export const exportElementAsImage = async (
       const dataUrl = canvas.toDataURL(mimeType, 0.98);
       if (dataUrl && dataUrl.length > 500) {
         triggerDownload(dataUrl);
-        const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, mimeType, 0.98));
-        return { success: true, dataUrl, blob: blob || undefined };
+        const blob = dataURLToBlob(dataUrl);
+        return { success: true, dataUrl, blob };
       }
     } catch (h2cError) {
       console.warn("html2canvas falhou, tentando toPng/toJpeg...", h2cError);
     }
 
     // 2. Fallback html-to-image
-    const dataUrl = format === 'png' 
+    const dataUrl = format === 'png'
       ? await toPng(element, { pixelRatio: scale, backgroundColor: transparent ? 'transparent' : '#ffffff', skipFonts: true })
       : await toJpeg(element, { quality: 0.98, pixelRatio: scale, backgroundColor: '#ffffff', skipFonts: true });
 
     if (dataUrl && dataUrl.length > 500) {
       triggerDownload(dataUrl);
-      const blob = await toBlob(element, { pixelRatio: scale, skipFonts: true });
-      return { success: true, dataUrl, blob: blob || undefined };
+      const blob = dataURLToBlob(dataUrl);
+      return { success: true, dataUrl, blob };
     }
 
     throw new Error("Falha na renderização de imagem");
   } catch (err: any) {
     console.error("Erro ao exportar imagem:", err);
     return { success: false };
+  } finally {
+    // Restaura os estilos originais perfeitamente
+    hiddenAncestors.forEach(({ element: el, originalDisplay, originalVisibility, originalPosition, originalLeft, originalTop }) => {
+      el.style.display = originalDisplay;
+      el.style.visibility = originalVisibility;
+      el.style.position = originalPosition;
+      el.style.left = originalLeft;
+      el.style.top = originalTop;
+    });
   }
 };
 
@@ -193,7 +256,7 @@ export const exportToImage = async (elementId: string, filename: string): Promis
       const canvas = await html2canvas(element, {
         scale: 2, // Resolução HD (2x)
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false, // Prevents security exceptions for canvas exports
         backgroundColor: '#ffffff',
         logging: false,
         windowWidth: 1200,

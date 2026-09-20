@@ -7,18 +7,55 @@ const XP_FOR_INTERVAL = 120;
 const XP_PER_LEVEL = 1000;
 
 export const calculateLevel = (totalXp: number): number => {
-  return Math.floor(totalXp / XP_PER_LEVEL) + 1;
+  return Math.floor(Math.max(0, totalXp) / XP_PER_LEVEL) + 1;
 };
 
 export const getProgressToNextLevel = (totalXp: number): number => {
-  return (totalXp % XP_PER_LEVEL) / XP_PER_LEVEL * 100;
+  return (Math.max(0, totalXp) % XP_PER_LEVEL) / XP_PER_LEVEL * 100;
 };
+
+export const countCompletedWorkouts = (
+  allPlans: Record<string, any>,
+  athleteId: string,
+  extraArchivedPlans?: any[]
+): number => {
+  let count = 0;
+  const plan = allPlans[athleteId];
+  if (plan?.weeks && Array.isArray(plan.weeks)) {
+    plan.weeks.forEach((w: any) => {
+      (w.workouts || []).forEach((tw: any) => {
+        if (tw.completed && tw.type !== 'Descanso') {
+          count++;
+        }
+      });
+    });
+  }
+  if (extraArchivedPlans && Array.isArray(extraArchivedPlans)) {
+    extraArchivedPlans.forEach((ap: any) => {
+      (ap.weeks || []).forEach((w: any) => {
+        (w.workouts || []).forEach((tw: any) => {
+          if (tw.completed && tw.type !== 'Descanso') {
+            count++;
+          }
+        });
+      });
+    });
+  }
+  return count;
+};
+
+export interface GamificationOptions {
+  wasAlreadyCompleted?: boolean;
+  isUncompleting?: boolean;
+  archivedPlans?: any[];
+}
 
 export const updateGamificationData = (
   currentData: GamificationData | undefined,
   workout: TrainingWeek['workouts'][0],
   allPlans: Record<string, any>,
-  athleteId: string
+  athleteId: string,
+  options?: GamificationOptions
 ): { updatedData: GamificationData; newAchievements: UserAchievement[] } => {
   const today = getAppNow();
   const todayStr = today.toISOString().split('T')[0];
@@ -36,20 +73,42 @@ export const updateGamificationData = (
   const newAchievements: UserAchievement[] = [];
   const updatedData = { ...initialData };
 
+  // Calculate the true count of completed workouts across plans
+  const trueCount = countCompletedWorkouts(allPlans, athleteId, options?.archivedPlans);
+
+  // Helper for XP per workout type
+  const getXpForWorkout = (type?: string) => {
+    if (type === 'Longão') return XP_FOR_LONG_RUN;
+    if (type === 'Intervalado') return XP_FOR_INTERVAL;
+    if (type === 'Maratona') return 120;
+    if (type === 'Prova') return 250;
+    if (type === 'Descanso') return 20;
+    return XP_PER_WORKOUT;
+  };
+
+  // CASE 1: UNMARKING A WORKOUT (was completed, now marked incomplete)
+  if (options?.isUncompleting) {
+    const xpToDeduct = getXpForWorkout(workout.type);
+    updatedData.xp = Math.max(0, updatedData.xp - xpToDeduct);
+    updatedData.level = calculateLevel(updatedData.xp);
+    updatedData.totalWorkouts = trueCount;
+    return { updatedData, newAchievements: [] };
+  }
+
+  // CASE 2: EDITING AN ALREADY COMPLETED WORKOUT (was already completed, still completed)
+  // "Quando eu Editar um Treino, não computar novamente os Dados"
+  if (options?.wasAlreadyCompleted && workout.completed) {
+    // Keep exact true count, do NOT re-award XP, do NOT re-increment streaks or goals
+    updatedData.totalWorkouts = trueCount;
+    return { updatedData, newAchievements: [] };
+  }
+
+  // CASE 3: NEW WORKOUT COMPLETION
   if (workout.completed) {
-    // XP Logic
-    let xpGain = XP_PER_WORKOUT;
-    if (workout.type === 'Longão') xpGain = XP_FOR_LONG_RUN;
-    else if (workout.type === 'Intervalado') xpGain = XP_FOR_INTERVAL;
-    else if (workout.type === 'Maratona') xpGain = 120;
-    else if (workout.type === 'Prova') xpGain = 250; // Grande bônus por concluir a prova alvo!
-    else if (workout.type === 'Descanso') xpGain = 20; // Pequeno bônus por registrar o descanso
-    
+    const xpGain = getXpForWorkout(workout.type);
     updatedData.xp += xpGain;
     updatedData.level = calculateLevel(updatedData.xp);
-    if (workout.type !== 'Descanso') {
-      updatedData.totalWorkouts += 1;
-    }
+    updatedData.totalWorkouts = trueCount > 0 ? trueCount : (updatedData.totalWorkouts + (workout.type !== 'Descanso' ? 1 : 0));
 
     // Streak Logic (Descanso também mantém streak se for parte do plano)
     if (updatedData.lastWorkoutDate) {
@@ -96,7 +155,7 @@ export const updateGamificationData = (
     
     // Total Volume Checked from Plan
     const plan = allPlans[athleteId];
-    if (plan) {
+    if (plan && plan.weeks) {
       let totalKm = 0;
       plan.weeks.forEach((w: any) => {
         w.workouts.forEach((tw: any) => {
@@ -113,12 +172,10 @@ export const updateGamificationData = (
 
       let newCurrentValue = goal.currentValue;
       if (goal.type === 'distance') {
-        newCurrentValue += workout.distance || 0;
+        newCurrentValue += workout.actualDistance || workout.distance || 0;
       } else if (goal.type === 'frequency') {
         newCurrentValue += 1;
       } else if (goal.type === 'consistency') {
-        // Implementation of consistency logic could be more complex, 
-        // here we just increment for every completed workout for simplicity in this demo
         newCurrentValue += 1;
       }
 

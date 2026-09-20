@@ -40,7 +40,11 @@ import {
   Moon,
   Brain,
   Flame,
-  Smile
+  Smile,
+  Calendar,
+  HeartPulse,
+  BatteryCharging,
+  Info
 } from 'lucide-react';
 import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
@@ -198,6 +202,7 @@ const AthletePortal: React.FC = () => {
   const [showPortalForm, setShowPortalForm] = useState(false);
   const [showHistoryInModal, setShowHistoryInModal] = useState(false);
   const [portalDate, setPortalDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [readinessChartTab, setReadinessChartTab] = useState<'readiness' | 'multi'>('readiness');
 
   // Post-Workout Completion Prompt & Photo Capture States
   const [completedWorkoutPrompt, setCompletedWorkoutPrompt] = useState<{
@@ -207,6 +212,7 @@ const AthletePortal: React.FC = () => {
     avgPace: string;
     route?: any;
     workoutType?: string;
+    rpe?: number;
   } | null>(null);
 
   const completionCameraInputRef = useRef<HTMLInputElement>(null);
@@ -230,7 +236,8 @@ const AthletePortal: React.FC = () => {
         avgHeartRate: completedWorkoutPrompt.route?.avgHeartRate,
         route: completedWorkoutPrompt.route,
         workoutType: completedWorkoutPrompt.workout.type,
-        initialPhotoUrl: photoUrl
+        initialPhotoUrl: photoUrl,
+        rpe: completedWorkoutPrompt.rpe
       });
       setCompletedWorkoutPrompt(null);
     };
@@ -680,6 +687,7 @@ const AthletePortal: React.FC = () => {
     setSaveSuccess(false);
     
     try {
+      const wasCompletedBefore = Boolean(selectedWorkout.data.completed);
       const newStatus = shouldCloseAfterSave ? selectedWorkout.data.completed : !selectedWorkout.data.completed;
       const parsedDistance = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : undefined;
       
@@ -739,16 +747,17 @@ const AthletePortal: React.FC = () => {
       // Snapshot for post-workout sharing prompt if completed
       const completedWorkoutSnapshot = (newStatus && selectedWorkout) ? {
         workout: selectedWorkout.data,
-        distanceKm: parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.distance || 0,
+        distanceKm: parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0,
         durationSeconds: actualDurationValue !== '' 
           ? parseDurationStringToSeconds(actualDurationValue) 
-          : (currentGpsRoute?.durationSeconds || (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)),
+          : (currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800))),
         avgPace: calculatePace(
-          String(parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.distance || 0),
-          actualDurationValue !== '' ? actualDurationValue : formatSecondsToTimeString(currentGpsRoute?.durationSeconds || 1800)
+          String(parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0),
+          actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.durationSeconds || 1800))
         ),
-        route: currentGpsRoute,
-        workoutType: selectedWorkout.data.type
+        route: currentGpsRoute || selectedWorkout.data.gpsRoute,
+        workoutType: selectedWorkout.data.type,
+        rpe: rpeValue || selectedWorkout.data.rpe
       } : null;
 
       setTimeout(() => {
@@ -763,8 +772,22 @@ const AthletePortal: React.FC = () => {
           setCurrentGpsRoute(null);
           setShowGpsTracker(false);
 
-          if (completedWorkoutSnapshot) {
-            setCompletedWorkoutPrompt(completedWorkoutSnapshot);
+          if (completedWorkoutSnapshot && selectedWorkout.data.type !== 'Descanso') {
+            setCompletedWorkoutPrompt(null);
+            setShareWorkoutData({
+              title: completedWorkoutSnapshot.workout.customDescription?.slice(0, 45) || `${completedWorkoutSnapshot.workout.type || 'Treino'}`,
+              athleteName: activeAthlete?.name,
+              date: completedWorkoutSnapshot.workout.date || new Date().toLocaleDateString('pt-BR'),
+              distanceKm: completedWorkoutSnapshot.distanceKm,
+              durationSeconds: completedWorkoutSnapshot.durationSeconds,
+              avgPace: completedWorkoutSnapshot.avgPace,
+              elevationGainMeters: completedWorkoutSnapshot.route?.elevationGainMeters,
+              avgHeartRate: completedWorkoutSnapshot.route?.avgHeartRate,
+              route: completedWorkoutSnapshot.route,
+              workoutType: completedWorkoutSnapshot.workout.type,
+              initialBackgroundType: 'photo',
+              rpe: completedWorkoutSnapshot.rpe
+            });
           }
         }
       }, 800);
@@ -2084,6 +2107,670 @@ const AthletePortal: React.FC = () => {
           Volume total acumulado (KM) por semana
         </p>
       </div>
+
+      {/* SEÇÃO: CONTROLE DE PRONTIDÃO, QUALIDADE DE SONO, DOR E FADIGA (OPÇÃO 2) */}
+      {(() => {
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        const historyList = activeAthlete?.readinessHistory || [];
+        const todayEntry = historyList.find(e => e.date === todayDateStr) || activeAthlete?.lastReadiness;
+        const isTodayRegistered = historyList.some(e => e.date === todayDateStr);
+
+        // Normalização de notas (caso venha em escala 0-5 ou 0-10)
+        const normalizeScore = (val: number | undefined | null) => {
+          if (val === undefined || val === null) return null;
+          return val <= 5 ? Math.min(10, Math.round(val * 2)) : val;
+        };
+
+        const currentScore = todayEntry?.readinessScore ?? null;
+        const currentSleep = normalizeScore(todayEntry?.sleepScore);
+        const currentSleepHours = todayEntry?.sleepHours ?? null;
+        const currentStress = normalizeScore(todayEntry?.stressScore);
+        const currentSoreness = normalizeScore(todayEntry?.sorenessScore);
+        const currentMood = normalizeScore(todayEntry?.moodScore);
+
+        // Status esportivo da prontidão
+        const getStatusData = (score: number | null) => {
+          if (score === null) {
+            return {
+              label: 'Check-in Pendente',
+              sublabel: 'AVALIAÇÃO DE HOJE PENDENTE',
+              advice: 'Preencha o check-in de hoje para calcular sua prontidão e receber a recomendação ideal para o seu treino.',
+              colorClass: 'text-amber-500',
+              bgClass: isLight ? 'bg-amber-500/10 border-amber-500/20 text-amber-700' : 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+              gradient: 'from-amber-500/15 via-amber-500/5 to-transparent',
+              badgeBorder: 'border-amber-500/30'
+            };
+          }
+          if (score >= 85) {
+            return {
+              label: 'Excelente Prontidão',
+              sublabel: 'PLANILHA 100% LIBERADA',
+              advice: 'Recuperação neuromuscular excelente. Corpo e mente aptos para intensidade máxima, ritmo forte e tiros.',
+              colorClass: 'text-emerald-500',
+              bgClass: isLight ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+              gradient: 'from-emerald-500/15 via-emerald-500/5 to-transparent',
+              badgeBorder: 'border-emerald-500/30'
+            };
+          }
+          if (score >= 70) {
+            return {
+              label: 'Boa Prontidão',
+              sublabel: 'LIBERADO PARA TREINAR',
+              advice: 'Bom tônus muscular e descanso adequado. O treino planejado pode ser seguido normalmente com segurança.',
+              colorClass: 'text-teal-500',
+              bgClass: isLight ? 'bg-teal-500/10 border-teal-500/20 text-teal-700' : 'bg-teal-500/10 border-teal-500/30 text-teal-400',
+              gradient: 'from-teal-500/15 via-teal-500/5 to-transparent',
+              badgeBorder: 'border-teal-500/30'
+            };
+          }
+          if (score >= 45) {
+            return {
+              label: 'Prontidão Moderada',
+              sublabel: 'TREINAR COM CAUTELA',
+              advice: 'Sinais leves de cansaço ou sono parcial. O treino pode ser executado, mas evite desgastes extremos se as pernas pesarem.',
+              colorClass: 'text-amber-500',
+              bgClass: isLight ? 'bg-amber-500/10 border-amber-500/20 text-amber-700' : 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+              gradient: 'from-amber-500/15 via-amber-500/5 to-transparent',
+              badgeBorder: 'border-amber-500/30'
+            };
+          }
+          return {
+            label: 'Fadiga Elevada',
+            sublabel: 'REGENERAÇÃO OU REPOUSO',
+            advice: 'Fadiga acumulada detectada (sono insuficiente, dor muscular ou estresse). Recomendado treino regenerativo ou repouso ativo.',
+            colorClass: 'text-rose-500',
+            bgClass: isLight ? 'bg-rose-500/10 border-rose-500/20 text-rose-700' : 'bg-rose-500/10 border-rose-500/30 text-rose-400',
+            gradient: 'from-rose-500/15 via-rose-500/5 to-transparent',
+            badgeBorder: 'border-rose-500/30'
+          };
+        };
+
+        const statusInfo = getStatusData(currentScore);
+
+        // Gerar histórico dos últimos 7 dias
+        const weekDays = [];
+        const today = new Date();
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(today);
+          d.setDate(today.getDate() - i);
+          const dateString = d.toISOString().split('T')[0];
+          const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+          const dayName = dayNames[d.getDay()];
+          const dayFmt = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+          const isCurrent = i === 0;
+
+          const entry = historyList.find(e => e.date === dateString);
+
+          let dayKm = 0;
+          athletePlan?.weeks?.forEach((w: any) => {
+            w.workouts?.forEach((work: any) => {
+              if (work.date === dateString && work.completed && work.type !== 'Descanso') {
+                dayKm += Number(work.actualDistance || work.distance || 0);
+              }
+            });
+          });
+
+          const sleepN = normalizeScore(entry?.sleepScore);
+          const stressN = normalizeScore(entry?.stressScore);
+          const sorenessN = normalizeScore(entry?.sorenessScore);
+
+          weekDays.push({
+            dateString,
+            name: isCurrent ? 'Hoje' : dayName,
+            fullLabel: isCurrent ? `Hoje (${dayFmt})` : `${dayName} (${dayFmt})`,
+            readiness: entry?.readinessScore !== undefined ? entry.readinessScore : (isCurrent && currentScore !== null ? currentScore : null),
+            sleepPct: sleepN !== null ? sleepN * 10 : null,
+            sleepScore: sleepN,
+            sleepHours: entry?.sleepHours || null,
+            fatiguePct: stressN !== null ? stressN * 10 : null,
+            fatigueScore: stressN,
+            sorenessPct: sorenessN !== null ? sorenessN * 10 : null,
+            sorenessScore: sorenessN,
+            km: Math.round(dayKm * 10) / 10,
+            hasData: Boolean(entry)
+          });
+        }
+
+        const registeredDays = weekDays.filter(d => d.readiness !== null);
+        const avgReadiness = registeredDays.length > 0 
+          ? Math.round(registeredDays.reduce((acc, cur) => acc + (cur.readiness || 0), 0) / registeredDays.length)
+          : null;
+        
+        const daysWithSleep = weekDays.filter(d => d.sleepHours !== null && d.sleepHours > 0);
+        const avgSleepHours = daysWithSleep.length > 0
+          ? (daysWithSleep.reduce((acc, cur) => acc + (cur.sleepHours || 0), 0) / daysWithSleep.length).toFixed(1)
+          : null;
+        
+        const totalKm7Days = Math.round(weekDays.reduce((acc, cur) => acc + cur.km, 0) * 10) / 10;
+
+        return (
+          <div className={`rounded-[2rem] p-6 sm:p-8 border shadow-sm space-y-6 transition-all ${
+            isLight ? 'bg-white border-slate-100' : 'bg-slate-900 border-slate-800'
+          }`}>
+            {/* CABEÇALHO DO CONTROLE DE PRONTIDÃO */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className={`font-black text-sm uppercase italic tracking-tight ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      Controle de Prontidão & Recuperação
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      Qualidade de sono, dor muscular, fadiga e biomarcadores diários
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold ${
+                  isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-slate-800/60 border-slate-700 text-slate-300'
+                }`}>
+                  <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Hoje, {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPortalDate(todayDateStr);
+                    setShowPortalForm(true);
+                  }}
+                  className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-[11px] uppercase italic tracking-wider shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isTodayRegistered ? 'Atualizar Prontidão' : 'Registrar Prontidão'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* HERO BANNER: SCORE GERAL DE PRONTIDÃO */}
+            <div className={`relative overflow-hidden rounded-[1.8rem] p-5 sm:p-6 border bg-gradient-to-br ${statusInfo.gradient} ${
+              isLight ? 'border-slate-100 bg-slate-50/60' : 'border-white/5 bg-slate-950/40'
+            }`}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className={`w-18 h-18 sm:w-20 sm:h-20 rounded-2xl flex flex-col items-center justify-center border shadow-inner ${
+                    isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-white/10'
+                  }`}>
+                    <span className={`text-2xl sm:text-3xl font-black font-mono leading-none ${statusInfo.colorClass}`}>
+                      {currentScore !== null ? `${currentScore}%` : '--'}
+                    </span>
+                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                      Score
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${statusInfo.bgClass}`}>
+                        {statusInfo.sublabel}
+                      </span>
+                      <span className={`text-[10px] font-bold italic ${
+                        isTodayRegistered ? 'text-emerald-500' : 'text-amber-500'
+                      }`}>
+                        {isTodayRegistered ? '• Check-in de hoje preenchido' : '• Check-in de hoje pendente'}
+                      </span>
+                    </div>
+                    <h4 className={`text-base sm:text-lg font-black uppercase italic tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      {statusInfo.label}
+                    </h4>
+                    <p className={`text-xs max-w-xl font-medium leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                      {statusInfo.advice}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex sm:flex-col items-end justify-between sm:justify-center border-t sm:border-t-0 sm:border-l pt-3 sm:pt-0 sm:pl-6 border-slate-200/60 dark:border-white/5 text-right">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                    Orientação de Carga
+                  </span>
+                  <span className={`text-xs font-black uppercase italic mt-0.5 ${statusInfo.colorClass}`}>
+                    {currentScore === null ? 'Aguardando Avaliação' : currentScore >= 70 ? 'Carga Regular / Alta' : currentScore >= 45 ? 'Carga Moderada' : 'Regenerativo'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* GRID DOS 4 PILARES: SONO, FADIGA, DOR, ESTRESSE */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {/* 1. QUALIDADE DO SONO */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                isLight ? 'bg-slate-50 border-slate-100 hover:border-indigo-200' : 'bg-slate-950/40 border-white/5 hover:border-indigo-500/30'
+              }`}>
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[10px] font-black uppercase italic text-indigo-400 tracking-wider flex items-center gap-1.5">
+                    <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                    Sono
+                  </span>
+                  <span className="text-[10px] font-mono font-black text-indigo-400">
+                    {currentSleep !== null ? `${currentSleep}/10` : '--'}
+                  </span>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className={`text-lg font-black font-mono leading-none ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      {currentSleepHours ? `${currentSleepHours}h` : '--'}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                      {currentSleepHours && currentSleepHours >= 7 ? 'Tempo Ideal' : 'Horas de Repouso'}
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-indigo-500 h-full rounded-full transition-all"
+                      style={{ width: `${currentSleep !== null ? Math.min(100, currentSleep * 10) : 0}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[9px] text-slate-400 font-medium leading-tight line-clamp-1">
+                    {currentSleep !== null 
+                      ? (currentSleep >= 8 ? 'Sono reparador profundo' : currentSleep >= 6 ? 'Descanso razoável' : 'Sono insuficiente / fragmentado')
+                      : 'Não avaliado hoje'}
+                  </p>
+                </div>
+              </div>
+
+              {/* 2. NÍVEL DE FADIGA / CANSAÇO */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                isLight ? 'bg-slate-50 border-slate-100 hover:border-amber-200' : 'bg-slate-950/40 border-white/5 hover:border-amber-500/30'
+              }`}>
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[10px] font-black uppercase italic text-amber-400 tracking-wider flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    Fadiga
+                  </span>
+                  <span className="text-[10px] font-mono font-black text-amber-400">
+                    {currentStress !== null ? `${currentStress}/10` : '--'}
+                  </span>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className={`text-lg font-black font-mono leading-none ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      {currentStress !== null 
+                        ? (currentStress <= 3 ? 'Baixa' : currentStress <= 6 ? 'Moderada' : 'Alta')
+                        : '--'}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                      Sensação Física
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all ${
+                        currentStress === null ? 'bg-slate-400' : currentStress <= 3 ? 'bg-emerald-500' : currentStress <= 6 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`}
+                      style={{ width: `${currentStress !== null ? Math.min(100, currentStress * 10) : 0}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[9px] text-slate-400 font-medium leading-tight line-clamp-1">
+                    {currentStress !== null 
+                      ? (currentStress <= 3 ? 'Corpo leve e descansado' : currentStress <= 6 ? 'Cansaço físico tolerável' : 'Sobrecarga muscular acumulada')
+                      : 'Não avaliado hoje'}
+                  </p>
+                </div>
+              </div>
+
+              {/* 3. NÍVEL DE DOR MUSCULAR */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                isLight ? 'bg-slate-50 border-slate-100 hover:border-rose-200' : 'bg-slate-950/40 border-white/5 hover:border-rose-500/30'
+              }`}>
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[10px] font-black uppercase italic text-rose-400 tracking-wider flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-rose-400" />
+                    Dor Muscular
+                  </span>
+                  <span className="text-[10px] font-mono font-black text-rose-400">
+                    {currentSoreness !== null ? `${currentSoreness}/10` : '--'}
+                  </span>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className={`text-lg font-black font-mono leading-none ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      {currentSoreness !== null 
+                        ? (currentSoreness <= 2 ? 'Nenhuma' : currentSoreness <= 5 ? 'Leve' : 'Intensa')
+                        : '--'}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                      Desconforto
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all ${
+                        currentSoreness === null ? 'bg-slate-400' : currentSoreness <= 2 ? 'bg-emerald-500' : currentSoreness <= 5 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`}
+                      style={{ width: `${currentSoreness !== null ? Math.min(100, currentSoreness * 10) : 0}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[9px] text-slate-400 font-medium leading-tight line-clamp-1">
+                    {currentSoreness !== null 
+                      ? (currentSoreness <= 2 ? 'Músculos livres de dor' : currentSoreness <= 5 ? 'Dor pós-treino tolerável' : 'Dor aguda / requer atenção')
+                      : 'Não avaliado hoje'}
+                  </p>
+                </div>
+              </div>
+
+              {/* 4. DISPOSIÇÃO & ESTRESSE */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                isLight ? 'bg-slate-50 border-slate-100 hover:border-teal-200' : 'bg-slate-950/40 border-white/5 hover:border-teal-500/30'
+              }`}>
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[10px] font-black uppercase italic text-teal-400 tracking-wider flex items-center gap-1.5">
+                    <Brain className="w-3.5 h-3.5 text-teal-400" />
+                    Disposição
+                  </span>
+                  <span className="text-[10px] font-mono font-black text-teal-400">
+                    {currentMood !== null ? `${currentMood}/10` : '--'}
+                  </span>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className={`text-lg font-black font-mono leading-none ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      {currentMood !== null 
+                        ? (currentMood >= 7 ? 'Alta' : currentMood >= 4 ? 'Normal' : 'Baixa')
+                        : '--'}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                      Foco Mental
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-teal-500 h-full rounded-full transition-all"
+                      style={{ width: `${currentMood !== null ? Math.min(100, currentMood * 10) : 0}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[9px] text-slate-400 font-medium leading-tight line-clamp-1">
+                    {currentMood !== null 
+                      ? (currentMood >= 7 ? 'Motivado para treinar forte' : currentMood >= 4 ? 'Foco estável' : 'Desmotivado / mentalmente cansado')
+                      : 'Não avaliado hoje'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* GRÁFICO SEMANAL ANALÍTICO DOS ÚLTIMOS 7 DIAS (OPÇÃO 2) */}
+            <div className={`p-5 sm:p-6 rounded-[1.8rem] border space-y-4 ${
+              isLight ? 'bg-slate-50/70 border-slate-100' : 'bg-slate-950/40 border-white/5'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className={`text-xs font-black uppercase italic tracking-wider flex items-center gap-2 ${
+                    isLight ? 'text-slate-800' : 'text-white'
+                  }`}>
+                    <TrendingUp className="w-4 h-4 text-emerald-500" />
+                    Tendência dos Últimos 7 Dias (Prontidão vs Treinos)
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Correlação entre volume de corrida (KM), índice de prontidão, sono e fadiga
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 text-[10px] font-black uppercase italic self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setReadinessChartTab('readiness')}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      readinessChartTab === 'readiness'
+                        ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    Prontidão (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReadinessChartTab('multi')}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      readinessChartTab === 'multi'
+                        ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    Multimétricas
+                  </button>
+                </div>
+              </div>
+
+              {/* ÁREA DO GRÁFICO RECHARTS */}
+              <div className="h-[220px] w-full" style={{ width: '100%', minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  {readinessChartTab === 'readiness' ? (
+                    <AreaChart
+                      data={weekDays}
+                      margin={{ top: 20, right: 10, left: -25, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="readinessGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#1e293b'} />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: isLight ? '#64748b' : '#94a3b8', fontSize: 10, fontWeight: 900 }} 
+                      />
+                      <YAxis 
+                        domain={[0, 100]} 
+                        ticks={[0, 25, 50, 75, 100]}
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: isLight ? '#94a3b8' : '#64748b', fontSize: 9 }}
+                        unit="%"
+                      />
+                      <Tooltip 
+                        cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '3 3' }}
+                        content={({ active, payload }) => {
+                          if (!active || !payload || !payload.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div className={`p-3.5 rounded-2xl shadow-xl border text-xs space-y-2 min-w-[170px] ${
+                              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-800 text-white'
+                            }`}>
+                              <div className="flex items-center justify-between border-b pb-1.5 border-slate-100 dark:border-white/10">
+                                <span className="font-black uppercase tracking-wider text-[11px]">{d.fullLabel}</span>
+                                {d.km > 0 && (
+                                  <span className="text-emerald-500 font-black text-[11px]">{d.km} KM</span>
+                                )}
+                              </div>
+                              <div className="space-y-1 pt-0.5 text-[10px]">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                    Prontidão:
+                                  </span>
+                                  <span className="font-black font-mono text-emerald-500">
+                                    {d.readiness !== null ? `${d.readiness}%` : 'Sem registro'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                                    Sono:
+                                  </span>
+                                  <span className="font-black font-mono">
+                                    {d.sleepScore !== null ? `${d.sleepScore}/10 (${d.sleepHours || 0}h)` : '--'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                                    Fadiga:
+                                  </span>
+                                  <span className="font-black font-mono">
+                                    {d.fatigueScore !== null ? `${d.fatigueScore}/10` : '--'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                                    Dor Muscular:
+                                  </span>
+                                  <span className="font-black font-mono">
+                                    {d.sorenessScore !== null ? `${d.sorenessScore}/10` : '--'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="readiness" 
+                        stroke="#10b981" 
+                        strokeWidth={3} 
+                        fill="url(#readinessGradient)" 
+                        dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: isLight ? '#fff' : '#0f172a' }}
+                        activeDot={{ r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
+                        connectNulls={true}
+                      />
+                    </AreaChart>
+                  ) : (
+                    <LineChart
+                      data={weekDays}
+                      margin={{ top: 20, right: 10, left: -25, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#1e293b'} />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: isLight ? '#64748b' : '#94a3b8', fontSize: 10, fontWeight: 900 }} 
+                      />
+                      <YAxis 
+                        domain={[0, 100]} 
+                        ticks={[0, 25, 50, 75, 100]}
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: isLight ? '#94a3b8' : '#64748b', fontSize: 9 }}
+                        unit="%"
+                      />
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          if (!active || !payload || !payload.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div className={`p-3.5 rounded-2xl shadow-xl border text-xs space-y-2 min-w-[170px] ${
+                              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-800 text-white'
+                            }`}>
+                              <div className="flex items-center justify-between border-b pb-1.5 border-slate-100 dark:border-white/10">
+                                <span className="font-black uppercase tracking-wider text-[11px]">{d.fullLabel}</span>
+                                {d.km > 0 && <span className="text-emerald-500 font-black text-[11px]">{d.km} KM</span>}
+                              </div>
+                              <div className="space-y-1 pt-0.5 text-[10px]">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-emerald-500 font-bold">Prontidão:</span>
+                                  <span className="font-black font-mono">{d.readiness !== null ? `${d.readiness}%` : '--'}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-indigo-400 font-bold">Sono:</span>
+                                  <span className="font-black font-mono">{d.sleepScore !== null ? `${d.sleepScore}/10` : '--'}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-amber-400 font-bold">Fadiga:</span>
+                                  <span className="font-black font-mono">{d.fatigueScore !== null ? `${d.fatigueScore}/10` : '--'}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-rose-400 font-bold">Dor Muscular:</span>
+                                  <span className="font-black font-mono">{d.sorenessScore !== null ? `${d.sorenessScore}/10` : '--'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        name="Prontidão" 
+                        dataKey="readiness" 
+                        stroke="#10b981" 
+                        strokeWidth={2.5} 
+                        dot={{ r: 3, fill: '#10b981' }} 
+                        connectNulls={true} 
+                      />
+                      <Line 
+                        type="monotone" 
+                        name="Sono" 
+                        dataKey="sleepPct" 
+                        stroke="#818cf8" 
+                        strokeWidth={2} 
+                        strokeDasharray="4 4" 
+                        dot={{ r: 3, fill: '#818cf8' }} 
+                        connectNulls={true} 
+                      />
+                      <Line 
+                        type="monotone" 
+                        name="Fadiga" 
+                        dataKey="fatiguePct" 
+                        stroke="#f59e0b" 
+                        strokeWidth={2} 
+                        dot={{ r: 3, fill: '#f59e0b' }} 
+                        connectNulls={true} 
+                      />
+                      <Line 
+                        type="monotone" 
+                        name="Dor" 
+                        dataKey="sorenessPct" 
+                        stroke="#f43f5e" 
+                        strokeWidth={2} 
+                        dot={{ r: 3, fill: '#f43f5e' }} 
+                        connectNulls={true} 
+                      />
+                    </LineChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+
+              {/* RODAPÉ COM INDICADORES SEMANAIS */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200/70 dark:border-white/5">
+                <div className="text-center p-2 rounded-xl bg-white/50 dark:bg-slate-900/50">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Média Prontidão</span>
+                  <span className="text-xs font-black font-mono text-emerald-500">
+                    {avgReadiness !== null ? `${avgReadiness}%` : '--'}
+                  </span>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-white/50 dark:bg-slate-900/50">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Média de Sono</span>
+                  <span className="text-xs font-black font-mono text-indigo-400">
+                    {avgSleepHours ? `${avgSleepHours}h / noite` : '--'}
+                  </span>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-white/50 dark:bg-slate-900/50">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Volume Semana</span>
+                  <span className="text-xs font-black font-mono text-slate-700 dark:text-slate-200">
+                    {totalKm7Days} KM
+                  </span>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-white/50 dark:bg-slate-900/50">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Monitorados</span>
+                  <span className="text-xs font-black font-mono text-teal-400">
+                    {registeredDays.length} / 7 dias
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
         </>
       ) : (
         <div className="space-y-6 animate-fade-in px-2">
@@ -2285,51 +2972,6 @@ const AthletePortal: React.FC = () => {
                   {isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}
                 </h3>
               </div>
-
-              {/* Dedicated Action Buttons Bar - Only visible after completing the workout */}
-              {selectedWorkout.data.completed && (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      const finalDist = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (currentGpsRoute?.totalDistanceKm || selectedWorkout.data.distance || 0);
-                      const finalDurSec = actualDurationValue !== '' ? parseDurationStringToSeconds(actualDurationValue) : (currentGpsRoute?.durationSeconds || (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800));
-                      const finalPace = calculatePace(String(finalDist), actualDurationValue !== '' ? actualDurationValue : formatSecondsToTimeString(finalDurSec));
-
-                      setShareWorkoutData({
-                        title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
-                        athleteName: activeAthlete?.name,
-                        date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
-                        distanceKm: finalDist,
-                        durationSeconds: finalDurSec,
-                        avgPace: finalPace !== '--:--' ? finalPace : (currentGpsRoute?.avgPace || '05:30'),
-                        elevationGainMeters: currentGpsRoute?.elevationGainMeters,
-                        avgHeartRate: currentGpsRoute?.avgHeartRate,
-                        route: currentGpsRoute,
-                        workoutType: selectedWorkout.data.type
-                      });
-                    }}
-                    className="px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all shadow-md shadow-emerald-950/20 cursor-pointer active:scale-95 border border-emerald-400/30"
-                    title="Gerar Card Social / Postar Treino"
-                  >
-                    <Camera className="w-4 h-4 text-white" />
-                    <span>Postar Treino</span>
-                  </button>
-                  <button 
-                    disabled={exportLoading}
-                    onClick={handleDownloadWorkoutImage}
-                    className={`px-3 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black uppercase italic tracking-wider transition-all cursor-pointer active:scale-95 ${
-                      isLight 
-                        ? 'bg-slate-100 hover:bg-slate-200 text-emerald-800 border border-slate-300' 
-                        : 'bg-white/5 hover:bg-white/10 text-emerald-400 border border-white/10'
-                    }`}
-                    title="Baixar imagem da prescrição"
-                  >
-                    {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    <span>Baixar Imagem</span>
-                  </button>
-                </div>
-              )}
             </div>
             
             <div className={`p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 ${
@@ -2761,30 +3403,69 @@ const AthletePortal: React.FC = () => {
               <div className={`p-6 md:p-8 border-t flex-shrink-0 font-sans ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-white/5'
               }`}>
-                <div className="grid grid-cols-2 gap-3">
-                  <button 
-                    onClick={() => handleToggleComplete(false)} 
-                    disabled={isSaving}
-                    className={`py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer
-                      ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-white/5 hover:bg-white/10 text-slate-300'}
-                      disabled:opacity-50`}
-                  >
-                    {selectedWorkout.data.type === 'Descanso' ? 'DESMARCAR DESCANSO' : 'DESMARCAR CONCLUÍDO'}
-                  </button>
-                  <button 
-                    onClick={() => handleToggleComplete(true)} 
-                    disabled={isSaving}
-                    className="py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {isSaving ? (
-                      <div className="flex items-center gap-2">
-                        {saveSuccess ? <Check className="w-5 h-5 animate-fade-in" /> : <Loader2 className="w-5 h-5 animate-spin" />}
-                        <span>{saveSuccess ? 'SALVO!' : 'SALVANDO...'}</span>
-                      </div>
-                    ) : (
-                      'SALVAR E CONCLUIR'
-                    )}
-                  </button>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => handleToggleComplete(false)} 
+                      disabled={isSaving}
+                      className={`py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer
+                        ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-white/5 hover:bg-white/10 text-slate-300'}
+                        disabled:opacity-50`}
+                    >
+                      {selectedWorkout.data.type === 'Descanso' ? 'DESMARCAR DESCANSO' : 'DESMARCAR CONCLUÍDO'}
+                    </button>
+                    <button 
+                      onClick={() => handleToggleComplete(true)} 
+                      disabled={isSaving}
+                      className="py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <div className="flex items-center gap-2">
+                          {saveSuccess ? <Check className="w-5 h-5 animate-fade-in" /> : <Loader2 className="w-5 h-5 animate-spin" />}
+                          <span>{saveSuccess ? 'SALVO!' : 'SALVANDO...'}</span>
+                        </div>
+                      ) : (
+                        'SALVAR E CONCLUIR'
+                      )}
+                    </button>
+                  </div>
+
+                  {selectedWorkout.data.type !== 'Descanso' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const parsedDist = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : undefined;
+                        const distKm = parsedDist || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0;
+                        const durSec = actualDurationValue !== ''
+                          ? parseDurationStringToSeconds(actualDurationValue)
+                          : (currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)));
+                        const pace = calculatePace(
+                          String(distKm),
+                          actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.durationSeconds || 1800))
+                        );
+
+                        setShareWorkoutData({
+                          title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
+                          athleteName: activeAthlete?.name,
+                          date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
+                          distanceKm: distKm,
+                          durationSeconds: durSec,
+                          avgPace: pace,
+                          elevationGainMeters: currentGpsRoute?.elevationGainMeters || selectedWorkout.data.gpsRoute?.elevationGainMeters,
+                          avgHeartRate: currentGpsRoute?.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate,
+                          route: currentGpsRoute || selectedWorkout.data.gpsRoute,
+                          workoutType: selectedWorkout.data.type,
+                          initialBackgroundType: 'photo',
+                          rpe: rpeValue || selectedWorkout.data.rpe
+                        });
+                        setSelectedWorkout(null);
+                      }}
+                      className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-400 border border-emerald-500/40 font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
+                    >
+                      <Camera className="w-4 h-4 text-emerald-400" />
+                      <span>POSTAR FOTO DESTE TREINO</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -3039,7 +3720,8 @@ const AthletePortal: React.FC = () => {
                       elevationGainMeters: completedWorkoutPrompt.route?.elevationGainMeters,
                       avgHeartRate: completedWorkoutPrompt.route?.avgHeartRate,
                       route: completedWorkoutPrompt.route,
-                      workoutType: completedWorkoutPrompt.workout.type
+                      workoutType: completedWorkoutPrompt.workout.type,
+                      rpe: completedWorkoutPrompt.rpe
                     });
                     setCompletedWorkoutPrompt(null);
                   }}

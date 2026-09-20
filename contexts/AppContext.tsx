@@ -53,7 +53,8 @@ interface AppContextType {
     readinessScore?: number,
     gpsRoute?: any,
     structuredSteps?: any[],
-    actualDuration?: string
+    actualDuration?: string,
+    avgHeartRate?: number
   ) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
@@ -788,7 +789,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     readinessScore?: number,
     gpsRoute?: any,
     structuredSteps?: any[],
-    actualDuration?: string
+    actualDuration?: string,
+    avgHeartRate?: number
   ) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
@@ -807,6 +809,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     if (actualDuration !== undefined) {
       workout.actualDuration = actualDuration;
+    }
+    if (avgHeartRate !== undefined) {
+      workout.avgHeartRate = avgHeartRate;
     }
     
     if (structuredSteps !== undefined) {

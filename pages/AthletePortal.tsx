@@ -178,6 +178,7 @@ const AthletePortal: React.FC = () => {
   const [rpeValue, setRpeValue] = useState<number>(0);
   const [actualDistanceValue, setActualDistanceValue] = useState<string>('');
   const [actualDurationValue, setActualDurationValue] = useState<string>('');
+  const [actualHeartRateValue, setActualHeartRateValue] = useState<string>('');
   const [currentGpsRoute, setCurrentGpsRoute] = useState<any>(null);
   const [showGpsTracker, setShowGpsTracker] = useState(false);
   const [localSteps, setLocalSteps] = useState<any[]>([]);
@@ -690,6 +691,7 @@ const AthletePortal: React.FC = () => {
       const wasCompletedBefore = Boolean(selectedWorkout.data.completed);
       const newStatus = shouldCloseAfterSave ? selectedWorkout.data.completed : !selectedWorkout.data.completed;
       const parsedDistance = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : undefined;
+      const parsedHeartRate = actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || undefined);
       
       // Calculate scientific readiness score
       const sleepPct = ((sleepValue - 1) / 4) * 100;
@@ -713,9 +715,15 @@ const AthletePortal: React.FC = () => {
         moodValue,
         menstrualPhaseValue,
         calculatedScore,
-        currentGpsRoute,
+        currentGpsRoute ? {
+          ...currentGpsRoute,
+          totalDistanceKm: parsedDistance !== undefined ? parsedDistance : currentGpsRoute.totalDistanceKm,
+          totalDurationSeconds: actualDurationValue !== '' ? parseDurationStringToSeconds(actualDurationValue) : (currentGpsRoute.totalDurationSeconds || currentGpsRoute.durationSeconds || 0),
+          avgHeartRate: parsedHeartRate || currentGpsRoute.avgHeartRate
+        } : selectedWorkout.data.gpsRoute,
         localSteps,
-        actualDurationValue
+        actualDurationValue,
+        parsedHeartRate
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -740,21 +748,27 @@ const AthletePortal: React.FC = () => {
           feedback: feedbackText,
           rpe: rpeValue,
           actualDistance: parsedDistance,
-          actualDuration: actualDurationValue
+          actualDuration: actualDurationValue,
+          avgHeartRate: parsedHeartRate
         }
       } : null);
 
       // Snapshot for post-workout sharing prompt if completed
+      const durSeconds = actualDurationValue !== '' 
+        ? parseDurationStringToSeconds(actualDurationValue) 
+        : (currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)));
+      const distKm = parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0;
+      const avgPaceCalculated = calculatePace(
+        String(distKm),
+        actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || 1800))
+      );
+
       const completedWorkoutSnapshot = (newStatus && selectedWorkout) ? {
         workout: selectedWorkout.data,
-        distanceKm: parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0,
-        durationSeconds: actualDurationValue !== '' 
-          ? parseDurationStringToSeconds(actualDurationValue) 
-          : (currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800))),
-        avgPace: calculatePace(
-          String(parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0),
-          actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.durationSeconds || 1800))
-        ),
+        distanceKm: distKm,
+        durationSeconds: durSeconds,
+        avgPace: avgPaceCalculated,
+        avgHeartRate: parsedHeartRate,
         route: currentGpsRoute || selectedWorkout.data.gpsRoute,
         workoutType: selectedWorkout.data.type,
         rpe: rpeValue || selectedWorkout.data.rpe
@@ -769,6 +783,7 @@ const AthletePortal: React.FC = () => {
           setRpeValue(0);
           setActualDistanceValue('');
           setActualDurationValue('');
+          setActualHeartRateValue('');
           setCurrentGpsRoute(null);
           setShowGpsTracker(false);
 
@@ -782,7 +797,7 @@ const AthletePortal: React.FC = () => {
               durationSeconds: completedWorkoutSnapshot.durationSeconds,
               avgPace: completedWorkoutSnapshot.avgPace,
               elevationGainMeters: completedWorkoutSnapshot.route?.elevationGainMeters,
-              avgHeartRate: completedWorkoutSnapshot.route?.avgHeartRate,
+              avgHeartRate: completedWorkoutSnapshot.avgHeartRate || completedWorkoutSnapshot.route?.avgHeartRate,
               route: completedWorkoutSnapshot.route,
               workoutType: completedWorkoutSnapshot.workout.type,
               initialBackgroundType: 'transparent',
@@ -814,6 +829,8 @@ const AthletePortal: React.FC = () => {
       initialDuration = `${workout.durationMinutes}:00`;
     }
     setActualDurationValue(initialDuration);
+    const initialHeartRate = workout.avgHeartRate || workout.gpsRoute?.avgHeartRate || '';
+    setActualHeartRateValue(initialHeartRate ? String(initialHeartRate) : '');
     setSleepValue(workout.sleepScore || activeAthlete?.lastReadiness?.sleepScore || 4);
     setStressValue(workout.stressScore || activeAthlete?.lastReadiness?.stressScore || 2);
     setSorenessValue(workout.sorenessScore || activeAthlete?.lastReadiness?.sorenessScore || 2);
@@ -3200,26 +3217,26 @@ const AthletePortal: React.FC = () => {
                       </div>
 
                       {/* 1. Métricas Reais do Treino */}
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {/* Distância */}
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <div className="flex justify-between items-center">
                             <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                              <TrendingUp className="w-4 h-4 text-emerald-500" /> Distância (KM)
+                              <TrendingUp className="w-3.5 h-3.5 text-emerald-500" /> Distância
                             </label>
                           </div>
                           <div className="relative">
                             <input 
                               type="text"
                               disabled={isSaving}
-                              className={`pro-input w-full py-4 px-4 text-sm font-black italic rounded-2xl outline-none transition-all pr-12 ${
+                              className={`pro-input w-full py-3.5 px-3.5 text-sm font-black italic rounded-2xl outline-none transition-all pr-10 ${
                                 isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
                               }`}
                               placeholder="Ex: 10.5"
                               value={actualDistanceValue}
                               onChange={e => setActualDistanceValue(e.target.value)}
                             />
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
                               KM
                             </div>
                           </div>
@@ -3229,24 +3246,24 @@ const AthletePortal: React.FC = () => {
                         </div>
 
                         {/* Tempo */}
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <div className="flex justify-between items-center">
                             <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                              <Timer className="w-4 h-4 text-amber-500" /> Tempo Total
+                              <Timer className="w-3.5 h-3.5 text-amber-500" /> Tempo Total
                             </label>
                           </div>
                           <div className="relative">
                             <input 
                               type="text"
                               disabled={isSaving}
-                              className={`pro-input w-full py-4 px-4 text-sm font-black italic rounded-2xl outline-none transition-all pr-14 ${
+                              className={`pro-input w-full py-3.5 px-3.5 text-sm font-black italic rounded-2xl outline-none transition-all pr-12 ${
                                 isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
                               }`}
                               placeholder="Ex: 45:00"
                               value={actualDurationValue}
                               onChange={e => setActualDurationValue(e.target.value)}
                             />
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
                               MIN/SEG
                             </div>
                           </div>
@@ -3254,21 +3271,64 @@ const AthletePortal: React.FC = () => {
                             Plano: {selectedWorkout.data.durationMinutes || '--'} min
                           </div>
                         </div>
+
+                        {/* Frequência Cardíaca Média */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                              <HeartPulse className="w-3.5 h-3.5 text-rose-500" /> FC Média
+                            </label>
+                          </div>
+                          <div className="relative">
+                            <input 
+                              type="text"
+                              disabled={isSaving}
+                              className={`pro-input w-full py-3.5 px-3.5 text-sm font-black italic rounded-2xl outline-none transition-all pr-10 ${
+                                isLight ? 'bg-white border-slate-300 text-rose-600 focus:border-rose-500' : 'bg-white/5 border-white/10 text-rose-400 focus:border-rose-500/50'
+                              }`}
+                              placeholder="Ex: 155"
+                              value={actualHeartRateValue}
+                              onChange={e => setActualHeartRateValue(e.target.value.replace(/\D/g, ''))}
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
+                              BPM
+                            </div>
+                          </div>
+                          <div className="text-[9px] font-black uppercase text-slate-500/80 italic pl-1">
+                            {actualHeartRateValue ? `${actualHeartRateValue} BPM Média` : 'Opcional'}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Real-time Pace calculation badge */}
-                      <div className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
-                        isLight ? 'bg-emerald-50/50 border-emerald-100' : 'bg-emerald-500/5 border-emerald-500/10'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <Activity className="w-4 h-4 text-emerald-500" />
-                          <span className={`text-[10px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                            Ritmo Médio Calculado (Pace)
+                      {/* Real-time Pace & Metrics calculation badges */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className={`p-3 rounded-2xl border flex items-center justify-between transition-all ${
+                          isLight ? 'bg-emerald-50/50 border-emerald-100' : 'bg-emerald-500/5 border-emerald-500/10'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-emerald-500" />
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                              Ritmo Médio (Pace)
+                            </span>
+                          </div>
+                          <span className="text-sm font-mono font-black italic text-emerald-500">
+                            {calculatePace(actualDistanceValue, actualDurationValue)} / KM
                           </span>
                         </div>
-                        <span className="text-sm font-mono font-black italic text-emerald-500">
-                          {calculatePace(actualDistanceValue, actualDurationValue)} / KM
-                        </span>
+
+                        <div className={`p-3 rounded-2xl border flex items-center justify-between transition-all ${
+                          isLight ? 'bg-rose-50/50 border-rose-100' : 'bg-rose-500/5 border-rose-500/10'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <HeartPulse className="w-4 h-4 text-rose-500" />
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                              Batimentos
+                            </span>
+                          </div>
+                          <span className="text-sm font-mono font-black italic text-rose-500">
+                            {actualHeartRateValue ? `${actualHeartRateValue} BPM` : (currentGpsRoute?.avgHeartRate ? `${currentGpsRoute.avgHeartRate} BPM` : '-- BPM')}
+                          </span>
+                        </div>
                       </div>
 
                       {/* 2. Percepção de Esforço (PSE) */}
@@ -3344,6 +3404,9 @@ const AthletePortal: React.FC = () => {
                       if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
                         setActualDurationValue(`${selectedWorkout.data.durationMinutes}:00`);
                       }
+                      if (!actualHeartRateValue && (selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate)) {
+                        setActualHeartRateValue(String(selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate));
+                      }
                       setSelectedWorkout(prev => prev ? {
                         ...prev,
                         data: {
@@ -3402,11 +3465,12 @@ const AthletePortal: React.FC = () => {
                         const distKm = parsedDist || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0;
                         const durSec = actualDurationValue !== ''
                           ? parseDurationStringToSeconds(actualDurationValue)
-                          : (currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)));
+                          : (currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)));
                         const pace = calculatePace(
                           String(distKm),
-                          actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.durationSeconds || 1800))
+                          actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || 1800))
                         );
+                        const heartRate = actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate);
 
                         setShareWorkoutData({
                           title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
@@ -3416,7 +3480,7 @@ const AthletePortal: React.FC = () => {
                           durationSeconds: durSec,
                           avgPace: pace,
                           elevationGainMeters: currentGpsRoute?.elevationGainMeters || selectedWorkout.data.gpsRoute?.elevationGainMeters,
-                          avgHeartRate: currentGpsRoute?.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate,
+                          avgHeartRate: heartRate,
                           route: currentGpsRoute || selectedWorkout.data.gpsRoute,
                           workoutType: selectedWorkout.data.type,
                           initialBackgroundType: 'transparent',
@@ -3735,11 +3799,21 @@ const AthletePortal: React.FC = () => {
             onRouteCaptured={(route) => {
               setCurrentGpsRoute(route);
               setActualDistanceValue(String(route.totalDistanceKm));
+              const durSec = route.totalDurationSeconds || (route as any).durationSeconds || 0;
+              const formattedDuration = formatSecondsToTimeString(durSec);
+              setActualDurationValue(formattedDuration);
+              if (route.avgHeartRate) {
+                setActualHeartRateValue(String(route.avgHeartRate));
+              }
               setSelectedWorkout(prev => prev ? {
                 ...prev,
                 data: {
                   ...prev.data,
-                  completed: true
+                  completed: true,
+                  actualDistance: route.totalDistanceKm,
+                  actualDuration: formattedDuration,
+                  avgHeartRate: route.avgHeartRate || prev.data.avgHeartRate,
+                  gpsRoute: route
                 }
               } : null);
               setShowGpsTracker(false);

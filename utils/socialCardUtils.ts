@@ -8,8 +8,13 @@
  */
 export async function processLogoTransparency(
   imageSrc: string, 
-  mode: 'original' | 'white' | 'black' | 'emerald' = 'original'
+  mode: 'original' | 'transparent' | 'white' | 'black' | 'emerald' = 'original'
 ): Promise<string> {
+  // If original mode is requested, return the source directly to preserve the authentic black background and full-color branding
+  if (mode === 'original') {
+    return imageSrc;
+  }
+
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -41,7 +46,7 @@ export async function processLogoTransparency(
           // Calculate brightness (perceptual luminance)
           const brightness = (r * 299 + g * 587 + b * 114) / 1000;
 
-          // If pixel is black / near black background (brightness < 42), remove black background
+          // For transparent/white/emerald/black modes, remove the dark background
           if (brightness < 42) {
             const alphaFactor = Math.max(0, (brightness - 12) / 30);
             data[i + 3] = Math.round(a * alphaFactor);

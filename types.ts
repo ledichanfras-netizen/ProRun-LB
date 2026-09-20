@@ -189,6 +189,8 @@ export interface TrainingWeek {
       customDescription?: string;
       distance?: number;
       actualDistance?: number;
+      actualDuration?: string;
+      avgHeartRate?: number;
       completed?: boolean;
       feedback?: string; 
       rpe?: number;
@@ -208,7 +210,8 @@ export interface TrainingWeek {
         avgPace: string; // "05:15" min/km
         maxSpeedKmh?: number;
         elevationGainMeters?: number;
-        source: 'live_gps' | 'gpx_file';
+        avgHeartRate?: number;
+        source: 'live_gps' | 'gpx_file' | 'manual_or_indoor';
         recordedAt: string;
         completedSteps?: {
           stepId: string;

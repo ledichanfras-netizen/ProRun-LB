@@ -19,6 +19,9 @@ import {
   Timer,
   TrendingUp,
   Heart,
+  HeartPulse,
+  Mountain,
+  Shield,
   Flame,
   Crop
 } from 'lucide-react';
@@ -54,7 +57,7 @@ interface WorkoutShareModalProps {
 type TextTheme = 'white' | 'black';
 type BackgroundType = 'transparent' | 'photo' | 'dark' | 'light' | 'emerald';
 type AspectRatio = 'story' | 'square' | 'portrait';
-type LogoStyle = 'original' | 'white' | 'black' | 'emerald';
+type LogoStyle = 'original' | 'transparent' | 'white' | 'black' | 'emerald';
 
 // Embedded athletic running SVG scene guaranteed to render offline or on network failure
 const FALLBACK_SPORT_PHOTO_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23022c22"/><stop offset="50%" stop-color="%23090d16"/><stop offset="100%" stop-color="%23020617"/></linearGradient><radialGradient id="glow" cx="50%" cy="40%" r="50%"><stop offset="0%" stop-color="%2310b981" stop-opacity="0.25"/><stop offset="100%" stop-color="%2310b981" stop-opacity="0"/></radialGradient></defs><rect width="1080" height="1920" fill="url(%23bg)"/><circle cx="540" cy="760" r="420" fill="url(%23glow)"/><circle cx="540" cy="760" r="300" stroke="%2310b981" stroke-width="2" stroke-opacity="0.2" fill="none"/><circle cx="540" cy="760" r="180" stroke="%2310b981" stroke-width="2" stroke-opacity="0.3" fill="none"/><path d="M540 480 a 45 45 0 1 0 0.1 0 Z M480 560 l 80 -25 l 50 45 l 80 -15 l 10 35 l -90 15 l -40 -35 l -35 75 l 90 90 l 0 150 l -40 0 l 0 -125 l -85 -80 l -35 70 l 75 110 l -30 30 l -95 -130 l 40 -110 l -50 -45 l 15 -30 Z" fill="%2334d399" opacity="0.8"/></svg>`;
@@ -448,15 +451,30 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   </p>
                 </div>
 
-                {/* Logo with 100% Transparent Background */}
+                {/* Logo da Marca - Fundo Preto Original ProRun */}
                 {showLogo && (
                   <div className="relative flex items-center justify-center shrink-0">
-                    <img 
-                      src={processedLogoUrl} 
-                      alt="ProRun Logo"
-                      crossOrigin="anonymous"
-                      className={`object-contain filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-transform hover:scale-105 ${aspectRatio === 'square' ? 'w-10 h-10 sm:w-12 sm:h-12' : 'w-12 h-12 sm:w-14 sm:h-14'}`}
-                    />
+                    {logoStyle === 'original' ? (
+                      <div className={`overflow-hidden rounded-xl bg-black border border-white/20 shadow-xl flex items-center justify-center transition-transform hover:scale-105 ${
+                        aspectRatio === 'square' ? 'w-11 h-11 sm:w-13 sm:h-13 p-0.5' : 'w-12 h-12 sm:w-14 sm:h-14 p-0.5'
+                      }`}>
+                        <img 
+                          src="/logo.png?v=11" 
+                          alt="ProRun Logo Oficial"
+                          crossOrigin="anonymous"
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      </div>
+                    ) : (
+                      <img 
+                        src={processedLogoUrl} 
+                        alt="ProRun Logo"
+                        crossOrigin="anonymous"
+                        className={`object-contain filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 ${
+                          aspectRatio === 'square' ? 'w-10 h-10 sm:w-12 sm:h-12' : 'w-12 h-12 sm:w-14 sm:h-14'
+                        }`}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -1014,10 +1032,150 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
               )}
             </div>
 
-            {/* 2. ASPECT RATIO / FORMAT */}
+            {/* 2. LOGO & MARCA DA ASSESSORIA */}
+            <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-white/10">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-white uppercase italic tracking-wider flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-emerald-400" /> 2. Marca & Logo da Assessoria
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowLogo(!showLogo)}
+                  className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                    showLogo 
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                      : 'bg-slate-900 text-slate-400 border-white/10'
+                  }`}
+                >
+                  {showLogo ? '✓ Logo Visível' : 'Ocultar Logo'}
+                </button>
+              </div>
+
+              {showLogo && (
+                <div className="space-y-2 pt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setLogoStyle('original')}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                        logoStyle === 'original'
+                          ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
+                          : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-md bg-black border border-white/30 flex items-center justify-center overflow-hidden">
+                        <img src="/logo.png?v=11" alt="Logo" className="w-full h-full object-cover" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase block">Fundo Preto</span>
+                      <span className="text-[7.5px] text-emerald-400 font-bold">Oficial Marca</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setLogoStyle('transparent')}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                        logoStyle === 'transparent'
+                          ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
+                          : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-md bg-transparent border border-dashed border-white/30 flex items-center justify-center">
+                        <Layers className="w-3.5 h-3.5 text-slate-300" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase block">Transparente</span>
+                      <span className="text-[7.5px] text-slate-400">Sem Fundo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setLogoStyle('white')}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                        logoStyle === 'white'
+                          ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
+                          : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-md bg-slate-800 border border-white/40 flex items-center justify-center">
+                        <span className="text-[9px] font-black text-white">W</span>
+                      </div>
+                      <span className="text-[10px] font-black uppercase block">Branca</span>
+                      <span className="text-[7.5px] text-slate-400">Monocromática</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setLogoStyle('emerald')}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                        logoStyle === 'emerald'
+                          ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
+                          : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-md bg-emerald-950 border border-emerald-400 flex items-center justify-center">
+                        <span className="text-[9px] font-black text-emerald-400">G</span>
+                      </div>
+                      <span className="text-[10px] font-black uppercase block">Esmeralda</span>
+                      <span className="text-[7.5px] text-emerald-400">Verde ProRun</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 3. ELEMENTOS VISUAIS DO CARD */}
             <div className="space-y-2 bg-slate-950/60 p-4 rounded-2xl border border-white/10">
               <label className="text-xs font-black text-white uppercase italic tracking-wider flex items-center gap-1.5">
-                <Crop className="w-3.5 h-3.5 text-emerald-400" /> 2. Formato de Exportação
+                <Sliders className="w-3.5 h-3.5 text-emerald-400" /> 3. Elementos do Treino
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRoute(!showRoute)}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    showRoute
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
+                      : 'bg-slate-900/60 border-white/10 text-slate-500'
+                  }`}
+                >
+                  <MapPin className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase block">Trajeto GPS</span>
+                  <span className="text-[8px] text-slate-400">{showRoute ? 'Visível' : 'Oculto'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowElevation(!showElevation)}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    showElevation
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
+                      : 'bg-slate-900/60 border-white/10 text-slate-500'
+                  }`}
+                >
+                  <Mountain className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase block">Elevação</span>
+                  <span className="text-[8px] text-slate-400">{showElevation ? 'Visível' : 'Oculto'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowHeartRate(!showHeartRate)}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    showHeartRate
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
+                      : 'bg-slate-900/60 border-white/10 text-slate-500'
+                  }`}
+                >
+                  <HeartPulse className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase block">Frequência (FC)</span>
+                  <span className="text-[8px] text-slate-400">{showHeartRate ? 'Visível' : 'Oculto'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4. ASPECT RATIO / FORMAT */}
+            <div className="space-y-2 bg-slate-950/60 p-4 rounded-2xl border border-white/10">
+              <label className="text-xs font-black text-white uppercase italic tracking-wider flex items-center gap-1.5">
+                <Crop className="w-3.5 h-3.5 text-emerald-400" /> 4. Formato de Exportação
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -1061,11 +1219,11 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
               </div>
             </div>
 
-            {/* 3. TÍTULO, FRASES PRÉ-PRONTAS & LIVRE DESCRIÇÃO */}
+            {/* 5. TÍTULO, FRASES PRÉ-PRONTAS & LIVRE DESCRIÇÃO */}
             <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-white/10">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-white uppercase italic tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> 3. Título & Frases do Treino
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> 5. Título & Frases do Treino
                 </label>
                 {customTitle !== (data.title || data.workoutType || 'Treino Concluído') && (
                   <button

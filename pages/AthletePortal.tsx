@@ -785,7 +785,7 @@ const AthletePortal: React.FC = () => {
               avgHeartRate: completedWorkoutSnapshot.route?.avgHeartRate,
               route: completedWorkoutSnapshot.route,
               workoutType: completedWorkoutSnapshot.workout.type,
-              initialBackgroundType: 'photo',
+              initialBackgroundType: 'transparent',
               rpe: completedWorkoutSnapshot.rpe
             });
           }
@@ -3157,8 +3157,8 @@ const AthletePortal: React.FC = () => {
                         ))}
                       </div>
 
-                      {/* Add Step and Start Run Actions */}
-                      <div className="space-y-2 pt-2 border-t border-emerald-500/10">
+                      {/* Add Step Action */}
+                      <div className="pt-2 border-t border-emerald-500/10">
                         <button
                           type="button"
                           onClick={() => {
@@ -3181,42 +3181,6 @@ const AthletePortal: React.FC = () => {
                         >
                           <Plus className="w-4 h-4" /> Adicionar Nova Etapa
                         </button>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          <button
-                            type="button"
-                            onClick={() => setShowGpsTracker(true)}
-                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer"
-                          >
-                            <Play className="w-4 h-4 fill-white" /> Iniciar com GPS
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!actualDistanceValue && selectedWorkout.data.distance) {
-                                setActualDistanceValue(String(selectedWorkout.data.distance));
-                              }
-                              if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
-                                setActualDurationValue(`${selectedWorkout.data.durationMinutes}:00`);
-                              }
-                              setSelectedWorkout(prev => prev ? {
-                                ...prev,
-                                data: {
-                                  ...prev.data,
-                                  completed: true
-                                }
-                              } : null);
-                            }}
-                            className={`w-full py-3.5 rounded-xl border flex items-center justify-center gap-2 text-xs font-black uppercase italic tracking-wider transition-all active:scale-[0.98] cursor-pointer ${
-                              isLight 
-                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300' 
-                                : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                            }`}
-                          >
-                            <Check className="w-4 h-4" /> Concluir (Esteira / Manual)
-                          </button>
-                        </div>
                       </div>
                     </div>
                   )}
@@ -3455,7 +3419,7 @@ const AthletePortal: React.FC = () => {
                           avgHeartRate: currentGpsRoute?.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate,
                           route: currentGpsRoute || selectedWorkout.data.gpsRoute,
                           workoutType: selectedWorkout.data.type,
-                          initialBackgroundType: 'photo',
+                          initialBackgroundType: 'transparent',
                           initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
                           rpe: rpeValue || selectedWorkout.data.rpe
                         });

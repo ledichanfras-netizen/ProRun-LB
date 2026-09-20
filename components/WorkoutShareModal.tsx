@@ -56,9 +56,6 @@ type BackgroundType = 'transparent' | 'photo' | 'dark' | 'light' | 'emerald';
 type AspectRatio = 'story' | 'square' | 'portrait';
 type LogoStyle = 'original' | 'white' | 'black' | 'emerald';
 
-// Default dynamic running photo when user has not yet uploaded their own personal photo
-const DEFAULT_SPORT_PHOTO = 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?q=80&w=1200&auto=format&fit=crop';
-
 // Embedded athletic running SVG scene guaranteed to render offline or on network failure
 const FALLBACK_SPORT_PHOTO_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23022c22"/><stop offset="50%" stop-color="%23090d16"/><stop offset="100%" stop-color="%23020617"/></linearGradient><radialGradient id="glow" cx="50%" cy="40%" r="50%"><stop offset="0%" stop-color="%2310b981" stop-opacity="0.25"/><stop offset="100%" stop-color="%2310b981" stop-opacity="0"/></radialGradient></defs><rect width="1080" height="1920" fill="url(%23bg)"/><circle cx="540" cy="760" r="420" fill="url(%23glow)"/><circle cx="540" cy="760" r="300" stroke="%2310b981" stroke-width="2" stroke-opacity="0.2" fill="none"/><circle cx="540" cy="760" r="180" stroke="%2310b981" stroke-width="2" stroke-opacity="0.3" fill="none"/><path d="M540 480 a 45 45 0 1 0 0.1 0 Z M480 560 l 80 -25 l 50 45 l 80 -15 l 10 35 l -90 15 l -40 -35 l -35 75 l 90 90 l 0 150 l -40 0 l 0 -125 l -85 -80 l -35 70 l 75 110 l -30 30 l -95 -130 l 40 -110 l -50 -45 l 15 -30 Z" fill="%2334d399" opacity="0.8"/></svg>`;
 
@@ -93,19 +90,19 @@ const PRESET_QUOTES = [
 ];
 
 export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onClose }) => {
-  // Theme and Styling State
+  // Theme and Styling State - DEFAULT TO TRANSPARENT BACKGROUND (Sticker PNG)
   const [textTheme, setTextTheme] = useState<TextTheme>('white');
-  const [backgroundType, setBackgroundType] = useState<BackgroundType>(data.initialBackgroundType || 'photo');
+  const [backgroundType, setBackgroundType] = useState<BackgroundType>(data.initialBackgroundType || 'transparent');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('story');
   const [logoStyle, setLogoStyle] = useState<LogoStyle>('original');
   const [activePhraseTab, setActivePhraseTab] = useState<number>(0);
   
-  // Custom Background Photo State
+  // Custom Background Photo State (no default surfer photo, user uploads their own)
   const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(data.initialPhotoUrl || null);
   const [photoBrightness, setPhotoBrightness] = useState<number>(90); // 0-100%
   const [photoDimOverlay, setPhotoDimOverlay] = useState<number>(30); // 0-100%
   const [photoBlur, setPhotoBlur] = useState<number>(0); // 0-10px
-  const [photoSrc, setPhotoSrc] = useState<string>(data.initialPhotoUrl || DEFAULT_SPORT_PHOTO);
+  const [photoSrc, setPhotoSrc] = useState<string | null>(data.initialPhotoUrl || null);
 
   // Synchronize photo source whenever a photo is uploaded or provided
   useEffect(() => {
@@ -114,7 +111,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
     } else if (data.initialPhotoUrl) {
       setPhotoSrc(data.initialPhotoUrl);
     } else {
-      setPhotoSrc(DEFAULT_SPORT_PHOTO);
+      setPhotoSrc(null);
     }
   }, [customPhotoUrl, data.initialPhotoUrl]);
 
@@ -366,8 +363,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     : 'transparent'
                 }}
               >
-                {/* Background Photo: Always visible in foreground with fallback */}
-                {backgroundType === 'photo' && (
+                {/* Background Photo: Displayed when photo mode is active */}
+                {backgroundType === 'photo' && photoSrc && (
                   <>
                     <img
                       src={photoSrc}
@@ -388,21 +385,24 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                       className="absolute inset-0 bg-black transition-opacity pointer-events-none"
                       style={{ opacity: photoDimOverlay / 100 }}
                     />
-                    {/* Badge when default sports photo is active */}
-                    {!customPhotoUrl && (
-                      <div 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          fileInputRef.current?.click();
-                        }}
-                        className="absolute top-3 left-3 z-30 px-2.5 py-1 rounded-full bg-slate-950/85 backdrop-blur-md border border-emerald-500/50 text-emerald-300 text-[9px] font-black uppercase italic flex items-center gap-1.5 shadow-lg hover:bg-emerald-600 hover:text-white transition-all cursor-pointer select-none"
-                        title="Toque para carregar sua foto"
-                      >
-                        <Camera className="w-3 h-3 text-emerald-400" />
-                        <span>Foto Exemplo • Toque p/ Carregar</span>
-                      </div>
-                    )}
                   </>
+                )}
+
+                {/* Empty State when photo mode is selected without a photo */}
+                {backgroundType === 'photo' && !photoSrc && (
+                  <div 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-950/90 text-center cursor-pointer border-2 border-dashed border-emerald-500/40 rounded-3xl m-3 hover:bg-slate-900 transition-all z-20 group"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3 shadow-lg group-hover:scale-105 transition-transform">
+                      <Camera className="w-7 h-7" />
+                    </div>
+                    <span className="text-xs font-black uppercase text-white tracking-wider">Nenhuma foto selecionada</span>
+                    <span className="text-[10px] text-emerald-400 font-bold mt-1">Toque aqui para escolher da Galeria ou Câmera</span>
+                  </div>
                 )}
 
                 {/* Gradient Subtle Accent Backgrounds */}
@@ -701,9 +701,9 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span>
                   {backgroundType === 'transparent' 
-                    ? 'Fundo Transparente ativo (exporta sticker PNG sem fundo)' 
+                    ? 'Fundo Transparente Padrão (exporta sticker PNG sem fundo)' 
                     : backgroundType === 'photo' 
-                    ? customPhotoUrl ? 'Sua Foto Personalizada ativa' : 'Foto Esportiva Padrão ativa' 
+                    ? customPhotoUrl ? 'Sua Foto Personalizada ativa' : 'Toque em Tirar Foto ou Galeria para adicionar sua imagem' 
                     : 'Fundo Gradiente Estilizado'}
                 </span>
               </div>
@@ -924,11 +924,14 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                       {customPhotoUrl && (
                         <button
                           type="button"
-                          onClick={() => setCustomPhotoUrl(null)}
+                          onClick={() => {
+                            setCustomPhotoUrl(null);
+                            setPhotoSrc(null);
+                          }}
                           className="text-[10px] font-black text-rose-400 hover:text-rose-300 uppercase underline cursor-pointer"
-                          title="Restaurar foto padrão de exemplo"
+                          title="Remover foto atual"
                         >
-                          Restaurar Padrão
+                          Remover Foto
                         </button>
                       )}
                       <button
@@ -953,16 +956,27 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-900/90 border border-white/5 text-[10px]">
                     <span className="text-slate-400">
                       Foto em uso: <strong className={customPhotoUrl ? "text-emerald-400" : "text-amber-400"}>
-                        {customPhotoUrl ? "Sua Foto Pessoal" : "Foto Padrão de Corrida"}
+                        {customPhotoUrl ? "Sua Foto Pessoal" : "Nenhuma foto selecionada"}
                       </strong>
                     </span>
-                    {!customPhotoUrl && (
+                    {!customPhotoUrl ? (
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         className="text-emerald-400 font-black uppercase text-[9px] hover:underline cursor-pointer"
                       >
                         + Colocar Minha Foto
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomPhotoUrl(null);
+                          setPhotoSrc(null);
+                        }}
+                        className="text-rose-400 font-black uppercase text-[9px] hover:underline cursor-pointer"
+                      >
+                        Remover
                       </button>
                     )}
                   </div>

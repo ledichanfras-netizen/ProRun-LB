@@ -88,7 +88,10 @@ export class HeartRateMonitor {
     if (this.characteristic.readValue) {
       this.pollingInterval = setInterval(async () => {
         try {
-          processMeasurement(await this.characteristic?.readValue());
+          if (this.characteristic?.readValue) {
+            const val = await this.characteristic.readValue();
+            processMeasurement(val);
+          }
         } catch {
           // Alguns sensores aceitam somente notificações; elas continuam ativas.
         }

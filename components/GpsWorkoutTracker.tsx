@@ -180,6 +180,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [heartRateBpm, setHeartRateBpm] = useState<number | null>(null);
+  const [heartRateLastUpdatedAt, setHeartRateLastUpdatedAt] = useState<number | null>(null);
+  const [heartRateAgeSeconds, setHeartRateAgeSeconds] = useState<number | null>(null);
   const [heartRateAverage, setHeartRateAverage] = useState<number | null>(null);
   const [heartRateMax, setHeartRateMax] = useState<number | null>(null);
   const [heartRateSamples, setHeartRateSamples] = useState<number[]>([]);
@@ -210,6 +212,20 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   useEffect(() => {
     workoutAudio.setSoundEnabled(soundEnabled);
   }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!heartRateLastUpdatedAt) {
+      setHeartRateAgeSeconds(null);
+      return;
+    }
+
+    const updateHeartRateAge = () => {
+      setHeartRateAgeSeconds(Math.max(0, Math.floor((Date.now() - heartRateLastUpdatedAt) / 1000)));
+    };
+    updateHeartRateAge();
+    const interval = setInterval(updateHeartRateAge, 1000);
+    return () => clearInterval(interval);
+  }, [heartRateLastUpdatedAt]);
 
   // Keep state accessible in intervals & callbacks
   const trackingRef = useRef({
@@ -256,6 +272,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   const handleHeartRateMeasurement = (measurement: HeartRateMeasurement) => {
     setHeartRateBpm(measurement.bpm);
+    setHeartRateLastUpdatedAt(measurement.timestamp);
     setHeartRateSamples(prev => {
       const next = [...prev, measurement.bpm].slice(-600);
       setHeartRateAverage(Math.round(next.reduce((sum, value) => sum + value, 0) / next.length));
@@ -279,6 +296,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         setHeartRateStatus('idle');
         setHeartRateDeviceName(null);
         setHeartRateBpm(null);
+        setHeartRateLastUpdatedAt(null);
       });
       setHeartRateDeviceName(device.name);
       setHeartRateStatus('connected');
@@ -293,6 +311,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setHeartRateStatus('idle');
     setHeartRateDeviceName(null);
     setHeartRateBpm(null);
+    setHeartRateLastUpdatedAt(null);
   };
 
   // ADVANCE STEP / LAP FUNCTION WITH VOICE SYNTHESIS
@@ -348,6 +367,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     workoutAudio.init();
     setGpsError(null);
     setHeartRateBpm(null);
+    setHeartRateLastUpdatedAt(null);
     setHeartRateAverage(null);
     setHeartRateMax(null);
     setHeartRateSamples([]);
@@ -1269,6 +1289,23 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               </div>
             )}
 
+            {heartRateStatus === 'connected' && (
+              <div className={`mt-2 flex items-center justify-center gap-1.5 text-[9px] font-bold ${
+                heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3
+                  ? (isLight ? 'text-emerald-700' : 'text-emerald-300')
+                  : (isLight ? 'text-amber-700' : 'text-amber-300')
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3 ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                }`} />
+                {heartRateAgeSeconds === null
+                  ? 'Aguardando primeira leitura'
+                  : heartRateAgeSeconds <= 3
+                  ? 'Atualização ao vivo'
+                  : `Sem nova leitura há ${heartRateAgeSeconds}s`}
+              </div>
+            )}
+
             {heartRateError && (
               <div className={`mt-2 text-[10px] font-medium ${isLight ? 'text-rose-700' : 'text-rose-300'}`}>{heartRateError}</div>
             )}
@@ -1805,7 +1842,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               ) : null}
 
               {/* Grid de Números Gigantes das Métricas */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="p-2 sm:p-3.5 bg-slate-900/90 border border-emerald-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
                   <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Distância</span>
                   <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-emerald-400">
@@ -1825,6 +1862,28 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-white">
                     {formatDuration(durationSeconds)}
                   </div>
+                </div>
+
+                <div className={`p-2 sm:p-3.5 bg-slate-900/90 rounded-2xl text-center flex flex-col items-center justify-center ${
+                  heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3
+                    ? 'border border-rose-500/50'
+                    : 'border border-white/10'
+                }`}>
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-rose-300 flex items-center gap-1">
+                    <HeartPulse className="w-3 h-3" /> FC atual
+                  </span>
+                  <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-rose-300">
+                    {heartRateBpm || '--'} <span className="text-[8px] sm:text-xs text-slate-400">BPM</span>
+                  </div>
+                  <span className={`text-[7px] sm:text-[8px] font-bold ${
+                    heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3 ? 'text-emerald-300' : 'text-amber-300'
+                  }`}>
+                    {heartRateAgeSeconds === null
+                      ? 'Aguardando sensor'
+                      : heartRateAgeSeconds <= 3
+                      ? 'AO VIVO'
+                      : `há ${heartRateAgeSeconds}s`}
+                  </span>
                 </div>
               </div>
 

@@ -5,6 +5,7 @@ export interface HeartRateMeasurement {
 
 interface BluetoothCharacteristicLike {
   startNotifications(): Promise<BluetoothCharacteristicLike>;
+  readValue?(): Promise<DataView>;
   stopNotifications?(): Promise<void>;
   addEventListener(type: string, listener: (event: Event) => void): void;
   removeEventListener(type: string, listener: (event: Event) => void): void;
@@ -40,6 +41,7 @@ export class HeartRateMonitor {
   private characteristic: BluetoothCharacteristicLike | null = null;
   private measurementHandler: ((event: Event) => void) | null = null;
   private disconnectHandler: ((event: Event) => void) | null = null;
+  private pollingInterval: ReturnType<typeof setInterval> | null = null;
 
   get isSupported() {
     return Boolean((navigator as BluetoothNavigator).bluetooth);
@@ -63,8 +65,7 @@ export class HeartRateMonitor {
     const service = await server.getPrimaryService(HEART_RATE_SERVICE);
     this.characteristic = await service.getCharacteristic(HEART_RATE_CHARACTERISTIC);
 
-    this.measurementHandler = (event: Event) => {
-      const value = (event.target as { value?: DataView } | null)?.value;
+    const processMeasurement = (value: DataView | undefined) => {
       if (!value) return;
 
       const flags = value.getUint8(0);
@@ -75,15 +76,33 @@ export class HeartRateMonitor {
       }
     };
 
+    this.measurementHandler = (event: Event) => {
+      processMeasurement((event.target as { value?: DataView } | null)?.value);
+    };
+
     this.disconnectHandler = () => onDisconnect();
     this.characteristic.addEventListener('characteristicvaluechanged', this.measurementHandler);
     this.device.addEventListener('gattserverdisconnected', this.disconnectHandler);
     await this.characteristic.startNotifications();
 
+    if (this.characteristic.readValue) {
+      this.pollingInterval = setInterval(async () => {
+        try {
+          processMeasurement(await this.characteristic?.readValue());
+        } catch {
+          // Alguns sensores aceitam somente notificações; elas continuam ativas.
+        }
+      }, 1000);
+    }
+
     return { name: this.device.name || 'Sensor cardíaco' };
   }
 
   async disconnect() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
     if (this.characteristic && this.measurementHandler) {
       this.characteristic.removeEventListener('characteristicvaluechanged', this.measurementHandler);
       if (this.characteristic.stopNotifications) await this.characteristic.stopNotifications();

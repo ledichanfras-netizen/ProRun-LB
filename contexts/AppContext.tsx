@@ -7,7 +7,7 @@ import { analyzeAthletePerformance } from '../services/performanceService';
 import { updateGamificationData, countCompletedWorkouts } from '../services/gamificationService';
 import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../utils/sanitization';
-import { getAppNow } from '../utils/time';
+import { getAppNow, getTodayDateString } from '../utils/time';
 import { DEFAULT_WORKOUTS } from '../data/defaultWorkouts';
 
 interface AppContextType {
@@ -887,15 +887,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const updateData: Partial<Athlete> = { gamification: updatedData };
       
       if (readinessScore !== undefined) {
-        updateData.lastReadiness = {
-          date: new Date().toISOString().split('T')[0],
-          sleepScore: sleepScore || 3,
-          stressScore: stressScore || 3,
-          sorenessScore: sorenessScore || 3,
-          moodScore: moodScore || 3,
+        const todayStr = getTodayDateString();
+        const existingHistory = athlete.readinessHistory ? [...athlete.readinessHistory] : [];
+        const existingIdx = existingHistory.findIndex(h => h.date === todayStr);
+        const readinessEntry = {
+          id: existingIdx >= 0 ? existingHistory[existingIdx].id : Math.random().toString(36).substring(2, 9),
+          date: todayStr,
+          sleepScore: sleepScore !== undefined ? sleepScore : 8,
+          stressScore: stressScore !== undefined ? stressScore : 2,
+          sorenessScore: sorenessScore !== undefined ? sorenessScore : 2,
+          moodScore: moodScore !== undefined ? moodScore : 8,
           menstrualPhase: menstrualPhase || 'none',
-          readinessScore: readinessScore
+          readinessScore: readinessScore,
+          energyLevel: readinessScore
         };
+
+        if (existingIdx >= 0) {
+          existingHistory[existingIdx] = { ...existingHistory[existingIdx], ...readinessEntry };
+        } else {
+          existingHistory.push(readinessEntry);
+        }
+        existingHistory.sort((a, b) => b.date.localeCompare(a.date));
+
+        updateData.readinessHistory = existingHistory;
+        updateData.lastReadiness = existingHistory[0];
         
         // Also set the simple backward compatible readiness field for dashboard filters
         if (readinessScore >= 70) {

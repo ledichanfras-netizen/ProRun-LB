@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
-import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../utils/time';
+import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getLocalDateString, getTodayDateString, parseDateString } from '../utils/time';
 import { 
   AlertCircle, 
   CheckCircle, 
@@ -197,12 +197,15 @@ const AthletePortal: React.FC = () => {
   const [portalSleep, setPortalSleep] = useState<number>(8); // Qualidade do Sono (0 a 10)
   const [portalStress, setPortalStress] = useState<number>(2); // Estresse Mental (0 a 10)
   const [portalSoreness, setPortalSoreness] = useState<number>(2); // Dor Muscular (0 a 10)
+  const [portalSorenessLocation, setPortalSorenessLocation] = useState<string>('none'); // Localização da dor
+  const [portalHydration, setPortalHydration] = useState<number>(8); // Nível de Hidratação (0 a 10)
+  const [portalRestingHR, setPortalRestingHR] = useState<string>(''); // FC Repouso matinal (bpm)
   const [portalMood, setPortalMood] = useState<number>(8); // Humor para Treino (0 a 10)
   const [portalMenstrual, setPortalMenstrual] = useState<'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none'>('none');
   const [portalIsSubmitting, setPortalIsSubmitting] = useState(false);
   const [showPortalForm, setShowPortalForm] = useState(false);
   const [showHistoryInModal, setShowHistoryInModal] = useState(false);
-  const [portalDate, setPortalDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [portalDate, setPortalDate] = useState<string>(getTodayDateString());
   const [readinessChartTab, setReadinessChartTab] = useState<'readiness' | 'multi'>('readiness');
 
   // Post-Workout Completion Prompt & Photo Capture States
@@ -251,7 +254,7 @@ const AthletePortal: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
-  const [newGoal, setNewGoal] = useState({ title: '', type: 'distance' as const, targetValue: 5, deadline: getAppNow().toISOString().split('T')[0] });
+  const [newGoal, setNewGoal] = useState({ title: '', type: 'distance' as const, targetValue: 5, deadline: getTodayDateString() });
   const [selectedAchievement, setSelectedAchievement] = useState<UserAchievement | null>(null);
   const [localExercises, setLocalExercises] = useState<Exercise[]>([]);
   const [selectedDayPerWeek, setSelectedDayPerWeek] = useState<Record<number, number>>({});
@@ -274,7 +277,7 @@ const AthletePortal: React.FC = () => {
     if (!activeAthlete || !newGoal.title || !newGoal.targetValue) return;
     await addUserGoal(activeAthlete.id, newGoal);
     setShowGoalModal(false);
-    setNewGoal({ title: '', type: 'distance' as const, targetValue: 5, deadline: getAppNow().toISOString().split('T')[0] });
+    setNewGoal({ title: '', type: 'distance' as const, targetValue: 5, deadline: getTodayDateString() });
     addNotification({
       title: 'Meta Definida!',
       message: `Você definiu um novo desafio: ${newGoal.title}. Boa sorte!`,
@@ -299,51 +302,59 @@ const AthletePortal: React.FC = () => {
     return Math.round(hours * 10) / 10;
   };
 
-  useEffect(() => {
-    const hours = calculateHoursDiff(portalBedTime, portalWakeTime);
+  const handleBedTimeChange = (bed: string) => {
+    setPortalBedTime(bed);
+    const hours = calculateHoursDiff(bed, portalWakeTime);
     setPortalSleepHours(hours);
-  }, [portalBedTime, portalWakeTime]);
+  };
+
+  const handleWakeTimeChange = (wake: string) => {
+    setPortalWakeTime(wake);
+    const hours = calculateHoursDiff(portalBedTime, wake);
+    setPortalSleepHours(hours);
+  };
+
+  const handlePresetTimes = (bed: string, wake: string) => {
+    setPortalBedTime(bed);
+    setPortalWakeTime(wake);
+    const hours = calculateHoursDiff(bed, wake);
+    setPortalSleepHours(hours);
+  };
 
   useEffect(() => {
     if (!activeAthlete) return;
     const history = activeAthlete.readinessHistory || [];
     const existing = history.find(entry => entry.date === portalDate);
     if (existing) {
-      setPortalSleepHours(existing.sleepHours !== undefined ? existing.sleepHours : 7.5);
-      setPortalBedTime(existing.bedTime || '22:30');
-      setPortalWakeTime(existing.wakeTime || '06:30');
-      const rawSleep = existing.sleepScore !== undefined ? existing.sleepScore : 8;
-      setPortalSleep(rawSleep <= 5 ? Math.min(10, Math.round(rawSleep * 2)) : rawSleep);
-
-      const rawStress = existing.stressScore !== undefined ? existing.stressScore : 2;
-      setPortalStress(rawStress <= 5 ? Math.min(10, Math.round(rawStress * 2)) : rawStress);
-
-      const rawSoreness = existing.sorenessScore !== undefined ? existing.sorenessScore : 2;
-      setPortalSoreness(rawSoreness <= 5 ? Math.min(10, Math.round(rawSoreness * 2)) : rawSoreness);
-
-      const rawMood = existing.moodScore !== undefined ? existing.moodScore : 8;
-      setPortalMood(rawMood <= 5 ? Math.min(10, Math.round(rawMood * 2)) : rawMood);
-
+      const bed = existing.bedTime || '22:30';
+      const wake = existing.wakeTime || '06:30';
+      setPortalBedTime(bed);
+      setPortalWakeTime(wake);
+      setPortalSleepHours(existing.sleepHours !== undefined ? existing.sleepHours : calculateHoursDiff(bed, wake));
+      setPortalSleep(existing.sleepScore !== undefined ? existing.sleepScore : 8);
+      setPortalStress(existing.stressScore !== undefined ? existing.stressScore : 2);
+      setPortalSoreness(existing.sorenessScore !== undefined ? existing.sorenessScore : 2);
+      setPortalSorenessLocation(existing.sorenessLocation || 'none');
+      setPortalHydration(existing.hydrationScore !== undefined ? existing.hydrationScore : 8);
+      setPortalRestingHR(existing.restingHeartRate ? String(existing.restingHeartRate) : '');
+      setPortalMood(existing.moodScore !== undefined ? existing.moodScore : 8);
       setPortalMenstrual(existing.menstrualPhase || 'none');
     } else {
-      // If no entry exists for this date, try to fall back to the last registered readiness or default values
-      const lastR = activeAthlete.lastReadiness;
-      setPortalSleepHours(lastR?.sleepHours !== undefined ? lastR.sleepHours : 7.5);
-      setPortalBedTime(lastR?.bedTime || '22:30');
-      setPortalWakeTime(lastR?.wakeTime || '06:30');
-
-      const rawSleep = lastR?.sleepScore !== undefined ? lastR.sleepScore : 8;
-      setPortalSleep(rawSleep <= 5 ? Math.min(10, Math.round(rawSleep * 2)) : rawSleep);
-
-      const rawStress = lastR?.stressScore !== undefined ? lastR.stressScore : 2;
-      setPortalStress(rawStress <= 5 ? Math.min(10, Math.round(rawStress * 2)) : rawStress);
-
-      const rawSoreness = lastR?.sorenessScore !== undefined ? lastR.sorenessScore : 2;
-      setPortalSoreness(rawSoreness <= 5 ? Math.min(10, Math.round(rawSoreness * 2)) : rawSoreness);
-
-      const rawMood = lastR?.moodScore !== undefined ? lastR.moodScore : 8;
-      setPortalMood(rawMood <= 5 ? Math.min(10, Math.round(rawMood * 2)) : rawMood);
-
+      // If no entry exists for this specific date, use defaults or last registered readiness
+      const isToday = portalDate === getTodayDateString();
+      const lastR = isToday ? activeAthlete.lastReadiness : undefined;
+      const bed = lastR?.bedTime || '22:30';
+      const wake = lastR?.wakeTime || '06:30';
+      setPortalBedTime(bed);
+      setPortalWakeTime(wake);
+      setPortalSleepHours(lastR?.sleepHours !== undefined ? lastR.sleepHours : 8);
+      setPortalSleep(lastR?.sleepScore !== undefined ? lastR.sleepScore : 8);
+      setPortalStress(lastR?.stressScore !== undefined ? lastR.stressScore : 2);
+      setPortalSoreness(lastR?.sorenessScore !== undefined ? lastR.sorenessScore : 2);
+      setPortalSorenessLocation(lastR?.sorenessLocation || 'none');
+      setPortalHydration(lastR?.hydrationScore !== undefined ? lastR.hydrationScore : 8);
+      setPortalRestingHR(lastR?.restingHeartRate ? String(lastR.restingHeartRate) : '');
+      setPortalMood(lastR?.moodScore !== undefined ? lastR.moodScore : 8);
       setPortalMenstrual(lastR?.menstrualPhase || 'none');
     }
   }, [portalDate, activeAthlete?.id]);
@@ -367,6 +378,9 @@ const AthletePortal: React.FC = () => {
         (moodPct * 0.15)
       );
 
+      const rawRestingHR = portalRestingHR ? parseInt(portalRestingHR, 10) : undefined;
+      const validRestingHR = !isNaN(rawRestingHR as number) && (rawRestingHR as number) > 30 && (rawRestingHR as number) < 220 ? rawRestingHR : undefined;
+
       const history = activeAthlete.readinessHistory ? [...activeAthlete.readinessHistory] : [];
       const existingIndex = history.findIndex(entry => entry.date === portalDate);
       const newEntry = {
@@ -378,9 +392,13 @@ const AthletePortal: React.FC = () => {
         sleepScore: portalSleep,
         stressScore: portalStress,
         sorenessScore: portalSoreness,
+        sorenessLocation: portalSorenessLocation !== 'none' ? portalSorenessLocation : undefined,
+        hydrationScore: portalHydration,
+        restingHeartRate: validRestingHR,
         moodScore: portalMood,
         menstrualPhase: portalMenstrual,
-        readinessScore: calculatedScore
+        readinessScore: calculatedScore,
+        energyLevel: calculatedScore
       };
 
       if (existingIndex >= 0) {
@@ -406,9 +424,13 @@ const AthletePortal: React.FC = () => {
           sleepScore: latestEntry.sleepScore,
           stressScore: latestEntry.stressScore,
           sorenessScore: latestEntry.sorenessScore,
+          sorenessLocation: latestEntry.sorenessLocation,
+          hydrationScore: latestEntry.hydrationScore,
+          restingHeartRate: latestEntry.restingHeartRate,
           moodScore: latestEntry.moodScore,
           menstrualPhase: latestEntry.menstrualPhase,
-          readinessScore: latestEntry.readinessScore
+          readinessScore: latestEntry.readinessScore,
+          energyLevel: latestEntry.energyLevel
         } : undefined,
         readiness: latestEntry ? (
           latestEntry.readinessScore >= 70 ? 'ready' as const :
@@ -930,7 +952,7 @@ const AthletePortal: React.FC = () => {
         <>
           {/* CARD MENOR DE PRONTIDÃO DIÁRIA (CONFORME O ANEXO, SUPORTANDO LIGHT/DARK MODE) */}
           {(() => {
-            const todayDateStr = new Date().toISOString().split('T')[0];
+            const todayDateStr = getTodayDateString();
             const todayReadiness = (activeAthlete?.readinessHistory || []).find(e => e.date === todayDateStr);
 
             // Get configuration for rendering based on readiness score
@@ -1122,7 +1144,7 @@ const AthletePortal: React.FC = () => {
                     </span>
                     <button
                       type="button"
-                      onClick={() => setPortalDate(new Date().toISOString().split('T')[0])}
+                      onClick={() => setPortalDate(getTodayDateString())}
                       className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider hover:underline"
                     >
                       Hoje
@@ -1167,7 +1189,7 @@ const AthletePortal: React.FC = () => {
                         <input
                           type="time"
                           value={portalBedTime}
-                          onChange={(e) => setPortalBedTime(e.target.value)}
+                          onChange={(e) => handleBedTimeChange(e.target.value)}
                           className={`w-full rounded-xl px-3 py-2 text-sm font-black focus:outline-none focus:border-blue-500 text-center font-mono cursor-pointer ${
                             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-white/10 text-white'
                           }`}
@@ -1180,7 +1202,7 @@ const AthletePortal: React.FC = () => {
                         <input
                           type="time"
                           value={portalWakeTime}
-                          onChange={(e) => setPortalWakeTime(e.target.value)}
+                          onChange={(e) => handleWakeTimeChange(e.target.value)}
                           className={`w-full rounded-xl px-3 py-2 text-sm font-black focus:outline-none focus:border-blue-500 text-center font-mono cursor-pointer ${
                             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-white/10 text-white'
                           }`}
@@ -1198,16 +1220,13 @@ const AthletePortal: React.FC = () => {
                           { bed: '22:00', wake: '06:00', label: '22h às 6h (8h)' },
                           { bed: '22:30', wake: '06:30', label: '22:30 às 6:30 (8h)' },
                           { bed: '23:00', wake: '07:00', label: '23h às 7h (8h)' },
-                          { bed: '23:30', wake: '07:00', label: '23:30 às 7h (7.5h)' },
+                          { bed: '23:30', wake: '07:00', label: '23h às 7h (7.5h)' },
                           { bed: '00:00', wake: '07:30', label: '00h às 7:30 (7.5h)' }
                         ].map((preset, idx) => (
                           <button
                             key={idx}
                             type="button"
-                            onClick={() => {
-                              setPortalBedTime(preset.bed);
-                              setPortalWakeTime(preset.wake);
-                            }}
+                            onClick={() => handlePresetTimes(preset.bed, preset.wake)}
                             className={`px-2 py-1 rounded-lg text-[9.5px] font-bold border transition-all cursor-pointer ${
                               portalBedTime === preset.bed && portalWakeTime === preset.wake
                                 ? 'bg-blue-500 text-white border-blue-400 font-black'
@@ -1421,6 +1440,41 @@ const AthletePortal: React.FC = () => {
                       </span>
                     </div>
 
+                    {/* Mapeamento Anatômico de Dor (quando houver dor relatada > 0) */}
+                    {portalSoreness > 0 && (
+                      <div className={`p-3 rounded-xl border space-y-1.5 ${
+                        isLight ? 'bg-amber-50/80 border-amber-200' : 'bg-slate-900/90 border-amber-500/20'
+                      }`}>
+                        <label className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                          isLight ? 'text-amber-800' : 'text-amber-400'
+                        }`}>
+                          📍 Região Anatômica do Incômodo / Dor
+                        </label>
+                        <select
+                          value={portalSorenessLocation}
+                          onChange={(e) => setPortalSorenessLocation(e.target.value)}
+                          aria-label="Região Anatômica do Incômodo ou Dor"
+                          className={`w-full p-2 rounded-lg text-xs font-bold border ${
+                            isLight 
+                              ? 'bg-white border-slate-300 text-slate-800' 
+                              : 'bg-slate-950 border-white/10 text-slate-200'
+                          }`}
+                        >
+                          <option value="none">Selecione o local principal da dor...</option>
+                          <option value="Panturrilhas / Sóleo">Panturrilhas / Sóleo (Gêmeos)</option>
+                          <option value="Canelas / Periostite Tibial">Canelas / Periostite Tibial</option>
+                          <option value="Tendão de Aquiles">Tendão de Aquiles / Calcâneo</option>
+                          <option value="Joelhos / Tendão Patelar">Joelhos / Tendão Patelar / TFL</option>
+                          <option value="Pés / Fascite Plantar">Pés / Fascite Plantar / Dedos</option>
+                          <option value="Quadríceps / Coxa Anterior">Quadríceps / Coxa Anterior</option>
+                          <option value="Posterior de Coxa / Isquiotibiais">Posterior de Coxa / Isquiotibiais</option>
+                          <option value="Glúteos / Piriforme / Quadril">Glúteos / Piriforme / Quadril</option>
+                          <option value="Lombar / Coluna">Lombar / Coluna Baixa</option>
+                          <option value="Geral / Fadiga de Perna Toda">Geral / Peso nas Pernas Todas</option>
+                        </select>
+                      </div>
+                    )}
+
                     <div className={`flex justify-between text-[9px] font-bold px-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                       <span>0 - Sem Dores / Pernas Livres</span>
                       <span>10 - Dor Incapacitante / Travado</span>
@@ -1492,6 +1546,69 @@ const AthletePortal: React.FC = () => {
                     <div className={`flex justify-between text-[9px] font-bold px-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                       <span>0 - Sem Vontade / Desanimado</span>
                       <span>10 - Motivação & Foco Máximo</span>
+                    </div>
+                  </div>
+
+                  {/* 6. NÍVEL DE HIDRATAÇÃO & FC REPOUSO (Pilares Fisiológicos Complementares) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className={`space-y-2 p-4 rounded-2xl border ${
+                      isLight ? 'bg-cyan-50/50 border-cyan-200/80' : 'bg-slate-950/70 border-cyan-500/20'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <label className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${isLight ? 'text-cyan-800' : 'text-cyan-300'}`}>
+                          💧 6. Hidratação Corporal (0 a 10)
+                        </label>
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-lg font-mono border ${
+                          isLight ? 'bg-cyan-500/10 text-cyan-800 border-cyan-300/40' : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                        }`}>
+                          {portalHydration}/10
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-6 gap-1 pt-1">
+                        {[0, 2, 4, 6, 8, 10].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setPortalHydration(val)}
+                            className={`py-1.5 rounded-lg text-xs font-bold border text-center transition-all ${
+                              portalHydration === val
+                                ? 'bg-cyan-500 text-white font-black ring-2 ring-cyan-400'
+                                : isLight ? 'bg-white text-slate-600 border-slate-200' : 'bg-slate-900 text-slate-300 border-white/10'
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        ))}
+                      </div>
+                      <p className={`text-[9.5px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {portalHydration >= 8 ? '💧 Excelente hidratação (urina clara)' : portalHydration >= 5 ? '🥛 Hidratação moderada' : '⚠️ Desidratado / Beba água antes de correr'}
+                      </p>
+                    </div>
+
+                    <div className={`space-y-2 p-4 rounded-2xl border ${
+                      isLight ? 'bg-rose-50/40 border-rose-200/80' : 'bg-slate-950/70 border-rose-500/20'
+                    }`}>
+                      <label className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${isLight ? 'text-rose-800' : 'text-rose-300'}`}>
+                        ❤️ FC de Repouso ao Acordar
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          placeholder="Ex: 52"
+                          min="35"
+                          max="160"
+                          value={portalRestingHR}
+                          onChange={(e) => setPortalRestingHR(e.target.value)}
+                          aria-label="Frequência Cardíaca de Repouso em bpm"
+                          className={`w-full p-2 rounded-xl text-xs font-black border ${
+                            isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-900 border-white/10 text-white'
+                          }`}
+                        />
+                        <span className={`text-xs font-bold uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>bpm</span>
+                      </div>
+                      <p className={`text-[9.5px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        Elevações de +5 a +8 bpm acima da sua média indicam estresse ou fadiga acumulada.
+                      </p>
                     </div>
                   </div>
 
@@ -2127,23 +2244,17 @@ const AthletePortal: React.FC = () => {
 
       {/* SEÇÃO: CONTROLE DE PRONTIDÃO, QUALIDADE DE SONO, DOR E FADIGA (OPÇÃO 2) */}
       {(() => {
-        const todayDateStr = new Date().toISOString().split('T')[0];
+        const todayDateStr = getTodayDateString();
         const historyList = activeAthlete?.readinessHistory || [];
         const todayEntry = historyList.find(e => e.date === todayDateStr) || activeAthlete?.lastReadiness;
         const isTodayRegistered = historyList.some(e => e.date === todayDateStr);
 
-        // Normalização de notas (caso venha em escala 0-5 ou 0-10)
-        const normalizeScore = (val: number | undefined | null) => {
-          if (val === undefined || val === null) return null;
-          return val <= 5 ? Math.min(10, Math.round(val * 2)) : val;
-        };
-
         const currentScore = todayEntry?.readinessScore ?? null;
-        const currentSleep = normalizeScore(todayEntry?.sleepScore);
+        const currentSleep = todayEntry?.sleepScore !== undefined ? todayEntry.sleepScore : null;
         const currentSleepHours = todayEntry?.sleepHours ?? null;
-        const currentStress = normalizeScore(todayEntry?.stressScore);
-        const currentSoreness = normalizeScore(todayEntry?.sorenessScore);
-        const currentMood = normalizeScore(todayEntry?.moodScore);
+        const currentStress = todayEntry?.stressScore !== undefined ? todayEntry.stressScore : null;
+        const currentSoreness = todayEntry?.sorenessScore !== undefined ? todayEntry.sorenessScore : null;
+        const currentMood = todayEntry?.moodScore !== undefined ? todayEntry.moodScore : null;
 
         // Status esportivo da prontidão
         const getStatusData = (score: number | null) => {
@@ -2206,11 +2317,11 @@ const AthletePortal: React.FC = () => {
 
         // Gerar histórico dos últimos 7 dias
         const weekDays = [];
-        const today = new Date();
+        const today = getAppNow();
         for (let i = 6; i >= 0; i--) {
           const d = new Date(today);
           d.setDate(today.getDate() - i);
-          const dateString = d.toISOString().split('T')[0];
+          const dateString = getLocalDateString(d);
           const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
           const dayName = dayNames[d.getDay()];
           const dayFmt = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -2227,9 +2338,9 @@ const AthletePortal: React.FC = () => {
             });
           });
 
-          const sleepN = normalizeScore(entry?.sleepScore);
-          const stressN = normalizeScore(entry?.stressScore);
-          const sorenessN = normalizeScore(entry?.sorenessScore);
+          const sleepN = entry?.sleepScore !== undefined ? entry.sleepScore : null;
+          const stressN = entry?.stressScore !== undefined ? entry.stressScore : null;
+          const sorenessN = entry?.sorenessScore !== undefined ? entry.sorenessScore : null;
 
           weekDays.push({
             dateString,

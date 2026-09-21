@@ -1,22 +1,41 @@
 
 /**
- * Centralized time utility to handle the simulated application time.
- * User requested "now" to be 2026-05-03 23:28.
- * Metadata says real "now" is around 2026-05-04 02:29.
+ * Centralized time utility for date and time handling across the application.
+ * Ensures consistent local timezone formatting without UTC date shifts at nighttime (e.g. 22:00 in UTC-3).
  */
 
-// We define the target "now" for the simulated app date.
-// User says race was yesterday (May 3rd), so today is Monday May 4th.
-export const APP_NOW = new Date('2026-05-04T00:15:00');
+export function getAppNow(): Date {
+  return new Date();
+}
 
-export function getAppNow() {
-  // We use a fixed simulation start point to keep time moving forward relative to real time
-  const simulationStartReal = new Date('2026-05-04T03:15:00').getTime();
-  const simulationStartApp = APP_NOW.getTime();
-  const realNow = Date.now();
-  
-  const elapsed = realNow - simulationStartReal;
-  return new Date(simulationStartApp + elapsed);
+/**
+ * Returns a 'YYYY-MM-DD' string formatted strictly in the user's local timezone.
+ * Avoids the UTC date shift caused by date.toISOString().split('T')[0] when registering at night (e.g. 22:00).
+ */
+export function getLocalDateString(date: Date = getAppNow()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getTodayDateString(): string {
+  return getLocalDateString(getAppNow());
+}
+
+/**
+ * Safely parses a 'YYYY-MM-DD' string into a local Date without timezone shift.
+ */
+export function parseDateString(dateStr: string): Date {
+  if (!dateStr) return getAppNow();
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    return new Date(year, month, day, 12, 0, 0);
+  }
+  return new Date(dateStr);
 }
 
 export function formatAppDate(date: Date): string {
@@ -28,7 +47,7 @@ export function formatAppDateTime(date: Date): string {
 }
 
 export function getWorkoutDate(planStartDate: string, weekIndex: number, dayIndex: number): Date {
-  const start = new Date(planStartDate + 'T00:00:00');
+  const start = parseDateString(planStartDate);
   const startDay = start.getDay() === 0 ? 6 : start.getDay() - 1;
   const firstMonday = new Date(start);
   firstMonday.setDate(start.getDate() - startDay);

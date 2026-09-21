@@ -87,9 +87,15 @@ export interface Athlete {
     pse?: number;
     stressScore: number;
     sorenessScore: number;
+    sorenessLocation?: string;
+    hydrationScore?: number;
+    restingHeartRate?: number;
+    hrvMs?: number;
     moodScore: number;
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
     readinessScore: number;
+    energyLevel?: number;
+    notes?: string;
   };
   readinessHistory?: {
     id: string;
@@ -101,9 +107,15 @@ export interface Athlete {
     pse?: number;
     stressScore: number;
     sorenessScore: number;
+    sorenessLocation?: string;
+    hydrationScore?: number;
+    restingHeartRate?: number;
+    hrvMs?: number;
     moodScore: number;
     menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
     readinessScore: number;
+    energyLevel?: number;
+    notes?: string;
   }[];
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];

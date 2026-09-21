@@ -5,7 +5,7 @@ import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType, AthletePlan, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../utils/time';
+import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getTodayDateString } from '../utils/time';
 import { 
   Sparkles, 
   Loader2, 
@@ -289,7 +289,7 @@ const Periodization: React.FC = () => {
         ...generated, 
         weeks: normalizedWeeks, 
         specificGoal: raceGoal ? `${raceDistance} (${raceGoal})` : raceDistance,
-        startDate: startDate || getAppNow().toISOString().split('T')[0],
+        startDate: startDate || getTodayDateString(),
         trainingDays: combinedDays,
         runningDaysOfWeek,
         gymDaysOfWeek,
@@ -437,7 +437,7 @@ const Periodization: React.FC = () => {
       specificGoal: raceGoal || raceDistance,
       raceStrategy: 'Periodização manual iniciada.',
       motivationalMessage: 'Foco e consistência no processo!',
-      startDate: startDate || getAppNow().toISOString().split('T')[0],
+      startDate: startDate || getTodayDateString(),
       trainingDays: combinedDays,
       runningDaysOfWeek,
       gymDaysOfWeek,

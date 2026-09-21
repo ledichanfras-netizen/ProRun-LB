@@ -17,7 +17,20 @@ import {
   Info,
   TrendingDown,
   Activity as ActivityIcon,
-  TrendingUp as TrendingIcon
+  TrendingUp as TrendingIcon,
+  Battery,
+  BatteryCharging,
+  Droplets,
+  Heart,
+  ShieldCheck,
+  Flame,
+  Moon,
+  Brain,
+  Smile,
+  Sparkles,
+  Sliders,
+  ArrowUpRight,
+  Check
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
@@ -42,6 +55,8 @@ import { calculateATL_CTL_TSB } from '../utils/stressModel';
 export default function Dashboard() {
   const { userRole, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [activeEvolutionChartTab, setActiveEvolutionChartTab] = useState<'stress' | 'readiness'>('stress');
+  const [showAdditionalMetricsInfo, setShowAdditionalMetricsInfo] = useState(false);
 
   const currentAthleteId = userRole === 'athlete' ? selectedAthleteId : (selectedAthleteId || athletes[0]?.id);
   const activeAthlete = useMemo(() => athletes.find(a => a.id === currentAthleteId), [athletes, currentAthleteId]);
@@ -284,6 +299,156 @@ export default function Dashboard() {
     return { title, status, analysis, recommendation, subjective: sub };
   }, [activeAthlete, currentStress]);
 
+  // Cálculo da Relação Carga Aguda:Crônica (ACWR - Tim Gabbett)
+  const acwrData = useMemo(() => {
+    if (!currentStress) {
+      return { 
+        value: 1.0, 
+        formatted: '1.00', 
+        status: 'optimal', 
+        label: 'Zona Doce (Sweet Spot)', 
+        badgeColor: 'text-emerald-700 bg-emerald-500/10 border-emerald-500/20', 
+        desc: 'Equilíbrio ótimo entre cansaço recente e adaptação crônica. Risco mínimo de lesão.' 
+      };
+    }
+    const ctl = currentStress.ctl || 0;
+    const atl = currentStress.atl || 0;
+    const value = ctl > 0 ? (atl / ctl) : (atl > 0 ? 1.4 : 1.0);
+    const formatted = value.toFixed(2);
+    
+    if (value < 0.8) {
+      return {
+        value,
+        formatted,
+        status: 'under',
+        label: 'Sub-treinamento (< 0.80)',
+        badgeColor: 'text-blue-700 bg-blue-500/10 border-blue-500/20',
+        desc: 'Carga recente menor que o histórico. Risco baixo de lesão, mas destreinamento gradual.'
+      };
+    }
+    if (value <= 1.3) {
+      return {
+        value,
+        formatted,
+        status: 'optimal',
+        label: 'Zona Doce / Sweet Spot (0.80 - 1.30)',
+        badgeColor: 'text-emerald-700 bg-emerald-500/10 border-emerald-500/20',
+        desc: 'Zona ideal de evolução! Máxima resposta adaptativa com risco mínimo de lesão.'
+      };
+    }
+    if (value <= 1.5) {
+      return {
+        value,
+        formatted,
+        status: 'warning',
+        label: 'Zona de Atenção (1.31 - 1.50)',
+        badgeColor: 'text-amber-700 bg-amber-500/10 border-amber-500/20',
+        desc: 'Aumento rápido de carga aguda (Ramp Rate alto). Monitore dores e qualidade de sono.'
+      };
+    }
+    return {
+      value,
+      formatted,
+      status: 'danger',
+      label: 'Zona de Risco de Lesão (> 1.50)',
+      badgeColor: 'text-rose-700 bg-rose-500/10 border-rose-500/20',
+      desc: 'Pico agudo de carga (Spike > 1.5). Risco elevado de sobrecarga articular ou estiramento.'
+    };
+  }, [currentStress]);
+
+  // Cálculo Integrado de Bateria Corporal e Nível de Energia (0 a 100%)
+  const energyLevelData = useMemo(() => {
+    if (!activeAthlete) {
+      return { 
+        score: 75, 
+        label: 'Energia Equilibrada', 
+        status: 'good', 
+        gradient: 'from-emerald-500 to-teal-400', 
+        textColor: 'text-emerald-600',
+        bgColor: 'bg-emerald-50 border-emerald-200',
+        desc: 'Nível de vitalidade consistente para o treino.' 
+      };
+    }
+    
+    // TSB normalizado entre 15% e 100%
+    const tsb = currentStress?.tsb ?? 0;
+    const tsbPct = Math.min(100, Math.max(15, Math.round(((tsb + 35) / 55) * 100)));
+    
+    let score = tsbPct;
+    const lastR = activeAthlete.lastReadiness;
+    
+    if (lastR && lastR.readinessScore !== undefined) {
+      // 65% Prontidão Diária Relatada (sono, dor, estresse, humor) + 35% Frescor Fisiológico Matemático (TSB)
+      score = Math.round((lastR.readinessScore * 0.65) + (tsbPct * 0.35));
+    }
+    
+    score = Math.min(100, Math.max(5, score));
+    
+    if (score >= 85) {
+      return {
+        score,
+        label: '⚡ Pico de Energia & Prontidão Total',
+        status: 'peak',
+        gradient: 'from-emerald-500 via-teal-400 to-cyan-400',
+        textColor: 'text-emerald-700',
+        bgColor: 'bg-emerald-50/80 border-emerald-300',
+        desc: lastR?.sleepHours 
+          ? `Sono reparador (${lastR.sleepHours}h) e pernas descansadas. Corpo no auge da responsividade para render o máximo.`
+          : 'Excelente frescor físico e neuromuscular. Organismo pronto para estímulos fortes.'
+      };
+    }
+    if (score >= 65) {
+      return {
+        score,
+        label: '🟢 Energia Elevada & Boa Disposição',
+        status: 'high',
+        gradient: 'from-teal-500 to-emerald-400',
+        textColor: 'text-teal-700',
+        bgColor: 'bg-teal-50/80 border-teal-300',
+        desc: 'Bateria corporal saudável para cumprir a sessão prevista com ritmo consistente e boa técnica.'
+      };
+    }
+    if (score >= 45) {
+      return {
+        score,
+        label: '🟡 Energia Moderada (Em Adaptação / Recuperação)',
+        status: 'moderate',
+        gradient: 'from-amber-500 to-yellow-400',
+        textColor: 'text-amber-700',
+        bgColor: 'bg-amber-50/80 border-amber-300',
+        desc: 'Cansaço acumulado normal de ciclo de treinamento. Mantenha os ritmos previstos sem forçar além da planilha.'
+      };
+    }
+    return {
+      score,
+      label: '🔴 Bateria Baixa / Fadiga Acumulada',
+      status: 'low',
+      gradient: 'from-rose-500 to-red-400',
+      textColor: 'text-rose-700',
+      bgColor: 'bg-rose-50/80 border-rose-300',
+      desc: 'Bateria corporal drenada. Priorize sono, hidratação profunda e considere treino regenerativo ou descanso ativo.'
+    };
+  }, [activeAthlete, currentStress]);
+
+  // Histórico de Prontidão Diária para Gráficos
+  const readinessHistoryTimeline = useMemo(() => {
+    if (!activeAthlete?.readinessHistory || activeAthlete.readinessHistory.length === 0) return [];
+    return [...activeAthlete.readinessHistory]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-14)
+      .map(entry => ({
+        dateStr: entry.date.split('-').slice(1).reverse().join('/'),
+        fullDate: entry.date,
+        readinessScore: entry.readinessScore,
+        energyLevel: entry.energyLevel || entry.readinessScore,
+        sleepHours: entry.sleepHours || 7.5,
+        sleepQuality: entry.sleepScore,
+        stress: entry.stressScore,
+        soreness: entry.sorenessScore,
+        mood: entry.moodScore,
+      }));
+  }, [activeAthlete]);
+
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -515,113 +680,261 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* NOVO: Painel de Evolução Física e Prontidão */}
+      {/* NOVO: Painel Avançado de Energia, Prontidão & Evolução Física */}
       {activeAthlete && (
         <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          {/* Topo do Painel com Bateria Corporal e Resumo de Energia */}
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-slate-100">
             <div>
-              <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase italic tracking-tighter">
-                <Activity className="text-emerald-600 w-5 h-5" /> Nível de Energia & Evolução Física
-              </h2>
-              <p className="text-xs text-slate-500 font-medium italic mt-1">
-                Acompanhamento simples do seu condicionamento, cansaço e prontidão para correr.
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
+                  <BatteryCharging className="w-5 h-5" />
+                </span>
+                <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tight">
+                  Nível de Energia & Evolução Física
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Integração fisiológica entre Carga de Treinos (CTL/ATL/TSB/ACWR) e o Novo Modelo de Prontidão Holística do Atleta.
               </p>
             </div>
             
-            {currentStress && (
-              <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 text-xs font-bold ${getTsbZoneInfo(currentStress.tsb).color}`}>
-                <span className="w-2.5 h-2.5 rounded-full bg-current animate-pulse" />
-                <span>Estado: {getTsbZoneInfo(currentStress.tsb).name}</span>
+            {/* Medidor de Bateria Corporal do Atleta */}
+            <div className={`w-full lg:w-auto p-3.5 px-5 rounded-2xl border flex items-center justify-between lg:justify-end gap-4 ${energyLevelData.bgColor}`}>
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center">
+                  <Battery className="w-7 h-7 text-slate-700" />
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-900">
+                    {energyLevelData.score}%
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+                    Bateria Corporal Estimada
+                  </span>
+                  <span className={`text-xs font-black uppercase ${energyLevelData.textColor}`}>
+                    {energyLevelData.label}
+                  </span>
+                </div>
               </div>
-            )}
+              <div className="h-8 w-px bg-slate-200 hidden sm:block" />
+              {currentStress && (
+                <div className="text-right hidden sm:block">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
+                    Estado Fisiológico
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-700">
+                    {getTsbZoneInfo(currentStress.tsb).name.split(' (')[0]}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Cartões de Métrica Simplificados */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100/70 flex flex-col justify-between space-y-4">
+          {/* 4 Cartões de Evolução Física: Condicionamento, Cansaço, Prontidão (TSB) e Razão ACWR */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. CTL - Condicionamento Crônico */}
+            <div className="bg-blue-50/60 p-5 rounded-2xl border border-blue-100 flex flex-col justify-between space-y-3">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">1. Condicionamento</span>
-                  <h3 className="text-2xl font-black text-blue-900 mt-1">{currentStress ? Math.round(currentStress.ctl) : '0'} pt</h3>
+                  <span className="text-[9.5px] font-black text-blue-600 uppercase tracking-widest">1. Condicionamento (CTL)</span>
+                  <h3 className="text-2xl font-black text-blue-950 mt-0.5">{currentStress ? Math.round(currentStress.ctl) : '0'} <span className="text-xs font-bold text-blue-600">pts</span></h3>
                 </div>
-                <div className="bg-blue-500/10 p-2.5 rounded-xl text-blue-600">
-                  <TrendingUp className="w-5 h-5" />
+                <div className="bg-blue-500/10 p-2 rounded-xl text-blue-600">
+                  <TrendingUp className="w-4 h-4" />
                 </div>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                Sua bagagem acumulada de treinos. Quanto mais alto, mais treinado você está e mais volume ou intensidade seu corpo suporta.
+              <p className="text-[11px] text-slate-600 leading-snug font-medium">
+                Carga crônica de 42 dias. Representa sua base aeróbia acumulada e capacidade de suportar volume.
               </p>
             </div>
 
-            <div className="bg-red-50/50 p-6 rounded-2xl border border-red-100/70 flex flex-col justify-between space-y-4">
+            {/* 2. ATL - Fadiga Aguda */}
+            <div className="bg-rose-50/60 p-5 rounded-2xl border border-rose-100 flex flex-col justify-between space-y-3">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">2. Cansaço Acumulado</span>
-                  <h3 className="text-2xl font-black text-red-900 mt-1">{currentStress ? Math.round(currentStress.atl) : '0'} pt</h3>
+                  <span className="text-[9.5px] font-black text-rose-600 uppercase tracking-widest">2. Fadiga Aguda (ATL)</span>
+                  <h3 className="text-2xl font-black text-rose-950 mt-0.5">{currentStress ? Math.round(currentStress.atl) : '0'} <span className="text-xs font-bold text-rose-600">pts</span></h3>
                 </div>
-                <div className="bg-red-500/10 p-2.5 rounded-xl text-red-600">
-                  <AlertTriangle className="w-5 h-5" />
+                <div className="bg-rose-500/10 p-2 rounded-xl text-rose-600">
+                  <Flame className="w-4 h-4" />
                 </div>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                O peso físico dos treinos dos últimos dias. Sobe logo após treinos longos ou tiros rápidos, sendo necessário para gerar evolução.
+              <p className="text-[11px] text-slate-600 leading-snug font-medium">
+                Cansaço agudo dos últimos 7 dias. Sobe com treinos longos e tiros; gera o estímulo para a supercompensação.
               </p>
             </div>
 
-            <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100/70 flex flex-col justify-between space-y-4">
+            {/* 3. TSB - Frescor / Forma Fisiológica */}
+            <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-100 flex flex-col justify-between space-y-3">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">3. Prontidão (Forma)</span>
-                  <h3 className={`text-2xl font-black mt-1 ${currentStress && currentStress.tsb < 0 ? 'text-amber-600' : 'text-emerald-700'}`}>
-                    {currentStress ? (currentStress.tsb > 0 ? `+${Math.round(currentStress.tsb)}` : Math.round(currentStress.tsb)) : '0'} pt
+                  <span className="text-[9.5px] font-black text-emerald-700 uppercase tracking-widest">3. Frescor / Forma (TSB)</span>
+                  <h3 className={`text-2xl font-black mt-0.5 ${currentStress && currentStress.tsb < 0 ? 'text-amber-700' : 'text-emerald-800'}`}>
+                    {currentStress ? (currentStress.tsb > 0 ? `+${Math.round(currentStress.tsb)}` : Math.round(currentStress.tsb)) : '0'} <span className="text-xs font-bold text-emerald-600">pts</span>
                   </h3>
                 </div>
-                <div className="bg-emerald-500/10 p-2.5 rounded-xl text-emerald-600">
-                  <Zap className="w-5 h-5" />
+                <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-600">
+                  <Zap className="w-4 h-4" />
                 </div>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                Seu nível de energia e frescor físico. Valores positivos indicam pernas descansadas (ideal para provas). Valores muito negativos indicam sobrecarga.
+              <p className="text-[11px] text-slate-600 leading-snug font-medium">
+                Diferença CTL - ATL. Valores positivos indicam pernas descansadas; valores negativos indicam carga produtiva de treino.
               </p>
+            </div>
+
+            {/* 4. ACWR - Acute:Chronic Workload Ratio (Tim Gabbett) */}
+            <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-100 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[9.5px] font-black text-amber-700 uppercase tracking-widest">4. Razão de Carga (ACWR)</span>
+                  <h3 className="text-2xl font-black text-amber-950 mt-0.5">{acwrData.formatted} <span className="text-xs font-bold text-amber-600">ratio</span></h3>
+                </div>
+                <div className="bg-amber-500/10 p-2 rounded-xl text-amber-600">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <span className={`inline-block px-2 py-0.5 rounded text-[9.5px] font-black uppercase ${acwrData.badgeColor}`}>
+                  {acwrData.label.split(' (')[0]}
+                </span>
+                <p className="text-[10.5px] text-slate-600 leading-tight font-medium">
+                  {acwrData.desc}
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* NOVO: Plano de Ação Imediato e Explicação Prática */}
-          {currentStress && (
-            <div className={`p-6 rounded-3xl border ${getTsbZoneInfo(currentStress.tsb).color} space-y-4 transition-all duration-300`}>
-              <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${getTsbZoneInfo(currentStress.tsb).badge}`}>
-                  Análise Fisiológica Atual
-                </span>
-                <span className="text-xs font-bold text-slate-600">|</span>
-                <span className="text-xs font-black uppercase tracking-tight text-slate-700">{getTsbZoneInfo(currentStress.tsb).name}</span>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">O que está acontecendo:</h4>
-                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                    {getTsbZoneInfo(currentStress.tsb).desc}
-                  </p>
+          {/* Resumo dos Pilares de Prontidão Preenchidos pelo Atleta */}
+          {activeAthlete.lastReadiness && (
+            <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">📋</span>
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Check-in Diário de Prontidão do Atleta ({activeAthlete.lastReadiness.date.split('-').slice(1).reverse().join('/')})
+                  </h3>
                 </div>
-                <div className="space-y-1 border-t md:border-t-0 md:border-l border-slate-200/50 pt-3 md:pt-0 md:pl-4">
-                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    📋 Plano de Ação Imediato:
-                  </h4>
-                  <p className="text-xs text-slate-800 leading-relaxed font-bold">
-                    {getTsbZoneInfo(currentStress.tsb).actionPlan}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Score de Prontidão:</span>
+                  <span className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-black font-mono text-xs shadow-sm">
+                    {activeAthlete.lastReadiness.readinessScore}%
+                  </span>
                 </div>
               </div>
+
+              {/* Grid com Todos os Pilares de Saúde e Prontidão */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-1">
+                {/* Sono & Horas */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block flex items-center gap-1">
+                    <Moon className="w-3 h-3 text-indigo-500" /> Sono & Descanso
+                  </span>
+                  <p className="text-sm font-black text-slate-800 mt-1">
+                    {activeAthlete.lastReadiness.sleepScore}/10
+                  </p>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    {activeAthlete.lastReadiness.sleepHours ? `${activeAthlete.lastReadiness.sleepHours}h dormidas` : 'Qualidade'}
+                  </span>
+                </div>
+
+                {/* Dores Musculares / DOMS + Região Anatômica */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-500" /> Dor Muscular
+                  </span>
+                  <p className="text-sm font-black text-slate-800 mt-1">
+                    {activeAthlete.lastReadiness.sorenessScore}/10
+                  </p>
+                  <span className="text-[10px] font-bold text-amber-700 truncate block">
+                    {activeAthlete.lastReadiness.sorenessLocation || (activeAthlete.lastReadiness.sorenessScore > 3 ? 'Geral' : 'Sem dores')}
+                  </span>
+                </div>
+
+                {/* Estresse / Fadiga Mental */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block flex items-center gap-1">
+                    <Brain className="w-3 h-3 text-purple-500" /> Estresse Mental
+                  </span>
+                  <p className="text-sm font-black text-slate-800 mt-1">
+                    {activeAthlete.lastReadiness.stressScore}/10
+                  </p>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    {activeAthlete.lastReadiness.stressScore <= 3 ? 'Tranquilo' : activeAthlete.lastReadiness.stressScore <= 6 ? 'Moderado' : 'Estressado'}
+                  </span>
+                </div>
+
+                {/* Humor & Motivação */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block flex items-center gap-1">
+                    <Smile className="w-3 h-3 text-teal-500" /> Motivação
+                  </span>
+                  <p className="text-sm font-black text-slate-800 mt-1">
+                    {activeAthlete.lastReadiness.moodScore}/10
+                  </p>
+                  <span className="text-[10px] font-bold text-teal-700">
+                    {activeAthlete.lastReadiness.moodScore >= 8 ? 'Foco Máximo' : activeAthlete.lastReadiness.moodScore >= 5 ? 'Disposto' : 'Desanimado'}
+                  </span>
+                </div>
+
+                {/* Hidratação Corporal */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block flex items-center gap-1">
+                    <Droplets className="w-3 h-3 text-cyan-500" /> Hidratação
+                  </span>
+                  <p className="text-sm font-black text-slate-800 mt-1">
+                    {activeAthlete.lastReadiness.hydrationScore !== undefined ? `${activeAthlete.lastReadiness.hydrationScore}/10` : '8/10'}
+                  </p>
+                  <span className="text-[10px] font-bold text-cyan-700">
+                    {(activeAthlete.lastReadiness.hydrationScore ?? 8) >= 8 ? 'Hidratado' : 'Atenção hídrica'}
+                  </span>
+                </div>
+
+                {/* Frequência Cardíaca de Repouso */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block flex items-center gap-1">
+                    <Heart className="w-3 h-3 text-rose-500" /> FC Repouso
+                  </span>
+                  <p className="text-sm font-black text-slate-800 mt-1">
+                    {activeAthlete.lastReadiness.restingHeartRate ? `${activeAthlete.lastReadiness.restingHeartRate} bpm` : '-- bpm'}
+                  </p>
+                  <span className="text-[10px] font-bold text-rose-700">
+                    {activeAthlete.lastReadiness.restingHeartRate ? 'Matinal' : 'Não reportado'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Informações Complementares (Mulher Atleta / PSE Pré-Treino) */}
+              {(activeAthlete.lastReadiness.menstrualPhase || activeAthlete.lastReadiness.pse !== undefined) && (
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200/60 text-xs">
+                  {activeAthlete.lastReadiness.menstrualPhase && activeAthlete.lastReadiness.menstrualPhase !== 'none' && (
+                    <span className="px-3 py-1 rounded-xl bg-purple-100 text-purple-900 font-bold flex items-center gap-1.5">
+                      <span>🌸</span>
+                      <span>Ciclo Menstrual: <strong>
+                        {activeAthlete.lastReadiness.menstrualPhase === 'follicular' && 'Fase Folicular (⚡ Estrogênio alto - Força e Energia)'}
+                        {activeAthlete.lastReadiness.menstrualPhase === 'ovulatory' && 'Fase Ovulatória (🔥 Pico de Potência)'}
+                        {activeAthlete.lastReadiness.menstrualPhase === 'luteal' && 'Fase Lútea (🧘 Menor tolerância a calor/fadiga)'}
+                        {activeAthlete.lastReadiness.menstrualPhase === 'menstrual' && 'Fase Menstrual (🩸 Priorizar recuperação)'}
+                      </strong></span>
+                    </span>
+                  )}
+                  {activeAthlete.lastReadiness.pse !== undefined && (
+                    <span className="px-3 py-1 rounded-xl bg-emerald-100 text-emerald-900 font-bold flex items-center gap-1.5">
+                      <span>⚡</span>
+                      <span>PSE Pré-Treino Reportado: <strong>{activeAthlete.lastReadiness.pse}/10</strong></span>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
-          {/* NOVO: Confronto de Coerência: Prontidão Subjetiva vs Carga de Treino */}
+          {/* Confronto de Coerência: Fisiologia vs Percepção do Atleta */}
           {readinessConfrontation && (
             <div className={`p-6 rounded-3xl border ${
-              readinessConfrontation.status === 'success' ? 'bg-emerald-50/40 border-emerald-500/10 text-slate-800' :
-              readinessConfrontation.status === 'warning' ? 'bg-amber-50/40 border-amber-500/10 text-slate-800' :
-              readinessConfrontation.status === 'alert' ? 'bg-rose-50/40 border-rose-500/10 text-slate-800' :
+              readinessConfrontation.status === 'success' ? 'bg-emerald-50/40 border-emerald-500/20 text-slate-800' :
+              readinessConfrontation.status === 'warning' ? 'bg-amber-50/40 border-amber-500/20 text-slate-800' :
+              readinessConfrontation.status === 'alert' ? 'bg-rose-50/40 border-rose-500/20 text-slate-800' :
               'bg-slate-50 border-slate-200 text-slate-800'
             } space-y-4`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -636,22 +949,22 @@ export default function Dashboard() {
                   </span>
                   <div className="group relative cursor-help">
                     <Info className="w-3.5 h-3.5 text-slate-400" />
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-slate-900 text-white text-[9px] font-bold p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl leading-relaxed">
-                      Cruza o cansaço real acumulado no modelo matemático com o nível de prontidão diária relatado pelo próprio atleta no portal.
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900 text-white text-[9.5px] font-bold p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl leading-relaxed">
+                      Cruza os dados matemáticos do modelo de estresse de Banister (CTL/ATL/TSB) com a autopercepção subjetiva de prontidão do atleta.
                     </div>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-2 text-xs font-black text-slate-600">
                   <span>Prontidão Declarada pelo Atleta:</span>
-                  <span className="px-2 py-1 bg-white rounded-lg border border-slate-100 shadow-sm flex items-center gap-1">
+                  <span className="px-2.5 py-1 bg-white rounded-xl border border-slate-200 shadow-xs flex items-center gap-1">
                     {activeAthlete.lastReadiness ? (
                       <>
                         <span className="font-extrabold text-emerald-600 italic">{activeAthlete.lastReadiness.readinessScore}%</span>
                         <span className="text-slate-300">|</span>
                         <span>
                           {activeAthlete.lastReadiness.readinessScore >= 80 ? '⚡ Pronto' :
-                           activeAthlete.lastReadiness.readinessScore >= 50 ? '🧘 Recuperando' : '😴 Fadigado'}
+                           activeAthlete.lastReadiness.readinessScore >= 50 ? '🧘 Em Recuperação' : '😴 Fadigado'}
                         </span>
                       </>
                     ) : (
@@ -664,68 +977,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {activeAthlete.lastReadiness && (
-                <>
-                  {(activeAthlete.lastReadiness.pse !== undefined || activeAthlete.lastReadiness.sleepHours !== undefined) && (
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                      <div className="bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200/60 flex items-center justify-between text-xs">
-                        <span className="font-black text-emerald-800 uppercase tracking-wider italic flex items-center gap-1">
-                          ⚡ PSE Pré-Treino
-                        </span>
-                        <span className="font-black text-emerald-700 font-mono text-sm">
-                          {activeAthlete.lastReadiness.pse !== undefined ? `${activeAthlete.lastReadiness.pse}/10` : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="bg-blue-50/80 p-2.5 rounded-xl border border-blue-200/60 flex items-center justify-between text-xs">
-                        <span className="font-black text-blue-800 uppercase tracking-wider italic flex items-center gap-1">
-                          ⏰ Horas de Sono
-                        </span>
-                        <span className="font-black text-blue-700 font-mono text-sm">
-                          {activeAthlete.lastReadiness.sleepHours ? `${activeAthlete.lastReadiness.sleepHours}h` : 'N/A'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100">
-                    <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
-                      <span className="font-black text-slate-400 uppercase tracking-widest italic">💤 Qualidade Sono</span>
-                      <span className="font-black text-slate-700">{activeAthlete.lastReadiness.sleepScore}/5</span>
-                    </div>
-                    <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
-                      <span className="font-black text-slate-400 uppercase tracking-widest italic">🧠 Estresse</span>
-                      <span className="font-black text-slate-700">{activeAthlete.lastReadiness.stressScore}/5</span>
-                    </div>
-                    <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
-                      <span className="font-black text-slate-400 uppercase tracking-widest italic">🩹 Dor (DOMS)</span>
-                      <span className="font-black text-slate-700">{activeAthlete.lastReadiness.sorenessScore}/5</span>
-                    </div>
-                    <div className="bg-white/60 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between text-[11px]">
-                      <span className="font-black text-slate-400 uppercase tracking-widest italic">🔥 Humor</span>
-                      <span className="font-black text-slate-700">{activeAthlete.lastReadiness.moodScore}/5</span>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {activeAthlete.lastReadiness?.menstrualPhase && activeAthlete.lastReadiness.menstrualPhase !== 'none' && (
-                <div className="bg-purple-50 border border-purple-200/50 p-3 rounded-2xl flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">🌸</span>
-                    <span className="font-bold text-purple-950">
-                      Ciclo Menstrual: <span className="font-extrabold uppercase tracking-tight italic">
-                        {activeAthlete.lastReadiness.menstrualPhase === 'follicular' && 'Fase Folicular (⚡ Estrogênio alto)'}
-                        {activeAthlete.lastReadiness.menstrualPhase === 'ovulatory' && 'Fase Ovulatória (🔥 Pico de força)'}
-                        {activeAthlete.lastReadiness.menstrualPhase === 'luteal' && 'Fase Lútea (🧘 Fadiga de TPM)'}
-                        {activeAthlete.lastReadiness.menstrualPhase === 'menstrual' && 'Fase Menstrual (🩸 Regenerativo)'}
-                      </span>
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-black uppercase text-purple-400 tracking-wider">Mulher Atleta</span>
-                </div>
-              )}
-
-              <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+              <div className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
                 <div>
                   <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                     {readinessConfrontation.status === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-500" /> :
@@ -748,80 +1000,216 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Gráfico do Modelo */}
-          <div className="border border-slate-100 rounded-3xl p-4 bg-slate-50/50">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Evolução Gráfica de Performance</h3>
+          {/* Gráficos de Evolução Física com Alternância de Abas (Stress Model vs Prontidão Holística) */}
+          <div className="border border-slate-200 rounded-3xl p-5 bg-slate-50/60 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" /> Evolução Gráfica de Performance & Prontidão
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  {activeEvolutionChartTab === 'stress' 
+                    ? 'Acompanhamento do Condicionamento (CTL), Cansaço (ATL) e Frescor (TSB)'
+                    : 'Histórico diário de Scores de Prontidão (0-100%) e Horas de Sono'}
+                </p>
+              </div>
+
+              {/* Botões de Alternância de Gráfico */}
+              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setActiveEvolutionChartTab('stress')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    activeEvolutionChartTab === 'stress'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Fisiologia & Carga
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveEvolutionChartTab('readiness')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    activeEvolutionChartTab === 'readiness'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Histórico de Prontidão
+                </button>
+              </div>
+            </div>
+
             <div style={{ height: 320, width: '100%', minWidth: 0 }}>
-              {stressTimeline.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <AreaChart data={stressTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorCtl" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0}/>
-                      </linearGradient>
-                      <linearGradient id="colorAtl" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0}/>
-                      </linearGradient>
-                      <linearGradient id="colorTsb" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis 
-                      dataKey="dateStr" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fill: '#64748b', fontSize: 10, fontWeight: 700}} 
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fill: '#94a3b8', fontSize: 10}} 
-                    />
-                    <Tooltip 
-                      contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginTop: '10px' }} />
-                    <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
-                    
-                    <Area 
-                      type="monotone" 
-                      dataKey="ctl" 
-                      name="Condicionamento Físico" 
-                      stroke="#3b82f6" 
-                      strokeWidth={2.5} 
-                      fillOpacity={1} 
-                      fill="url(#colorCtl)" 
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="atl" 
-                      name="Cansaço Acumulado" 
-                      stroke="#ef4444" 
-                      strokeWidth={2} 
-                      fillOpacity={1} 
-                      fill="url(#colorAtl)" 
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="tsb" 
-                      name="Nível de Prontidão" 
-                      stroke="#10b981" 
-                      strokeWidth={2} 
-                      fillOpacity={0.15} 
-                      fill="url(#colorTsb)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+              {activeEvolutionChartTab === 'stress' ? (
+                stressTimeline.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <AreaChart data={stressTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorCtl" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0}/>
+                        </linearGradient>
+                        <linearGradient id="colorAtl" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25}/>
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0}/>
+                        </linearGradient>
+                        <linearGradient id="colorTsb" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis 
+                        dataKey="dateStr" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fill: '#64748b', fontSize: 10, fontWeight: 700}} 
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fill: '#94a3b8', fontSize: 10}} 
+                      />
+                      <Tooltip 
+                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginTop: '10px' }} />
+                      <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
+                      
+                      <Area 
+                        type="monotone" 
+                        dataKey="ctl" 
+                        name="Condicionamento Físico (CTL)" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2.5} 
+                        fillOpacity={1} 
+                        fill="url(#colorCtl)" 
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="atl" 
+                        name="Cansaço Acumulado (ATL)" 
+                        stroke="#ef4444" 
+                        strokeWidth={2} 
+                        fillOpacity={1} 
+                        fill="url(#colorAtl)" 
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="tsb" 
+                        name="Frescor / Prontidão (TSB)" 
+                        stroke="#10b981" 
+                        strokeWidth={2} 
+                        fillOpacity={0.15} 
+                        fill="url(#colorTsb)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 italic text-xs">
+                    Aguardando registros de treinos concluídos com PSE e feedback para mapear evolução de carga...
+                  </div>
+                )
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 italic">
-                  Aguardando registros de treinos concluídos com PSE e feedback para mapear evolução de carga...
-                </div>
+                readinessHistoryTimeline.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <AreaChart data={readinessHistoryTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorReadiness" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis 
+                        dataKey="dateStr" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fill: '#64748b', fontSize: 10, fontWeight: 700}} 
+                      />
+                      <YAxis 
+                        domain={[0, 100]}
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fill: '#94a3b8', fontSize: 10}} 
+                      />
+                      <Tooltip 
+                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginTop: '10px' }} />
+                      <ReferenceLine y={70} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Zona Pronta (70%)', fill: '#10b981', fontSize: 10 }} />
+                      <ReferenceLine y={40} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Zona Atenção (40%)', fill: '#f59e0b', fontSize: 10 }} />
+                      
+                      <Area 
+                        type="monotone" 
+                        dataKey="readinessScore" 
+                        name="Prontidão Geral (%)" 
+                        stroke="#10b981" 
+                        strokeWidth={3} 
+                        fillOpacity={1} 
+                        fill="url(#colorReadiness)" 
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="mood" 
+                        name="Humor / Motivação (x10)" 
+                        stroke="#06b6d4" 
+                        strokeWidth={2} 
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 italic text-xs">
+                    Nenhum check-in diário de prontidão preenchido ainda pelo atleta no portal.
+                  </div>
+                )
               )}
             </div>
+          </div>
+
+          {/* Análise de Variáveis Adicionais & Recomendações do Treinador */}
+          <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-400">
+                  Análise Técnica: Variáveis Fisiológicas Adicionais & Métricas
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdditionalMetricsInfo(!showAdditionalMetricsInfo)}
+                className="text-[10px] font-bold text-slate-300 hover:text-white underline cursor-pointer"
+              >
+                {showAdditionalMetricsInfo ? 'Ocultar detalhes' : 'Ver variáveis recomendadas'}
+              </button>
+            </div>
+
+            {showAdditionalMetricsInfo && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs border-t border-white/10 animate-fade-in">
+                <div className="bg-white/5 p-3 rounded-xl border border-white/10 space-y-1">
+                  <span className="font-black text-teal-300 block text-[11px]">❤️ FC de Repouso e VFC (HRV)</span>
+                  <p className="text-[10.5px] text-slate-300 leading-relaxed font-medium">
+                    A Variabilidade da Frequência Cardíaca (VFC/rMSSD) e a FC basal refletem a atividade parassimpática autônoma. Quedas bruscas de VFC antecedem lesões por overtraining.
+                  </p>
+                </div>
+                <div className="bg-white/5 p-3 rounded-xl border border-white/10 space-y-1">
+                  <span className="font-black text-cyan-300 block text-[11px]">💧 Hidratação e Termorregulação</span>
+                  <p className="text-[10.5px] text-slate-300 leading-relaxed font-medium">
+                    A desidratação eleva o estresse cardiovascular em até 10 bpm na mesma velocidade de corrida, distorcendo a percepção subjetiva de esforço (PSE).
+                  </p>
+                </div>
+                <div className="bg-white/5 p-3 rounded-xl border border-white/10 space-y-1">
+                  <span className="font-black text-purple-300 block text-[11px]">🌸 Ciclo Menstrual & Variação Térmica</span>
+                  <p className="text-[10.5px] text-slate-300 leading-relaxed font-medium">
+                    Na fase lútea tardia, o aumento de progesterona eleva a temperatura basal e a fadiga central, exigindo ajustes nos treinos em dias de calor.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -583,13 +583,20 @@ const Periodization: React.FC = () => {
     // Mapear tipo da biblioteca para tipo da periodização
     const typeMap: Record<string, WorkoutType> = {
       'Recovery': 'Regenerativo',
+      'Regenerativo': 'Regenerativo',
       'Long Run': 'Longão',
+      'Longão': 'Longão',
       'Tempo': 'Limiar',
+      'Limiar': 'Limiar',
       'Interval': 'Intervalado',
+      'Intervalado': 'Intervalado',
       'Marathon': 'Maratona',
       'Maratona': 'Maratona',
       'Speed': 'Velocidade',
-      'Strength': 'Fortalecimento'
+      'Velocidade': 'Velocidade',
+      'Strength': 'Fortalecimento',
+      'Fortalecimento': 'Fortalecimento',
+      'Prova': 'Prova'
     };
 
     const workout = newPlan.weeks[weekIndex].workouts[dayIndex];

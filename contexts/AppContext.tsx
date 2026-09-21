@@ -8,6 +8,7 @@ import { updateGamificationData, countCompletedWorkouts } from '../services/gami
 import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../utils/sanitization';
 import { getAppNow } from '../utils/time';
+import { DEFAULT_WORKOUTS } from '../data/defaultWorkouts';
 
 interface AppContextType {
 // ... existing types ...
@@ -29,6 +30,7 @@ interface AppContextType {
   addWorkout: (workout: Workout) => Promise<void>;
   updateLibraryWorkout: (id: string, data: Partial<Workout>) => Promise<void>;
   deleteLibraryWorkout: (id: string) => Promise<void>;
+  seedDefaultWorkouts: () => Promise<void>;
   
   selectedAthleteId: string | null;
   setSelectedAthleteId: (id: string | null) => void;
@@ -104,7 +106,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
   const [workouts, setWorkouts] = useState<Workout[]>(() => {
     const cached = localStorage.getItem('proRun_cached_workouts');
-    return cached ? JSON.parse(cached) : [];
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error('Error parsing cached workouts', e);
+      }
+    }
+    return DEFAULT_WORKOUTS;
   });
   const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>(() => {
     const cached = localStorage.getItem('proRun_cached_athletePlans');
@@ -704,6 +716,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const seedDefaultWorkouts = async () => {
+    setWorkouts(prev => {
+      const existingIds = new Set(prev.map(w => w.id));
+      const newItems = DEFAULT_WORKOUTS.filter(w => !existingIds.has(w.id));
+      const combined = [...prev, ...newItems];
+      const result = combined.length > 0 ? combined : DEFAULT_WORKOUTS;
+      localStorage.setItem('proRun_cached_workouts', JSON.stringify(result));
+      return result;
+    });
+
+    try {
+      for (const w of DEFAULT_WORKOUTS) {
+        await supabase.from('workouts_library').upsert({ id: w.id, data: w });
+      }
+    } catch (err) {
+      console.warn("Could not sync default workouts to cloud (stored locally):", err);
+    }
+  };
+
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
     // Inject metadata under the first week so it is persisted in the weeks JSONB column
     const weeksWithMetadata = plan.weeks.map((w: any, index: number) => {
@@ -982,7 +1013,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       userRole, login, logout,
       athletes, addAthlete, updateAthlete, updateAthleteReadiness, deleteAthlete, 
       addNewAssessment, updateAssessment, deleteAssessment,
-      workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout,
+      workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout, seedDefaultWorkouts,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, clearAthletePlan, updateWorkoutStatus,
       getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected,

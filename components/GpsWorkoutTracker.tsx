@@ -208,6 +208,20 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const lastPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const wakeLockRef = useRef<any>(null);
 
+  // Clean up intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   // Sync Audio Setting
   useEffect(() => {
     workoutAudio.setSoundEnabled(soundEnabled);
@@ -373,32 +387,35 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setHeartRateSamples([]);
 
     // Pre-start 5 second countdown with speech
-    setCountdownSeconds(5);
-    workoutAudio.playCountdown(5);
+    let remaining = 5;
+    setCountdownSeconds(remaining);
+    workoutAudio.playCountdown(remaining);
     workoutAudio.speakText("Cinco", true);
 
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
 
     countdownIntervalRef.current = setInterval(() => {
-      setCountdownSeconds(prev => {
-        if (prev === null) return null;
-        const nextVal = prev - 1;
-        if (nextVal > 0) {
-          workoutAudio.playCountdown(nextVal);
-          const words: Record<number, string> = { 4: 'Quatro', 3: 'Três', 2: 'Dois', 1: 'Um' };
-          if (words[nextVal]) {
-            workoutAudio.speakText(words[nextVal], true);
-          }
-        } else if (nextVal === 0) {
+      remaining -= 1;
+      if (remaining > 0) {
+        setCountdownSeconds(remaining);
+        workoutAudio.playCountdown(remaining);
+        const words: Record<number, string> = { 4: 'Quatro', 3: 'Três', 2: 'Dois', 1: 'Um' };
+        if (words[remaining]) {
+          workoutAudio.speakText(words[remaining], true);
+        }
+      } else {
+        if (countdownIntervalRef.current) {
           clearInterval(countdownIntervalRef.current);
           countdownIntervalRef.current = null;
-          setCountdownSeconds(null);
-          workoutAudio.playStepTransition();
-          workoutAudio.speakText("Vai! Iniciando treino!", true);
-          startTrackingInternal();
         }
-        return nextVal;
-      });
+        setCountdownSeconds(null);
+        workoutAudio.playStepTransition();
+        workoutAudio.speakText("Vai! Iniciando treino!", true);
+        startTrackingInternal();
+      }
     }, 1000);
   };
 
@@ -1602,7 +1619,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       )}
 
       {/* 1. OVERLAY DE CONTAGEM REGRESSIVA DE INÍCIO COM VOZ */}
-      {countdownSeconds !== null && (
+      {countdownSeconds !== null && countdownSeconds > 0 && (
         <div className="fixed inset-0 z-[10000] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white animate-fade-in">
           <div className="max-w-sm w-full space-y-6">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-400 text-xs font-black uppercase tracking-wider">

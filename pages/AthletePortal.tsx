@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { calculatePaces } from '../utils/calculations';
 import { exportToImage } from '../utils/exporter';
-import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getLocalDateString, getTodayDateString, parseDateString } from '../utils/time';
+import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getLocalDateString, getTodayDateString, parseDateString, getWorkoutDateString, getWorkoutIndicesFromDate } from '../utils/time';
 import { 
   AlertCircle, 
   CheckCircle, 
@@ -43,6 +43,7 @@ import {
   Smile,
   Calendar,
   HeartPulse,
+  ChevronDown,
   BatteryCharging,
   Info
 } from 'lucide-react';
@@ -160,12 +161,13 @@ const parseDurationStringToSeconds = (durationStr: string): number => {
 };
 
 const AthletePortal: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete, addUserGoal, theme } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, rescheduleWorkout, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete, addUserGoal, theme } = useApp();
   const isLight = theme === 'light';
   const navigate = useNavigate();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   
   const portalRoot = document.getElementById('printable-portal');
+  const diasSemanaFull = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
   
   const [selectedWorkout, setSelectedWorkout] = useState<{
     weekIndex: number;
@@ -182,6 +184,19 @@ const AthletePortal: React.FC = () => {
   const [currentGpsRoute, setCurrentGpsRoute] = useState<any>(null);
   const [showGpsTracker, setShowGpsTracker] = useState(false);
   const [localSteps, setLocalSteps] = useState<any[]>([]);
+  const [editWorkoutType, setEditWorkoutType] = useState<string>('');
+  const [editCustomDescription, setEditCustomDescription] = useState<string>('');
+
+  // Reagendamento / Alteração de Data pelo Atleta
+  const [athleteRescheduling, setAthleteRescheduling] = useState<{
+    weekIndex: number;
+    dayIndex: number;
+    workout: any;
+  } | null>(null);
+  const [athleteRescheduleDate, setAthleteRescheduleDate] = useState<string>('');
+  const [athleteRescheduleWeek, setAthleteRescheduleWeek] = useState<number>(0);
+  const [athleteRescheduleDay, setAthleteRescheduleDay] = useState<number>(0);
+  const [isReschedulingSaving, setIsReschedulingSaving] = useState(false);
   
   // Scientific Daily Readiness States
   const [sleepValue, setSleepValue] = useState<number>(4);
@@ -566,8 +581,8 @@ const AthletePortal: React.FC = () => {
     return labels[val] || "Selecione";
   };
 
-  const { todayWorkout, tomorrowWorkout, currentWeek } = useMemo(() => {
-    if (!visibleWeeks.length) return { todayWorkout: null, tomorrowWorkout: null, currentWeek: null };
+  const { todayWorkout, tomorrowWorkout, yesterdayWorkout, currentWeek } = useMemo(() => {
+    if (!visibleWeeks.length) return { todayWorkout: null, tomorrowWorkout: null, yesterdayWorkout: null, currentWeek: null };
     
     const today = getAppNow();
     const dayOfWeek = today.getDay(); // 0 is Sunday
@@ -629,13 +644,17 @@ const AthletePortal: React.FC = () => {
       }
     }
     
-    if (!activeWeek || !activeWeek.workouts) return { todayWorkout: null, tomorrowWorkout: null, currentWeek: activeWeek };
+    if (!activeWeek || !activeWeek.workouts) return { todayWorkout: null, tomorrowWorkout: null, yesterdayWorkout: null, currentWeek: activeWeek };
     
+    let activeWeekIdx = allWeeks.findIndex(w => w.weekNumber === activeWeek.weekNumber);
+    if (activeWeekIdx === -1) activeWeekIdx = allWeeks.indexOf(activeWeek);
+    if (activeWeekIdx === -1) activeWeekIdx = 0;
+
     const todayW = activeWeek.workouts[todayIndex];
     
     // Lógica para o treino de amanhã: pode ser na mesma semana ou na próxima
     let tomorrowW = activeWeek.workouts[tomorrowIndex];
-    let tomorrowWeekIdx = allWeeks.indexOf(activeWeek);
+    let tomorrowWeekIdx = activeWeekIdx;
 
     // Se hoje for domingo, amanhã é segunda da próxima semana
     if (todayIndex === 6) {
@@ -645,10 +664,25 @@ const AthletePortal: React.FC = () => {
         tomorrowWeekIdx = tomorrowWeekIdx + 1;
       }
     }
+
+    // Lógica para o treino de ontem: se hoje for segunda, ontem foi domingo da semana anterior
+    const yesterdayIndex = todayIndex === 0 ? 6 : todayIndex - 1;
+    let yesterdayWeekIdx = activeWeekIdx;
+    let yesterdayW = null;
+
+    if (todayIndex === 0) {
+      if (activeWeekIdx > 0 && allWeeks[activeWeekIdx - 1]?.workouts) {
+        yesterdayW = allWeeks[activeWeekIdx - 1].workouts[6];
+        yesterdayWeekIdx = activeWeekIdx - 1;
+      }
+    } else {
+      yesterdayW = activeWeek.workouts[yesterdayIndex];
+    }
     
     return { 
-      todayWorkout: todayW ? { workout: todayW, weekIndex: allWeeks.indexOf(activeWeek), dayIndex: todayIndex, isDescanso: todayW.type === 'Descanso' } : null,
+      todayWorkout: todayW ? { workout: todayW, weekIndex: activeWeekIdx, dayIndex: todayIndex, isDescanso: todayW.type === 'Descanso' } : null,
       tomorrowWorkout: tomorrowW ? { workout: tomorrowW, weekIndex: tomorrowWeekIdx, dayIndex: tomorrowIndex, isDescanso: tomorrowW.type === 'Descanso' } : null,
+      yesterdayWorkout: yesterdayW ? { workout: yesterdayW, weekIndex: yesterdayWeekIdx, dayIndex: yesterdayIndex, isDescanso: yesterdayW.type === 'Descanso' } : null,
       currentWeek: activeWeek
     };
   }, [visibleWeeks, allWeeks, athletePlans, activeAthlete.id]);
@@ -703,6 +737,110 @@ const AthletePortal: React.FC = () => {
     { id: 'recovering', label: 'Recuperação', color: 'text-blue-500', icon: '🧘' }
   ];
 
+  const handleSaveAndShareWorkout = async (customDist?: number, customDur?: string, customRoute?: any, customHr?: number) => {
+    if (!selectedWorkout || !activeAthlete || isSaving) return;
+
+    setIsSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      const dist = customDist !== undefined 
+        ? customDist 
+        : (actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0));
+      
+      const dur = customDur !== undefined 
+        ? customDur 
+        : (actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || (selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : '30:00')));
+      
+      const heartRate = customHr !== undefined 
+        ? customHr 
+        : (actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (customRoute?.avgHeartRate || currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || undefined));
+      
+      const durSeconds = parseDurationStringToSeconds(dur);
+      const avgPaceCalculated = calculatePace(String(dist), dur);
+      const routeToSave = customRoute || currentGpsRoute || selectedWorkout.data.gpsRoute;
+
+      // Calculate scientific readiness score
+      const sleepPct = ((sleepValue - 1) / 4) * 100;
+      const stressPct = ((5 - stressValue) / 4) * 100;
+      const sorenessPct = ((5 - sorenessValue) / 4) * 100;
+      const moodPct = ((moodValue - 1) / 4) * 100;
+      const calculatedScore = Math.round((sleepPct * 0.30) + (stressPct * 0.20) + (sorenessPct * 0.30) + (moodPct * 0.20));
+
+      await updateWorkoutStatus(
+        activeAthlete.id,
+        selectedWorkout.weekIndex,
+        selectedWorkout.dayIndex,
+        true, // always marked completed
+        feedbackText,
+        rpeValue || selectedWorkout.data.rpe || 5,
+        localExercises,
+        dist,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        routeToSave ? {
+          ...routeToSave,
+          totalDistanceKm: dist,
+          totalDurationSeconds: durSeconds,
+          avgHeartRate: heartRate || routeToSave.avgHeartRate
+        } : undefined,
+        localSteps,
+        dur,
+        heartRate,
+        editWorkoutType,
+        editCustomDescription
+      );
+
+      // Gatilho de Notificação para Esforço Alto (PSE >= 8)
+      if ((rpeValue || 0) >= 8) {
+        addNotification({
+          title: 'Alerta de Esforço Alto!',
+          message: `${activeAthlete.name} registrou PSE ${rpeValue} no treino "${editWorkoutType || selectedWorkout.data.type || 'Corrida'}". Verifique a fadiga!`,
+          type: 'critical',
+          link: '/dashboard',
+          category: 'workout'
+        });
+      }
+
+      setSaveSuccess(true);
+
+      // Open WorkoutShareModal immediately
+      setShareWorkoutData({
+        title: editCustomDescription?.slice(0, 45) || selectedWorkout.data.customDescription?.slice(0, 45) || `${editWorkoutType || selectedWorkout.data.type || 'Treino'}`,
+        athleteName: activeAthlete.name,
+        date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
+        distanceKm: dist,
+        durationSeconds: durSeconds,
+        avgPace: avgPaceCalculated,
+        elevationGainMeters: routeToSave?.elevationGainMeters,
+        avgHeartRate: heartRate,
+        route: routeToSave,
+        workoutType: editWorkoutType || selectedWorkout.data.type,
+        initialBackgroundType: 'transparent',
+        initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
+        rpe: rpeValue || selectedWorkout.data.rpe || 5
+      });
+
+      setSelectedWorkout(null);
+      setShowGpsTracker(false);
+      setFeedbackText('');
+      setRpeValue(0);
+      setActualDistanceValue('');
+      setActualDurationValue('');
+      setActualHeartRateValue('');
+      setCurrentGpsRoute(null);
+    } catch (err: any) {
+      console.error("Erro ao salvar e compartilhar treino:", err?.message || err);
+      alert("Erro ao sincronizar. Verifique sua conexão.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleToggleComplete = async (shouldCloseAfterSave: boolean = false) => {
     if (!selectedWorkout || !activeAthlete || isSaving) return;
 
@@ -711,8 +849,8 @@ const AthletePortal: React.FC = () => {
     
     try {
       const wasCompletedBefore = Boolean(selectedWorkout.data.completed);
-      const newStatus = shouldCloseAfterSave ? selectedWorkout.data.completed : !selectedWorkout.data.completed;
-      const parsedDistance = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : undefined;
+      const newStatus = shouldCloseAfterSave ? true : !selectedWorkout.data.completed;
+      const parsedDistance = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (selectedWorkout.data.actualDistance || selectedWorkout.data.distance || undefined);
       const parsedHeartRate = actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || undefined);
       
       // Calculate scientific readiness score
@@ -721,6 +859,10 @@ const AthletePortal: React.FC = () => {
       const sorenessPct = ((5 - sorenessValue) / 4) * 100;
       const moodPct = ((moodValue - 1) / 4) * 100;
       const calculatedScore = Math.round((sleepPct * 0.30) + (stressPct * 0.20) + (sorenessPct * 0.30) + (moodPct * 0.20));
+
+      const durStr = actualDurationValue !== '' 
+        ? actualDurationValue 
+        : (selectedWorkout.data.actualDuration || (selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : undefined));
 
       await updateWorkoutStatus(
         activeAthlete.id, 
@@ -731,12 +873,12 @@ const AthletePortal: React.FC = () => {
         rpeValue,
         localExercises,
         parsedDistance,
-        sleepValue,
-        stressValue,
-        sorenessValue,
-        moodValue,
-        menstrualPhaseValue,
-        calculatedScore,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined, // don't fabricate or overwrite readiness
         currentGpsRoute ? {
           ...currentGpsRoute,
           totalDistanceKm: parsedDistance !== undefined ? parsedDistance : currentGpsRoute.totalDistanceKm,
@@ -744,15 +886,17 @@ const AthletePortal: React.FC = () => {
           avgHeartRate: parsedHeartRate || currentGpsRoute.avgHeartRate
         } : selectedWorkout.data.gpsRoute,
         localSteps,
-        actualDurationValue,
-        parsedHeartRate
+        durStr,
+        parsedHeartRate,
+        editWorkoutType,
+        editCustomDescription
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
       if (newStatus && rpeValue >= 8) {
         addNotification({
           title: 'Alerta de Esforço Alto!',
-          message: `${activeAthlete.name} registrou PSE ${rpeValue} no treino "${selectedWorkout.data.type || 'Corrida'}". Verifique a fadiga!`,
+          message: `${activeAthlete.name} registrou PSE ${rpeValue} no treino "${editWorkoutType || selectedWorkout.data.type || 'Corrida'}". Verifique a fadiga!`,
           type: 'critical',
           link: '/dashboard',
           category: 'workout'
@@ -767,32 +911,38 @@ const AthletePortal: React.FC = () => {
         data: {
           ...prev.data,
           completed: newStatus,
+          type: editWorkoutType || prev.data.type,
+          customDescription: editCustomDescription !== undefined ? editCustomDescription : prev.data.customDescription,
           feedback: feedbackText,
           rpe: rpeValue,
           actualDistance: parsedDistance,
-          actualDuration: actualDurationValue,
+          actualDuration: durStr,
           avgHeartRate: parsedHeartRate
         }
       } : null);
 
       // Snapshot for post-workout sharing prompt if completed
-      const durSeconds = actualDurationValue !== '' 
-        ? parseDurationStringToSeconds(actualDurationValue) 
+      const durSeconds = durStr 
+        ? parseDurationStringToSeconds(durStr) 
         : (currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)));
       const distKm = parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0;
       const avgPaceCalculated = calculatePace(
         String(distKm),
-        actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || 1800))
+        durStr || formatSecondsToTimeString(durSeconds)
       );
 
       const completedWorkoutSnapshot = (newStatus && selectedWorkout) ? {
-        workout: selectedWorkout.data,
+        workout: {
+          ...selectedWorkout.data,
+          type: editWorkoutType || selectedWorkout.data.type,
+          customDescription: editCustomDescription !== undefined ? editCustomDescription : selectedWorkout.data.customDescription
+        },
         distanceKm: distKm,
         durationSeconds: durSeconds,
         avgPace: avgPaceCalculated,
         avgHeartRate: parsedHeartRate,
         route: currentGpsRoute || selectedWorkout.data.gpsRoute,
-        workoutType: selectedWorkout.data.type,
+        workoutType: editWorkoutType || selectedWorkout.data.type,
         rpe: rpeValue || selectedWorkout.data.rpe
       } : null;
 
@@ -809,7 +959,7 @@ const AthletePortal: React.FC = () => {
           setCurrentGpsRoute(null);
           setShowGpsTracker(false);
 
-          if (completedWorkoutSnapshot && selectedWorkout.data.type !== 'Descanso') {
+          if (completedWorkoutSnapshot && (completedWorkoutSnapshot.workoutType !== 'Descanso' || completedWorkoutSnapshot.distanceKm > 0 || completedWorkoutSnapshot.route)) {
             setCompletedWorkoutPrompt(null);
             setShareWorkoutData({
               title: completedWorkoutSnapshot.workout.customDescription?.slice(0, 45) || `${completedWorkoutSnapshot.workout.type || 'Treino'}`,
@@ -823,6 +973,7 @@ const AthletePortal: React.FC = () => {
               route: completedWorkoutSnapshot.route,
               workoutType: completedWorkoutSnapshot.workout.type,
               initialBackgroundType: 'transparent',
+              initialPhotoUrl: (completedWorkoutSnapshot.workout as any).photoUrl || (completedWorkoutSnapshot.workout as any).imageUrl || undefined,
               rpe: completedWorkoutSnapshot.rpe
             });
           }
@@ -836,8 +987,58 @@ const AthletePortal: React.FC = () => {
     }
   };
 
+  const handleOpenAthleteReschedule = (wIdx: number, dIdx: number, workout: any) => {
+    setAthleteRescheduling({ weekIndex: wIdx, dayIndex: dIdx, workout });
+    setAthleteRescheduleWeek(wIdx);
+    setAthleteRescheduleDay(dIdx);
+    if (athletePlan?.startDate) {
+      setAthleteRescheduleDate(getWorkoutDateString(athletePlan.startDate, wIdx, dIdx));
+    } else {
+      setAthleteRescheduleDate(getTodayDateString());
+    }
+  };
+
+  const handleAthleteDateChange = (newDateStr: string) => {
+    setAthleteRescheduleDate(newDateStr);
+    if (athletePlan?.startDate && athletePlan.weeks?.length) {
+      const { weekIndex, dayIndex } = getWorkoutIndicesFromDate(athletePlan.startDate, newDateStr, athletePlan.weeks.length);
+      setAthleteRescheduleWeek(weekIndex);
+      setAthleteRescheduleDay(dayIndex);
+    }
+  };
+
+  const handleConfirmAthleteReschedule = async () => {
+    if (!athleteRescheduling || !activeAthlete || !athletePlan) return;
+    setIsReschedulingSaving(true);
+    try {
+      await rescheduleWorkout(
+        activeAthlete.id,
+        athleteRescheduling.weekIndex,
+        athleteRescheduling.dayIndex,
+        athleteRescheduleWeek,
+        athleteRescheduleDay,
+        athleteRescheduleDate
+      );
+      addNotification({
+        title: "Treino Reagendado",
+        message: `Treino transferido com sucesso para ${diasSemanaFull[athleteRescheduleDay]}!`,
+        type: "success",
+        category: "system",
+        link: "/athlete-portal"
+      } as any);
+      setAthleteRescheduling(null);
+      setSelectedWorkout(null);
+    } catch (err: any) {
+      alert("Erro ao reagendar treino: " + (err?.message || "Tente novamente"));
+    } finally {
+      setIsReschedulingSaving(false);
+    }
+  };
+
   const openWorkoutModal = (wIdx: number, dIdx: number, workout: any) => {
     setSelectedWorkout({ weekIndex: wIdx, dayIndex: dIdx, data: workout });
+    setEditWorkoutType(workout.type || 'Corrida');
+    setEditCustomDescription(workout.customDescription || '');
     setFeedbackText(workout.feedback || '');
     setRpeValue(workout.rpe || 0);
     setLocalExercises(workout.exercises || []);
@@ -914,10 +1115,12 @@ const AthletePortal: React.FC = () => {
             <div className="relative z-10">
               <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest italic">Sua Labareda</p>
               <h4 className="text-xl font-black text-white italic uppercase tracking-tighter flex items-center gap-2">
-                {activeAthlete.gamification?.streak || 0} Dias <Zap className="w-4 h-4 fill-emerald-500 text-emerald-500" />
+                {activeAthlete.gamification?.streak || 0} {activeAthlete.gamification?.streak === 1 ? 'Treino' : 'Treinos'} <Zap className="w-4 h-4 fill-emerald-500 text-emerald-500" />
               </h4>
               <p className="text-[8px] font-bold text-emerald-300 uppercase italic mt-1 leading-tight">
-                {activeAthlete.gamification?.streak === 0 ? 'Comece sua sequência hoje!' : 'Fogo no treino! Mantenha o ritmo.'}
+                {activeAthlete.gamification?.streak === 0 
+                  ? 'Complete seu treino para acender a Labareda!' 
+                  : `${activeAthlete.gamification?.streak} ${activeAthlete.gamification?.streak === 1 ? 'treino consecutivo' : 'treinos consecutivos'} • ${activeAthlete.gamification?.totalWorkouts || 0} concluídos`}
               </p>
             </div>
           </div>
@@ -1925,7 +2128,7 @@ const AthletePortal: React.FC = () => {
                 : (todayWorkout ? todayWorkout.workout.customDescription : 'Aproveite para recuperar as energias e focar na mobilidade.')}
             </p>
  
-            {todayWorkout?.workout.structuredWorkout && (
+            {todayWorkout?.workout.structuredWorkout && !todayWorkout.workout.completed && (
               <div className={`mb-6 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase italic tracking-wider border shadow-xs ${
                 isLight 
                   ? 'bg-emerald-50 text-emerald-850 border-emerald-200/60' 
@@ -1935,29 +2138,236 @@ const AthletePortal: React.FC = () => {
                 <span>DETALHADA: {formatStructuredWorkoutSummary(todayWorkout.workout.structuredWorkout)}</span>
               </div>
             )}
- 
+
+            {todayWorkout?.workout.completed && todayWorkout.workout.type !== 'Descanso' && (
+              <div className={`mb-6 p-4 rounded-2xl border ${
+                isLight ? 'bg-white/80 border-emerald-200/80 shadow-xs' : 'bg-white/5 border-white/10'
+              }`}>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Distância</span>
+                    <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                      {todayWorkout.workout.actualDistance !== undefined 
+                        ? `${todayWorkout.workout.actualDistance} km` 
+                        : (todayWorkout.workout.distance ? `${todayWorkout.workout.distance} km` : '--')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
+                    <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      {todayWorkout.workout.actualDuration || (todayWorkout.workout.durationMinutes ? `${todayWorkout.workout.durationMinutes} min` : '--')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Ritmo / FC</span>
+                    <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      {todayWorkout.workout.actualDistance && todayWorkout.workout.actualDuration
+                        ? calculatePace(String(todayWorkout.workout.actualDistance), todayWorkout.workout.actualDuration)
+                        : (todayWorkout.workout.avgHeartRate ? `${todayWorkout.workout.avgHeartRate} bpm` : 'Concluído')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {todayWorkout && todayWorkout.workout.type !== 'Descanso' && (
-              <button 
-                onClick={() => openWorkoutModal(todayWorkout.weekIndex, todayWorkout.dayIndex, todayWorkout.workout)}
-                className={`w-full font-black py-4.5 rounded-2xl flex items-center justify-center gap-3 shadow-2xl transition-all active:scale-[0.98] uppercase italic tracking-wider text-xs sm:text-sm cursor-pointer ${
-                  todayWorkout.workout.completed
-                    ? isLight
-                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
-                      : 'bg-slate-800 text-slate-200 border border-white/10 hover:bg-slate-700'
-                    : isLight
-                      ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20'
-                      : 'bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 scale-[1.01] shadow-emerald-500/30'
-                }`}
-              >
-                {todayWorkout.workout.completed 
-                  ? <Check className="w-5 h-5" /> 
-                  : <Zap className={`w-5 h-5 animate-bounce ${isLight ? 'fill-white text-white' : 'fill-slate-950 text-slate-950'}`} />} 
-                {todayWorkout.workout.completed ? 'VER DETALHES DO TREINO' : 'INICIAR TREINO DE HOJE'}
-              </button>
+              todayWorkout.workout.completed ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const distKm = todayWorkout.workout.actualDistance || todayWorkout.workout.distance || 0;
+                      const durSec = todayWorkout.workout.actualDuration 
+                        ? parseDurationStringToSeconds(todayWorkout.workout.actualDuration) 
+                        : (todayWorkout.workout.gpsRoute?.totalDurationSeconds || todayWorkout.workout.gpsRoute?.durationSeconds || (distKm * 300) || 1800);
+                      const pace = calculatePace(String(distKm), todayWorkout.workout.actualDuration || formatSecondsToTimeString(durSec));
+                      setShareWorkoutData({
+                        title: todayWorkout.workout.customDescription?.slice(0, 45) || `${todayWorkout.workout.type || 'Treino'}`,
+                        athleteName: activeAthlete?.name,
+                        date: todayWorkout.workout.date || new Date().toLocaleDateString('pt-BR'),
+                        distanceKm: distKm,
+                        durationSeconds: durSec,
+                        avgPace: pace,
+                        elevationGainMeters: todayWorkout.workout.gpsRoute?.elevationGainMeters,
+                        avgHeartRate: todayWorkout.workout.avgHeartRate || todayWorkout.workout.gpsRoute?.avgHeartRate,
+                        route: todayWorkout.workout.gpsRoute,
+                        workoutType: todayWorkout.workout.type,
+                        initialBackgroundType: 'transparent',
+                        initialPhotoUrl: (todayWorkout.workout as any).photoUrl || (todayWorkout.workout as any).imageUrl || undefined,
+                        rpe: todayWorkout.workout.rpe
+                      });
+                    }}
+                    className="w-full font-black py-4 rounded-2xl flex items-center justify-center gap-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.98] uppercase italic tracking-wider text-xs sm:text-sm cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>POSTAR / COMPARTILHAR TREINO</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => openWorkoutModal(todayWorkout.weekIndex, todayWorkout.dayIndex, todayWorkout.workout)}
+                    className={`w-full font-black py-4 rounded-2xl flex items-center justify-center gap-2 border transition-all active:scale-[0.98] uppercase italic tracking-wider text-xs sm:text-sm cursor-pointer ${
+                      isLight
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                        : 'bg-slate-800 text-slate-200 border-white/10 hover:bg-slate-700'
+                    }`}
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>VER / EDITAR DETALHES</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-2.5">
+                  <button 
+                    type="button"
+                    onClick={() => openWorkoutModal(todayWorkout.weekIndex, todayWorkout.dayIndex, todayWorkout.workout)}
+                    className={`flex-1 font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-2xl transition-all active:scale-[0.98] uppercase italic tracking-wider text-xs sm:text-sm cursor-pointer ${
+                      isLight
+                        ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20'
+                        : 'bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 scale-[1.01] shadow-emerald-500/30'
+                    }`}
+                  >
+                    <Zap className={`w-5 h-5 animate-bounce ${isLight ? 'fill-white text-white' : 'fill-slate-950 text-slate-950'}`} />
+                    <span>INICIAR TREINO DE HOJE</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAthleteReschedule(todayWorkout.weekIndex, todayWorkout.dayIndex, todayWorkout.workout)}
+                    className={`px-4 py-3.5 rounded-2xl border flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                      isLight 
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' 
+                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                    }`}
+                    title="Mudar data / Reagendar treino para outro dia"
+                  >
+                    <Calendar className="w-4 h-4 text-emerald-500" />
+                    <span>Mudar Data</span>
+                  </button>
+                </div>
+              )
             )}
           </div>
         </div>
       </div>
+
+      {/* Treino de Ontem (Acesso Rápido para Visualizar, Editar e Postar) */}
+      {yesterdayWorkout && (
+        <div className={`mx-2 p-5 rounded-[2rem] border transition-all ${
+          isLight 
+            ? 'bg-gradient-to-br from-slate-50 via-white to-blue-50/40 border-slate-200/90 shadow-sm' 
+            : 'bg-gradient-to-br from-slate-900 via-slate-900/95 to-blue-950/40 border-white/10 shadow-lg'
+        }`}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                isLight ? 'bg-blue-100 text-blue-900 border border-blue-200' : 'bg-blue-900/60 text-blue-300 border border-blue-700/40'
+              }`}>
+                Treino de Ontem
+              </span>
+              {athletePlan?.startDate && (
+                <span className="text-[10px] font-extrabold text-slate-500">
+                  ({formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, yesterdayWorkout.weekIndex, yesterdayWorkout.dayIndex))})
+                </span>
+              )}
+            </div>
+            {yesterdayWorkout.workout.completed && (
+              <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                isLight ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-emerald-400 bg-emerald-950/60 border border-emerald-700/40'
+              }`}>
+                <CheckCircle className="w-3 h-3" /> Concluído
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <h4 className={`text-base font-black uppercase italic tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {yesterdayWorkout.workout.type}
+              </h4>
+              <p className={`text-xs font-medium line-clamp-1 mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                {yesterdayWorkout.workout.customDescription || (yesterdayWorkout.isDescanso ? 'Descanso programado' : 'Treino realizado')}
+              </p>
+            </div>
+            {yesterdayWorkout.workout.gpsRoute && (
+              <div className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl text-[9px] font-black uppercase italic border ${
+                isLight ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+              }`}>
+                <Navigation className="w-3 h-3" /> Rota GPS ({yesterdayWorkout.workout.gpsRoute.totalDistanceKm}k)
+              </div>
+            )}
+          </div>
+
+          {(yesterdayWorkout.workout.actualDistance || yesterdayWorkout.workout.distance || yesterdayWorkout.workout.completed) && (
+            <div className={`mb-3 p-3 rounded-2xl border grid grid-cols-3 gap-2 text-center ${
+              isLight ? 'bg-white border-slate-200/70 shadow-xs' : 'bg-black/20 border-white/5'
+            }`}>
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Distância</span>
+                <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                  {yesterdayWorkout.workout.actualDistance !== undefined 
+                    ? `${yesterdayWorkout.workout.actualDistance} km` 
+                    : (yesterdayWorkout.workout.distance ? `${yesterdayWorkout.workout.distance} km` : '--')}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
+                <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                  {yesterdayWorkout.workout.actualDuration || (yesterdayWorkout.workout.durationMinutes ? `${yesterdayWorkout.workout.durationMinutes} min` : '--')}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Ritmo / FC</span>
+                <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                  {yesterdayWorkout.workout.actualDistance && yesterdayWorkout.workout.actualDuration
+                    ? calculatePace(String(yesterdayWorkout.workout.actualDistance), yesterdayWorkout.workout.actualDuration)
+                    : (yesterdayWorkout.workout.avgHeartRate ? `${yesterdayWorkout.workout.avgHeartRate} bpm` : 'OK')}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const distKm = yesterdayWorkout.workout.actualDistance || yesterdayWorkout.workout.distance || 0;
+                const durSec = yesterdayWorkout.workout.actualDuration 
+                  ? parseDurationStringToSeconds(yesterdayWorkout.workout.actualDuration) 
+                  : (yesterdayWorkout.workout.gpsRoute?.totalDurationSeconds || (distKm * 300) || 1800);
+                const pace = calculatePace(String(distKm), yesterdayWorkout.workout.actualDuration || formatSecondsToTimeString(durSec));
+                setShareWorkoutData({
+                  title: yesterdayWorkout.workout.customDescription?.slice(0, 45) || `${yesterdayWorkout.workout.type || 'Treino'}`,
+                  athleteName: activeAthlete?.name,
+                  date: yesterdayWorkout.workout.date || new Date().toLocaleDateString('pt-BR'),
+                  distanceKm: distKm,
+                  durationSeconds: durSec,
+                  avgPace: pace,
+                  elevationGainMeters: yesterdayWorkout.workout.gpsRoute?.elevationGainMeters,
+                  avgHeartRate: yesterdayWorkout.workout.avgHeartRate || yesterdayWorkout.workout.gpsRoute?.avgHeartRate,
+                  route: yesterdayWorkout.workout.gpsRoute,
+                  workoutType: yesterdayWorkout.workout.type,
+                  initialBackgroundType: 'transparent',
+                  initialPhotoUrl: (yesterdayWorkout.workout as any).photoUrl || (yesterdayWorkout.workout as any).imageUrl || undefined,
+                  rpe: yesterdayWorkout.workout.rpe
+                });
+              }}
+              className="w-full font-black py-3 rounded-xl flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md shadow-emerald-500/20 uppercase italic tracking-wider text-xs cursor-pointer active:scale-95 transition-all"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>POSTAR / COMPARTILHAR</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openWorkoutModal(yesterdayWorkout.weekIndex, yesterdayWorkout.dayIndex, yesterdayWorkout.workout)}
+              className={`w-full font-black py-3 rounded-xl flex items-center justify-center gap-2 border uppercase italic tracking-wider text-xs cursor-pointer active:scale-95 transition-all ${
+                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-white/10'
+              }`}
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>VER / EDITAR TREINO</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Próximo Treino (Menos Ênfase) */}
       {tomorrowWorkout && (
@@ -2097,6 +2507,23 @@ const AthletePortal: React.FC = () => {
           {visibleWeeks.slice().reverse().map((week, wIdx) => {
              const originalWeekIndex = allWeeks.findIndex(p => p.weekNumber === week.weekNumber);
              const isCurrentWeek = currentWeek?.weekNumber === week.weekNumber;
+             const weekPlannedKm = (week.workouts || []).reduce((acc: number, curr: any) => {
+               const d = Number(curr.distance) || 0;
+               return acc + (isNaN(d) ? 0 : d);
+             }, 0);
+             const weekRealKm = (week.workouts || []).reduce((acc: number, curr: any) => {
+               if (curr.completed) {
+                 const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
+                   ? Number(String(curr.actualDistance).replace(',', '.'))
+                   : (Number(curr.distance) || 0);
+                 return acc + (isNaN(d) ? 0 : d);
+               }
+               return acc;
+             }, 0);
+             const formattedRealKm = Math.round(weekRealKm * 10) / 10;
+             const formattedPlannedKm = Math.round(weekPlannedKm * 10) / 10;
+             const completionPct = formattedPlannedKm > 0 ? Math.min(100, Math.round((formattedRealKm / formattedPlannedKm) * 100)) : 0;
+
              return (
                <div key={wIdx} className={`rounded-[2rem] p-6 border transition-all ${isCurrentWeek ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-500/5 ring-4 ring-emerald-500/5' : 'bg-slate-50 border-slate-100'}`}>
                   <div className="flex justify-between items-center flex-wrap gap-2 mb-4">
@@ -2111,7 +2538,23 @@ const AthletePortal: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] font-black text-emerald-600 bg-white px-2 py-0.5 rounded-lg border border-slate-100 italic">{week.totalVolume} KM</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {formattedRealKm > 0 ? (
+                        <>
+                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200/80 italic flex items-center gap-1 shadow-xs">
+                            <CheckCircle className="w-3 h-3 text-emerald-600" />
+                            <span>KM Real: {formattedRealKm} KM</span>
+                          </span>
+                          <span className="text-[9px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded-lg border border-slate-100 italic">
+                            Plano: {formattedPlannedKm} KM
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[10px] font-black text-slate-600 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200/60 italic">
+                          Plano: {formattedPlannedKm} KM
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-7 gap-1.5 md:gap-2 mb-4">
                     {week.workouts.map((workout, dIdx) => (
@@ -2186,9 +2629,23 @@ const AthletePortal: React.FC = () => {
                     );
                   })()}
 
-                  <p className="text-[9px] font-bold text-slate-400 italic px-1">
-                    Foco: <span className="text-emerald-600 uppercase font-black">{week.phase}</span>
-                  </p>
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[9px] font-bold text-slate-400 italic px-1 flex-wrap gap-2">
+                    <span>
+                      Foco: <span className="text-emerald-600 uppercase font-black">{week.phase}</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {formattedRealKm > 0 ? (
+                        <span className="text-emerald-600 font-black flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          <span>{formattedRealKm} KM concluídos ({completionPct}%)</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-semibold">
+                          Meta: {formattedPlannedKm} KM
+                        </span>
+                      )}
+                    </div>
+                  </div>
                </div>
              );
           })}
@@ -2204,11 +2661,27 @@ const AthletePortal: React.FC = () => {
         <div className="min-h-[260px] w-full" style={{ height: 260, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart 
-              data={visibleWeeks.slice().sort((a, b) => a.weekNumber - b.weekNumber).map(w => ({ 
-                name: `S${w.weekNumber}`, 
-                km: w.totalVolume,
-                load: Math.round(w.totalVolume * 10) 
-              }))}
+              data={visibleWeeks.slice().sort((a, b) => a.weekNumber - b.weekNumber).map(w => {
+                const planned = (w.workouts || []).reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
+                const real = (w.workouts || []).reduce((acc: number, curr: any) => {
+                  if (curr.completed) {
+                    const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
+                      ? Number(String(curr.actualDistance).replace(',', '.'))
+                      : (Number(curr.distance) || 0);
+                    return acc + (isNaN(d) ? 0 : d);
+                  }
+                  return acc;
+                }, 0);
+                const kmReal = Math.round(real * 10) / 10;
+                const kmPlanejado = Math.round(planned * 10) / 10;
+                return { 
+                  name: `S${w.weekNumber}`, 
+                  km: kmReal > 0 ? kmReal : kmPlanejado,
+                  kmReal,
+                  kmPlanejado,
+                  load: Math.round((kmReal > 0 ? kmReal : kmPlanejado) * 10) 
+                };
+              })}
               margin={{ top: 30, right: 10, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -2222,7 +2695,12 @@ const AthletePortal: React.FC = () => {
               <Tooltip 
                 cursor={{ fill: '#f1f5f9', radius: 8 }}
                 contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
-                formatter={(value: any) => [`${value} KM`, 'Volume']}
+                formatter={(value: any, name: any, item: any) => [
+                  item.payload.kmReal > 0 
+                    ? `${item.payload.kmReal} KM Real (${item.payload.kmPlanejado} KM Planejado)` 
+                    : `${item.payload.kmPlanejado} KM Planejado`, 
+                  'Volume'
+                ]}
               />
               <Bar dataKey="km" fill="url(#barGradient)" radius={[8, 8, 0, 0]} barSize={28} >
                  <LabelList dataKey="km" position="top" style={{ fill: '#10b981', fontSize: '11px', fontWeight: '900' }} offset={15} />
@@ -3061,7 +3539,7 @@ const AthletePortal: React.FC = () => {
             }`}>
               {/* Top line with Day, Status and Close Button */}
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg italic ${
                     isFinalWorkout 
                       ? 'bg-emerald-500 text-slate-950 font-black' 
@@ -3069,6 +3547,27 @@ const AthletePortal: React.FC = () => {
                   }`}>
                     {selectedWorkout.data.day}
                   </span>
+                  {athletePlan?.startDate && (
+                    <span className={`text-[10px] font-extrabold px-2 py-1 rounded-lg border flex items-center gap-1 ${
+                      isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-white/5 text-slate-300 border-white/10'
+                    }`}>
+                      <Calendar className="w-3 h-3 text-emerald-500" />
+                      {formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, selectedWorkout.weekIndex, selectedWorkout.dayIndex))}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAthleteReschedule(selectedWorkout.weekIndex, selectedWorkout.dayIndex, selectedWorkout.data)}
+                    className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-all cursor-pointer ${
+                      isLight 
+                        ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border-emerald-300' 
+                        : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40'
+                    }`}
+                    title="Mudar data / Reagendar treino para outro dia"
+                  >
+                    <Calendar className="w-3 h-3" />
+                    <span>Mudar Data</span>
+                  </button>
                   {selectedWorkout.data.completed && (
                     <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 ${
                       isLight ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
@@ -3092,13 +3591,55 @@ const AthletePortal: React.FC = () => {
                 </button>
               </div>
 
-              {/* Main Title */}
-              <div>
-                <h3 className={`text-xl sm:text-2xl font-black uppercase italic tracking-tighter ${
-                  isLight ? 'text-slate-900' : 'text-white'
-                }`}>
-                  {isFinalWorkout ? '🏁 PROVA ALVO' : (selectedWorkout.data.type || 'Treino')}
-                </h3>
+              {/* Main Title & Type Selector */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className={`text-xl sm:text-2xl font-black uppercase italic tracking-tighter ${
+                    isLight ? 'text-slate-900' : 'text-white'
+                  }`}>
+                    {isFinalWorkout ? '🏁 PROVA ALVO' : (editWorkoutType || selectedWorkout.data.type || 'Treino')}
+                  </h3>
+
+                  <div className="relative inline-block">
+                    <select
+                      value={editWorkoutType || selectedWorkout.data.type || 'Rodagem'}
+                      onChange={(e) => setEditWorkoutType(e.target.value)}
+                      className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-xl border appearance-none pr-6 cursor-pointer tracking-wider ${
+                        isLight 
+                          ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700' 
+                          : 'bg-white/10 hover:bg-white/15 border-white/20 text-slate-200'
+                      }`}
+                      title="Alterar tipo do treino"
+                    >
+                      <option value="Rodagem">Rodagem</option>
+                      <option value="Regenerativo">Regenerativo</option>
+                      <option value="Longo">Longo</option>
+                      <option value="Intervalado">Intervalado</option>
+                      <option value="Tempo Run">Tempo Run</option>
+                      <option value="Fartlek">Fartlek</option>
+                      <option value="Ritmo">Ritmo</option>
+                      <option value="Subida">Subida</option>
+                      <option value="Fortalecimento">Fortalecimento</option>
+                      <option value="Mobilidade">Mobilidade</option>
+                      <option value="Descanso">Descanso</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-slate-400">
+                      <ChevronDown className="w-3 h-3" />
+                    </div>
+                  </div>
+                </div>
+
+                <input
+                  type="text"
+                  value={editCustomDescription}
+                  onChange={(e) => setEditCustomDescription(e.target.value)}
+                  placeholder="Descrição ou nome do treino (ex: 5km Leve no Parque)"
+                  className={`w-full text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all ${
+                    isLight 
+                      ? 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-emerald-500' 
+                      : 'bg-white/5 border-white/10 text-white placeholder-slate-500 focus:bg-white/10 focus:border-emerald-400'
+                  }`}
+                />
               </div>
             </div>
             
@@ -3128,8 +3669,40 @@ const AthletePortal: React.FC = () => {
                 )}
               </div>
 
-              {/* Se for Descanso, não mostramos PSE nem Cronômetro */}
-              {selectedWorkout.data.type === 'Descanso' ? (
+              {/* Opção de Reagendamento / Executar em Outro Dia */}
+              <div className={`p-3 sm:p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-500/20 text-emerald-400'
+                  }`}>
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className={`text-xs font-black uppercase italic tracking-tight ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      Executar em Outro Dia?
+                    </p>
+                    <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Ex: Antecipar o treino de Quarta para Segunda-feira.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAthleteReschedule(selectedWorkout.weekIndex, selectedWorkout.dayIndex, selectedWorkout.data)}
+                  className={`px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all shrink-0 cursor-pointer ${
+                    isLight 
+                      ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-sm' 
+                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/20'
+                  }`}
+                >
+                  Mudar Data
+                </button>
+              </div>
+
+              {/* Se for Descanso SEM atividade realizada nem GPS */}
+              {(editWorkoutType === 'Descanso' && !selectedWorkout.data.completed && !selectedWorkout.data.gpsRoute && (!actualDistanceValue || Number(actualDistanceValue) === 0)) ? (
                 <div className={`p-8 rounded-[2rem] border text-center space-y-4 ${
                   isLight ? 'bg-blue-50 border-blue-200 text-slate-900' : 'bg-blue-500/10 border-blue-500/20 text-white'
                 }`}>
@@ -3140,6 +3713,19 @@ const AthletePortal: React.FC = () => {
                   <p className={`text-sm font-medium italic ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                     O descanso é parte fundamental do seu treino. Aproveite para focar na mobilidade, sono de qualidade e hidratação.
                   </p>
+                  <p className="text-xs text-slate-500">
+                    Realizou uma corrida ou atividade hoje? Você pode alternar o tipo no topo para <strong>Rodagem</strong> ou clicar abaixo.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditWorkoutType('Rodagem');
+                    }}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Lançar Atividade Realizada</span>
+                  </button>
                 </div>
               ) : (
                 <>
@@ -3518,6 +4104,27 @@ const AthletePortal: React.FC = () => {
                       if (!actualHeartRateValue && (selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate)) {
                         setActualHeartRateValue(String(selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate));
                       }
+                      handleSaveAndShareWorkout();
+                    }}
+                    className="py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>CONCLUIR E POSTAR</span>
+                  </button>
+                </div>
+                <div className="mt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!actualDistanceValue && selectedWorkout.data.distance) {
+                        setActualDistanceValue(String(selectedWorkout.data.distance));
+                      }
+                      if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
+                        setActualDurationValue(`${selectedWorkout.data.durationMinutes}:00`);
+                      }
+                      if (!actualHeartRateValue && (selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate)) {
+                        setActualHeartRateValue(String(selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate));
+                      }
                       setSelectedWorkout(prev => prev ? {
                         ...prev,
                         data: {
@@ -3526,14 +4133,14 @@ const AthletePortal: React.FC = () => {
                         }
                       } : null);
                     }}
-                    className={`py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                    className={`w-full py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
                       isLight 
-                        ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300' 
-                        : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                        ? 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200' 
+                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
                     }`}
                   >
-                    <Check className="w-4 h-4" />
-                    <span>CONCLUIR (ESTEIRA / MANUAL)</span>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Preencher Métricas Manuais / Esteira</span>
                   </button>
                 </div>
               </div>
@@ -3542,33 +4149,7 @@ const AthletePortal: React.FC = () => {
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-white/5'
               }`}>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <button 
-                      onClick={() => handleToggleComplete(false)} 
-                      disabled={isSaving}
-                      className={`py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer
-                        ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-white/5 hover:bg-white/10 text-slate-300'}
-                        disabled:opacity-50`}
-                    >
-                      {selectedWorkout.data.type === 'Descanso' ? 'DESMARCAR DESCANSO' : 'DESMARCAR CONCLUÍDO'}
-                    </button>
-                    <button 
-                      onClick={() => handleToggleComplete(true)} 
-                      disabled={isSaving}
-                      className="py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {isSaving ? (
-                        <div className="flex items-center gap-2">
-                          {saveSuccess ? <Check className="w-5 h-5 animate-fade-in" /> : <Loader2 className="w-5 h-5 animate-spin" />}
-                          <span>{saveSuccess ? 'SALVO!' : 'SALVANDO...'}</span>
-                        </div>
-                      ) : (
-                        'SALVAR E CONCLUIR'
-                      )}
-                    </button>
-                  </div>
-
-                  {selectedWorkout.data.type !== 'Descanso' && (
+                  {(editWorkoutType !== 'Descanso' || selectedWorkout.data.completed || selectedWorkout.data.gpsRoute || (actualDistanceValue !== '' && Number(actualDistanceValue) > 0)) && (
                     <button
                       type="button"
                       onClick={() => {
@@ -3584,7 +4165,7 @@ const AthletePortal: React.FC = () => {
                         const heartRate = actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate);
 
                         setShareWorkoutData({
-                          title: selectedWorkout.data.customDescription?.slice(0, 45) || `${selectedWorkout.data.type || 'Treino'}`,
+                          title: editCustomDescription?.slice(0, 45) || selectedWorkout.data.customDescription?.slice(0, 45) || `${editWorkoutType || selectedWorkout.data.type || 'Treino'}`,
                           athleteName: activeAthlete?.name,
                           date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
                           distanceKm: distKm,
@@ -3593,19 +4174,45 @@ const AthletePortal: React.FC = () => {
                           elevationGainMeters: currentGpsRoute?.elevationGainMeters || selectedWorkout.data.gpsRoute?.elevationGainMeters,
                           avgHeartRate: heartRate,
                           route: currentGpsRoute || selectedWorkout.data.gpsRoute,
-                          workoutType: selectedWorkout.data.type,
+                          workoutType: editWorkoutType || selectedWorkout.data.type,
                           initialBackgroundType: 'transparent',
                           initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
                           rpe: rpeValue || selectedWorkout.data.rpe
                         });
                         setSelectedWorkout(null);
                       }}
-                      className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-400 border border-emerald-500/40 font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
+                      className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 cursor-pointer active:scale-[0.98]"
                     >
-                      <Camera className="w-4 h-4 text-emerald-400" />
-                      <span>POSTAR FOTO DESTE TREINO</span>
+                      <Camera className="w-4 h-4" />
+                      <span>POSTAR FOTO / COMPARTILHAR CARD</span>
                     </button>
                   )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => handleToggleComplete(false)} 
+                      disabled={isSaving}
+                      className={`py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer
+                        ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-white/5 hover:bg-white/10 text-slate-300'}
+                        disabled:opacity-50`}
+                    >
+                      {(editWorkoutType === 'Descanso' && !selectedWorkout.data.completed && !selectedWorkout.data.gpsRoute) ? 'DESMARCAR DESCANSO' : 'DESMARCAR CONCLUÍDO'}
+                    </button>
+                    <button 
+                      onClick={() => handleToggleComplete(true)} 
+                      disabled={isSaving}
+                      className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <div className="flex items-center gap-2">
+                          {saveSuccess ? <Check className="w-5 h-5 animate-fade-in" /> : <Loader2 className="w-5 h-5 animate-spin" />}
+                          <span>{saveSuccess ? 'SALVO!' : 'SALVANDO...'}</span>
+                        </div>
+                      ) : (
+                        'SALVAR ALTERAÇÕES'
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -3894,6 +4501,217 @@ const AthletePortal: React.FC = () => {
         />
       )}
 
+      {/* Modal de Reagendamento / Alteração de Data pelo Atleta */}
+      {athleteRescheduling && athletePlan && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md no-print overflow-y-auto">
+          <div className={`rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[90vh] border relative my-auto transition-colors ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/10 text-white'
+          }`}>
+            {/* Topo do Modal */}
+            <div className={`p-4 sm:p-6 border-b flex items-center justify-between gap-3 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-white/10'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                  isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                }`}>
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-lg font-black uppercase italic tracking-tight ${
+                    isLight ? 'text-slate-900' : 'text-white'
+                  }`}>
+                    Alterar Data / Reagendar
+                  </h3>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Mova este treino para outro dia da semana
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAthleteRescheduling(null)}
+                className={`p-2 rounded-xl transition-colors ${
+                  isLight ? 'hover:bg-slate-200 text-slate-500 hover:text-slate-800' : 'hover:bg-white/10 text-slate-400 hover:text-white'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
+              {/* Treino Selecionado */}
+              <div className={`p-4 rounded-2xl border ${
+                isLight ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : 'bg-emerald-500/10 border-emerald-500/20 text-white'
+              }`}>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className={`text-[10px] font-black uppercase tracking-wider ${
+                    isLight ? 'text-emerald-700' : 'text-emerald-400'
+                  }`}>
+                    Treino a Mover
+                  </span>
+                  <span className={`text-xs font-bold ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                    Semana {athleteRescheduling.weekIndex + 1} • {diasSemanaFull[athleteRescheduling.dayIndex]}
+                  </span>
+                </div>
+                <p className="text-base font-black uppercase italic flex items-center gap-2">
+                  <span>{athleteRescheduling.workout?.type || 'Treino'}</span>
+                  {(athleteRescheduling.workout?.distance || 0) > 0 && (
+                    <span className="text-xs font-bold bg-emerald-500/20 text-emerald-600 px-2 py-0.5 rounded-full">
+                      {athleteRescheduling.workout.distance} km
+                    </span>
+                  )}
+                </p>
+                {athleteRescheduling.workout?.customDescription && (
+                  <p className={`text-xs italic mt-1.5 p-2 rounded-xl border ${
+                    isLight ? 'bg-white/80 border-emerald-100 text-slate-700' : 'bg-black/20 border-white/5 text-slate-300'
+                  }`}>
+                    "{athleteRescheduling.workout.customDescription}"
+                  </p>
+                )}
+              </div>
+
+              {/* Seletor por Data Específica */}
+              <div className="space-y-2">
+                <label className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                  isLight ? 'text-slate-700' : 'text-slate-300'
+                }`}>
+                  <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Escolha a Nova Data do Treino:</span>
+                </label>
+                <input
+                  type="date"
+                  value={athleteRescheduleDate}
+                  onChange={(e) => handleAthleteDateChange(e.target.value)}
+                  className={`w-full border rounded-xl px-4 py-2.5 text-sm font-bold outline-none transition-colors cursor-pointer ${
+                    isLight 
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500' 
+                      : 'bg-slate-800 border-white/10 text-white focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              {/* Seletor de Dia da Semana (Atalho Rápido) */}
+              <div className="space-y-2.5">
+                <label className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                  isLight ? 'text-slate-700' : 'text-slate-300'
+                }`}>
+                  <Flame className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Ou escolha o Dia da Semana desejado:</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {diasSemanaFull.map((dayName, dIdx) => {
+                    const targetWeekData = athletePlan.weeks[athleteRescheduleWeek];
+                    const targetDayWorkout = targetWeekData?.workouts[dIdx];
+                    const isSelected = athleteRescheduleDay === dIdx;
+                    const isOrigin = athleteRescheduling.weekIndex === athleteRescheduleWeek && athleteRescheduling.dayIndex === dIdx;
+                    const dayFormatted = athletePlan.startDate
+                      ? formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, athleteRescheduleWeek, dIdx))
+                      : '';
+
+                    return (
+                      <button
+                        key={dIdx}
+                        type="button"
+                        onClick={() => {
+                          setAthleteRescheduleDay(dIdx);
+                          if (athletePlan.startDate) {
+                            setAthleteRescheduleDate(getWorkoutDateString(athletePlan.startDate, athleteRescheduleWeek, dIdx));
+                          }
+                        }}
+                        className={`p-3 rounded-2xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                          isSelected
+                            ? (isLight 
+                                ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/30' 
+                                : 'bg-emerald-500/20 border-emerald-500 ring-2 ring-emerald-500/40')
+                            : (isLight 
+                                ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' 
+                                : 'bg-slate-800/60 hover:bg-slate-800 border-white/5')
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`text-xs font-black uppercase tracking-tight flex items-center gap-1.5 ${
+                            isLight ? 'text-slate-900' : 'text-white'
+                          }`}>
+                            <span>{dayName}</span>
+                            {dayFormatted && (
+                              <span className={`text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                ({dayFormatted})
+                              </span>
+                            )}
+                          </span>
+                          {isOrigin ? (
+                            <span className="text-[9px] font-bold uppercase bg-amber-500/20 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                              Origem
+                            </span>
+                          ) : isSelected ? (
+                            <span className="text-[9px] font-black uppercase bg-emerald-500 text-slate-950 px-1.5 py-0.5 rounded">
+                              Destino
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className={`text-[11px] font-bold truncate ${
+                          isLight ? 'text-slate-600' : 'text-slate-300'
+                        }`}>
+                          {targetDayWorkout?.type || 'Descanso'}
+                          {(targetDayWorkout?.distance || 0) > 0 && ` • ${targetDayWorkout.distance} km`}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Explicação clara */}
+              <div className={`p-3.5 rounded-2xl border text-xs space-y-1 ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-slate-800/80 border-white/10 text-slate-400'
+              }`}>
+                <p className={`font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                  💡 <strong className="text-emerald-500">Exemplo prático:</strong>
+                </p>
+                <p>
+                  Se você vai fazer o treino de <strong>{diasSemanaFull[athleteRescheduling.dayIndex]}</strong> na <strong>{diasSemanaFull[athleteRescheduleDay]}</strong>, os dois dias trocarão de lugar automaticamente para que sua planilha continue sincronizada e o treinador veja seu progresso correto.
+                </p>
+              </div>
+            </div>
+
+            {/* Rodapé com Ações */}
+            <div className={`p-4 sm:p-6 border-t flex items-center justify-end gap-3 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-white/10'
+            }`}>
+              <button
+                type="button"
+                disabled={isReschedulingSaving}
+                onClick={() => setAthleteRescheduling(null)}
+                className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors ${
+                  isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isReschedulingSaving || (athleteRescheduling.weekIndex === athleteRescheduleWeek && athleteRescheduling.dayIndex === athleteRescheduleDay)}
+                onClick={handleConfirmAthleteReschedule}
+                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:pointer-events-none text-slate-950 font-black text-xs uppercase italic tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 cursor-pointer"
+              >
+                {isReschedulingSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <span>Confirmar Mudança</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Standalone Fullscreen GPS Running Portal */}
       {showGpsTracker && selectedWorkout && createPortal(
         <div className="fixed inset-0 z-[10000] bg-black overflow-hidden select-none">
@@ -3916,18 +4734,7 @@ const AthletePortal: React.FC = () => {
               if (route.avgHeartRate) {
                 setActualHeartRateValue(String(route.avgHeartRate));
               }
-              setSelectedWorkout(prev => prev ? {
-                ...prev,
-                data: {
-                  ...prev.data,
-                  completed: true,
-                  actualDistance: route.totalDistanceKm,
-                  actualDuration: formattedDuration,
-                  avgHeartRate: route.avgHeartRate || prev.data.avgHeartRate,
-                  gpsRoute: route
-                }
-              } : null);
-              setShowGpsTracker(false);
+              handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate);
             }}
             onCancel={() => setShowGpsTracker(false)}
           />

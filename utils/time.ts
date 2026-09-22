@@ -58,6 +58,34 @@ export function getWorkoutDate(planStartDate: string, weekIndex: number, dayInde
   return workoutDate;
 }
 
+export function getWorkoutDateString(planStartDate: string, weekIndex: number, dayIndex: number): string {
+  const d = getWorkoutDate(planStartDate, weekIndex, dayIndex);
+  return getLocalDateString(d);
+}
+
+export function getWorkoutIndicesFromDate(planStartDate: string, targetDateStr: string, totalWeeks: number = 1): { weekIndex: number; dayIndex: number } {
+  const start = parseDateString(planStartDate);
+  const startDay = start.getDay() === 0 ? 6 : start.getDay() - 1; // 0=Mon..6=Sun
+  const firstMonday = new Date(start);
+  firstMonday.setDate(start.getDate() - startDay);
+  firstMonday.setHours(0, 0, 0, 0);
+
+  const target = parseDateString(targetDateStr);
+  target.setHours(0, 0, 0, 0);
+
+  const diffMs = target.getTime() - firstMonday.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  
+  let weekIndex = Math.floor(diffDays / 7);
+  let dayIndex = ((diffDays % 7) + 7) % 7;
+
+  if (totalWeeks > 0) {
+    weekIndex = Math.max(0, Math.min(weekIndex, totalWeeks - 1));
+  }
+
+  return { weekIndex, dayIndex };
+}
+
 export function formatWorkoutDateShort(date: Date): string {
   const d = date.getDate();
   const m = date.getMonth() + 1;

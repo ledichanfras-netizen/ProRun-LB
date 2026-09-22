@@ -192,11 +192,13 @@ export interface TrainingWeek {
   phase: 'Base' | 'Construção' | 'Pico' | 'Polimento';
   weekNumber: number;
   totalVolume: number;
+  actualVolume?: number;
   isVisible?: boolean; 
   coachNotes?: string; 
     workouts: {
       day: string; 
       workoutId?: string;
+      date?: string;
       type: WorkoutType; 
       customDescription?: string;
       distance?: number;

@@ -5,7 +5,7 @@ import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType, AthletePlan, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getTodayDateString } from '../utils/time';
+import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getTodayDateString, getWorkoutDateString, getWorkoutIndicesFromDate } from '../utils/time';
 import { 
   Sparkles, 
   Loader2, 
@@ -17,6 +17,7 @@ import {
   EyeOff,
   Activity,
   CalendarDays,
+  Calendar,
   Flag,
   ChevronDown,
   ChevronUp,
@@ -50,7 +51,7 @@ import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure, formatStru
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 
 const Periodization: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, clearAthletePlan, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [raceDate, setRaceDate] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -75,6 +76,50 @@ const Periodization: React.FC = () => {
   const [viewingWorkoutRoute, setViewingWorkoutRoute] = useState<any | null>(null);
   const [editingStructuredWorkout, setEditingStructuredWorkout] = useState<{ wIdx: number; dIdx: number } | null>(null);
   const [shareModalData, setShareModalData] = useState<WorkoutShareData | null>(null);
+
+  // Reagendamento / Mudança de Data do Treino (Treinador)
+  const [reschedulingWorkout, setReschedulingWorkout] = useState<{ weekIndex: number; dayIndex: number } | null>(null);
+  const [rescheduleTargetDate, setRescheduleTargetDate] = useState<string>('');
+  const [rescheduleTargetWeek, setRescheduleTargetWeek] = useState<number>(0);
+  const [rescheduleTargetDay, setRescheduleTargetDay] = useState<number>(0);
+
+  const handleOpenRescheduleModal = (wIdx: number, dIdx: number) => {
+    setReschedulingWorkout({ weekIndex: wIdx, dayIndex: dIdx });
+    setRescheduleTargetWeek(wIdx);
+    setRescheduleTargetDay(dIdx);
+    if (fullPlan?.startDate) {
+      setRescheduleTargetDate(getWorkoutDateString(fullPlan.startDate, wIdx, dIdx));
+    } else {
+      setRescheduleTargetDate(getTodayDateString());
+    }
+  };
+
+  const handleRescheduleDateInput = (newDateStr: string) => {
+    setRescheduleTargetDate(newDateStr);
+    if (fullPlan?.startDate && fullPlan.weeks?.length) {
+      const { weekIndex, dayIndex } = getWorkoutIndicesFromDate(fullPlan.startDate, newDateStr, fullPlan.weeks.length);
+      setRescheduleTargetWeek(weekIndex);
+      setRescheduleTargetDay(dayIndex);
+    }
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!reschedulingWorkout || !activeAthlete || !fullPlan) return;
+    try {
+      const updated = await rescheduleWorkout(
+        activeAthlete.id,
+        reschedulingWorkout.weekIndex,
+        reschedulingWorkout.dayIndex,
+        rescheduleTargetWeek,
+        rescheduleTargetDay,
+        rescheduleTargetDate
+      );
+      setFullPlan(updated);
+      setReschedulingWorkout(null);
+    } catch (err: any) {
+      alert("Erro ao reagendar treino: " + err.message);
+    }
+  };
 
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   const portalRoot = document.getElementById('printable-portal');
@@ -476,10 +521,20 @@ const Periodization: React.FC = () => {
     const newPlan = safeDeepClone(fullPlan);
     newPlan.weeks[wIdx].workouts[dIdx][field] = value;
     
-    // Recalcular volume total da semana se a distância mudou
-    if (field === 'distance') {
-      const total = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
-      newPlan.weeks[wIdx].totalVolume = total;
+    // Recalcular volumes da semana se qualquer campo de distância ou status mudou
+    if (field === 'distance' || field === 'actualDistance' || field === 'completed') {
+      const plannedTotal = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
+      const realTotal = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => {
+        if (curr.completed) {
+          const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
+            ? Number(String(curr.actualDistance).replace(',', '.'))
+            : (Number(curr.distance) || 0);
+          return acc + (isNaN(d) ? 0 : d);
+        }
+        return acc;
+      }, 0);
+      newPlan.weeks[wIdx].totalVolume = Math.round(plannedTotal * 10) / 10;
+      newPlan.weeks[wIdx].actualVolume = Math.round(realTotal * 10) / 10;
     }
     
     setFullPlan(newPlan);
@@ -667,18 +722,40 @@ const Periodization: React.FC = () => {
   const handleResetWorkout = (wIdx: number, dIdx: number) => {
     if (confirm("Deseja realmente remover este treino? Ele será resetado para Descanso.")) {
       const newPlan = safeDeepClone(fullPlan);
+      const target = newPlan.weeks[wIdx].workouts[dIdx];
+
       newPlan.weeks[wIdx].workouts[dIdx] = {
-        day: newPlan.weeks[wIdx].workouts[dIdx].day,
+        day: target.day,
         type: 'Descanso' as WorkoutType,
         customDescription: 'Descanso total.',
         distance: 0,
         completed: false,
+        actualDistance: undefined,
+        actualDuration: undefined,
+        avgHeartRate: undefined,
+        feedback: undefined,
         exercises: []
       };
-      // Recalcular volume
-      const total = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
-      newPlan.weeks[wIdx].totalVolume = total;
+
+      // Recalcular volumes planejados e reais da semana
+      const plannedTotal = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
+      const realTotal = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => {
+        if (curr.completed) {
+          const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
+            ? Number(String(curr.actualDistance).replace(',', '.'))
+            : (Number(curr.distance) || 0);
+          return acc + (isNaN(d) ? 0 : d);
+        }
+        return acc;
+      }, 0);
+
+      newPlan.weeks[wIdx].totalVolume = Math.round(plannedTotal * 10) / 10;
+      newPlan.weeks[wIdx].actualVolume = Math.round(realTotal * 10) / 10;
       setFullPlan(newPlan);
+
+      if (activeAthlete) {
+        saveAthletePlan(activeAthlete.id, newPlan);
+      }
     }
   };
 
@@ -1268,9 +1345,32 @@ const Periodization: React.FC = () => {
                         <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic">{week.phase}</span>
                       )}
                       
-                      <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3 text-emerald-400" /> {week.totalVolume || 0} KM
-                      </span>
+                      {(() => {
+                        const plannedKm = (week.workouts || []).reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
+                        const realKm = (week.workouts || []).reduce((acc: number, curr: any) => {
+                          if (curr.completed) {
+                            const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
+                              ? Number(String(curr.actualDistance).replace(',', '.'))
+                              : (Number(curr.distance) || 0);
+                            return acc + (isNaN(d) ? 0 : d);
+                          }
+                          return acc;
+                        }, 0);
+                        const fPlanned = Math.round(plannedKm * 10) / 10;
+                        const fReal = Math.round(realKm * 10) / 10;
+                        return (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1" title="Volume Planejado">
+                              <TrendingUp className="w-3 h-3 text-emerald-400" /> Plano: {fPlanned} KM
+                            </span>
+                            {fReal > 0 && (
+                              <span className="text-emerald-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md" title="Volume Real Executado">
+                                <CheckCircle className="w-3 h-3 text-emerald-400" /> Real: {fReal} KM
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                       
                       {fullPlan.startDate && (
                         <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1.5 bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg whitespace-nowrap">
@@ -1363,19 +1463,35 @@ const Periodization: React.FC = () => {
                         <div className="w-full sm:w-40 flex flex-row sm:flex-col justify-between items-center sm:items-start gap-2">
                            <div className="flex items-center gap-2">
                              {isEditing && (
-                               <div className="flex flex-col gap-0.5">
-                                 <button onClick={() => handleMoveWorkout(weekIndex, dayIndex, 'up')} disabled={dayIndex === 0} className="p-0.5 hover:bg-white/10 disabled:opacity-20 rounded transition-colors"><ChevronUp className="w-3 h-3 text-white" /></button>
-                                 <button onClick={() => handleMoveWorkout(weekIndex, dayIndex, 'down')} disabled={dayIndex === week.workouts.length - 1} className="p-0.5 hover:bg-white/10 disabled:opacity-20 rounded transition-colors"><ChevronDown className="w-3 h-3 text-white" /></button>
+                               <div className="flex items-center gap-0.5">
+                                 <div className="flex flex-col gap-0.5">
+                                   <button onClick={() => handleMoveWorkout(weekIndex, dayIndex, 'up')} disabled={dayIndex === 0} className="p-0.5 hover:bg-white/10 disabled:opacity-20 rounded transition-colors" title="Mover para cima"><ChevronUp className="w-3 h-3 text-white" /></button>
+                                   <button onClick={() => handleMoveWorkout(weekIndex, dayIndex, 'down')} disabled={dayIndex === week.workouts.length - 1} className="p-0.5 hover:bg-white/10 disabled:opacity-20 rounded transition-colors" title="Mover para baixo"><ChevronDown className="w-3 h-3 text-white" /></button>
+                                 </div>
+                                 <button
+                                   type="button"
+                                   onClick={() => handleOpenRescheduleModal(weekIndex, dayIndex)}
+                                   className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded transition-colors"
+                                   title="Mudar data / Reagendar treino"
+                                 >
+                                   <Calendar className="w-3.5 h-3.5" />
+                                 </button>
                                </div>
                              )}
-                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter flex items-center gap-1.5 flex-wrap">
+                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter flex items-center gap-1.5 flex-wrap">
                                <span>{workout.day}</span>
                                {fullPlan?.startDate && (
-                                 <span className="text-emerald-400 font-extrabold italic bg-emerald-500/10 border border-emerald-500/10 px-1.5 py-0.5 rounded text-[8px] tracking-tight whitespace-nowrap">
-                                   {formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex))}
-                                 </span>
-                                )}
-                             </p>
+                                 <button
+                                   type="button"
+                                   onClick={() => handleOpenRescheduleModal(weekIndex, dayIndex)}
+                                   className="text-emerald-400 font-extrabold italic bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[8px] tracking-tight whitespace-nowrap cursor-pointer transition-all flex items-center gap-1"
+                                   title="Clique para alterar a data ou mover este treino"
+                                 >
+                                   <Calendar className="w-2.5 h-2.5 inline" />
+                                   <span>{formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex))}</span>
+                                 </button>
+                               )}
+                             </div>
                            </div>
                            {isEditing ? (
                               <div className="relative w-32 sm:w-full">
@@ -1442,6 +1558,14 @@ const Periodization: React.FC = () => {
                                   >
                                     <ListOrdered className="w-3.5 h-3.5" />
                                     <span className="text-[10px] font-black uppercase italic tracking-tight">Exercícios</span>
+                                  </button>
+                                  <button 
+                                    onClick={() => handleOpenRescheduleModal(weekIndex, dayIndex)}
+                                    className="px-3 py-1.5 bg-slate-800 text-slate-200 border border-white/10 rounded-xl hover:bg-white/10 hover:border-emerald-500/40 transition-all flex items-center gap-1.5"
+                                    title="Mudar Data / Reagendar para outro dia"
+                                  >
+                                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span className="text-[10px] font-black uppercase italic tracking-tight">Mudar Data</span>
                                   </button>
                                   <button 
                                     onClick={() => handleResetWorkout(weekIndex, dayIndex)}
@@ -1761,6 +1885,209 @@ const Periodization: React.FC = () => {
             data={shareModalData}
             onClose={() => setShareModalData(null)}
           />
+        )}
+
+        {/* Modal de Reagendamento / Alteração de Data de Treino */}
+        {reschedulingWorkout && fullPlan && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-white/10 rounded-3xl max-w-2xl w-full p-6 text-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Cabeçalho */}
+              <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black uppercase italic tracking-tight">Alterar Data / Reagendar Treino</h3>
+                    <p className="text-xs text-slate-400">Mova o treino para outro dia ou selecione uma data específica</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReschedulingWorkout(null)}
+                  className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 py-4 space-y-5 pr-1">
+                {/* Treino Selecionado */}
+                {(() => {
+                  const sourceWorkout = fullPlan.weeks[reschedulingWorkout.weekIndex]?.workouts[reschedulingWorkout.dayIndex];
+                  if (!sourceWorkout) return null;
+                  return (
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Treino Atual</span>
+                        <span className="text-xs font-bold text-slate-300">
+                          Semana {reschedulingWorkout.weekIndex + 1} • {diasSemanaFull[reschedulingWorkout.dayIndex]}
+                        </span>
+                      </div>
+                      <p className="text-base font-black uppercase italic text-white flex items-center gap-2">
+                        <span>{sourceWorkout.type}</span>
+                        {(sourceWorkout.distance || 0) > 0 && (
+                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                            {sourceWorkout.distance} km
+                          </span>
+                        )}
+                      </p>
+                      {sourceWorkout.customDescription && (
+                        <p className="text-xs text-slate-300 italic mt-1 bg-black/20 p-2 rounded-xl border border-white/5">
+                          "{sourceWorkout.customDescription}"
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Seletor por Data Direta */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Escolher Nova Data Específica:</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="date"
+                      value={rescheduleTargetDate}
+                      onChange={(e) => handleRescheduleDateInput(e.target.value)}
+                      className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white font-bold outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-400">
+                      (Sincroniza automaticamente a semana e o dia)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Seletor por Semana e Dia */}
+                <div className="space-y-3">
+                  <label className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <ListOrdered className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Ou selecione a Semana e o Dia de Destino:</span>
+                  </label>
+
+                  {/* Seletor de Semana */}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                    {fullPlan.weeks.map((w, wIdx) => {
+                      const isSelected = rescheduleTargetWeek === wIdx;
+                      return (
+                        <button
+                          key={wIdx}
+                          type="button"
+                          onClick={() => {
+                            setRescheduleTargetWeek(wIdx);
+                            if (fullPlan.startDate) {
+                              setRescheduleTargetDate(getWorkoutDateString(fullPlan.startDate, wIdx, rescheduleTargetDay));
+                            }
+                          }}
+                          className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-tight whitespace-nowrap transition-all ${
+                            isSelected
+                              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/5'
+                          }`}
+                        >
+                          Semana {wIdx + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Grid de 7 Dias da Semana Selecionada */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {diasSemanaFull.map((dayName, dIdx) => {
+                      const targetWeekData = fullPlan.weeks[rescheduleTargetWeek];
+                      const targetDayWorkout = targetWeekData?.workouts[dIdx];
+                      const isSelected = rescheduleTargetDay === dIdx;
+                      const isSourceDay = reschedulingWorkout.weekIndex === rescheduleTargetWeek && reschedulingWorkout.dayIndex === dIdx;
+                      const dayDateFormatted = fullPlan.startDate
+                        ? formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, rescheduleTargetWeek, dIdx))
+                        : '';
+
+                      return (
+                        <button
+                          key={dIdx}
+                          type="button"
+                          onClick={() => {
+                            setRescheduleTargetDay(dIdx);
+                            if (fullPlan.startDate) {
+                              setRescheduleTargetDate(getWorkoutDateString(fullPlan.startDate, rescheduleTargetWeek, dIdx));
+                            }
+                          }}
+                          className={`p-3 rounded-2xl border text-left transition-all flex flex-col gap-1.5 ${
+                            isSelected
+                              ? 'bg-emerald-500/20 border-emerald-500 ring-2 ring-emerald-500/40'
+                              : 'bg-slate-800/60 hover:bg-slate-800 border-white/5'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-xs font-black uppercase tracking-tight text-white flex items-center gap-1.5">
+                              <span>{dayName}</span>
+                              {dayDateFormatted && (
+                                <span className="text-[10px] text-slate-400 font-bold">({dayDateFormatted})</span>
+                              )}
+                            </span>
+                            {isSourceDay ? (
+                              <span className="text-[9px] font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                                Dia Atual
+                              </span>
+                            ) : isSelected ? (
+                              <span className="text-[9px] font-black uppercase bg-emerald-500 text-slate-950 px-1.5 py-0.5 rounded">
+                                Selecionado
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="text-[11px] font-bold text-slate-300 truncate">
+                            {targetDayWorkout?.type || 'Descanso'}
+                            {(targetDayWorkout?.distance || 0) > 0 && ` • ${targetDayWorkout.distance} km`}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Resumo da Ação */}
+                <div className="p-3.5 bg-slate-800/80 border border-white/10 rounded-2xl text-xs space-y-1">
+                  <p className="font-bold text-slate-200">
+                    ℹ️ <strong className="text-emerald-400">Como funciona o reagendamento:</strong>
+                  </p>
+                  <p className="text-slate-400">
+                    O treino será transferido para{' '}
+                    <strong className="text-white">
+                      {diasSemanaFull[rescheduleTargetDay]} (Semana {rescheduleTargetWeek + 1})
+                    </strong>
+                    {rescheduleTargetDate && ` no dia ${rescheduleTargetDate.split('-').reverse().join('/')}`}.
+                    O treino que hoje ocupa essa vaga fará a troca para manter o equilíbrio da planilha.
+                  </p>
+                </div>
+              </div>
+
+              {/* Ações */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setReschedulingWorkout(null)}
+                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmReschedule}
+                  disabled={reschedulingWorkout.weekIndex === rescheduleTargetWeek && reschedulingWorkout.dayIndex === rescheduleTargetDay}
+                  className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:pointer-events-none text-slate-950 font-black text-xs uppercase italic tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-500/20"
+                >
+                  Confirmar Reagendamento
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
 
         {/* Modal de Estruturação Detalhada de Treino */}

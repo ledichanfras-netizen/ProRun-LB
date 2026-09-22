@@ -4,7 +4,7 @@ import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, Ath
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
-import { updateGamificationData, countCompletedWorkouts } from '../services/gamificationService';
+import { updateGamificationData, countCompletedWorkouts, calculateAthleteGamification } from '../services/gamificationService';
 import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../utils/sanitization';
 import { getAppNow, getTodayDateString } from '../utils/time';
@@ -38,6 +38,14 @@ interface AppContextType {
   athletePlans: Record<string, AthletePlan>;
   saveAthletePlan: (athleteId: string, plan: AthletePlan) => Promise<void>;
   clearAthletePlan: (athleteId: string) => Promise<void>;
+  rescheduleWorkout: (
+    athleteId: string,
+    fromWeekIndex: number,
+    fromDayIndex: number,
+    toWeekIndex: number,
+    toDayIndex: number,
+    newDateStr?: string
+  ) => Promise<AthletePlan>;
   updateWorkoutStatus: (
     athleteId: string, 
     weekIndex: number, 
@@ -56,7 +64,10 @@ interface AppContextType {
     gpsRoute?: any,
     structuredSteps?: any[],
     actualDuration?: string,
-    avgHeartRate?: number
+    avgHeartRate?: number,
+    workoutType?: string,
+    customDescription?: string,
+    workoutDate?: string
   ) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
@@ -465,19 +476,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setAthletePlans(plans);
         localStorage.setItem('proRun_cached_athletePlans', JSON.stringify(plans));
 
-        // Auto-heal and reconcile athlete gamification totalWorkouts with real completed workouts
+        // Auto-heal and reconcile athlete gamification (streaks, KM real, total workouts, level)
         setAthletes(prevAthletes => {
           let hasChanges = false;
           const reconciled = prevAthletes.map(ath => {
-            const trueCount = countCompletedWorkouts(plans, ath.id, ath.archivedPlans);
-            if (ath.gamification && ath.gamification.totalWorkouts !== trueCount) {
+            const { updatedData } = calculateAthleteGamification(plans, ath.id, ath.gamification, ath.archivedPlans);
+            if (JSON.stringify(updatedData) !== JSON.stringify(ath.gamification)) {
               hasChanges = true;
               return {
                 ...ath,
-                gamification: {
-                  ...ath.gamification,
-                  totalWorkouts: trueCount
-                }
+                gamification: updatedData
               };
             }
             return ath;
@@ -736,16 +744,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const saveAthletePlan = async (athleteId: string, plan: AthletePlan) => {
-    // Inject metadata under the first week so it is persisted in the weeks JSONB column
-    const weeksWithMetadata = plan.weeks.map((w: any, index: number) => {
+    // Recalculate planned totalVolume and actualVolume for all weeks
+    const weeksWithMetadata = (plan.weeks || []).map((w: any, index: number) => {
+      const plannedTotal = (w.workouts || []).reduce(
+        (acc: number, curr: any) => acc + (Number(curr.distance) || 0),
+        0
+      );
+      const realTotal = (w.workouts || []).reduce(
+        (acc: number, curr: any) => {
+          if (curr.completed) {
+            const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
+              ? Number(String(curr.actualDistance).replace(',', '.'))
+              : (Number(curr.distance) || 0);
+            return acc + (isNaN(d) ? 0 : d);
+          }
+          return acc;
+        },
+        0
+      );
+      const weekObj = {
+        ...w,
+        totalVolume: Math.round(plannedTotal * 10) / 10,
+        actualVolume: Math.round(realTotal * 10) / 10
+      };
       if (index === 0) {
         return {
-          ...w,
+          ...weekObj,
           planStartDate: plan.startDate,
           planTrainingDays: plan.trainingDays
         };
       }
-      return w;
+      return weekObj;
     });
 
     const planWithMetadata = {
@@ -754,6 +783,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     setAthletePlans(prev => ({ ...prev, [athleteId]: planWithMetadata }));
+
+    // Reconcile athlete gamification (streaks, real volume, total workouts)
+    const athlete = athletes.find(a => a.id === athleteId);
+    if (athlete) {
+      const simulatedPlans = { ...athletePlans, [athleteId]: planWithMetadata };
+      const { updatedData } = calculateAthleteGamification(simulatedPlans, athleteId, athlete.gamification, athlete.archivedPlans);
+      await updateAthlete(athleteId, { gamification: updatedData });
+    }
     try {
       // Upsert using the primary schema (athlete_id and plan_data)
       await supabase.from('athlete_plans').upsert({
@@ -803,6 +840,73 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const rescheduleWorkout = async (
+    athleteId: string,
+    fromWeekIndex: number,
+    fromDayIndex: number,
+    toWeekIndex: number,
+    toDayIndex: number,
+    newDateStr?: string
+  ): Promise<AthletePlan> => {
+    const currentPlan = athletePlans[athleteId];
+    if (!currentPlan || !currentPlan.weeks) throw new Error("Plano inexistente.");
+
+    const newPlan = safeDeepClone(currentPlan);
+    if (!newPlan.weeks[fromWeekIndex]?.workouts?.[fromDayIndex] || !newPlan.weeks[toWeekIndex]?.workouts?.[toDayIndex]) {
+      throw new Error("Posição de treino inválida.");
+    }
+
+    const fromWorkout = { ...newPlan.weeks[fromWeekIndex].workouts[fromDayIndex] };
+    const toWorkout = { ...newPlan.weeks[toWeekIndex].workouts[toDayIndex] };
+
+    const diasSemana = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+    const fromDayName = diasSemana[fromDayIndex] || fromWorkout.day;
+    const toDayName = diasSemana[toDayIndex] || toWorkout.day;
+
+    if (newDateStr) {
+      fromWorkout.date = newDateStr;
+    }
+
+    // Move fromWorkout to target slot, and toWorkout to origin slot (swapping)
+    newPlan.weeks[fromWeekIndex].workouts[fromDayIndex] = {
+      ...toWorkout,
+      day: fromDayName
+    };
+
+    newPlan.weeks[toWeekIndex].workouts[toDayIndex] = {
+      ...fromWorkout,
+      day: toDayName
+    };
+
+    // Recalculate volume for affected weeks
+    const affectedWeeks = Array.from(new Set([fromWeekIndex, toWeekIndex]));
+    affectedWeeks.forEach(wIdx => {
+      if (newPlan.weeks[wIdx]?.workouts) {
+        const plannedKm = newPlan.weeks[wIdx].workouts.reduce(
+          (acc: number, curr: any) => acc + (Number(curr.distance) || 0),
+          0
+        );
+        const realKm = newPlan.weeks[wIdx].workouts.reduce(
+          (acc: number, curr: any) => {
+            if (curr.completed) {
+              const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
+                ? Number(String(curr.actualDistance).replace(',', '.'))
+                : (Number(curr.distance) || 0);
+              return acc + (isNaN(d) ? 0 : d);
+            }
+            return acc;
+          },
+          0
+        );
+        newPlan.weeks[wIdx].totalVolume = Math.round(plannedKm * 10) / 10;
+        newPlan.weeks[wIdx].actualVolume = Math.round(realKm * 10) / 10;
+      }
+    });
+
+    await saveAthletePlan(athleteId, newPlan);
+    return newPlan;
+  };
+
   const updateWorkoutStatus = async (
     athleteId: string, 
     weekIndex: number, 
@@ -821,15 +925,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     gpsRoute?: any,
     structuredSteps?: any[],
     actualDuration?: string,
-    avgHeartRate?: number
+    avgHeartRate?: number,
+    workoutType?: string,
+    customDescription?: string,
+    workoutDate?: string
   ) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan) throw new Error("Plano inexistente.");
     
-    const wasAlreadyCompleted = Boolean(currentPlan.weeks[weekIndex]?.workouts[dayIndex]?.completed);
     const updatedPlan = safeDeepClone(currentPlan);
-    const workout = updatedPlan.weeks[weekIndex].workouts[dayIndex];
+    const validWeekIndex = Math.max(0, Math.min(weekIndex, (updatedPlan.weeks?.length || 1) - 1));
+    const validWeek = updatedPlan.weeks?.[validWeekIndex];
+    if (!validWeek || !validWeek.workouts) throw new Error("Semana inexistente no plano.");
+    
+    const validDayIndex = Math.max(0, Math.min(dayIndex, validWeek.workouts.length - 1));
+    const workout = validWeek.workouts[validDayIndex];
+    if (!workout) throw new Error("Treino inexistente no plano.");
+    
+    const wasAlreadyCompleted = Boolean(workout.completed);
     
     workout.completed = completed;
     workout.feedback = sFeedback || "";
@@ -843,6 +957,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     if (avgHeartRate !== undefined) {
       workout.avgHeartRate = avgHeartRate;
+    }
+    if (workoutType !== undefined && workoutType.trim() !== "") {
+      workout.type = workoutType;
+      if (workout.structuredWorkout) {
+        workout.structuredWorkout.name = workoutType;
+      }
+    }
+    if (customDescription !== undefined) {
+      workout.customDescription = customDescription;
+    }
+    if (workoutDate !== undefined) {
+      workout.date = workoutDate;
     }
     
     if (structuredSteps !== undefined) {
@@ -863,30 +989,64 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (menstrualPhase !== undefined) workout.menstrualPhase = menstrualPhase;
     if (readinessScore !== undefined) workout.readinessScore = readinessScore;
     if (gpsRoute !== undefined) workout.gpsRoute = gpsRoute;
+
+    // Recalculate planned totalVolume and actualVolume for all weeks in the plan
+    const weeksWithMetadata = updatedPlan.weeks.map((w: any, index: number) => {
+      const plannedTotal = (w.workouts || []).reduce(
+        (acc: number, curr: any) => acc + (Number(curr.distance) || 0),
+        0
+      );
+      const realTotal = (w.workouts || []).reduce(
+        (acc: number, curr: any) => {
+          if (curr.completed) {
+            const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
+              ? Number(String(curr.actualDistance).replace(',', '.'))
+              : (Number(curr.distance) || 0);
+            return acc + (isNaN(d) ? 0 : d);
+          }
+          return acc;
+        },
+        0
+      );
+      const weekObj = {
+        ...w,
+        totalVolume: Math.round(plannedTotal * 10) / 10,
+        actualVolume: Math.round(realTotal * 10) / 10
+      };
+      if (index === 0) {
+        return {
+          ...weekObj,
+          planStartDate: currentPlan.startDate,
+          planTrainingDays: currentPlan.trainingDays
+        };
+      }
+      return weekObj;
+    });
+
+    const planWithMetadata = {
+      ...updatedPlan,
+      weeks: weeksWithMetadata
+    };
     
     // Gamification Integration (handles new completion, edits, or unmarking without inflating counts)
     const athlete = athletes.find(a => a.id === athleteId);
     if (athlete) {
       const simulatedPlans = {
         ...athletePlans,
-        [athleteId]: updatedPlan
+        [athleteId]: planWithMetadata
       };
 
-      const { updatedData, newAchievements } = updateGamificationData(
-        athlete.gamification,
-        workout,
+      const { updatedData, newAchievements } = calculateAthleteGamification(
         simulatedPlans,
         athleteId,
-        {
-          wasAlreadyCompleted,
-          isUncompleting: wasAlreadyCompleted && !completed,
-          archivedPlans: athlete.archivedPlans
-        }
+        athlete.gamification,
+        athlete.archivedPlans
       );
       
       const updateData: Partial<Athlete> = { gamification: updatedData };
       
-      if (readinessScore !== undefined) {
+      if (readinessScore !== undefined && readinessScore !== null && !isNaN(readinessScore)) {
+        const clampedScore = Math.min(100, Math.max(0, Math.round(readinessScore)));
         const todayStr = getTodayDateString();
         const existingHistory = athlete.readinessHistory ? [...athlete.readinessHistory] : [];
         const existingIdx = existingHistory.findIndex(h => h.date === todayStr);
@@ -898,8 +1058,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           sorenessScore: sorenessScore !== undefined ? sorenessScore : 2,
           moodScore: moodScore !== undefined ? moodScore : 8,
           menstrualPhase: menstrualPhase || 'none',
-          readinessScore: readinessScore,
-          energyLevel: readinessScore
+          readinessScore: clampedScore,
+          energyLevel: clampedScore
         };
 
         if (existingIdx >= 0) {
@@ -913,9 +1073,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateData.lastReadiness = existingHistory[0];
         
         // Also set the simple backward compatible readiness field for dashboard filters
-        if (readinessScore >= 70) {
+        if (clampedScore >= 70) {
           updateData.readiness = 'ready';
-        } else if (readinessScore >= 40) {
+        } else if (clampedScore >= 40) {
           updateData.readiness = 'recovering';
         } else {
           updateData.readiness = 'fatigued';
@@ -939,22 +1099,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
       }
     }
-    
-    const weeksWithMetadata = updatedPlan.weeks.map((w: any, index: number) => {
-      if (index === 0) {
-        return {
-          ...w,
-          planStartDate: currentPlan.startDate,
-          planTrainingDays: currentPlan.trainingDays
-        };
-      }
-      return w;
-    });
-
-    const planWithMetadata = {
-      ...updatedPlan,
-      weeks: weeksWithMetadata
-    };
 
     setAthletePlans(prev => ({
       ...prev,
@@ -1030,7 +1174,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addNewAssessment, updateAssessment, deleteAssessment,
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout, seedDefaultWorkouts,
       selectedAthleteId, setSelectedAthleteId,
-      athletePlans, saveAthletePlan, clearAthletePlan, updateWorkoutStatus,
+      athletePlans, saveAthletePlan, clearAthletePlan, rescheduleWorkout, updateWorkoutStatus,
       getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected,
       isFirebaseConfigured: true, 
       subscription, hasActiveSubscription, refreshSubscription,

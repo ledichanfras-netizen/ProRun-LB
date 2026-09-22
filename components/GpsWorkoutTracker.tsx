@@ -42,6 +42,15 @@ import {
   formatDuration, 
   parseGpxFile 
 } from '../utils/gpsUtils';
+import { 
+  MotionCadenceTracker, 
+  calculateRunningCalories, 
+  announceKmSplit, 
+  KmSplit, 
+  TelemetryPoint, 
+  downsampleTelemetry 
+} from '../utils/runningMetrics';
+import { WorkoutTelemetryCharts } from './WorkoutTelemetryCharts';
 import { StructuredWorkout, WorkoutStep, StepType, StepTargetType, TrainingPace, WorkoutType } from '../types';
 import { workoutAudio } from '../utils/workoutAudio';
 import { 
@@ -63,6 +72,7 @@ interface GpsWorkoutTrackerProps {
   structuredWorkout?: StructuredWorkout;
   workoutDescription?: string;
   athletePaces?: TrainingPace[];
+  athleteWeight?: number;
   onRouteCaptured: (route: RouteData) => void;
   onCancel?: () => void;
 }
@@ -85,6 +95,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   structuredWorkout: initialStructuredWorkout,
   workoutDescription,
   athletePaces,
+  athleteWeight = 70,
   onRouteCaptured,
   onCancel
 }) => {
@@ -190,6 +201,33 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [heartRateError, setHeartRateError] = useState<string | null>(null);
   const heartRateMonitorRef = useRef(new HeartRateMonitor());
 
+  // Running Biometrics & Telemetry States (Cadência, Calorias, Altimetria e Parciais por KM)
+  const [currentCadence, setCurrentCadence] = useState<number>(0);
+  const [maxCadence, setMaxCadence] = useState<number>(0);
+  const [isCadenceSensorActive, setIsCadenceSensorActive] = useState<boolean>(false);
+  const [currentCalories, setCurrentCalories] = useState<number>(0);
+  const [elevationGainMeters, setElevationGainMeters] = useState<number>(0);
+  const [voiceAlertsEnabled, setVoiceAlertsEnabled] = useState<boolean>(true);
+  const [kmSplits, setKmSplits] = useState<KmSplit[]>([]);
+  const [telemetrySamples, setTelemetrySamples] = useState<TelemetryPoint[]>([]);
+  const [kmBannerNotice, setKmBannerNotice] = useState<{
+    km: number;
+    pace: string;
+    totalTime: string;
+    cadence?: number;
+  } | null>(null);
+
+  // Cadence Tracker Instance & Milestone Tracking Refs
+  const cadenceTrackerRef = useRef(new MotionCadenceTracker());
+  const lastAltitudeRef = useRef<number | null>(null);
+  const lastKmSplitDurationRef = useRef<number>(0);
+  const lastAnnouncedKmRef = useRef<number>(0);
+  const kmSplitsRef = useRef<KmSplit[]>([]);
+  const telemetrySamplesRef = useRef<TelemetryPoint[]>([]);
+  const voiceAlertsEnabledRef = useRef<boolean>(true);
+  const soundEnabledRef = useRef<boolean>(true);
+  const currentSpeedRef = useRef<number>(0);
+
   // New UI & Audio States (Contagem Regressiva, Tela Grande Focus HUD, Confirmação ao Sair)
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(true);
@@ -219,13 +257,19 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
       }
+      cadenceTrackerRef.current.stop();
     };
   }, []);
 
   // Sync Audio Setting
   useEffect(() => {
     workoutAudio.setSoundEnabled(soundEnabled);
+    soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
+
+  useEffect(() => {
+    voiceAlertsEnabledRef.current = voiceAlertsEnabled;
+  }, [voiceAlertsEnabled]);
 
   useEffect(() => {
     if (!heartRateLastUpdatedAt) {
@@ -453,9 +497,23 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       }, 1200);
     }
 
+    // Start cadence sensor (accelerometer with speed kinematic fallback)
+    void cadenceTrackerRef.current.start();
+
     // Timer Interval (every 1 second)
     timerIntervalRef.current = setInterval(() => {
-      setDurationSeconds(prev => prev + 1);
+      setDurationSeconds(prev => {
+        const nextDur = prev + 1;
+        // Live biometric updates every second
+        const { spm, isSensorActive } = cadenceTrackerRef.current.getCadence(currentSpeedRef.current);
+        setCurrentCadence(spm);
+        if (spm > 0) {
+          setMaxCadence(old => Math.max(old, spm));
+        }
+        setIsCadenceSensorActive(isSensorActive);
+        return nextDur;
+      });
+
       setStepDurationSeconds(prev => {
         const nextSec = prev + 1;
         const { activeStructured: struct, activeStepIndex: curIdx } = trackingRef.current;
@@ -480,7 +538,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     try {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (position) => {
-          const { latitude, longitude, accuracy, speed } = position.coords;
+          const { latitude, longitude, accuracy, speed, altitude } = position.coords;
           setGpsAccuracyMeters(Math.round(accuracy));
           setCurrentPosition([latitude, longitude]);
 
@@ -489,9 +547,22 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             return;
           }
 
+          // Elevation gain tracking
+          if (altitude !== null && altitude !== undefined && !isNaN(altitude)) {
+            if (lastAltitudeRef.current !== null) {
+              const diff = altitude - lastAltitudeRef.current;
+              if (diff > 0.4 && diff < 45) {
+                setElevationGainMeters(prev => prev + Math.round(diff));
+              }
+            }
+            lastAltitudeRef.current = altitude;
+          }
+
           const now = Date.now();
           if (speed !== null && speed !== undefined && speed >= 0) {
-            setCurrentSpeedKmh(Number((speed * 3.6).toFixed(1)));
+            const kmh = Number((speed * 3.6).toFixed(1));
+            setCurrentSpeedKmh(kmh);
+            currentSpeedRef.current = kmh;
           }
 
           if (lastPositionRef.current) {
@@ -511,6 +582,75 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
               setDistanceKm(prev => {
                 const newDist = prev + dKm;
+                const curDuration = trackingRef.current.durationSeconds;
+
+                // Calorie update
+                const kcal = calculateRunningCalories(athleteWeight, newDist, elevationGainMeters);
+                setCurrentCalories(kcal);
+
+                // Cadence check
+                const { spm } = cadenceTrackerRef.current.getCadence(currentSpeedRef.current);
+                const activeSpm = spm > 0 ? spm : undefined;
+
+                // Check for integer KM Milestone (Ex: 1km, 2km, 3km...)
+                const currentKmInteger = Math.floor(newDist);
+                if (currentKmInteger > lastAnnouncedKmRef.current) {
+                  for (let km = lastAnnouncedKmRef.current + 1; km <= currentKmInteger; km++) {
+                    const splitDur = Math.max(1, curDuration - lastKmSplitDurationRef.current);
+                    const splitPace = formatPace(splitDur, 1);
+                    const splitKcal = calculateRunningCalories(athleteWeight, 1);
+
+                    const newSplit: KmSplit = {
+                      km,
+                      durationSeconds: splitDur,
+                      splitTimeSeconds: curDuration,
+                      pace: splitPace,
+                      paceSeconds: splitDur,
+                      avgCadence: activeSpm,
+                      calories: splitKcal
+                    };
+
+                    kmSplitsRef.current.push(newSplit);
+                    setKmSplits([...kmSplitsRef.current]);
+
+                    lastKmSplitDurationRef.current = curDuration;
+                    lastAnnouncedKmRef.current = km;
+
+                    // Speech Announcement for KM (Tempo Total e Pace do KM)
+                    if (voiceAlertsEnabledRef.current && soundEnabledRef.current) {
+                      announceKmSplit(km, curDuration, splitDur, activeSpm);
+                    }
+
+                    // Visual HUD Toast
+                    setKmBannerNotice({
+                      km,
+                      pace: splitPace,
+                      totalTime: formatDuration(curDuration),
+                      cadence: activeSpm
+                    });
+                    setTimeout(() => setKmBannerNotice(null), 6500);
+                  }
+                }
+
+                // Periodic telemetry sample (every ~75m)
+                const lastSampleDist = telemetrySamplesRef.current.length > 0 
+                  ? telemetrySamplesRef.current[telemetrySamplesRef.current.length - 1].distanceKm 
+                  : 0;
+                if (newDist - lastSampleDist >= 0.075 || kmSplitsRef.current.length === 0) {
+                  const paceSec = newDist > 0 ? Math.round(curDuration / newDist) : 330;
+                  telemetrySamplesRef.current.push({
+                    distanceKm: Number(newDist.toFixed(2)),
+                    durationSeconds: curDuration,
+                    paceSeconds: paceSec,
+                    paceFormatted: formatPace(curDuration, newDist),
+                    cadenceSpm: activeSpm || 165,
+                    altitudeMeters: altitude ? Math.round(altitude) : undefined,
+                    calories: kcal,
+                    heartRate: heartRateBpm || undefined
+                  });
+                  setTelemetrySamples([...telemetrySamplesRef.current]);
+                }
+
                 setDurationSeconds(curTime => {
                   setCurrentPace(formatPace(curTime, newDist));
                   return curTime;
@@ -606,6 +746,26 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     pauseTracking();
     setIsTracking(false);
     void heartRateMonitorRef.current.disconnect();
+    cadenceTrackerRef.current.stop();
+
+    const finalAvgCadence = cadenceTrackerRef.current.getAverageCadence() || (currentCadence > 0 ? currentCadence : undefined);
+    const finalCalories = currentCalories || calculateRunningCalories(athleteWeight, distanceKm, elevationGainMeters);
+
+    // If there is any remaining distance after last integer KM (e.g. 5.35 km -> 0.35 km final split)
+    if (distanceKm - lastAnnouncedKmRef.current >= 0.25) {
+      const remainingDist = Number((distanceKm - lastAnnouncedKmRef.current).toFixed(2));
+      const remainingSec = Math.max(1, durationSeconds - lastKmSplitDurationRef.current);
+      kmSplitsRef.current.push({
+        km: Number((lastAnnouncedKmRef.current + remainingDist).toFixed(1)),
+        durationSeconds: remainingSec,
+        splitTimeSeconds: durationSeconds,
+        pace: formatPace(remainingSec, remainingDist),
+        paceSeconds: Math.round(remainingSec / remainingDist),
+        avgCadence: finalAvgCadence,
+        calories: calculateRunningCalories(athleteWeight, remainingDist)
+      });
+      setKmSplits([...kmSplitsRef.current]);
+    }
 
     // If no GPS coordinates or very short, save as an indoor/manual workout (e.g. treadmill or lost signal)
     if (gpsPoints.length < 2 && distanceKm < 0.05) {
@@ -630,6 +790,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         totalDistanceKm: 0,
         totalDurationSeconds: durationSeconds,
         avgPace: "00:00",
+        avgCadence: finalAvgCadence,
+        calories: finalCalories,
         source: 'manual_or_indoor',
         recordedAt: new Date().toISOString(),
         avgHeartRate: heartRateAverage || undefined,
@@ -665,6 +827,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       totalDistanceKm: Number(distanceKm.toFixed(2)),
       totalDurationSeconds: durationSeconds,
       avgPace,
+      elevationGainMeters: elevationGainMeters || undefined,
+      avgCadence: finalAvgCadence,
+      maxCadence: maxCadence > 0 ? maxCadence : (finalAvgCadence ? finalAvgCadence + 12 : undefined),
+      calories: finalCalories,
+      kmSplits: kmSplitsRef.current.length > 0 ? kmSplitsRef.current : undefined,
+      telemetrySamples: downsampleTelemetry(telemetrySamplesRef.current, 75),
       source: 'live_gps',
       recordedAt: new Date().toISOString(),
       avgHeartRate: heartRateAverage || undefined,
@@ -1328,31 +1496,109 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             )}
           </div>
 
-          {/* Painel do Relógio & Métricas de Corrida (Gerais) */}
-          <div className={`grid grid-cols-3 gap-2 p-4 rounded-2xl border text-center transition-colors ${
+          {/* Banner de Quilômetro Concluído com Alerta Sonoro */}
+          {kmBannerNotice && (
+            <div className="p-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl shadow-xl flex items-center justify-between gap-2 border border-emerald-400/50 animate-bounce">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center font-black text-xs">
+                  {kmBannerNotice.km}k
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-100 flex items-center gap-1">
+                    <Volume2 className="w-3 h-3" /> KM {kmBannerNotice.km} Concluído!
+                  </p>
+                  <p className="text-xs font-black font-mono">
+                    Pace: <span className="text-amber-300">{kmBannerNotice.pace}/km</span> • Tempo: {kmBannerNotice.totalTime}
+                  </p>
+                </div>
+              </div>
+              {kmBannerNotice.cadence && (
+                <span className="text-[10px] font-mono font-bold bg-black/20 px-2 py-1 rounded-lg">
+                  {kmBannerNotice.cadence} SPM
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Painel do Relógio & Métricas de Corrida (Gerais com Cadência e Calorias) */}
+          <div className={`space-y-2 p-3.5 sm:p-4 rounded-2xl border transition-colors ${
             isLight 
               ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' 
               : 'bg-white/5 border-white/5 text-white'
           }`}>
-            <div>
-              <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Distância Total</span>
-              <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
-                {distanceKm.toFixed(2)}
-              </span>
-              <span className="text-[8px] font-bold text-slate-500 uppercase ml-0.5">KM</span>
+            <div className="grid grid-cols-3 gap-2 text-center pb-2 border-b border-white/5">
+              <div>
+                <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Distância Total</span>
+                <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
+                  {distanceKm.toFixed(2)}
+                </span>
+                <span className="text-[8px] font-bold text-slate-500 uppercase ml-0.5">KM</span>
+              </div>
+              <div>
+                <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Tempo Total</span>
+                <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  {formatDuration(durationSeconds)}
+                </span>
+              </div>
+              <div>
+                <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Pace Geral</span>
+                <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
+                  {currentPace}
+                </span>
+                <span className="text-[8px] font-bold text-slate-500 uppercase ml-0.5">/KM</span>
+              </div>
             </div>
-            <div>
-              <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Tempo Total</span>
-              <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                {formatDuration(durationSeconds)}
-              </span>
+
+            {/* Linha de Biometria: Cadência e Calorias */}
+            <div className="grid grid-cols-2 gap-2 text-center pt-1">
+              <div className={`p-2 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/5'}`}>
+                <span className={`text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 ${isLight ? 'text-purple-700' : 'text-purple-400'}`}>
+                  <Footprints className="w-3 h-3" /> Cadência (Passadas)
+                </span>
+                <div className="flex items-baseline justify-center gap-1 mt-0.5">
+                  <span className={`text-lg font-black font-mono ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
+                    {currentCadence > 0 ? currentCadence : '--'}
+                  </span>
+                  <span className="text-[8px] font-bold text-slate-400">SPM</span>
+                </div>
+                <span className="text-[7px] text-slate-400 block font-medium">
+                  {isCadenceSensorActive ? '📱 Sensor do Celular' : 'Estimativa de Movimento'}
+                </span>
+              </div>
+
+              <div className={`p-2 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/5'}`}>
+                <span className={`text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 ${isLight ? 'text-orange-700' : 'text-orange-400'}`}>
+                  <Flame className="w-3 h-3" /> Calorias Queimadas
+                </span>
+                <div className="flex items-baseline justify-center gap-1 mt-0.5">
+                  <span className={`text-lg font-black font-mono ${isLight ? 'text-orange-800' : 'text-orange-300'}`}>
+                    {currentCalories || 0}
+                  </span>
+                  <span className="text-[8px] font-bold text-slate-400">KCAL</span>
+                </div>
+                <span className="text-[7px] text-slate-400 block font-medium">
+                  Fórmula ACSM ({athleteWeight}kg)
+                </span>
+              </div>
             </div>
-            <div>
-              <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Pace Geral</span>
-              <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
-                {currentPace}
-              </span>
-              <span className="text-[8px] font-bold text-slate-500 uppercase ml-0.5">/KM</span>
+
+            {/* Configuração Rápida de Fala por KM */}
+            <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[10px]">
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="font-bold">Fala a cada KM percorrido:</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVoiceAlertsEnabled(!voiceAlertsEnabled)}
+                className={`px-2.5 py-1 rounded-lg font-black uppercase text-[9px] transition-all cursor-pointer ${
+                  voiceAlertsEnabled 
+                    ? 'bg-emerald-500 text-white shadow-xs' 
+                    : isLight ? 'bg-slate-200 text-slate-600' : 'bg-white/10 text-slate-400'
+                }`}
+              >
+                {voiceAlertsEnabled ? 'Ativada' : 'Desativada'}
+              </button>
             </div>
           </div>
 
@@ -1405,6 +1651,21 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               </div>
             )}
           </div>
+
+          {/* Gráficos de Telemetria e Parciais por KM Estilo Relógio Avançado */}
+          {(kmSplits.length > 0 || telemetrySamples.length > 0) && (
+            <div className="pt-1">
+              <WorkoutTelemetryCharts
+                kmSplits={kmSplits}
+                telemetrySamples={telemetrySamples}
+                avgPace={currentPace}
+                avgCadence={currentCadence > 0 ? currentCadence : undefined}
+                calories={currentCalories}
+                elevationGainMeters={elevationGainMeters}
+                isLight={isLight}
+              />
+            </div>
+          )}
 
           {/* Histórico de Laps Concluídos */}
           {completedSteps.length > 0 && (
@@ -1555,6 +1816,17 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 points={gpxParsedRoute.points}
                 height="220px"
                 interactive={true}
+              />
+
+              {/* Gráficos de Telemetria do Arquivo GPX Importado */}
+              <WorkoutTelemetryCharts
+                kmSplits={gpxParsedRoute.kmSplits}
+                telemetrySamples={gpxParsedRoute.telemetrySamples}
+                avgPace={gpxParsedRoute.avgPace}
+                avgCadence={gpxParsedRoute.avgCadence}
+                calories={gpxParsedRoute.calories}
+                elevationGainMeters={gpxParsedRoute.elevationGainMeters}
+                isLight={isLight}
               />
 
               <div className="grid grid-cols-2 gap-2">
@@ -1749,22 +2021,34 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Botão de Alerta de Voz por KM */}
+              <button
+                type="button"
+                onClick={() => setVoiceAlertsEnabled(!voiceAlertsEnabled)}
+                className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  voiceAlertsEnabled ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-white/5 text-slate-400 border border-white/10'
+                }`}
+                title="Fala ritmo e tempo total a cada KM percorrido"
+              >
+                {voiceAlertsEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4" />}
+                <span className="text-[10px] font-black uppercase hidden sm:inline">{voiceAlertsEnabled ? 'Voz KM: On' : 'Voz KM: Off'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`p-2.5 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  soundEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-slate-400'
+                className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  soundEnabled ? 'bg-white/15 text-white border border-white/20' : 'bg-white/5 text-slate-400'
                 }`}
-                title="Sons e voz do treino"
+                title="Sons e bipes do treino"
               >
-                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                <span className="text-[10px] font-bold hidden sm:inline">{soundEnabled ? 'Voz On' : 'Voz Off'}</span>
+                <span className="text-[10px] font-bold hidden sm:inline">{soundEnabled ? 'Sons On' : 'Sons Off'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsFocusMode(false)}
-                className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                className="p-2 sm:px-3 sm:py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
                 title="Minimizar para janela normal"
               >
                 <Minimize2 className="w-4 h-4" />
@@ -1774,7 +2058,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               <button
                 type="button"
                 onClick={handleRequestExit}
-                className="p-2.5 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 hover:text-white border border-red-500/30 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                className="p-2 sm:px-3 sm:py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 hover:text-white border border-red-500/30 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
                 title="Sair do treino"
               >
                 <X className="w-4 h-4" />
@@ -1858,30 +2142,81 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 </div>
               ) : null}
 
-              {/* Grid de Números Gigantes das Métricas */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="p-2 sm:p-3.5 bg-slate-900/90 border border-emerald-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
+              {/* Banner de Quilômetro Concluído com Feedback Visual no Modo Foco */}
+              {kmBannerNotice && (
+                <div className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white rounded-2xl shadow-2xl border border-emerald-400/50 flex items-center justify-between gap-3 animate-bounce">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center font-black text-sm">
+                      {kmBannerNotice.km}k
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-100 flex items-center gap-1">
+                        <Volume2 className="w-3.5 h-3.5" /> Quilômetro {kmBannerNotice.km} Concluído!
+                      </p>
+                      <p className="text-xs sm:text-sm font-black font-mono">
+                        Pace do KM: <span className="text-amber-300 font-bold">{kmBannerNotice.pace}/km</span> • Tempo Total: {kmBannerNotice.totalTime}
+                      </p>
+                    </div>
+                  </div>
+                  {kmBannerNotice.cadence && (
+                    <span className="text-[10px] font-mono font-bold bg-black/30 px-2.5 py-1.5 rounded-lg text-purple-200">
+                      {kmBannerNotice.cadence} SPM
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Grid de Números Gigantes das Métricas (6 cards completos) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="p-2 sm:p-3 bg-slate-900/90 border border-emerald-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
                   <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Distância</span>
-                  <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-emerald-400">
+                  <div className="text-lg sm:text-2xl font-black font-mono tracking-tighter text-emerald-400">
                     {distanceKm.toFixed(2)} <span className="text-[8px] sm:text-xs text-slate-400">KM</span>
                   </div>
                 </div>
 
-                <div className="p-2 sm:p-3.5 bg-slate-900/90 border border-amber-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
-                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-amber-400 block">Pace</span>
-                  <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-amber-400">
+                <div className="p-2 sm:p-3 bg-slate-900/90 border border-amber-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-amber-400 block">Pace Geral</span>
+                  <div className="text-lg sm:text-2xl font-black font-mono tracking-tighter text-amber-400">
                     {currentPace}
                   </div>
                 </div>
 
-                <div className="p-2 sm:p-3.5 bg-slate-900/90 border border-white/10 rounded-2xl text-center flex flex-col items-center justify-center">
-                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-slate-400 block">Tempo</span>
-                  <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-white">
+                <div className="p-2 sm:p-3 bg-slate-900/90 border border-white/10 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-slate-400 block">Tempo Total</span>
+                  <div className="text-lg sm:text-2xl font-black font-mono tracking-tighter text-white">
                     {formatDuration(durationSeconds)}
                   </div>
                 </div>
 
-                <div className={`p-2 sm:p-3.5 bg-slate-900/90 rounded-2xl text-center flex flex-col items-center justify-center ${
+                {/* Cadência em Tempo Real */}
+                <div className="p-2 sm:p-3 bg-slate-900/90 border border-purple-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-purple-400 flex items-center gap-1">
+                    <Footprints className="w-3 h-3" /> Cadência
+                  </span>
+                  <div className="text-lg sm:text-2xl font-black font-mono tracking-tighter text-purple-400">
+                    {currentCadence > 0 ? currentCadence : '--'} <span className="text-[8px] sm:text-xs text-slate-400">SPM</span>
+                  </div>
+                  <span className="text-[7px] font-bold text-slate-400">
+                    {isCadenceSensorActive ? '📱 Sensor acelerômetro' : 'Cinemática'}
+                  </span>
+                </div>
+
+                {/* Calorias Estimadas */}
+                <div className="p-2 sm:p-3 bg-slate-900/90 border border-orange-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-orange-400 flex items-center gap-1">
+                    <Flame className="w-3 h-3" /> Calorias
+                  </span>
+                  <div className="text-lg sm:text-2xl font-black font-mono tracking-tighter text-orange-400">
+                    {currentCalories || 0} <span className="text-[8px] sm:text-xs text-slate-400">KCAL</span>
+                  </div>
+                  <span className="text-[7px] font-bold text-slate-400">
+                    ACSM ({athleteWeight}kg)
+                  </span>
+                </div>
+
+                {/* Frequência Cardíaca */}
+                <div className={`p-2 sm:p-3 bg-slate-900/90 rounded-2xl text-center flex flex-col items-center justify-center ${
                   heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3
                     ? 'border border-rose-500/50'
                     : 'border border-white/10'
@@ -1889,10 +2224,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-rose-300 flex items-center gap-1">
                     <HeartPulse className="w-3 h-3" /> FC atual
                   </span>
-                  <div className="text-lg sm:text-3xl font-black font-mono tracking-tighter text-rose-300">
+                  <div className="text-lg sm:text-2xl font-black font-mono tracking-tighter text-rose-300">
                     {heartRateBpm || '--'} <span className="text-[8px] sm:text-xs text-slate-400">BPM</span>
                   </div>
-                  <span className={`text-[7px] sm:text-[8px] font-bold ${
+                  <span className={`text-[7px] font-bold ${
                     heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3 ? 'text-emerald-300' : 'text-amber-300'
                   }`}>
                     {heartRateAgeSeconds === null

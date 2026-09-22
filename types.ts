@@ -224,7 +224,31 @@ export interface TrainingWeek {
         avgPace: string; // "05:15" min/km
         maxSpeedKmh?: number;
         elevationGainMeters?: number;
+        elevationLossMeters?: number;
         avgHeartRate?: number;
+        avgCadence?: number; // SPM
+        maxCadence?: number;
+        calories?: number; // kcal
+        kmSplits?: {
+          km: number;
+          durationSeconds: number;
+          splitTimeSeconds: number;
+          pace: string;
+          paceSeconds?: number;
+          avgCadence?: number;
+          calories?: number;
+          elevationGainMeters?: number;
+        }[];
+        telemetrySamples?: {
+          distanceKm: number;
+          durationSeconds: number;
+          paceSeconds: number;
+          paceFormatted: string;
+          cadenceSpm: number;
+          altitudeMeters?: number;
+          calories: number;
+          heartRate?: number;
+        }[];
         source: 'live_gps' | 'gpx_file' | 'manual_or_indoor';
         recordedAt: string;
         completedSteps?: {

@@ -45,13 +45,15 @@ import {
   HeartPulse,
   ChevronDown,
   BatteryCharging,
-  Info
+  Info,
+  Footprints
 } from 'lucide-react';
 import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
 import { GpsWorkoutTracker } from '../components/GpsWorkoutTracker';
 import { WorkoutMap } from '../components/WorkoutMap';
+import { WorkoutTelemetryCharts } from '../components/WorkoutTelemetryCharts';
 import { decodePolyline } from '../utils/gpsUtils';
 import { formatStructuredWorkoutSummary } from '../utils/workoutParser';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
@@ -3997,36 +3999,155 @@ const AthletePortal: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Real-time Pace & Metrics calculation badges */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div className={`p-3 rounded-2xl border flex items-center justify-between transition-all ${
-                          isLight ? 'bg-emerald-50/50 border-emerald-100' : 'bg-emerald-500/5 border-emerald-500/10'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <Activity className="w-4 h-4 text-emerald-500" />
-                            <span className={`text-[10px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                              Ritmo Médio (Pace)
-                            </span>
-                          </div>
-                          <span className="text-sm font-mono font-black italic text-emerald-500">
-                            {calculatePace(actualDistanceValue, actualDurationValue)} / KM
-                          </span>
-                        </div>
+                      {/* Real-time Pace & Biometrics calculation badges */}
+                      {(() => {
+                        const activeRoute = currentGpsRoute || selectedWorkout.data.gpsRoute;
+                        const routeCadence = activeRoute?.avgCadence;
+                        const routeCalories = activeRoute?.calories;
+                        const routeSplits = activeRoute?.kmSplits || [];
+                        const routePoints = activeRoute?.points && activeRoute.points.length > 0 
+                          ? activeRoute.points 
+                          : (activeRoute?.encodedPolyline ? decodePolyline(activeRoute.encodedPolyline) : []);
 
-                        <div className={`p-3 rounded-2xl border flex items-center justify-between transition-all ${
-                          isLight ? 'bg-rose-50/50 border-rose-100' : 'bg-rose-500/5 border-rose-500/10'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <HeartPulse className="w-4 h-4 text-rose-500" />
-                            <span className={`text-[10px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                              Batimentos
-                            </span>
+                        return (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {/* Pace Médio */}
+                              <div className={`p-3 rounded-2xl border flex flex-col justify-between transition-all ${
+                                isLight ? 'bg-emerald-50/50 border-emerald-100' : 'bg-emerald-500/5 border-emerald-500/10'
+                              }`}>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                                  <span className={`text-[9px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                                    Pace Médio
+                                  </span>
+                                </div>
+                                <span className="text-sm font-mono font-black italic text-emerald-500">
+                                  {calculatePace(actualDistanceValue, actualDurationValue)} / KM
+                                </span>
+                              </div>
+
+                              {/* Batimentos */}
+                              <div className={`p-3 rounded-2xl border flex flex-col justify-between transition-all ${
+                                isLight ? 'bg-rose-50/50 border-rose-100' : 'bg-rose-500/5 border-rose-500/10'
+                              }`}>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <HeartPulse className="w-3.5 h-3.5 text-rose-500" />
+                                  <span className={`text-[9px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                                    FC Média
+                                  </span>
+                                </div>
+                                <span className="text-sm font-mono font-black italic text-rose-500">
+                                  {actualHeartRateValue ? `${actualHeartRateValue} BPM` : (activeRoute?.avgHeartRate ? `${activeRoute.avgHeartRate} BPM` : '-- BPM')}
+                                </span>
+                              </div>
+
+                              {/* Cadência Média */}
+                              <div className={`p-3 rounded-2xl border flex flex-col justify-between transition-all ${
+                                isLight ? 'bg-purple-50/50 border-purple-100' : 'bg-purple-500/5 border-purple-500/10'
+                              }`}>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <Footprints className="w-3.5 h-3.5 text-purple-500" />
+                                  <span className={`text-[9px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                                    Cadência
+                                  </span>
+                                </div>
+                                <span className="text-sm font-mono font-black italic text-purple-500">
+                                  {routeCadence ? `${routeCadence} SPM` : '-- SPM'}
+                                </span>
+                              </div>
+
+                              {/* Calorias Gastas */}
+                              <div className={`p-3 rounded-2xl border flex flex-col justify-between transition-all ${
+                                isLight ? 'bg-orange-50/50 border-orange-100' : 'bg-orange-500/5 border-orange-500/10'
+                              }`}>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <Flame className="w-3.5 h-3.5 text-orange-500" />
+                                  <span className={`text-[9px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                                    Gasto Calórico
+                                  </span>
+                                </div>
+                                <span className="text-sm font-mono font-black italic text-orange-500">
+                                  {routeCalories ? `${routeCalories} kcal` : '-- kcal'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Se houver rota GPS gravada: Mini Mapa + Parciais + Gráficos de Telemetria */}
+                            {activeRoute && (
+                              <div className="space-y-4 pt-2">
+                                {/* Mapa da Rota Gravada */}
+                                {routePoints.length > 1 && (
+                                  <div className="rounded-2xl overflow-hidden border border-white/10 h-44 relative shadow-md">
+                                    <WorkoutMap
+                                      points={routePoints}
+                                      height="100%"
+                                      interactive={false}
+                                    />
+                                    <div className="absolute top-2 left-2 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-[9px] font-mono text-emerald-400 font-bold border border-emerald-500/30">
+                                      🗺️ Rota Percorrida • {activeRoute.totalDistanceKm || activeRoute.distanceKm || actualDistanceValue} km
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Tabela de Parciais por Quilômetro (Splits) */}
+                                {routeSplits.length > 0 && (
+                                  <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                                    isLight ? 'bg-slate-100/70 border-slate-200' : 'bg-slate-950/50 border-white/10'
+                                  }`}>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+                                        <Timer className="w-3.5 h-3.5" /> Parciais por Quilômetro
+                                      </span>
+                                      <span className="text-[9px] font-mono text-slate-400 font-bold">
+                                        {routeSplits.length} {routeSplits.length === 1 ? 'KM registrado' : 'KMs registrados'}
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                      {routeSplits.map((split: any) => (
+                                        <div 
+                                          key={split.km} 
+                                          className={`p-2 rounded-xl border text-center ${
+                                            isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-white/5'
+                                          }`}
+                                        >
+                                          <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 mb-0.5">
+                                            <span>KM {split.km}</span>
+                                            {split.avgCadence && (
+                                              <span className="text-purple-400 font-mono text-[8px]">{split.avgCadence} spm</span>
+                                            )}
+                                          </div>
+                                          <div className="text-xs font-mono font-black text-amber-400">
+                                            {split.pace}/km
+                                          </div>
+                                          <div className="text-[8px] font-mono text-slate-400">
+                                            Total: {split.splitTime}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Gráficos Esportivos de Telemetria (Pace, Elevação, Cadência) */}
+                                <div className="space-y-1">
+                                  <WorkoutTelemetryCharts
+                                    telemetrySamples={activeRoute.telemetry || activeRoute.telemetrySamples}
+                                    kmSplits={activeRoute.kmSplits}
+                                    avgCadence={activeRoute.avgCadence}
+                                    calories={activeRoute.calories}
+                                    elevationGainMeters={activeRoute.elevationGainMeters}
+                                    totalDistanceKm={activeRoute.totalDistanceKm || activeRoute.distanceKm || (actualDistanceValue ? Number(actualDistanceValue) : undefined)}
+                                    totalDurationSeconds={activeRoute.totalDurationSeconds}
+                                    isLight={isLight}
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <span className="text-sm font-mono font-black italic text-rose-500">
-                            {actualHeartRateValue ? `${actualHeartRateValue} BPM` : (currentGpsRoute?.avgHeartRate ? `${currentGpsRoute.avgHeartRate} BPM` : '-- BPM')}
-                          </span>
-                        </div>
-                      </div>
+                        );
+                      })()}
 
                       {/* 2. Percepção de Esforço (PSE) */}
                       <div className="space-y-3">
@@ -4718,6 +4839,7 @@ const AthletePortal: React.FC = () => {
           <GpsWorkoutTracker
             workoutType={selectedWorkout.data.type}
             plannedDistanceKm={selectedWorkout.data.distance}
+            athleteWeight={activeAthlete.weight || 70}
             existingRoute={currentGpsRoute}
             structuredWorkout={{
               ...selectedWorkout.data.structuredWorkout,

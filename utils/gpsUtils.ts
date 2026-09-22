@@ -5,6 +5,8 @@
  * - GPX file parsing (XML parser extracts coordinates, time, elevation, speed)
  */
 
+import { KmSplit, TelemetryPoint, calculateRunningCalories, downsampleTelemetry } from './runningMetrics';
+
 export interface GpsPoint {
   lat: number;
   lng: number;
@@ -20,7 +22,13 @@ export interface RouteData {
   avgPace: string; // "05:20" min/km
   maxSpeedKmh?: number;
   elevationGainMeters?: number;
+  elevationLossMeters?: number;
   avgHeartRate?: number;
+  avgCadence?: number; // SPM
+  maxCadence?: number; // SPM peak
+  calories?: number; // kcal
+  kmSplits?: KmSplit[]; // Parciais por KM
+  telemetrySamples?: TelemetryPoint[]; // Stream de telemetria compactado
   source: 'live_gps' | 'gpx_file' | 'manual_or_indoor';
   recordedAt: string;
   completedSteps?: {
@@ -243,6 +251,78 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
 
   const polyline = encodePolyline(sampledPoints);
   const avgPace = formatPace(totalDurationSeconds, totalDistanceKm);
+  const totalCalories = calculateRunningCalories(70, totalDistanceKm, totalElevationGain);
+
+  // Compute km splits from raw points
+  const kmSplits: KmSplit[] = [];
+  const telemetrySamples: TelemetryPoint[] = [];
+  let currentKmTarget = 1;
+  let splitStartDist = 0;
+  let splitStartTime = firstTime || 0;
+  let accDist = 0;
+
+  for (let i = 1; i < rawPoints.length; i++) {
+    const prev = rawPoints[i - 1];
+    const curr = rawPoints[i];
+    const segDist = calculateHaversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+    accDist += segDist;
+
+    const currTime = curr.time || (firstTime ? firstTime + Math.round(accDist * 330 * 1000) : 0);
+    const elapsedSec = firstTime ? Math.max(1, Math.round((currTime - firstTime) / 1000)) : Math.round(accDist * 330);
+    const paceSec = accDist > 0 ? Math.round(elapsedSec / accDist) : 330;
+    const speedKmh = paceSec > 0 ? 3600 / paceSec : 10;
+    const estCadence = Math.min(205, Math.max(140, Math.round(145 + speedKmh * 2.2)));
+
+    // Sample telemetry periodically (every ~80m)
+    if (i % Math.max(1, Math.floor(rawPoints.length / 75)) === 0 || i === rawPoints.length - 1) {
+      telemetrySamples.push({
+        distanceKm: Number(accDist.toFixed(2)),
+        durationSeconds: elapsedSec,
+        paceSeconds: paceSec,
+        paceFormatted: formatPace(elapsedSec, accDist),
+        cadenceSpm: estCadence,
+        altitudeMeters: curr.ele ? Math.round(curr.ele) : undefined,
+        calories: calculateRunningCalories(70, accDist, totalElevationGain * (accDist / (totalDistanceKm || 1)))
+      });
+    }
+
+    if (accDist >= currentKmTarget) {
+      const splitDuration = firstTime ? Math.max(1, Math.round((currTime - splitStartTime) / 1000)) : 330;
+      const splitDist = accDist - splitStartDist;
+      kmSplits.push({
+        km: currentKmTarget,
+        durationSeconds: splitDuration,
+        splitTimeSeconds: elapsedSec,
+        pace: formatPace(splitDuration, splitDist || 1),
+        paceSeconds: Math.round(splitDuration / (splitDist || 1)),
+        avgCadence: estCadence,
+        calories: calculateRunningCalories(70, 1, totalElevationGain / Math.max(1, totalDistanceKm))
+      });
+      currentKmTarget++;
+      splitStartDist = accDist;
+      splitStartTime = currTime;
+    }
+  }
+
+  // Final partial split if remaining > 300m
+  if (accDist - splitStartDist >= 0.3) {
+    const finalSec = totalDurationSeconds - (kmSplits.reduce((sum, s) => sum + s.durationSeconds, 0));
+    const finalDist = accDist - splitStartDist;
+    if (finalSec > 0 && finalDist > 0) {
+      kmSplits.push({
+        km: currentKmTarget,
+        durationSeconds: finalSec,
+        splitTimeSeconds: totalDurationSeconds,
+        pace: formatPace(finalSec, finalDist),
+        paceSeconds: Math.round(finalSec / finalDist),
+        avgCadence: 168,
+        calories: calculateRunningCalories(70, finalDist)
+      });
+    }
+  }
+
+  const avgSpeedKmh = totalDurationSeconds > 0 ? (totalDistanceKm / (totalDurationSeconds / 3600)) : 10;
+  const avgCadence = Math.min(200, Math.max(145, Math.round(145 + avgSpeedKmh * 2.2)));
 
   return {
     polyline,
@@ -250,6 +330,11 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
     totalDistanceKm: Number(totalDistanceKm.toFixed(2)),
     totalDurationSeconds,
     avgPace,
+    avgCadence,
+    maxCadence: avgCadence + 14,
+    calories: totalCalories,
+    kmSplits: kmSplits.length > 0 ? kmSplits : undefined,
+    telemetrySamples: downsampleTelemetry(telemetrySamples, 75),
     elevationGainMeters: Math.round(totalElevationGain),
     source: 'gpx_file',
     recordedAt: new Date().toISOString()

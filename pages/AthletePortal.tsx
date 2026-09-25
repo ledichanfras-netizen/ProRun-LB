@@ -46,7 +46,9 @@ import {
   ChevronDown,
   BatteryCharging,
   Info,
-  Footprints
+  Footprints,
+  ShieldCheck,
+  RotateCcw
 } from 'lucide-react';
 import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
@@ -54,7 +56,14 @@ import { AIPerformanceHub } from '../components/AIPerformanceHub';
 import { GpsWorkoutTracker } from '../components/GpsWorkoutTracker';
 import { WorkoutMap } from '../components/WorkoutMap';
 import { WorkoutTelemetryCharts } from '../components/WorkoutTelemetryCharts';
-import { decodePolyline } from '../utils/gpsUtils';
+import {
+  decodePolyline,
+  ActiveWorkoutBackup,
+  getActiveWorkoutBackup,
+  clearActiveWorkoutBackup,
+  convertBackupToRouteData,
+  formatDuration
+} from '../utils/gpsUtils';
 import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure } from '../utils/workoutParser';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -185,6 +194,12 @@ const AthletePortal: React.FC = () => {
   const [actualHeartRateValue, setActualHeartRateValue] = useState<string>('');
   const [currentGpsRoute, setCurrentGpsRoute] = useState<any>(null);
   const [showGpsTracker, setShowGpsTracker] = useState(false);
+  const [autoResumeGpsBackup, setAutoResumeGpsBackup] = useState(false);
+  const [activeBackup, setActiveBackup] = useState<ActiveWorkoutBackup | null>(() => getActiveWorkoutBackup());
+
+  useEffect(() => {
+    setActiveBackup(getActiveWorkoutBackup());
+  }, [showGpsTracker, selectedWorkout]);
   const [localSteps, setLocalSteps] = useState<any[]>([]);
   const [editWorkoutType, setEditWorkoutType] = useState<string>('');
   const [editCustomDescription, setEditCustomDescription] = useState<string>('');
@@ -1084,6 +1099,62 @@ const AthletePortal: React.FC = () => {
     <div className="max-w-md mx-auto space-y-6 pb-24 animate-fade-in no-print">
       {/* Header com Status Físico */}
       <div className="flex flex-col gap-4 px-2">
+        {/* Banner Global de Recuperação de Corrida Interrompida (Botão Voltar / Queda de App) */}
+        {activeBackup && !showGpsTracker && (
+          <div className="p-4 rounded-3xl border-2 border-amber-500/60 bg-gradient-to-br from-amber-950/90 via-slate-900 to-emerald-950/90 text-white shadow-2xl space-y-3 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-6 h-6 text-amber-400 animate-pulse" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-amber-500 text-slate-950">
+                  🛡️ Proteção Anti-Perda ProRun
+                </span>
+                <h3 className="text-sm font-black uppercase italic tracking-tight text-white mt-1">
+                  Corrida em Andamento Recuperada!
+                </h3>
+                <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">
+                  Seu treino <strong className="text-white">({activeBackup.workoutType})</strong> foi salvo automaticamente com{' '}
+                  <strong className="text-emerald-400 font-mono">{activeBackup.distanceKm.toFixed(2)} km</strong> e{' '}
+                  <strong className="text-amber-300 font-mono">{formatDuration(activeBackup.durationSeconds)}</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const wIdx = activeBackup.weekIndex ?? 0;
+                  const dIdx = activeBackup.dayIndex ?? 0;
+                  const targetW = athletePlan?.weeks?.[wIdx]?.workouts?.[dIdx] || athletePlan?.weeks?.[0]?.workouts?.[0];
+                  if (targetW) {
+                    openWorkoutModal(wIdx, dIdx, targetW);
+                    setAutoResumeGpsBackup(true);
+                    setShowGpsTracker(true);
+                  }
+                }}
+                className="py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 cursor-pointer transition-all"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Retomar Corrida</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  clearActiveWorkoutBackup();
+                  setActiveBackup(null);
+                }}
+                className="py-3 px-3 rounded-2xl bg-white/10 hover:bg-red-500/20 text-slate-300 hover:text-red-300 font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Descartar Backup</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-between items-end">
           <div>
             <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">
@@ -4848,6 +4919,11 @@ const AthletePortal: React.FC = () => {
               plannedDistanceKm={selectedWorkout.data.distance}
               athleteWeight={activeAthlete.weight || 70}
               existingRoute={currentGpsRoute}
+              workoutContext={{
+                weekIndex: selectedWorkout.weekIndex,
+                dayIndex: selectedWorkout.dayIndex
+              }}
+              autoResumeBackup={autoResumeGpsBackup}
               structuredWorkout={
                 localSteps.length > 0
                   ? {
@@ -4859,6 +4935,8 @@ const AthletePortal: React.FC = () => {
               workoutDescription={selectedWorkout.data.customDescription || selectedWorkout.data.description}
               athletePaces={paces}
               onRouteCaptured={(route) => {
+                setAutoResumeGpsBackup(false);
+                setActiveBackup(null);
                 setCurrentGpsRoute(route);
                 setActualDistanceValue(String(route.totalDistanceKm));
                 const durSec = route.totalDurationSeconds || (route as any).durationSeconds || 0;
@@ -4869,7 +4947,10 @@ const AthletePortal: React.FC = () => {
                 }
                 handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate);
               }}
-              onCancel={() => setShowGpsTracker(false)}
+              onCancel={() => {
+                setAutoResumeGpsBackup(false);
+                setShowGpsTracker(false);
+              }}
             />
           </div>
         </div>,

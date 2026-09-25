@@ -340,3 +340,113 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
     recordedAt: new Date().toISOString()
   };
 }
+
+/**
+ * ============================================================================
+ * SISTEMA DE BLINDAGEM E AUTO-RECUPERAÇÃO DE CORRIDA (CRASH & BACK-BUTTON GUARD)
+ * Salva continuamente o progresso do treino no dispositivo para evitar perda
+ * por toque acidental no botão Voltar, fechamento de aba ou queda de bateria.
+ * ============================================================================
+ */
+export const ACTIVE_WORKOUT_BACKUP_KEY = 'prorun_active_gps_workout_backup_v1';
+
+export interface ActiveWorkoutBackup {
+  workoutType: string;
+  workoutDescription?: string;
+  plannedDistanceKm?: number;
+  athleteWeight: number;
+  weekIndex?: number;
+  dayIndex?: number;
+  distanceKm: number;
+  durationSeconds: number;
+  currentPace: string;
+  gpsPoints: [number, number][];
+  currentPosition: [number, number] | null;
+  elevationGainMeters: number;
+  currentCalories: number;
+  currentCadence: number;
+  maxCadence: number;
+  heartRateAverage: number | null;
+  heartRateMax: number | null;
+  kmSplits: KmSplit[];
+  telemetrySamples: TelemetryPoint[];
+  activeStepIndex: number;
+  stepDistanceMeters: number;
+  stepDurationSeconds: number;
+  completedSteps: any[];
+  activeStructured?: any;
+  savedAt: string; // ISO string
+}
+
+export function saveActiveWorkoutBackup(backup: ActiveWorkoutBackup): void {
+  try {
+    // Keep max 600 points in localStorage checkpoint for fast, lightweight writes
+    const maxPts = 600;
+    let pts = backup.gpsPoints;
+    if (pts.length > maxPts) {
+      const step = Math.ceil(pts.length / maxPts);
+      pts = pts.filter((_, idx) => idx % step === 0 || idx === pts.length - 1);
+    }
+    const payload: ActiveWorkoutBackup = {
+      ...backup,
+      gpsPoints: pts,
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(ACTIVE_WORKOUT_BACKUP_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Auto-save workout backup warning:', err);
+  }
+}
+
+export function getActiveWorkoutBackup(): ActiveWorkoutBackup | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_WORKOUT_BACKUP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ActiveWorkoutBackup;
+    // Validate that backup has meaningful progress (at least 3 seconds or any distance)
+    if (!parsed || (parsed.durationSeconds < 3 && parsed.distanceKm <= 0)) {
+      return null;
+    }
+    // Discard backups older than 24 hours
+    const savedTime = new Date(parsed.savedAt).getTime();
+    if (isNaN(savedTime) || Date.now() - savedTime > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(ACTIVE_WORKOUT_BACKUP_KEY);
+      return null;
+    }
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+export function clearActiveWorkoutBackup(): void {
+  try {
+    localStorage.removeItem(ACTIVE_WORKOUT_BACKUP_KEY);
+  } catch (err) {}
+}
+
+export function convertBackupToRouteData(backup: ActiveWorkoutBackup): RouteData {
+  const hasGps = backup.gpsPoints && backup.gpsPoints.length >= 2 && backup.distanceKm >= 0.02;
+  const polyline = hasGps ? encodePolyline(backup.gpsPoints) : '';
+  const avgPace = hasGps ? formatPace(backup.durationSeconds, backup.distanceKm) : backup.currentPace || '00:00';
+  const finalCalories = backup.currentCalories || calculateRunningCalories(backup.athleteWeight || 70, backup.distanceKm, backup.elevationGainMeters);
+
+  return {
+    polyline,
+    points: backup.gpsPoints || [],
+    totalDistanceKm: Number((backup.distanceKm || 0).toFixed(2)),
+    totalDurationSeconds: backup.durationSeconds || 0,
+    avgPace,
+    elevationGainMeters: backup.elevationGainMeters || undefined,
+    avgCadence: backup.currentCadence > 0 ? backup.currentCadence : undefined,
+    maxCadence: backup.maxCadence > 0 ? backup.maxCadence : undefined,
+    calories: finalCalories,
+    kmSplits: backup.kmSplits && backup.kmSplits.length > 0 ? backup.kmSplits : undefined,
+    telemetrySamples: backup.telemetrySamples && backup.telemetrySamples.length > 0 ? downsampleTelemetry(backup.telemetrySamples, 75) : undefined,
+    source: hasGps ? 'live_gps' : 'manual_or_indoor',
+    recordedAt: backup.savedAt || new Date().toISOString(),
+    avgHeartRate: backup.heartRateAverage || undefined,
+    completedSteps: backup.completedSteps && backup.completedSteps.length > 0 ? backup.completedSteps : undefined
+  };
+}
+

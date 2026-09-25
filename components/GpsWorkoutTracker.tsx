@@ -31,7 +31,11 @@ import {
   X,
   AlertTriangle,
   CheckCircle2,
-  HeartPulse
+  HeartPulse,
+  Lock,
+  Unlock,
+  ShieldCheck,
+  RotateCcw
 } from 'lucide-react';
 import { WorkoutMap } from './WorkoutMap';
 import { 
@@ -40,7 +44,12 @@ import {
   encodePolyline, 
   formatPace, 
   formatDuration, 
-  parseGpxFile 
+  parseGpxFile,
+  ActiveWorkoutBackup,
+  saveActiveWorkoutBackup,
+  getActiveWorkoutBackup,
+  clearActiveWorkoutBackup,
+  convertBackupToRouteData
 } from '../utils/gpsUtils';
 import { 
   MotionCadenceTracker, 
@@ -74,6 +83,8 @@ interface GpsWorkoutTrackerProps {
   workoutDescription?: string;
   athletePaces?: TrainingPace[];
   athleteWeight?: number;
+  workoutContext?: { weekIndex?: number; dayIndex?: number };
+  autoResumeBackup?: boolean;
   onRouteCaptured: (route: RouteData) => void;
   onCancel?: () => void;
 }
@@ -97,6 +108,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   workoutDescription,
   athletePaces,
   athleteWeight = 70,
+  workoutContext,
+  autoResumeBackup = false,
   onRouteCaptured,
   onCancel
 }) => {
@@ -251,6 +264,13 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
   const countdownIntervalRef = useRef<any>(null);
 
+  // Proteção Anti-Perda: Bloqueio de Tela (Pocket Lock), Aviso de Botão Voltar, Auto-Save & Recuperação
+  const [isScreenLocked, setIsScreenLocked] = useState(false);
+  const [backButtonBlockedNotice, setBackButtonBlockedNotice] = useState(false);
+  const [recoverableBackup, setRecoverableBackup] = useState<ActiveWorkoutBackup | null>(null);
+  const [lastAutoSavedTime, setLastAutoSavedTime] = useState<string | null>(null);
+  const [showProtectionInfoModal, setShowProtectionInfoModal] = useState(false);
+
   // GPX Upload States
   const [gpxUploading, setGpxUploading] = useState(false);
   const [gpxParsedRoute, setGpxParsedRoute] = useState<RouteData | null>(null);
@@ -324,6 +344,154 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       completedSteps
     };
   }, [activeStructured, activeStepIndex, stepDistanceMeters, stepDurationSeconds, durationSeconds, distanceKm, completedSteps]);
+
+  // 1. BLINDAGEM CONTRA BOTÃO VOLTAR DO CELULAR & RECARREGAMENTO ACIDENTAL
+  useEffect(() => {
+    if (!isTracking && !isPaused) return;
+
+    // Empurra um estado-sentinela na pilha de histórico do navegador mobile
+    window.history.pushState({ prorunGpsActiveGuard: true }, '', window.location.href);
+
+    const handlePopState = () => {
+      // Impede que o botão Voltar do celular feche a corrida re-inserindo a trava
+      window.history.pushState({ prorunGpsActiveGuard: true }, '', window.location.href);
+      workoutAudio.playCountdown(1);
+      setBackButtonBlockedNotice(true);
+      setTimeout(() => setBackButtonBlockedNotice(false), 5000);
+      if (!isScreenLocked) {
+        setShowExitConfirmModal(true);
+      }
+    };
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'Sua corrida ainda está em andamento! Os dados estão protegidos.';
+      return e.returnValue;
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isTracking, isPaused, isScreenLocked]);
+
+  // 2. AUTO-SAVE CONTÍNUO EM TEMPO REAL NO DISPOSITIVO (Recuperação contra fechamento/queda)
+  useEffect(() => {
+    if (!isTracking && !isPaused) return;
+    if (durationSeconds < 2 && distanceKm <= 0) return;
+
+    saveActiveWorkoutBackup({
+      workoutType,
+      workoutDescription,
+      plannedDistanceKm,
+      athleteWeight,
+      weekIndex: workoutContext?.weekIndex,
+      dayIndex: workoutContext?.dayIndex,
+      distanceKm,
+      durationSeconds,
+      currentPace,
+      gpsPoints,
+      currentPosition,
+      elevationGainMeters,
+      currentCalories,
+      currentCadence,
+      maxCadence,
+      heartRateAverage,
+      heartRateMax,
+      kmSplits: kmSplitsRef.current,
+      telemetrySamples: telemetrySamplesRef.current,
+      activeStepIndex,
+      stepDistanceMeters,
+      stepDurationSeconds,
+      completedSteps,
+      activeStructured,
+      savedAt: new Date().toISOString()
+    });
+
+    setLastAutoSavedTime(
+      new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    );
+  }, [
+    isTracking,
+    isPaused,
+    durationSeconds,
+    distanceKm,
+    gpsPoints.length,
+    activeStepIndex,
+    completedSteps.length
+  ]);
+
+  // 3. VERIFICAR SE EXISTE UMA CORRIDA INTERROMPIDA PARA RECUPERAR IMEDIATAMENTE
+  useEffect(() => {
+    const saved = getActiveWorkoutBackup();
+    if (saved) {
+      if (autoResumeBackup) {
+        restoreWorkoutFromBackup(saved, true);
+      } else {
+        setRecoverableBackup(saved);
+      }
+    }
+  }, []);
+
+  const restoreWorkoutFromBackup = (backup: ActiveWorkoutBackup, autoStart: boolean = true) => {
+    setDistanceKm(backup.distanceKm || 0);
+    setDurationSeconds(backup.durationSeconds || 0);
+    setCurrentPace(backup.currentPace || formatPace(backup.durationSeconds || 0, backup.distanceKm || 0));
+    setGpsPoints(backup.gpsPoints || []);
+    if (backup.currentPosition) {
+      setCurrentPosition(backup.currentPosition);
+    } else if (backup.gpsPoints && backup.gpsPoints.length > 0) {
+      const lastPt = backup.gpsPoints[backup.gpsPoints.length - 1];
+      setCurrentPosition(lastPt);
+      lastPositionRef.current = { lat: lastPt[0], lng: lastPt[1], time: Date.now() };
+    }
+    setElevationGainMeters(backup.elevationGainMeters || 0);
+    setCurrentCalories(backup.currentCalories || 0);
+    setCurrentCadence(backup.currentCadence || 0);
+    setMaxCadence(backup.maxCadence || 0);
+    if (backup.heartRateAverage) setHeartRateAverage(backup.heartRateAverage);
+    if (backup.heartRateMax) setHeartRateMax(backup.heartRateMax);
+    if (backup.kmSplits && backup.kmSplits.length > 0) {
+      kmSplitsRef.current = backup.kmSplits;
+      setKmSplits(backup.kmSplits);
+      lastAnnouncedKmRef.current = Math.floor(backup.distanceKm || 0);
+      lastKmSplitDurationRef.current = backup.kmSplits[backup.kmSplits.length - 1]?.splitTimeSeconds || 0;
+    }
+    if (backup.telemetrySamples && backup.telemetrySamples.length > 0) {
+      telemetrySamplesRef.current = backup.telemetrySamples;
+      setTelemetrySamples(backup.telemetrySamples);
+    }
+    if (backup.activeStructured) {
+      setActiveStructured(backup.activeStructured);
+    }
+    setActiveStepIndex(backup.activeStepIndex || 0);
+    setStepDistanceMeters(backup.stepDistanceMeters || 0);
+    setStepDurationSeconds(backup.stepDurationSeconds || 0);
+    setCompletedSteps(backup.completedSteps || []);
+    setRecoverableBackup(null);
+    showNotification('🛡️ Corrida recuperada com sucesso de onde você parou!');
+    if (autoStart) {
+      workoutAudio.init();
+      workoutAudio.speakText('Corrida recuperada! Retomando rastreamento.', true);
+      startTrackingInternal();
+    } else {
+      setIsTracking(true);
+      setIsPaused(true);
+    }
+  };
+
+  const simulateBackButtonPress = () => {
+    workoutAudio.init();
+    workoutAudio.playCountdown(1);
+    setBackButtonBlockedNotice(true);
+    setTimeout(() => setBackButtonBlockedNotice(false), 5000);
+    if (!isScreenLocked) {
+      setShowExitConfirmModal(true);
+    }
+  };
 
   // Wake Lock API: Keeps the screen awake during active running
   const requestWakeLock = async () => {
@@ -731,9 +899,11 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   };
 
   const handleConfirmDiscardExit = () => {
+    clearActiveWorkoutBackup();
     pauseTracking();
     setIsTracking(false);
     setIsFocusMode(false);
+    setIsScreenLocked(false);
     setShowExitConfirmModal(false);
     if (onCancel) onCancel();
   };
@@ -760,8 +930,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // Finish and Save Live Track
   const finishTracking = () => {
+    clearActiveWorkoutBackup();
     pauseTracking();
     setIsTracking(false);
+    setIsScreenLocked(false);
     void heartRateMonitorRef.current.disconnect();
     cadenceTrackerRef.current.stop();
 
@@ -1088,6 +1260,123 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Card de Recuperação Automática de Corrida Interrompida (Crash / Botão Voltar) */}
+      {recoverableBackup && !isTracking && (
+        <div className="p-4 rounded-2xl border-2 border-amber-500/60 bg-gradient-to-r from-amber-950/60 via-slate-900 to-emerald-950/50 text-white shadow-2xl space-y-3 animate-fade-in">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5 text-amber-400 animate-pulse" />
+              </div>
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-amber-500 text-slate-950">
+                  🛡️ Auto-Save Encontrado
+                </span>
+                <h4 className="text-sm font-black uppercase italic tracking-tight text-white mt-1">
+                  Corrida Interrompida Protegida!
+                </h4>
+                <p className="text-[11px] text-slate-300 font-medium">
+                  Recuperamos seu treino de <strong className="text-emerald-400 font-mono">{recoverableBackup.distanceKm.toFixed(2)} km</strong> em <strong className="text-amber-300 font-mono">{formatDuration(recoverableBackup.durationSeconds)}</strong> ({recoverableBackup.gpsPoints?.length || 0} pontos GPS).
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => restoreWorkoutFromBackup(recoverableBackup, true)}
+              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 cursor-pointer transition-all"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Retomar de Onde Parou</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const route = convertBackupToRouteData(recoverableBackup);
+                clearActiveWorkoutBackup();
+                setRecoverableBackup(null);
+                onRouteCaptured(route);
+              }}
+              className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg cursor-pointer transition-all"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Salvar Treino Agora</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                clearActiveWorkoutBackup();
+                setRecoverableBackup(null);
+              }}
+              className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-red-500/20 text-slate-300 hover:text-red-300 font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Descartar</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Barra de Blindagem Anti-Perda (Trava do Botão Voltar + Auto-Save + Bloqueio de Bolso) */}
+      <div className={`px-3.5 py-2.5 rounded-2xl border flex items-center justify-between gap-2 flex-wrap ${
+        isLight 
+          ? 'bg-emerald-50/90 border-emerald-200 text-slate-800' 
+          : 'bg-emerald-950/30 border-emerald-500/25 text-slate-200'
+      }`}>
+        <div className="flex items-center gap-2 min-w-0">
+          <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+          <div className="text-[10px] leading-tight">
+            <span className="font-black uppercase tracking-wider text-emerald-500">
+              Blindagem Anti-Perda Ativa:
+            </span>{' '}
+            <span className={isLight ? 'text-slate-600 font-medium' : 'text-slate-300 font-medium'}>
+              Botão Voltar bloqueado • Auto-Save a cada segundo{lastAutoSavedTime ? ` (${lastAutoSavedTime})` : ''}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 ml-auto">
+          {isTracking && (
+            <button
+              type="button"
+              onClick={() => setIsScreenLocked(!isScreenLocked)}
+              className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-all ${
+                isScreenLocked
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : (isLight ? 'bg-slate-200 text-slate-800 hover:bg-slate-300' : 'bg-white/10 text-slate-200 hover:bg-white/20')
+              }`}
+              title="Bloquear tela contra toques acidentais no bolso ou suor"
+            >
+              {isScreenLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+              <span>{isScreenLocked ? 'Tela Trancada' : 'Trancar Tela'}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowProtectionInfoModal(true)}
+            className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer transition-all ${
+              isLight 
+                ? 'bg-emerald-600 text-white hover:bg-emerald-500' 
+                : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30'
+            }`}
+          >
+            Como Funciona / Testar
+          </button>
+        </div>
+      </div>
+
+      {/* Aviso Flutuante quando o Botão Voltar do Celular é Interceptado */}
+      {backButtonBlockedNotice && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-slate-950 font-black text-xs uppercase italic tracking-wider flex items-center justify-between gap-3 shadow-2xl animate-bounce">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-slate-950 shrink-0" />
+            <span>🛡️ Botão Voltar Bloqueado! Sua corrida continua salva e protegida.</span>
+          </div>
+        </div>
+      )}
 
       {/* Card Rápido de Destaque Superior - Início Imediato no Celular / Desktop */}
       {activeMode === 'live' && !isTracking && (
@@ -1940,8 +2229,35 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   <span>Iniciar Corrida com GPS</span>
                 </button>
               </div>
+            ) : isScreenLocked ? (
+              <div className="w-full flex items-center justify-between gap-3 bg-amber-500/15 border border-amber-500/40 rounded-2xl p-2.5 px-4">
+                <div className="flex items-center gap-2 text-amber-300">
+                  <Lock className="w-4 h-4 shrink-0 animate-pulse" />
+                  <span className="text-[11px] font-black uppercase italic tracking-wider">
+                    Controles Bloqueados (Modo Bolso)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsScreenLocked(false)}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] uppercase italic tracking-wider flex items-center gap-1.5 cursor-pointer shadow-lg"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Destravar</span>
+                </button>
+              </div>
             ) : (
-              <div className="w-full grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="w-full grid grid-cols-3 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsScreenLocked(true)}
+                  className="py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-black text-[11px] uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
+                  title="Trancar tela para colocar no bolso"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Trancar</span>
+                </button>
+
                 {currentStep && !isWorkoutCompleted && (
                   <button
                     type="button"
@@ -1976,7 +2292,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   onClick={finishTracking}
                   className="bg-red-600 hover:bg-red-500 text-white font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
                 >
-                  <Square className="w-4 h-4 fill-white" /> Concluir & Salvar
+                  <Square className="w-4 h-4 fill-white" /> Concluir
                 </button>
               </div>
             )}
@@ -2062,22 +2378,25 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         </div>
       )}
 
-      {/* 2. MODAL DE CONFIRMAÇÃO DE SAÍDA DO TREINO (EVITA CLIQUE ACIDENTAL) */}
+      {/* 2. MODAL DE CONFIRMAÇÃO DE SAÍDA DO TREINO (EVITA CLIQUE ACIDENTAL OU BOTÃO VOLTAR) */}
       {showExitConfirmModal && (
         <div className="fixed inset-0 z-[10001] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 text-white animate-fade-in">
-          <div className="max-w-md w-full bg-slate-900 border border-red-500/40 rounded-3xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-amber-500 to-red-600" />
+          <div className="max-w-md w-full bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-amber-500 to-emerald-500" />
             
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-6 h-6 text-red-400" />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-6 h-6 text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-lg font-black uppercase italic tracking-wide text-white">
-                  Deseja realmente sair do treino?
+                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  🛡️ Proteção Contra Saída Acidental
+                </span>
+                <h3 className="text-lg font-black uppercase italic tracking-wide text-white mt-1">
+                  Sua Corrida Está Protegida!
                 </h3>
                 <p className="text-xs text-slate-300 mt-1.5 leading-relaxed font-medium">
-                  Você já percorreu <strong className="text-emerald-400 font-mono text-sm">{distanceKm.toFixed(2)} km</strong> em <strong className="text-amber-400 font-mono text-sm">{formatDuration(durationSeconds)}</strong>. Se sair sem finalizar, os dados da rota e métricas do treino em andamento serão descarte.
+                  Bloqueamos a saída para você não perder seu progresso de <strong className="text-emerald-400 font-mono text-sm">{distanceKm.toFixed(2)} km</strong> em <strong className="text-amber-400 font-mono text-sm">{formatDuration(durationSeconds)}</strong>. O que deseja fazer?
                 </p>
               </div>
             </div>
@@ -2089,7 +2408,19 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black py-3.5 px-4 rounded-2xl text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <Play className="w-4 h-4 fill-white" />
-                <span>Continuar Treinando</span>
+                <span>Continuar Correndo (Voltar ao Treino)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitConfirmModal(false);
+                  setIsScreenLocked(true);
+                }}
+                className="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-black py-3 px-4 rounded-2xl text-xs uppercase italic tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Lock className="w-4 h-4" />
+                <span>Continuar e Trancar Tela (Modo Bolso)</span>
               </button>
 
               <button
@@ -2101,16 +2432,106 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 px-4 rounded-2xl text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <Square className="w-4 h-4 fill-white" />
-                <span>Finalizar e Salvar Treino</span>
+                <span>Finalizar e Salvar Treino Agora</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleConfirmDiscardExit}
-                className="w-full bg-red-600/20 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/30 font-black py-3 px-4 rounded-2xl text-xs uppercase italic tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full bg-red-600/15 hover:bg-red-600/30 text-red-300 hover:text-white border border-red-500/30 font-bold py-2.5 px-4 rounded-2xl text-[11px] uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Realmente Descartar Corrida</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DEMONSTRATIVO DAS 4 CAMADAS DE PROTEÇÃO ANTI-PERDA */}
+      {showProtectionInfoModal && (
+        <div className="fixed inset-0 z-[10002] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 text-white animate-fade-in">
+          <div className="max-w-lg w-full bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 space-y-4 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black uppercase italic tracking-wide text-white">
+                    Blindagem Anti-Perda de Corrida
+                  </h3>
+                  <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                    4 Camadas de Segurança Ativas no Celular
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProtectionInfoModal(false)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
-                <span>Sair e Descartar Progresso</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <div className="font-black text-emerald-400 uppercase italic flex items-center gap-1.5">
+                  <span>1. Bloqueio do Botão "Voltar" do Celular</span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Ao iniciar o treino, o app cria uma trava no histórico do celular. Se você apertar o botão <strong>Voltar</strong> ou arrastar a borda da tela sem querer, o app <strong>intercepta o comando</strong>, mantém o GPS rodando e pergunta se deseja continuar.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <div className="font-black text-amber-400 uppercase italic flex items-center gap-1.5">
+                  <span>2. Auto-Save Instantâneo a cada Segundo</span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Sua distância, tempo, rota GPS, parciais por KM e etapa atual são salvos na memória do aparelho a cada segundo. Mesmo se o navegador fechar ou a bateria acabar, ao reabrir o app você verá o botão <strong>"Retomar Corrida de Onde Parou"</strong>.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <div className="font-black text-blue-400 uppercase italic flex items-center gap-1.5">
+                  <span>3. Modo Cadeado (Bloqueio de Bolso / Suor) 🔒</span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Durante a corrida, toque em <strong>"Trancar Tela"</strong> para desativar os botões de parar/sair enquanto o celular estiver no bolso, na cintura ou na braçadeira.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <div className="font-black text-purple-400 uppercase italic flex items-center gap-1.5">
+                  <span>4. Proteção contra Fechamento de Aba</span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Bloqueia atualizações acidentais da página (puxar a tela para baixo para atualizar) enquanto o cronômetro estiver ativo.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProtectionInfoModal(false);
+                  simulateBackButtonPress();
+                }}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg cursor-pointer transition-all"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Simular Toque no Botão "Voltar" Agora</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowProtectionInfoModal(false)}
+                className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-black text-xs uppercase tracking-wider cursor-pointer transition-all"
+              >
+                Entendi, Fechar
               </button>
             </div>
           </div>
@@ -2167,6 +2588,20 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
               <button
                 type="button"
+                onClick={() => setIsScreenLocked(!isScreenLocked)}
+                className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  isScreenLocked
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-lg'
+                    : 'bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-500/30'
+                }`}
+                title="Bloquear tela contra toque acidental no bolso"
+              >
+                {isScreenLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                <span className="text-[10px] font-black uppercase">{isScreenLocked ? 'Trancada' : 'Trancar'}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIsFocusMode(false)}
                 className="p-2 sm:px-3 sm:py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
                 title="Minimizar para janela normal"
@@ -2175,15 +2610,17 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 <span className="text-[10px] font-bold hidden sm:inline">Normal</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleRequestExit}
-                className="p-2 sm:px-3 sm:py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 hover:text-white border border-red-500/30 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
-                title="Sair do treino"
-              >
-                <X className="w-4 h-4" />
-                <span className="text-[10px] font-bold">Sair</span>
-              </button>
+              {!isScreenLocked && (
+                <button
+                  type="button"
+                  onClick={handleRequestExit}
+                  className="p-2 sm:px-3 sm:py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 hover:text-white border border-red-500/30 text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  title="Sair do treino"
+                >
+                  <X className="w-4 h-4" />
+                  <span className="text-[10px] font-bold">Sair</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2359,46 +2796,83 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 </div>
               </div>
 
-              {/* Controles de Ação do Modo Foco */}
+              {/* Controles de Ação do Modo Foco (Com Proteção de Tela Trancada / Modo Bolso) */}
               <div className="space-y-2 pt-1">
-                {currentStep && !isWorkoutCompleted && (
-                  <button
-                    type="button"
-                    onClick={() => advanceStep(true)}
-                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
-                  >
-                    <FastForward className="w-4 h-4 fill-slate-950" />
-                    <span>Avançar Etapa (Botão LAP)</span>
-                  </button>
+                {backButtonBlockedNotice && (
+                  <div className="p-3 rounded-2xl bg-amber-500 text-slate-950 font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-xl animate-bounce">
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    <span>🛡️ Botão Voltar Bloqueado! Corrida Protegida.</span>
+                  </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2">
-                  {isPaused ? (
+                {isScreenLocked ? (
+                  <div className="p-4 rounded-3xl bg-amber-500/15 border-2 border-amber-500/50 text-center space-y-2.5 shadow-2xl">
+                    <div className="flex items-center justify-center gap-2 text-amber-300 font-black text-xs uppercase italic tracking-wider">
+                      <Lock className="w-4 h-4 animate-pulse" />
+                      <span>Modo Bolso Ativo • Controles Bloqueados</span>
+                    </div>
+                    <p className="text-[10px] text-slate-300">
+                      Toques acidentais e o botão Voltar do celular estão travados.
+                    </p>
                     <button
                       type="button"
-                      onClick={resumeTracking}
-                      className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                      onClick={() => setIsScreenLocked(false)}
+                      className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg cursor-pointer transition-all"
                     >
-                      <Play className="w-4 h-4 fill-white" /> Retomar
+                      <Unlock className="w-4 h-4" />
+                      <span>Destravar Tela para Controlar</span>
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={pauseTracking}
-                      className="py-3.5 bg-amber-500/30 hover:bg-amber-500/50 text-amber-300 border border-amber-500/40 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
-                    >
-                      <Pause className="w-4 h-4 fill-amber-300" /> Pausar
-                    </button>
-                  )}
+                  </div>
+                ) : (
+                  <>
+                    {currentStep && !isWorkoutCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => advanceStep(true)}
+                        className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                      >
+                        <FastForward className="w-4 h-4 fill-slate-950" />
+                        <span>Avançar Etapa (Botão LAP)</span>
+                      </button>
+                    )}
 
-                  <button
-                    type="button"
-                    onClick={finishTracking}
-                    className="py-3.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
-                  >
-                    <Square className="w-4 h-4 fill-white" /> Concluir & Salvar
-                  </button>
-                </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsScreenLocked(true)}
+                        className="py-3.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <Lock className="w-4 h-4" /> Trancar
+                      </button>
+
+                      {isPaused ? (
+                        <button
+                          type="button"
+                          onClick={resumeTracking}
+                          className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                        >
+                          <Play className="w-4 h-4 fill-white" /> Retomar
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={pauseTracking}
+                          className="py-3.5 bg-amber-500/30 hover:bg-amber-500/50 text-amber-300 border border-amber-500/40 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+                        >
+                          <Pause className="w-4 h-4 fill-amber-300" /> Pausar
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={finishTracking}
+                        className="py-3.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                      >
+                        <Square className="w-4 h-4 fill-white" /> Concluir
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

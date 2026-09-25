@@ -207,34 +207,44 @@ export function parseWorkoutTextToStructure(
     }
   }
 
-  // Recovery search, e.g. "rec 2min", "r: 90s", "desc 2'", "rec 400m", "intervalo 2m", "recuperação de 2min"
-  const recRegex = /(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|m|metros|min|minutos|s|seg|segundos|'|")?/i;
-  const recMatch = normalizedText.match(recRegex);
+  // Recovery search, e.g. "rec 2min", "r: 90s", "desc 2'", "rec 400m", "intervalo 2m", "recuperação de 2min", "rec 1'30", "r: 1:30"
+  const recCompositeRegex = /(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\s*(?:de|:)?\s*(\d{1,2})[':m](\d{1,2})/i;
+  const recCompositeMatch = normalizedText.match(recCompositeRegex);
 
   let recoveryTargetType: 'distance' | 'time' = 'time';
-  let recoveryValue = 120; // Default 2 minutes
+  let recoveryValue = 90; // Default 90 seconds (1min 30s)
 
-  if (recMatch) {
-    const rawRecNum = parseFloat(recMatch[1].replace(',', '.'));
-    const recUnit = (recMatch[2] || '').toLowerCase();
+  if (recCompositeMatch) {
+    const mins = parseInt(recCompositeMatch[1], 10);
+    const secs = parseInt(recCompositeMatch[2], 10);
+    recoveryTargetType = 'time';
+    recoveryValue = mins * 60 + secs;
+  } else {
+    const recRegex = /(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|m|metros|min|minutos|s|seg|segundos|'|")?/i;
+    const recMatch = normalizedText.match(recRegex);
 
-    if (recUnit === 'm' || recUnit === 'metros') {
-      recoveryTargetType = 'distance';
-      recoveryValue = Math.round(rawRecNum);
-    } else if (recUnit === 'km' || recUnit === 'k') {
-      recoveryTargetType = 'distance';
-      recoveryValue = Math.round(rawRecNum * 1000);
-    } else if (recUnit === 's' || recUnit === 'seg' || recUnit === 'segundos' || recUnit === '"') {
-      recoveryTargetType = 'time';
-      recoveryValue = Math.round(rawRecNum);
-    } else {
-      // Default time in minutes if <= 15, or seconds if > 15
-      if (rawRecNum <= 15) {
-        recoveryTargetType = 'time';
-        recoveryValue = Math.round(rawRecNum * 60);
-      } else {
+    if (recMatch) {
+      const rawRecNum = parseFloat(recMatch[1].replace(',', '.'));
+      const recUnit = (recMatch[2] || '').toLowerCase();
+
+      if (recUnit === 'm' || recUnit === 'metros') {
+        recoveryTargetType = 'distance';
+        recoveryValue = Math.round(rawRecNum);
+      } else if (recUnit === 'km' || recUnit === 'k') {
+        recoveryTargetType = 'distance';
+        recoveryValue = Math.round(rawRecNum * 1000);
+      } else if (recUnit === 's' || recUnit === 'seg' || recUnit === 'segundos' || recUnit === '"') {
         recoveryTargetType = 'time';
         recoveryValue = Math.round(rawRecNum);
+      } else {
+        // Default time in minutes if <= 15, or seconds if > 15
+        if (rawRecNum <= 15) {
+          recoveryTargetType = 'time';
+          recoveryValue = Math.round(rawRecNum * 60);
+        } else {
+          recoveryTargetType = 'time';
+          recoveryValue = Math.round(rawRecNum);
+        }
       }
     }
   }

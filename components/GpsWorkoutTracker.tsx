@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Play, 
   Pause, 
@@ -58,7 +58,8 @@ import {
   toggleWarmupInStructuredWorkout,
   toggleCooldownInStructuredWorkout,
   adjustIntervalCountInStructuredWorkout,
-  adjustRestDurationInStructuredWorkout
+  adjustRestDurationInStructuredWorkout,
+  parseWorkoutTextToStructure
 } from '../utils/workoutParser';
 import { StructuredWorkoutModal } from './StructuredWorkoutModal';
 import { WorkoutShareModal, WorkoutShareData } from './WorkoutShareModal';
@@ -104,7 +105,23 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [activeMode, setActiveMode] = useState<'live' | 'gpx'>('live');
 
   // Structured Workout State (Modo Detalhado)
-  const [activeStructured, setActiveStructured] = useState<StructuredWorkout | null>(initialStructuredWorkout || null);
+  const initialResolvedStructured = useMemo(() => {
+    if (initialStructuredWorkout && initialStructuredWorkout.steps && initialStructuredWorkout.steps.length > 0) {
+      return initialStructuredWorkout;
+    }
+    if (workoutDescription) {
+      return parseWorkoutTextToStructure(workoutDescription, workoutType, athletePaces);
+    }
+    return null;
+  }, [initialStructuredWorkout, workoutDescription, workoutType, athletePaces]);
+
+  const [activeStructured, setActiveStructured] = useState<StructuredWorkout | null>(initialResolvedStructured);
+
+  useEffect(() => {
+    if (initialResolvedStructured) {
+      setActiveStructured(initialResolvedStructured);
+    }
+  }, [initialResolvedStructured]);
   const [showStructuredModal, setShowStructuredModal] = useState(false);
   const [showTunePanel, setShowTunePanel] = useState(false);
   const [adjustmentNotice, setAdjustmentNotice] = useState<string | null>(null);
@@ -966,7 +983,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const currentStepPace = formatPace(stepDurationSeconds, stepDistanceMeters / 1000);
 
   return (
-    <div className={`border rounded-3xl p-4 sm:p-5 space-y-5 animate-fade-in shadow-2xl transition-all ${
+    <div className={`border rounded-3xl p-4 sm:p-5 space-y-5 animate-fade-in shadow-2xl transition-all pb-32 sm:pb-36 ${
       isLight 
         ? 'bg-white border-slate-200 text-slate-900' 
         : 'bg-slate-950/95 border-white/10 text-white'
@@ -1071,6 +1088,40 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Card Rápido de Destaque Superior - Início Imediato no Celular / Desktop */}
+      {activeMode === 'live' && !isTracking && (
+        <div className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-lg transition-all animate-fade-in ${
+          isLight 
+            ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-emerald-300 text-slate-900' 
+            : 'bg-gradient-to-r from-emerald-950/40 via-teal-950/30 to-emerald-950/40 border-emerald-500/40 text-white'
+        }`}>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className={`text-xs sm:text-sm font-black uppercase italic tracking-tight truncate ${
+                isLight ? 'text-emerald-950' : 'text-emerald-300'
+              }`}>
+                Pronto para Iniciar Corrida
+              </span>
+            </div>
+            <p className={`text-[10px] font-mono mt-0.5 truncate ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+              {heartRateStatus === 'connected' ? `❤️ ${heartRateBpm || '--'} BPM • ` : ''}
+              {gpsAccuracyMeters ? `GPS ±${gpsAccuracyMeters}m` : 'Satélites prontos'}
+              {activeStructured?.steps ? ` • ${activeStructured.steps.length} etapas` : ''}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={initiateStartWithCountdown}
+            className="shrink-0 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer border border-emerald-400/30"
+          >
+            <Play className="w-3.5 h-3.5 fill-white" />
+            <span>Iniciar</span>
+          </button>
+        </div>
+      )}
 
       {/* Notificação Flutuante de Ajuste no Treino */}
       {adjustmentNotice && (
@@ -1861,6 +1912,75 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* BARRA FIXA FLUTUANTE INFERIOR (STICKY DOCK) - GARANTE QUE O BOTÃO INICIAR NUNCA SUMA NO CELULAR */}
+      {activeMode === 'live' && !isFocusMode && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 shadow-[0_-10px_35px_rgba(0,0,0,0.85)] p-3 sm:p-4">
+          <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
+            {!isTracking ? (
+              <div className="w-full flex items-center gap-3">
+                <div className="hidden sm:flex flex-col min-w-0">
+                  <span className="text-[10px] font-black uppercase text-emerald-400 italic">
+                    {workoutType}
+                  </span>
+                  <span className="text-[9px] text-slate-400 truncate font-mono">
+                    {heartRateStatus === 'connected' ? `❤️ ${heartRateBpm || '--'} BPM` : 'Sensor BLE pronto'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={initiateStartWithCountdown}
+                  className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-3.5 sm:py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm sm:text-base uppercase italic tracking-wider shadow-2xl shadow-emerald-600/50 transition-all active:scale-[0.98] cursor-pointer border border-emerald-400/40 group"
+                >
+                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+                  </div>
+                  <span>Iniciar Corrida com GPS</span>
+                </button>
+              </div>
+            ) : (
+              <div className="w-full grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {currentStep && !isWorkoutCompleted && (
+                  <button
+                    type="button"
+                    onClick={() => advanceStep(true)}
+                    className="hidden sm:flex py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase italic tracking-wider items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
+                  >
+                    <FastForward className="w-3.5 h-3.5 fill-slate-950" />
+                    <span>LAP</span>
+                  </button>
+                )}
+
+                {isPaused ? (
+                  <button
+                    type="button"
+                    onClick={resumeTracking}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
+                  >
+                    <Play className="w-4 h-4 fill-white" /> Retomar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={pauseTracking}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
+                  >
+                    <Pause className="w-4 h-4 fill-slate-950" /> Pausar
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={finishTracking}
+                  className="bg-red-600 hover:bg-red-500 text-white font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
+                >
+                  <Square className="w-4 h-4 fill-white" /> Concluir & Salvar
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

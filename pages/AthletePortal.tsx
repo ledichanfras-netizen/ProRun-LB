@@ -55,7 +55,7 @@ import { GpsWorkoutTracker } from '../components/GpsWorkoutTracker';
 import { WorkoutMap } from '../components/WorkoutMap';
 import { WorkoutTelemetryCharts } from '../components/WorkoutTelemetryCharts';
 import { decodePolyline } from '../utils/gpsUtils';
-import { formatStructuredWorkoutSummary } from '../utils/workoutParser';
+import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure } from '../utils/workoutParser';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProgressToNextLevel } from '../services/gamificationService';
@@ -1062,7 +1062,13 @@ const AthletePortal: React.FC = () => {
     setMoodValue(workout.moodScore || activeAthlete?.lastReadiness?.moodScore || 4);
     setMenstrualPhaseValue(workout.menstrualPhase || (activeAthlete?.lastReadiness?.menstrualPhase as any) || 'none');
     setCurrentGpsRoute(workout.gpsRoute || null);
-    setLocalSteps(workout.structuredWorkout?.steps ? JSON.parse(JSON.stringify(workout.structuredWorkout.steps)) : []);
+
+    // Auto-parse structured workout steps from description if not already structured in DB
+    const parsedStructured = (workout.structuredWorkout?.steps && workout.structuredWorkout.steps.length > 0)
+      ? workout.structuredWorkout
+      : parseWorkoutTextToStructure(workout.customDescription || workout.description || '', workout.type, paces);
+
+    setLocalSteps(parsedStructured?.steps ? JSON.parse(JSON.stringify(parsedStructured.steps)) : []);
     setShowGpsTracker(false);
     setSaveSuccess(false);
     setIsSaving(false);
@@ -4835,31 +4841,37 @@ const AthletePortal: React.FC = () => {
 
       {/* Standalone Fullscreen GPS Running Portal */}
       {showGpsTracker && selectedWorkout && createPortal(
-        <div className="fixed inset-0 z-[10000] bg-black overflow-hidden select-none">
-          <GpsWorkoutTracker
-            workoutType={selectedWorkout.data.type}
-            plannedDistanceKm={selectedWorkout.data.distance}
-            athleteWeight={activeAthlete.weight || 70}
-            existingRoute={currentGpsRoute}
-            structuredWorkout={{
-              ...selectedWorkout.data.structuredWorkout,
-              steps: localSteps
-            }}
-            workoutDescription={selectedWorkout.data.customDescription}
-            athletePaces={paces}
-            onRouteCaptured={(route) => {
-              setCurrentGpsRoute(route);
-              setActualDistanceValue(String(route.totalDistanceKm));
-              const durSec = route.totalDurationSeconds || (route as any).durationSeconds || 0;
-              const formattedDuration = formatSecondsToTimeString(durSec);
-              setActualDurationValue(formattedDuration);
-              if (route.avgHeartRate) {
-                setActualHeartRateValue(String(route.avgHeartRate));
+        <div className="fixed inset-0 z-[10000] bg-slate-950 overflow-y-auto select-none custom-scrollbar">
+          <div className="min-h-full w-full max-w-2xl mx-auto p-2 sm:p-4">
+            <GpsWorkoutTracker
+              workoutType={selectedWorkout.data.type}
+              plannedDistanceKm={selectedWorkout.data.distance}
+              athleteWeight={activeAthlete.weight || 70}
+              existingRoute={currentGpsRoute}
+              structuredWorkout={
+                localSteps.length > 0
+                  ? {
+                      ...selectedWorkout.data.structuredWorkout,
+                      steps: localSteps
+                    }
+                  : (parseWorkoutTextToStructure(selectedWorkout.data.customDescription || selectedWorkout.data.description || '', selectedWorkout.data.type, paces) || undefined)
               }
-              handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate);
-            }}
-            onCancel={() => setShowGpsTracker(false)}
-          />
+              workoutDescription={selectedWorkout.data.customDescription || selectedWorkout.data.description}
+              athletePaces={paces}
+              onRouteCaptured={(route) => {
+                setCurrentGpsRoute(route);
+                setActualDistanceValue(String(route.totalDistanceKm));
+                const durSec = route.totalDurationSeconds || (route as any).durationSeconds || 0;
+                const formattedDuration = formatSecondsToTimeString(durSec);
+                setActualDurationValue(formattedDuration);
+                if (route.avgHeartRate) {
+                  setActualHeartRateValue(String(route.avgHeartRate));
+                }
+                handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate);
+              }}
+              onCancel={() => setShowGpsTracker(false)}
+            />
+          </div>
         </div>,
         document.body
       )}

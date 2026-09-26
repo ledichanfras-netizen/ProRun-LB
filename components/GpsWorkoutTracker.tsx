@@ -271,6 +271,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [lastAutoSavedTime, setLastAutoSavedTime] = useState<string | null>(null);
   const [showProtectionInfoModal, setShowProtectionInfoModal] = useState(false);
 
+  // Timer de 3 segundos pressionado para Parar a Corrida (Hold-to-Stop)
+  const [isHoldingStop, setIsHoldingStop] = useState(false);
+  const [stopHoldProgress, setStopHoldProgress] = useState(0);
+  const [stopHoldSecondsLeft, setStopHoldSecondsLeft] = useState(3);
+  const stopHoldIntervalRef = useRef<any>(null);
+  const stopHoldStartTimeRef = useRef<number | null>(null);
+  const lastStopBeepSecondRef = useRef<number | null>(null);
+
   // GPX Upload States
   const [gpxUploading, setGpxUploading] = useState(false);
   const [gpxParsedRoute, setGpxParsedRoute] = useState<RouteData | null>(null);
@@ -930,6 +938,13 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // Finish and Save Live Track
   const finishTracking = () => {
+    if (stopHoldIntervalRef.current) {
+      clearInterval(stopHoldIntervalRef.current);
+      stopHoldIntervalRef.current = null;
+    }
+    setIsHoldingStop(false);
+    setStopHoldProgress(0);
+    setStopHoldSecondsLeft(3);
     clearActiveWorkoutBackup();
     pauseTracking();
     setIsTracking(false);
@@ -1031,10 +1046,88 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     onRouteCaptured(routeData);
   };
 
+  // Hold-to-Stop (Segurar 3 segundos para parar a corrida)
+  const startHoldToStop = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e && 'touches' in e) {
+      e.preventDefault();
+    }
+    if (stopHoldIntervalRef.current) {
+      clearInterval(stopHoldIntervalRef.current);
+    }
+    workoutAudio.init();
+    setIsHoldingStop(true);
+    setStopHoldProgress(0);
+    setStopHoldSecondsLeft(3);
+    stopHoldStartTimeRef.current = Date.now();
+    lastStopBeepSecondRef.current = 3;
+
+    if (soundEnabled) {
+      workoutAudio.playCountdown(3);
+    }
+    try {
+      if (navigator.vibrate) navigator.vibrate(40);
+    } catch {}
+
+    const HOLD_DURATION_MS = 3000;
+
+    stopHoldIntervalRef.current = setInterval(() => {
+      if (!stopHoldStartTimeRef.current) return;
+      const elapsed = Date.now() - stopHoldStartTimeRef.current;
+      const pct = Math.min(100, (elapsed / HOLD_DURATION_MS) * 100);
+      const secsRemaining = Math.max(0, Math.ceil((HOLD_DURATION_MS - elapsed) / 1000));
+
+      setStopHoldProgress(pct);
+      setStopHoldSecondsLeft(secsRemaining);
+
+      if (secsRemaining > 0 && secsRemaining < 3 && lastStopBeepSecondRef.current !== secsRemaining) {
+        lastStopBeepSecondRef.current = secsRemaining;
+        if (soundEnabled) {
+          workoutAudio.playCountdown(secsRemaining);
+        }
+        try {
+          if (navigator.vibrate) navigator.vibrate(40);
+        } catch {}
+      }
+
+      if (elapsed >= HOLD_DURATION_MS) {
+        clearInterval(stopHoldIntervalRef.current);
+        stopHoldIntervalRef.current = null;
+        stopHoldStartTimeRef.current = null;
+        lastStopBeepSecondRef.current = null;
+        setIsHoldingStop(false);
+        setStopHoldProgress(0);
+        setStopHoldSecondsLeft(3);
+        try {
+          if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
+        } catch {}
+        finishTracking();
+      }
+    }, 40);
+  };
+
+  const cancelHoldToStop = () => {
+    if (!isHoldingStop && !stopHoldIntervalRef.current) return;
+    const elapsed = stopHoldStartTimeRef.current ? Date.now() - stopHoldStartTimeRef.current : 0;
+    if (stopHoldIntervalRef.current) {
+      clearInterval(stopHoldIntervalRef.current);
+      stopHoldIntervalRef.current = null;
+    }
+    stopHoldStartTimeRef.current = null;
+    lastStopBeepSecondRef.current = null;
+    setIsHoldingStop(false);
+    setStopHoldProgress(0);
+    setStopHoldSecondsLeft(3);
+
+    if (elapsed > 30 && elapsed < 3000) {
+      showNotification('⏳ Mantenha o botão Parar pressionado por 3 segundos para encerrar.');
+    }
+  };
+
   // Clean up on unmount
   useEffect(() => {
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (stopHoldIntervalRef.current) clearInterval(stopHoldIntervalRef.current);
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
       void heartRateMonitorRef.current.disconnect();
       releaseWakeLock();
@@ -1378,40 +1471,6 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         </div>
       )}
 
-      {/* Card Rápido de Destaque Superior - Início Imediato no Celular / Desktop */}
-      {activeMode === 'live' && !isTracking && (
-        <div className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-lg transition-all animate-fade-in ${
-          isLight 
-            ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-emerald-300 text-slate-900' 
-            : 'bg-gradient-to-r from-emerald-950/40 via-teal-950/30 to-emerald-950/40 border-emerald-500/40 text-white'
-        }`}>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className={`text-xs sm:text-sm font-black uppercase italic tracking-tight truncate ${
-                isLight ? 'text-emerald-950' : 'text-emerald-300'
-              }`}>
-                Pronto para Iniciar Corrida
-              </span>
-            </div>
-            <p className={`text-[10px] font-mono mt-0.5 truncate ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
-              {heartRateStatus === 'connected' ? `❤️ ${heartRateBpm || '--'} BPM • ` : ''}
-              {gpsAccuracyMeters ? `GPS ±${gpsAccuracyMeters}m` : 'Satélites prontos'}
-              {activeStructured?.steps ? ` • ${activeStructured.steps.length} etapas` : ''}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={initiateStartWithCountdown}
-            className="shrink-0 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer border border-emerald-400/30"
-          >
-            <Play className="w-3.5 h-3.5 fill-white" />
-            <span>Iniciar</span>
-          </button>
-        </div>
-      )}
-
       {/* Notificação Flutuante de Ajuste no Treino */}
       {adjustmentNotice && (
         <div className="bg-emerald-500 text-slate-950 px-4 py-2.5 rounded-2xl font-black text-xs uppercase italic tracking-wider flex items-center gap-2 shadow-xl animate-bounce">
@@ -1423,6 +1482,110 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       {/* MODO 1: LIVE GPS NO CELULAR (COM SUPORTE A PRESCRIÇÃO DETALHADA) */}
       {activeMode === 'live' && (
         <div className="space-y-4">
+
+          {/* =========================================================================
+           * 1. CARD PRINCIPAL: OBJETIVO DA CORRIDA & PRESCRIÇÃO DO COACH (QUANDO HOUVER)
+           * ========================================================================= */}
+          <div className={`p-4 sm:p-5 rounded-3xl border shadow-xl transition-all relative overflow-hidden ${
+            isLight 
+              ? 'bg-gradient-to-br from-emerald-50 via-white to-teal-50/70 border-emerald-300/80 text-slate-900' 
+              : 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border-emerald-500/30 text-white'
+          }`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
+                  isLight ? 'bg-emerald-600 text-white' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                }`}>
+                  <Flag className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 shadow-xs">
+                      🎯 Objetivo do Treino
+                    </span>
+                    {workoutType && (
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                        isLight ? 'bg-white border-slate-300 text-slate-700' : 'bg-white/10 border-white/10 text-slate-300'
+                      }`}>
+                        {workoutType}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Nome / Descrição Principal do Objetivo (Ex: Longão 12km em Z2) */}
+                  <h3 className={`text-base sm:text-lg font-black uppercase italic tracking-tight leading-snug break-words ${
+                    isLight ? 'text-slate-900' : 'text-white'
+                  }`}>
+                    {workoutDescription || (
+                      plannedDistanceKm 
+                        ? `${workoutType} ${plannedDistanceKm} km`
+                        : `${workoutType} - Treino Prescrito`
+                    )}
+                  </h3>
+
+                  {/* Resumo Rápido das Metas */}
+                  <div className="flex items-center gap-2.5 flex-wrap pt-0.5 text-xs">
+                    {plannedDistanceKm && plannedDistanceKm > 0 && (
+                      <span className={`font-black font-mono flex items-center gap-1 ${
+                        isLight ? 'text-emerald-700' : 'text-emerald-400'
+                      }`}>
+                        📏 Meta: <strong>{plannedDistanceKm} km</strong>
+                      </span>
+                    )}
+                    {activeStructured && activeStructured.steps && activeStructured.steps.length > 0 && (
+                      <span className={`font-bold flex items-center gap-1 ${
+                        isLight ? 'text-blue-700' : 'text-blue-400'
+                      }`}>
+                        ⏱️ <strong>{activeStructured.steps.length} etapas guiadas</strong>
+                      </span>
+                    )}
+                    {athletePaces && athletePaces.length > 0 && (
+                      <span className={`text-[11px] font-medium ${
+                        isLight ? 'text-slate-600' : 'text-slate-400'
+                      }`}>
+                        • Zonas personalizadas do Coach
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* =========================================================================
+           * 2. CARD HERO DE LARGADA IMEDIATA: BOTÃO INICIAR CORRIDA (SUPER DESTACADO)
+           * ========================================================================= */}
+          {!isTracking && (
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 text-white shadow-2xl border-2 border-emerald-400/50 flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse-subtle">
+              <div className="flex items-center gap-3.5 text-center sm:text-left">
+                <div className="w-12 sm:w-14 h-12 sm:h-14 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0 shadow-lg">
+                  <Play className="w-6 sm:w-7 h-6 sm:h-7 fill-white text-white ml-1 animate-pulse" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-400/30">
+                    GPS & Sensores Prontos
+                  </span>
+                  <h4 className="text-base sm:text-lg font-black uppercase italic tracking-tight text-white mt-1">
+                    Pronto para a Corrida?
+                  </h4>
+                  <p className="text-[11px] sm:text-xs text-emerald-100 font-medium">
+                    Toque no botão para iniciar a gravação do percurso e métricas.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={initiateStartWithCountdown}
+                className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-emerald-50 text-slate-950 font-black text-sm sm:text-base uppercase italic tracking-wider rounded-2xl shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 cursor-pointer border-2 border-emerald-300 group"
+              >
+                <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white group-hover:scale-110 transition-transform">
+                  <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+                </div>
+                <span>INICIAR CORRIDA</span>
+              </button>
+            </div>
+          )}
           {/* PAINEL DE AJUSTES RÁPIDOS E FLEXIBILIDADE DO TREINO (ANTES E DURANTE A CORRIDA) */}
           {activeStructured && (showTunePanel || isTracking) && (
             <div className={`border p-3.5 rounded-2xl space-y-3 transition-all ${
@@ -1716,7 +1879,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     Parabéns! Todas as etapas prescritas foram concluídas!
                   </p>
                   <p className="text-[10px] text-slate-600 dark:text-slate-300">
-                    Você pode continuar correndo livremente ou tocar em "Concluir & Salvar" abaixo.
+                    Você pode continuar correndo livremente ou segurar "Parar (3s)" abaixo para encerrar.
                   </p>
                 </div>
               ) : null}
@@ -2030,50 +2193,6 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               </div>
             </div>
           )}
-
-          {/* Botões de Controle Live */}
-          <div className="pt-2">
-            {!isTracking ? (
-              <button
-                type="button"
-                onClick={initiateStartWithCountdown}
-                className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm sm:text-base uppercase italic tracking-wider shadow-xl shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer border border-emerald-400/30 group"
-              >
-                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Play className="w-4 h-4 fill-white text-white ml-0.5" />
-                </div>
-                <span>Iniciar Corrida com GPS</span>
-              </button>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {isPaused ? (
-                  <button
-                    type="button"
-                    onClick={resumeTracking}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 fill-white" /> Retomar
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={pauseTracking}
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
-                  >
-                    <Pause className="w-4 h-4 fill-slate-950" /> Pausar
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={finishTracking}
-                  className="bg-red-600 hover:bg-red-500 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
-                >
-                  <Square className="w-4 h-4 fill-white" /> Concluir & Salvar
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -2204,98 +2323,145 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         </div>
       )}
 
-      {/* BARRA FIXA FLUTUANTE INFERIOR (STICKY DOCK) - GARANTE QUE O BOTÃO INICIAR NUNCA SUMA NO CELULAR */}
+      {/* CARD ÚNICO FIXO INFERIOR (STICKY DOCK) - APENAS UM CARD PARA "INICIAR CORRIDA" E CONTROLES COM HOLD 3S PARA PARAR */}
       {activeMode === 'live' && !isFocusMode && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 shadow-[0_-10px_35px_rgba(0,0,0,0.85)] p-3 sm:p-4">
-          <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
-            {!isTracking ? (
-              <div className="w-full flex items-center gap-3">
-                <div className="hidden sm:flex flex-col min-w-0">
-                  <span className="text-[10px] font-black uppercase text-emerald-400 italic">
-                    {workoutType}
-                  </span>
-                  <span className="text-[9px] text-slate-400 truncate font-mono">
-                    {heartRateStatus === 'connected' ? `❤️ ${heartRateBpm || '--'} BPM` : 'Sensor BLE pronto'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={initiateStartWithCountdown}
-                  className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-3.5 sm:py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm sm:text-base uppercase italic tracking-wider shadow-2xl shadow-emerald-600/50 transition-all active:scale-[0.98] cursor-pointer border border-emerald-400/40 group"
-                >
-                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+          <div className="max-w-2xl mx-auto flex flex-col gap-2">
+            {/* Indicador Visual Flutuante do Timer de 3 Segundos ao Pressionar Parar */}
+            {isHoldingStop && (
+              <div className="w-full bg-red-950/95 border border-red-500/50 rounded-2xl p-2.5 px-4 flex items-center justify-between gap-3 shadow-2xl animate-fade-in">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-red-500 text-white font-black font-mono text-sm flex items-center justify-center animate-ping-once">
+                    {stopHoldSecondsLeft}s
                   </div>
-                  <span>Iniciar Corrida com GPS</span>
-                </button>
-              </div>
-            ) : isScreenLocked ? (
-              <div className="w-full flex items-center justify-between gap-3 bg-amber-500/15 border border-amber-500/40 rounded-2xl p-2.5 px-4">
-                <div className="flex items-center gap-2 text-amber-300">
-                  <Lock className="w-4 h-4 shrink-0 animate-pulse" />
-                  <span className="text-[11px] font-black uppercase italic tracking-wider">
-                    Controles Bloqueados (Modo Bolso)
-                  </span>
+                  <div>
+                    <p className="text-[11px] font-black uppercase italic tracking-wider text-white">
+                      Mantenha Pressionado para Parar a Corrida...
+                    </p>
+                    <div className="w-40 sm:w-56 h-1.5 bg-red-900/60 rounded-full overflow-hidden mt-1">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-400 to-red-500 transition-all duration-75"
+                        style={{ width: `${stopHoldProgress}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsScreenLocked(false)}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] uppercase italic tracking-wider flex items-center gap-1.5 cursor-pointer shadow-lg"
-                >
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span>Destravar</span>
-                </button>
-              </div>
-            ) : (
-              <div className="w-full grid grid-cols-3 sm:grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsScreenLocked(true)}
-                  className="py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-black text-[11px] uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
-                  title="Trancar tela para colocar no bolso"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Trancar</span>
-                </button>
-
-                {currentStep && !isWorkoutCompleted && (
-                  <button
-                    type="button"
-                    onClick={() => advanceStep(true)}
-                    className="hidden sm:flex py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase italic tracking-wider items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
-                  >
-                    <FastForward className="w-3.5 h-3.5 fill-slate-950" />
-                    <span>LAP</span>
-                  </button>
-                )}
-
-                {isPaused ? (
-                  <button
-                    type="button"
-                    onClick={resumeTracking}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 fill-white" /> Retomar
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={pauseTracking}
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
-                  >
-                    <Pause className="w-4 h-4 fill-slate-950" /> Pausar
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={finishTracking}
-                  className="bg-red-600 hover:bg-red-500 text-white font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
-                >
-                  <Square className="w-4 h-4 fill-white" /> Concluir
-                </button>
+                <span className="text-xs font-mono font-black text-red-300">
+                  {Math.round(stopHoldProgress)}%
+                </span>
               </div>
             )}
+
+            <div className="flex items-center justify-between gap-3">
+              {!isTracking ? (
+                <div className="w-full flex items-center gap-3">
+                  <div className="hidden sm:flex flex-col min-w-0">
+                    <span className="text-[10px] font-black uppercase text-emerald-400 italic">
+                      {workoutType}
+                    </span>
+                    <span className="text-[9px] text-slate-400 truncate font-mono">
+                      {heartRateStatus === 'connected' ? `❤️ ${heartRateBpm || '--'} BPM` : 'Sensor BLE pronto'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={initiateStartWithCountdown}
+                    className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-3.5 sm:py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm sm:text-base uppercase italic tracking-wider shadow-2xl shadow-emerald-600/50 transition-all active:scale-[0.98] cursor-pointer border border-emerald-400/40 group"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+                    </div>
+                    <span>Iniciar Corrida</span>
+                  </button>
+                </div>
+              ) : isScreenLocked ? (
+                <div className="w-full flex items-center justify-between gap-3 bg-amber-500/15 border border-amber-500/40 rounded-2xl p-2.5 px-4">
+                  <div className="flex items-center gap-2 text-amber-300">
+                    <Lock className="w-4 h-4 shrink-0 animate-pulse" />
+                    <span className="text-[11px] font-black uppercase italic tracking-wider">
+                      Controles Bloqueados (Modo Bolso)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsScreenLocked(false)}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] uppercase italic tracking-wider flex items-center gap-1.5 cursor-pointer shadow-lg"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>Destravar</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="w-full grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsScreenLocked(true)}
+                    className="py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-black text-[11px] uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
+                    title="Trancar tela para colocar no bolso"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Trancar</span>
+                  </button>
+
+                  {currentStep && !isWorkoutCompleted && (
+                    <button
+                      type="button"
+                      onClick={() => advanceStep(true)}
+                      className="hidden sm:flex py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase italic tracking-wider items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
+                    >
+                      <FastForward className="w-3.5 h-3.5 fill-slate-950" />
+                      <span>LAP</span>
+                    </button>
+                  )}
+
+                  {isPaused ? (
+                    <button
+                      type="button"
+                      onClick={resumeTracking}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-white" /> Retomar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={pauseTracking}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer"
+                    >
+                      <Pause className="w-4 h-4 fill-slate-950" /> Pausar
+                    </button>
+                  )}
+
+                  {/* Botão Parar com Timer de 3 Segundos Pressionado */}
+                  <button
+                    type="button"
+                    onMouseDown={startHoldToStop}
+                    onMouseUp={cancelHoldToStop}
+                    onMouseLeave={cancelHoldToStop}
+                    onTouchStart={startHoldToStop}
+                    onTouchEnd={cancelHoldToStop}
+                    onTouchCancel={cancelHoldToStop}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className={`relative overflow-hidden select-none font-black py-3.5 rounded-xl flex items-center justify-center gap-1.5 text-xs uppercase italic tracking-wider shadow-lg transition-all cursor-pointer border ${
+                      isHoldingStop
+                        ? 'bg-red-900 text-white border-amber-400 scale-[0.98]'
+                        : 'bg-red-600 hover:bg-red-500 text-white border-red-400/30'
+                    }`}
+                  >
+                    {isHoldingStop && (
+                      <div
+                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 via-red-500 to-red-400 opacity-60 transition-all duration-75 pointer-events-none"
+                        style={{ width: `${stopHoldProgress}%` }}
+                      />
+                    )}
+                    <span className="relative z-10 flex items-center gap-1.5">
+                      <Square className="w-3.5 h-3.5 fill-white shrink-0" />
+                      <span>{isHoldingStop ? `Segure ${stopHoldSecondsLeft}s` : 'Parar (3s)'}</span>
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -2836,6 +3002,31 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                       </button>
                     )}
 
+                    {/* Indicador Visual do Timer de 3 Segundos no Modo Foco */}
+                    {isHoldingStop && (
+                      <div className="w-full bg-red-950/95 border border-red-500/50 rounded-2xl p-3 px-4 flex items-center justify-between gap-3 shadow-2xl animate-fade-in">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-red-500 text-white font-black font-mono text-base flex items-center justify-center">
+                            {stopHoldSecondsLeft}s
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase italic tracking-wider text-white">
+                              Mantenha Pressionado para Parar a Corrida...
+                            </p>
+                            <div className="w-44 sm:w-64 h-2 bg-red-900/60 rounded-full overflow-hidden mt-1">
+                              <div
+                                className="h-full bg-gradient-to-r from-amber-400 to-red-500 transition-all duration-75"
+                                style={{ width: `${stopHoldProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-sm font-mono font-black text-red-300">
+                          {Math.round(stopHoldProgress)}%
+                        </span>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
@@ -2863,12 +3054,32 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                         </button>
                       )}
 
+                      {/* Botão Parar no Modo Foco com Timer de 3 Segundos Pressionado */}
                       <button
                         type="button"
-                        onClick={finishTracking}
-                        className="py-3.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                        onMouseDown={startHoldToStop}
+                        onMouseUp={cancelHoldToStop}
+                        onMouseLeave={cancelHoldToStop}
+                        onTouchStart={startHoldToStop}
+                        onTouchEnd={cancelHoldToStop}
+                        onTouchCancel={cancelHoldToStop}
+                        onContextMenu={(e) => e.preventDefault()}
+                        className={`relative overflow-hidden select-none py-3.5 font-black rounded-2xl text-xs uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer border ${
+                          isHoldingStop
+                            ? 'bg-red-900 text-white border-amber-400 scale-[0.98]'
+                            : 'bg-red-600 hover:bg-red-500 text-white border-red-400/30'
+                        }`}
                       >
-                        <Square className="w-4 h-4 fill-white" /> Concluir
+                        {isHoldingStop && (
+                          <div
+                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 via-red-500 to-red-400 opacity-60 transition-all duration-75 pointer-events-none"
+                            style={{ width: `${stopHoldProgress}%` }}
+                          />
+                        )}
+                        <span className="relative z-10 flex items-center gap-1.5">
+                          <Square className="w-4 h-4 fill-white shrink-0" />
+                          <span>{isHoldingStop ? `Segure ${stopHoldSecondsLeft}s` : 'Parar (3s)'}</span>
+                        </span>
                       </button>
                     </div>
                   </>

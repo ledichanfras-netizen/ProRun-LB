@@ -3708,17 +3708,57 @@ const AthletePortal: React.FC = () => {
                   </div>
                 </div>
 
-                <input
-                  type="text"
-                  value={editCustomDescription}
-                  onChange={(e) => setEditCustomDescription(e.target.value)}
-                  placeholder="Descrição ou nome do treino (ex: 5km Leve no Parque)"
-                  className={`w-full text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all ${
-                    isLight 
-                      ? 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-emerald-500' 
-                      : 'bg-white/5 border-white/10 text-white placeholder-slate-500 focus:bg-white/10 focus:border-emerald-400'
-                  }`}
-                />
+                {/* Card Destacado do Objetivo da Corrida */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  isLight 
+                    ? 'bg-gradient-to-br from-emerald-50 via-white to-teal-50 border-emerald-300 shadow-sm text-slate-900' 
+                    : 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border-emerald-500/30 text-white'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      isLight ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    }`}>
+                      <Flag className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-emerald-500 text-slate-950">
+                          🎯 Objetivo da Corrida
+                        </span>
+                        {(editWorkoutType || selectedWorkout.data.type) && (
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                            isLight ? 'bg-white border-slate-300 text-slate-700' : 'bg-white/10 border-white/10 text-slate-300'
+                          }`}>
+                            {editWorkoutType || selectedWorkout.data.type}
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-sm sm:text-base font-black uppercase italic tracking-tight ${
+                        isLight ? 'text-slate-900' : 'text-white'
+                      }`}>
+                        {editCustomDescription || selectedWorkout.data.customDescription || selectedWorkout.data.description || (
+                          selectedWorkout.data.distance
+                            ? `${selectedWorkout.data.type || 'Treino'} ${selectedWorkout.data.distance} km`
+                            : `${selectedWorkout.data.type || 'Corrida'} Prescrita`
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 pt-2 border-t border-emerald-500/10">
+                    <input
+                      type="text"
+                      value={editCustomDescription}
+                      onChange={(e) => setEditCustomDescription(e.target.value)}
+                      placeholder="Editar objetivo ou notas (ex: Longão 12km em Z2)"
+                      className={`w-full text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all ${
+                        isLight 
+                          ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-emerald-500' 
+                          : 'bg-white/5 border-white/10 text-white placeholder-slate-500 focus:bg-white/10 focus:border-emerald-400'
+                      }`}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -3730,11 +3770,11 @@ const AthletePortal: React.FC = () => {
                   (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0) || 
                   (selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0)) && (
                   <div className="flex justify-center gap-3">
-                    {selectedWorkout.data.completed && ((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0)) && (
+                    {((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0)) && (
                       <span className={`inline-flex items-center gap-2 text-xs font-black uppercase px-4 py-2 rounded-2xl border italic tracking-wider ${
                         isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
                       }`}>
-                        📏 {selectedWorkout.data.distance || selectedWorkout.data.distanceKm} KM
+                        📏 {selectedWorkout.data.distance || selectedWorkout.data.distanceKm} KM Meta
                       </span>
                     )}
                     {(selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0) && (
@@ -4288,7 +4328,7 @@ const AthletePortal: React.FC = () => {
                     className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                   >
                     <Play className="w-4 h-4 fill-white" />
-                    <span>INICIAR COM GPS</span>
+                    <span>INICIAR CORRIDA</span>
                   </button>
                   <button
                     type="button"

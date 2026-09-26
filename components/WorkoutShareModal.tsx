@@ -23,11 +23,20 @@ import {
   Mountain,
   Shield,
   Flame,
-  Crop
+  Crop,
+  Globe,
+  Map as MapIcon
 } from 'lucide-react';
 import { RouteData } from '../utils/gpsUtils';
 import { exportElementAsImage } from '../utils/exporter';
-import { processLogoTransparency, convertGpsPointsToSvgPath, SvgRouteResult } from '../utils/socialCardUtils';
+import { 
+  processLogoTransparency, 
+  convertGpsPointsToSvgPath, 
+  SvgRouteResult,
+  MapDisplayMode,
+  RenderedMapLayout,
+  generateMapTileLayout
+} from '../utils/socialCardUtils';
 import { formatDuration } from '../utils/gpsUtils';
 import { decodePolyline } from '../utils/gpsUtils';
 
@@ -58,6 +67,16 @@ type TextTheme = 'white' | 'black';
 type BackgroundType = 'transparent' | 'photo' | 'dark' | 'light' | 'emerald';
 type AspectRatio = 'story' | 'square' | 'portrait';
 type LogoStyle = 'original' | 'transparent' | 'white' | 'black' | 'emerald';
+type CardLayout = 'strava' | 'classic';
+type StravaRouteColor = 'orange' | 'emerald' | 'white' | 'black';
+
+// Default stylized circuit SVG path when previewing a workout that didn't record GPS coordinates
+const SAMPLE_STRAVA_ROUTE: SvgRouteResult = {
+  pathData: 'M 95 270 C 70 210, 85 130, 145 95 C 205 60, 290 70, 340 120 C 385 165, 375 245, 320 290 C 265 335, 195 330, 140 305 C 115 292, 102 282, 95 270 Z',
+  startPoint: { x: 95, y: 270 },
+  finishPoint: { x: 108, y: 280 },
+  viewBox: '0 0 450 400'
+};
 
 // Embedded athletic running SVG scene guaranteed to render offline or on network failure
 const FALLBACK_SPORT_PHOTO_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23022c22"/><stop offset="50%" stop-color="%23090d16"/><stop offset="100%" stop-color="%23020617"/></linearGradient><radialGradient id="glow" cx="50%" cy="40%" r="50%"><stop offset="0%" stop-color="%2310b981" stop-opacity="0.25"/><stop offset="100%" stop-color="%2310b981" stop-opacity="0"/></radialGradient></defs><rect width="1080" height="1920" fill="url(%23bg)"/><circle cx="540" cy="760" r="420" fill="url(%23glow)"/><circle cx="540" cy="760" r="300" stroke="%2310b981" stroke-width="2" stroke-opacity="0.2" fill="none"/><circle cx="540" cy="760" r="180" stroke="%2310b981" stroke-width="2" stroke-opacity="0.3" fill="none"/><path d="M540 480 a 45 45 0 1 0 0.1 0 Z M480 560 l 80 -25 l 50 45 l 80 -15 l 10 35 l -90 15 l -40 -35 l -35 75 l 90 90 l 0 150 l -40 0 l 0 -125 l -85 -80 l -35 70 l 75 110 l -30 30 l -95 -130 l 40 -110 l -50 -45 l 15 -30 Z" fill="%2334d399" opacity="0.8"/></svg>`;
@@ -98,6 +117,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const [backgroundType, setBackgroundType] = useState<BackgroundType>(data.initialBackgroundType || 'transparent');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('story');
   const [logoStyle, setLogoStyle] = useState<LogoStyle>('original');
+  const [cardLayout, setCardLayout] = useState<CardLayout>('strava');
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>('transparent');
+  const [stravaRouteColor, setStravaRouteColor] = useState<StravaRouteColor>('orange');
+  const [stravaStatsAlign, setStravaStatsAlign] = useState<'vertical' | 'horizontal'>('vertical');
   const [activePhraseTab, setActivePhraseTab] = useState<number>(0);
   
   // Custom Background Photo State (no default surfer photo, user uploads their own)
@@ -155,6 +178,17 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const svgRoute: SvgRouteResult = React.useMemo(() => {
     return convertGpsPointsToSvgPath(points, 450, 450, 36);
   }, [points]);
+
+  // Generate Map Tile Layout (Standard Street Map / Satellite Map)
+  const mapLayoutDims = React.useMemo(() => {
+    const width = 450;
+    const height = aspectRatio === 'square' ? 200 : aspectRatio === 'portrait' ? 260 : 340;
+    return { width, height };
+  }, [aspectRatio]);
+
+  const tileLayout: RenderedMapLayout = React.useMemo(() => {
+    return generateMapTileLayout(points, mapLayoutDims.width, mapLayoutDims.height, mapDisplayMode, 30);
+  }, [points, mapLayoutDims.width, mapLayoutDims.height, mapDisplayMode]);
 
   // Effect to process the logo and strip out black background
   useEffect(() => {
@@ -419,6 +453,405 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   <div className="absolute inset-0 bg-gradient-to-b from-emerald-950 via-slate-950 to-emerald-950/90 pointer-events-none" />
                 )}
 
+              {cardLayout === 'strava' ? (
+                /* ============================================================================
+                 * FORMATO ESTILO STRAVA (CENTRALIZADO):
+                 * 1. Logo Centralizada no Topo
+                 * 2. Mapa (Traçado GPS) Centralizado Abaixo da Logo
+                 * 3. Dados Simples da Corrida Centralizados Abaixo do Mapa
+                 * ============================================================================ */
+                <div className="relative z-10 flex-1 flex flex-col items-center justify-between text-center h-full py-1">
+                  {/* 1. TOPO: MINHA LOGO CENTRALIZADA */}
+                  <div className="flex flex-col items-center justify-center shrink-0 space-y-1">
+                    {showLogo && (
+                      <div className="relative flex items-center justify-center">
+                        {logoStyle === 'original' ? (
+                          <div className={`overflow-hidden rounded-2xl bg-black border border-white/25 shadow-2xl flex items-center justify-center ${
+                            aspectRatio === 'square' ? 'w-12 h-12 sm:w-14 sm:h-14 p-0.5' : 'w-16 h-16 sm:w-18 sm:h-18 p-1'
+                          }`}>
+                            <img 
+                              src="/logo.png?v=11" 
+                              alt="ProRun Logo Oficial"
+                              crossOrigin="anonymous"
+                              className="w-full h-full object-cover rounded-xl"
+                            />
+                          </div>
+                        ) : (
+                          <img 
+                            src={processedLogoUrl} 
+                            alt="ProRun Logo"
+                            crossOrigin="anonymous"
+                            className={`object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.65)] ${
+                              aspectRatio === 'square' ? 'w-12 h-12 sm:w-14 sm:h-14' : 'w-16 h-16 sm:w-20 sm:h-20'
+                            }`}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {customTitle && (
+                      <p
+                        className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] italic pt-0.5"
+                        style={{
+                          color: isDarkText ? '#000000' : '#ffffff',
+                          textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.95)' : '0 2px 6px rgba(0,0,0,0.95)'
+                        }}
+                      >
+                        {customTitle}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 2. ABAIXO DA LOGO: O MAPA (TRAÇADO DA CORRIDA CENTRALIZADO) */}
+                  {showRoute && (() => {
+                    const activeRouteSvg = svgRoute.pathData ? svgRoute : SAMPLE_STRAVA_ROUTE;
+                    const strokeMainColor =
+                      stravaRouteColor === 'orange'
+                        ? '#fc4c02'
+                        : stravaRouteColor === 'emerald'
+                        ? '#10b981'
+                        : stravaRouteColor === 'black'
+                        ? '#000000'
+                        : '#ffffff';
+
+                    return (
+                      <div className={`relative z-10 flex-1 min-h-0 w-full flex flex-col items-center justify-center overflow-hidden ${aspectRatio === 'square' ? 'my-0.5' : 'my-2'}`}>
+                        {mapDisplayMode === 'transparent' ? (
+                          /* MODO TRANSPARENTE: Apenas o Traçado Vetorial com Alto Contraste */
+                          <svg 
+                            viewBox={activeRouteSvg.viewBox} 
+                            className={`w-full h-full filter drop-shadow-[0_6px_16px_rgba(0,0,0,0.65)] ${
+                              aspectRatio === 'square' 
+                                ? 'max-h-[78px] sm:max-h-[95px]' 
+                                : aspectRatio === 'portrait'
+                                ? 'max-h-[115px] sm:max-h-[140px]'
+                                : 'max-h-[155px] sm:max-h-[195px]'
+                            }`}
+                          >
+                            {/* Sombra de Contraste do Traçado */}
+                            <path
+                              d={activeRouteSvg.pathData}
+                              fill="none"
+                              stroke={stravaRouteColor === 'black' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.65)'}
+                              strokeWidth="10"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            {/* Linha Principal do Mapa */}
+                            <path
+                              d={activeRouteSvg.pathData}
+                              fill="none"
+                              stroke={strokeMainColor}
+                              strokeWidth="6"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            {/* Ponto Inicial */}
+                            {activeRouteSvg.startPoint && (
+                              <circle
+                                cx={activeRouteSvg.startPoint.x}
+                                cy={activeRouteSvg.startPoint.y}
+                                r="6"
+                                fill="#10b981"
+                                stroke="#ffffff"
+                                strokeWidth="2.5"
+                              />
+                            )}
+                            {/* Ponto Final */}
+                            {activeRouteSvg.finishPoint && (
+                              <circle
+                                cx={activeRouteSvg.finishPoint.x}
+                                cy={activeRouteSvg.finishPoint.y}
+                                r="6"
+                                fill={strokeMainColor}
+                                stroke="#ffffff"
+                                strokeWidth="2.5"
+                              />
+                            )}
+                          </svg>
+                        ) : (
+                          /* MODO PADRÃO (RUAS) OU MODO SATÉLITE COM TILES REAIS */
+                          <div 
+                            className={`relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
+                              aspectRatio === 'square' 
+                                ? 'h-[82px] sm:h-[98px]' 
+                                : aspectRatio === 'portrait'
+                                ? 'h-[125px] sm:h-[150px]'
+                                : 'h-[160px] sm:h-[200px]'
+                            }`}
+                            style={{
+                              borderColor: isDarkText ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)',
+                              backgroundColor: mapDisplayMode === 'satellite' ? '#090d16' : '#f8fafc'
+                            }}
+                          >
+                            {/* Camada de Tiles do Mapa */}
+                            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                              {tileLayout.tiles.map((tile) => (
+                                <img
+                                  key={tile.key}
+                                  src={tile.url}
+                                  alt="Map Tile"
+                                  crossOrigin="anonymous"
+                                  loading="eager"
+                                  className="absolute pointer-events-none"
+                                  style={{
+                                    left: `${tile.x}px`,
+                                    top: `${tile.y}px`,
+                                    width: `${tile.width}px`,
+                                    height: `${tile.height}px`,
+                                    maxWidth: 'none'
+                                  }}
+                                />
+                              ))}
+                              {/* Overlay de Vinheta / Suavização */}
+                              <div className={`absolute inset-0 pointer-events-none ${mapDisplayMode === 'satellite' ? 'bg-black/25' : 'bg-slate-900/5'}`} />
+                            </div>
+
+                            {/* Linha do Traçado sobre o Mapa */}
+                            <svg
+                              viewBox={`0 0 ${tileLayout.width} ${tileLayout.height}`}
+                              className="relative z-10 w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.75)]"
+                            >
+                              {tileLayout.pathData && (
+                                <>
+                                  <path
+                                    d={tileLayout.pathData}
+                                    fill="none"
+                                    stroke={stravaRouteColor === 'black' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)'}
+                                    strokeWidth="8"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d={tileLayout.pathData}
+                                    fill="none"
+                                    stroke={strokeMainColor}
+                                    strokeWidth="5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  {tileLayout.startPoint && (
+                                    <circle
+                                      cx={tileLayout.startPoint.x}
+                                      cy={tileLayout.startPoint.y}
+                                      r="5.5"
+                                      fill="#10b981"
+                                      stroke="#ffffff"
+                                      strokeWidth="2.5"
+                                    />
+                                  )}
+                                  {tileLayout.finishPoint && (
+                                    <circle
+                                      cx={tileLayout.finishPoint.x}
+                                      cy={tileLayout.finishPoint.y}
+                                      r="5.5"
+                                      fill={strokeMainColor}
+                                      stroke="#ffffff"
+                                      strokeWidth="2.5"
+                                    />
+                                  )}
+                                </>
+                              )}
+                            </svg>
+
+                            {/* Badge do Modo do Mapa */}
+                            <div className="absolute bottom-1 right-1.5 z-20 pointer-events-none">
+                              <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/65 backdrop-blur-sm text-white border border-white/10">
+                                {mapDisplayMode === 'satellite' ? '🛰️ Satélite' : '🗺️ Padrão'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* 3. ABAIXO DO MAPA: DADOS SIMPLES DA CORRIDA (ESTILO STRAVA) */}
+                  <div className="w-full flex flex-col items-center justify-center shrink-0 space-y-2">
+                    {stravaStatsAlign === 'vertical' && aspectRatio !== 'square' ? (
+                      /* Coluna Centralizada Clássica Estilo Sticker Strava */
+                      <div className="flex flex-col items-center justify-center space-y-1.5 sm:space-y-2">
+                        {/* Distância */}
+                        <div className="flex flex-col items-center leading-none">
+                          <span
+                            className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.22em] opacity-90"
+                            style={{
+                              color: isDarkText ? '#000000' : '#e2e8f0',
+                              textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 4px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            Distância
+                          </span>
+                          <span
+                            className="text-2xl sm:text-3xl font-black tracking-tight mt-0.5"
+                            style={{
+                              color: isDarkText ? '#000000' : '#ffffff',
+                              textShadow: isDarkText ? '0 2px 4px rgba(255,255,255,0.95)' : '0 3px 8px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            {data.distanceKm.toFixed(2)} <span className="text-sm sm:text-base font-bold">km</span>
+                          </span>
+                        </div>
+
+                        {/* Pace / Ritmo */}
+                        <div className="flex flex-col items-center leading-none">
+                          <span
+                            className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.22em] opacity-90"
+                            style={{
+                              color: isDarkText ? '#000000' : '#e2e8f0',
+                              textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 4px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            Ritmo
+                          </span>
+                          <span
+                            className="text-xl sm:text-2xl font-black tracking-tight mt-0.5"
+                            style={{
+                              color: isDarkText ? '#000000' : '#ffffff',
+                              textShadow: isDarkText ? '0 2px 4px rgba(255,255,255,0.95)' : '0 3px 8px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            {data.avgPace} <span className="text-xs sm:text-sm font-bold">/km</span>
+                          </span>
+                        </div>
+
+                        {/* Tempo */}
+                        <div className="flex flex-col items-center leading-none">
+                          <span
+                            className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.22em] opacity-90"
+                            style={{
+                              color: isDarkText ? '#000000' : '#e2e8f0',
+                              textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 4px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            Tempo
+                          </span>
+                          <span
+                            className="text-xl sm:text-2xl font-black tracking-tight mt-0.5"
+                            style={{
+                              color: isDarkText ? '#000000' : '#ffffff',
+                              textShadow: isDarkText ? '0 2px 4px rgba(255,255,255,0.95)' : '0 3px 8px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            {formatDuration(data.durationSeconds)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Linha Horizontal Minimalista Centralizada Estilo Strava */
+                      <div className="w-full grid grid-cols-3 gap-2 pt-1 items-center text-center">
+                        <div className="flex flex-col items-center">
+                          <span
+                            className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest opacity-90"
+                            style={{
+                              color: isDarkText ? '#000000' : '#e2e8f0',
+                              textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            Distância
+                          </span>
+                          <span
+                            className={`${aspectRatio === 'square' ? 'text-sm sm:text-base' : 'text-lg sm:text-xl'} font-black tracking-tight`}
+                            style={{
+                              color: isDarkText ? '#000000' : '#ffffff',
+                              textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 6px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            {data.distanceKm.toFixed(2)}<span className="text-[10px] font-bold ml-0.5">km</span>
+                          </span>
+                        </div>
+
+                        <div
+                          className="flex flex-col items-center border-x px-1"
+                          style={{ borderColor: isDarkText ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)' }}
+                        >
+                          <span
+                            className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest opacity-90"
+                            style={{
+                              color: isDarkText ? '#000000' : '#e2e8f0',
+                              textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            Ritmo
+                          </span>
+                          <span
+                            className={`${aspectRatio === 'square' ? 'text-sm sm:text-base' : 'text-lg sm:text-xl'} font-black tracking-tight`}
+                            style={{
+                              color: isDarkText ? '#000000' : '#ffffff',
+                              textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 6px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            {data.avgPace}<span className="text-[9px] font-bold">/km</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col items-center">
+                          <span
+                            className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest opacity-90"
+                            style={{
+                              color: isDarkText ? '#000000' : '#e2e8f0',
+                              textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            Tempo
+                          </span>
+                          <span
+                            className={`${aspectRatio === 'square' ? 'text-sm sm:text-base' : 'text-lg sm:text-xl'} font-black tracking-tight`}
+                            style={{
+                              color: isDarkText ? '#000000' : '#ffffff',
+                              textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 6px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            {formatDuration(data.durationSeconds)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Linha Extra Opcional Minimalista (FC ou Elevação se ativos) */}
+                    {((showHeartRate && data.avgHeartRate) || (showElevation && data.elevationGainMeters)) && (
+                      <div className="flex items-center justify-center gap-3 pt-0.5">
+                        {showHeartRate && data.avgHeartRate && (
+                          <span
+                            className="text-[9px] font-black uppercase tracking-wider flex items-center gap-1"
+                            style={{
+                              color: isDarkText ? '#e11d48' : '#fb7185',
+                              textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            ♥ {data.avgHeartRate} bpm
+                          </span>
+                        )}
+                        {showElevation && data.elevationGainMeters && (
+                          <span
+                            className="text-[9px] font-black uppercase tracking-wider"
+                            style={{
+                              color: isDarkText ? '#000000' : '#ffffff',
+                              textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                            }}
+                          >
+                            ⛰ +{data.elevationGainMeters}m
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Assinatura Centralizada Minimalista */}
+                    <div className="pt-1 flex items-center justify-center gap-1.5 opacity-90">
+                      <span
+                        className="text-[7px] sm:text-[8px] font-black uppercase tracking-[0.25em]"
+                        style={{
+                          color: isDarkText ? '#000000' : '#34d399',
+                          textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.95)' : '0 1px 3px rgba(0,0,0,0.95)'
+                        }}
+                      >
+                        ⚡ PRORUN LB • COACH LEANDRO BARBOSA
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
               {/* TOP HEADER: Logo & Athlete Info */}
               <div className="relative z-10 flex items-start justify-between shrink-0">
                 <div className="space-y-0.5">
@@ -479,54 +912,145 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 )}
               </div>
 
-              {/* CENTER: Vector GPS Route Track Silhouette */}
-              {showRoute && svgRoute.pathData ? (
+              {/* CENTER: Vector GPS Route Track / Standard / Satellite Map */}
+              {showRoute && (svgRoute.pathData || tileLayout.pathData) ? (
                 <div className={`relative z-10 flex-1 min-h-0 flex items-center justify-center overflow-hidden ${aspectRatio === 'square' ? 'my-1' : 'my-3'}`}>
-                  <svg 
-                    viewBox={svgRoute.viewBox} 
-                    className={`w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)] ${aspectRatio === 'square' ? 'max-h-[85px] sm:max-h-[110px]' : 'max-h-[220px] sm:max-h-[260px]'}`}
-                  >
-                    {/* Shadow / Halo Line for Maximum Contrast */}
-                    <path
-                      d={svgRoute.pathData}
-                      fill="none"
-                      stroke={isDarkText ? '#ffffff' : 'rgba(0,0,0,0.7)'}
-                      strokeWidth="9"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    {/* Main High-Contrast Route Line (Black or White) */}
-                    <path
-                      d={svgRoute.pathData}
-                      fill="none"
-                      stroke={isDarkText ? '#000000' : '#ffffff'}
-                      strokeWidth="5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    {/* Start Marker */}
-                    {svgRoute.startPoint && (
-                      <circle
-                        cx={svgRoute.startPoint.x}
-                        cy={svgRoute.startPoint.y}
-                        r="6"
-                        fill={isDarkText ? '#000000' : '#10b981'}
-                        stroke="#ffffff"
-                        strokeWidth="2.5"
+                  {mapDisplayMode === 'transparent' ? (
+                    <svg 
+                      viewBox={svgRoute.viewBox} 
+                      className={`w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)] ${aspectRatio === 'square' ? 'max-h-[85px] sm:max-h-[110px]' : 'max-h-[220px] sm:max-h-[260px]'}`}
+                    >
+                      {/* Shadow / Halo Line for Maximum Contrast */}
+                      <path
+                        d={svgRoute.pathData}
+                        fill="none"
+                        stroke={isDarkText ? '#ffffff' : 'rgba(0,0,0,0.7)'}
+                        strokeWidth="9"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
-                    )}
-                    {/* Finish Marker */}
-                    {svgRoute.finishPoint && (
-                      <circle
-                        cx={svgRoute.finishPoint.x}
-                        cy={svgRoute.finishPoint.y}
-                        r="6"
-                        fill={isDarkText ? '#000000' : '#f59e0b'}
-                        stroke="#ffffff"
-                        strokeWidth="2.5"
+                      {/* Main High-Contrast Route Line (Black or White) */}
+                      <path
+                        d={svgRoute.pathData}
+                        fill="none"
+                        stroke={isDarkText ? '#000000' : '#ffffff'}
+                        strokeWidth="5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
-                    )}
-                  </svg>
+                      {/* Start Marker */}
+                      {svgRoute.startPoint && (
+                        <circle
+                          cx={svgRoute.startPoint.x}
+                          cy={svgRoute.startPoint.y}
+                          r="6"
+                          fill={isDarkText ? '#000000' : '#10b981'}
+                          stroke="#ffffff"
+                          strokeWidth="2.5"
+                        />
+                      )}
+                      {/* Finish Marker */}
+                      {svgRoute.finishPoint && (
+                        <circle
+                          cx={svgRoute.finishPoint.x}
+                          cy={svgRoute.finishPoint.y}
+                          r="6"
+                          fill={isDarkText ? '#000000' : '#f59e0b'}
+                          stroke="#ffffff"
+                          strokeWidth="2.5"
+                        />
+                      )}
+                    </svg>
+                  ) : (
+                    /* MODO PADRÃO (RUAS) OU SATÉLITE */
+                    <div 
+                      className={`relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
+                        aspectRatio === 'square' 
+                          ? 'h-[85px] sm:h-[110px]' 
+                          : 'h-[170px] sm:h-[220px]'
+                      }`}
+                      style={{
+                        borderColor: isDarkText ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)',
+                        backgroundColor: mapDisplayMode === 'satellite' ? '#090d16' : '#f8fafc'
+                      }}
+                    >
+                      {/* Tiles Layer */}
+                      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                        {tileLayout.tiles.map((tile) => (
+                          <img
+                            key={tile.key}
+                            src={tile.url}
+                            alt="Map Tile"
+                            crossOrigin="anonymous"
+                            loading="eager"
+                            className="absolute pointer-events-none"
+                            style={{
+                              left: `${tile.x}px`,
+                              top: `${tile.y}px`,
+                              width: `${tile.width}px`,
+                              height: `${tile.height}px`,
+                              maxWidth: 'none'
+                            }}
+                          />
+                        ))}
+                        <div className={`absolute inset-0 pointer-events-none ${mapDisplayMode === 'satellite' ? 'bg-black/25' : 'bg-slate-900/5'}`} />
+                      </div>
+
+                      {/* Route Path on Map */}
+                      <svg
+                        viewBox={`0 0 ${tileLayout.width} ${tileLayout.height}`}
+                        className="relative z-10 w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.75)]"
+                      >
+                        {tileLayout.pathData && (
+                          <>
+                            <path
+                              d={tileLayout.pathData}
+                              fill="none"
+                              stroke={isDarkText ? '#ffffff' : 'rgba(0,0,0,0.75)'}
+                              strokeWidth="8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d={tileLayout.pathData}
+                              fill="none"
+                              stroke="#10b981"
+                              strokeWidth="5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            {tileLayout.startPoint && (
+                              <circle
+                                cx={tileLayout.startPoint.x}
+                                cy={tileLayout.startPoint.y}
+                                r="5.5"
+                                fill="#10b981"
+                                stroke="#ffffff"
+                                strokeWidth="2.5"
+                              />
+                            )}
+                            {tileLayout.finishPoint && (
+                              <circle
+                                cx={tileLayout.finishPoint.x}
+                                cy={tileLayout.finishPoint.y}
+                                r="5.5"
+                                fill="#f59e0b"
+                                stroke="#ffffff"
+                                strokeWidth="2.5"
+                              />
+                            )}
+                          </>
+                        )}
+                      </svg>
+
+                      {/* Map Mode Badge */}
+                      <div className="absolute bottom-1 right-1.5 z-20 pointer-events-none">
+                        <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/65 backdrop-blur-sm text-white border border-white/10">
+                          {mapDisplayMode === 'satellite' ? '🛰️ Satélite' : '🗺️ Padrão'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className={`relative z-10 flex-1 min-h-0 flex items-center justify-center opacity-40 ${aspectRatio === 'square' ? 'my-1' : 'my-3'}`}>
@@ -709,12 +1233,158 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   </span>
                 </div>
               </div>
+                </>
+              )}
 
             </div>
           </div>
 
             {/* Preview Status Pill & Quick Action Bar (Logo abaixo da Foto em Primeiro Plano) */}
             <div className="mt-3 flex flex-col items-center gap-2.5 w-full">
+              {/* SELETOR RÁPIDO DE LAYOUT DO CARD: LOGO CENTRAL vs CLÁSSICO PRORUN */}
+              <div className="grid grid-cols-2 gap-2 w-full max-w-md bg-slate-950 p-1.5 rounded-2xl border border-white/10 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setCardLayout('strava')}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    cardLayout === 'strava'
+                      ? 'bg-gradient-to-r from-[#fc4c02] to-orange-500 text-white shadow-lg shadow-orange-500/30'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>Logo Central + Mapa</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCardLayout('classic')}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    cardLayout === 'classic'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Clássico ProRun</span>
+                </button>
+              </div>
+
+              {/* SELETOR RÁPIDO DO MODO DO MAPA: PADRÃO vs SATÉLITE vs TRANSPARENTE */}
+              <div className="w-full max-w-md bg-slate-950/90 p-2 rounded-2xl border border-white/10 shadow-lg space-y-1.5">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                    <MapIcon className="w-3 h-3" /> Modo de Exibição do Mapa:
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-bold">
+                    {mapDisplayMode === 'standard' ? '🗺️ Ruas & Terreno' : mapDisplayMode === 'satellite' ? '🛰️ Foto de Satélite' : '⚡ Traçado Puro'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('standard');
+                      setShowRoute(true);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase italic tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'standard'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <MapIcon className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>Padrão</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('satellite');
+                      setShowRoute(true);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase italic tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'satellite'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Globe className="w-3.5 h-3.5 text-cyan-300" />
+                    <span>Satélite</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('transparent');
+                      setShowRoute(true);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase italic tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'transparent'
+                        ? 'bg-white/20 text-white border border-white/30 shadow-md'
+                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5 text-slate-300" />
+                    <span>Transparente</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Opções Rápidas Exclusivas quando o formato Logo Central está ativo */}
+              {cardLayout === 'strava' && (
+                <div className="flex flex-wrap items-center justify-center gap-2 w-full max-w-md bg-slate-950/80 px-3 py-2 rounded-2xl border border-orange-500/20">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-orange-400">
+                    Cor do Mapa:
+                  </span>
+                  {[
+                    { id: 'orange', label: 'Laranja', color: 'bg-[#fc4c02]' },
+                    { id: 'emerald', label: 'Verde ProRun', color: 'bg-emerald-500' },
+                    { id: 'white', label: 'Branco', color: 'bg-white' },
+                    { id: 'black', label: 'Preto', color: 'bg-black border border-white/40' }
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setStravaRouteColor(item.id as StravaRouteColor)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase flex items-center gap-1.5 cursor-pointer transition-all ${
+                        stravaRouteColor === item.id
+                          ? 'bg-white/15 text-white border border-orange-400/50 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+
+                  <div className="w-full flex items-center justify-center gap-2 pt-1 border-t border-white/5">
+                    <span className="text-[10px] font-bold text-slate-400">Disposição dos Dados:</span>
+                    <button
+                      type="button"
+                      onClick={() => setStravaStatsAlign('vertical')}
+                      className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase cursor-pointer ${
+                        stravaStatsAlign === 'vertical'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-white/5 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Vertical (Coluna)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStravaStatsAlign('horizontal')}
+                      className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase cursor-pointer ${
+                        stravaStatsAlign === 'horizontal'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-white/5 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Horizontal (Lado a Lado)
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2 text-xs font-medium text-slate-300 bg-slate-900/80 px-3.5 py-1.5 rounded-full border border-white/10 shadow-sm">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span>
@@ -1122,53 +1792,124 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
               )}
             </div>
 
-            {/* 3. ELEMENTOS VISUAIS DO CARD */}
-            <div className="space-y-2 bg-slate-950/60 p-4 rounded-2xl border border-white/10">
-              <label className="text-xs font-black text-white uppercase italic tracking-wider flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5 text-emerald-400" /> 3. Elementos do Treino
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRoute(!showRoute)}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                    showRoute
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
-                      : 'bg-slate-900/60 border-white/10 text-slate-500'
-                  }`}
-                >
-                  <MapPin className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase block">Trajeto GPS</span>
-                  <span className="text-[8px] text-slate-400">{showRoute ? 'Visível' : 'Oculto'}</span>
-                </button>
+            {/* 3. ELEMENTOS VISUAIS & ESTILO DO MAPA */}
+            <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-white/10">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-white uppercase italic tracking-wider flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-emerald-400" /> 3. Elementos do Treino & Estilo do Mapa
+                </label>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                  {mapDisplayMode === 'standard' ? 'Mapa Padrão' : mapDisplayMode === 'satellite' ? 'Modo Satélite' : 'Traçado Transparente'}
+                </span>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowElevation(!showElevation)}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                    showElevation
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
-                      : 'bg-slate-900/60 border-white/10 text-slate-500'
-                  }`}
-                >
-                  <Mountain className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase block">Elevação</span>
-                  <span className="text-[8px] text-slate-400">{showElevation ? 'Visível' : 'Oculto'}</span>
-                </button>
+              {/* Seletor de Modo do Mapa (Padrão / Satélite / Transparente) */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
+                  Estilo do Mapa (Escolha o Fundo do Traçado):
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('standard');
+                      setShowRoute(true);
+                    }}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'standard'
+                        ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
+                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <MapIcon className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[11px] font-black uppercase block">Modo Padrão</span>
+                    <span className="text-[7.5px] text-slate-400">Ruas & Terreno</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setShowHeartRate(!showHeartRate)}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                    showHeartRate
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
-                      : 'bg-slate-900/60 border-white/10 text-slate-500'
-                  }`}
-                >
-                  <HeartPulse className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase block">Frequência (FC)</span>
-                  <span className="text-[8px] text-slate-400">{showHeartRate ? 'Visível' : 'Oculto'}</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('satellite');
+                      setShowRoute(true);
+                    }}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'satellite'
+                        ? 'bg-blue-600/25 border-blue-500 text-cyan-300 shadow-md ring-2 ring-blue-500/40 font-bold'
+                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4 text-cyan-400" />
+                    <span className="text-[11px] font-black uppercase block">Modo Satélite</span>
+                    <span className="text-[7.5px] text-slate-400">Foto Aérea Real</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('transparent');
+                      setShowRoute(true);
+                    }}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'transparent'
+                        ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
+                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-slate-300" />
+                    <span className="text-[11px] font-black uppercase block">Transparente</span>
+                    <span className="text-[7.5px] text-slate-400">Apenas Traçado</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Toggles de Métricas */}
+              <div className="pt-2 border-t border-white/5 space-y-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
+                  Exibir Métricas Complementares:
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRoute(!showRoute)}
+                    className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                      showRoute
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
+                        : 'bg-slate-900/60 border-white/10 text-slate-500'
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-black uppercase block">Trajeto GPS</span>
+                    <span className="text-[7.5px] text-slate-400">{showRoute ? '✓ Ativo' : 'Oculto'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowElevation(!showElevation)}
+                    className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                      showElevation
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
+                        : 'bg-slate-900/60 border-white/10 text-slate-500'
+                    }`}
+                  >
+                    <Mountain className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-black uppercase block">Elevação</span>
+                    <span className="text-[7.5px] text-slate-400">{showElevation ? '✓ Ativo' : 'Oculto'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowHeartRate(!showHeartRate)}
+                    className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                      showHeartRate
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
+                        : 'bg-slate-900/60 border-white/10 text-slate-500'
+                    }`}
+                  >
+                    <HeartPulse className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-black uppercase block">Frequência (FC)</span>
+                    <span className="text-[7.5px] text-slate-400">{showHeartRate ? '✓ Ativo' : 'Oculto'}</span>
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -65,28 +65,33 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
               <div 
                 key={n.id} 
                 className={`p-4 rounded-[1.5rem] border-2 transition-all group relative ${
-                  n.read ? 'bg-white/5 border-white/5 opacity-50' : 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
+                  n.read ? 'bg-white/5 border-white/10' : 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
                 }`}
               >
                 {!n.read && (
                   <div className="absolute -top-1 -left-1 w-3 h-3 bg-red-500 rounded-full border-2 border-slate-900 shadow-sm animate-pulse"></div>
                 )}
                 
-                <div className="flex gap-4">
+                <div className="flex gap-3.5">
                   <div className="flex-shrink-0 mt-1">
                     {getIcon(n.type)}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="text-sm font-black text-white uppercase italic tracking-tight">{n.title}</h4>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start gap-2 mb-1">
+                      <h4 className={`text-sm font-black uppercase italic tracking-tight ${n.read ? 'text-slate-300' : 'text-white'}`}>
+                        {n.title}
+                      </h4>
                       <button 
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); removeNotification(n.id); }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all rounded-lg"
+                        className="opacity-100 flex-shrink-0 p-1.5 bg-red-500/15 hover:bg-red-500/30 active:scale-95 text-red-400 hover:text-red-300 border border-red-500/30 transition-all rounded-xl flex items-center justify-center shadow-sm"
+                        title="Excluir notificação"
+                        aria-label="Excluir notificação"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <X className="w-4 h-4 stroke-[2.5]" />
                       </button>
                     </div>
-                    <p className="text-xs text-slate-400 font-medium italic mb-3 line-clamp-2">
+                    <p className={`text-xs font-medium italic mb-3 line-clamp-2 ${n.read ? 'text-slate-500' : 'text-slate-300'}`}>
                       {n.message}
                     </p>
                     
@@ -95,9 +100,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
                         {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       <button 
+                        type="button"
                         onClick={() => handleAction(n.id, n.link)}
                         className={`text-[9px] font-black uppercase italic tracking-widest flex items-center gap-1 transition-all ${
-                          n.read ? 'text-slate-500 opacity-0 group-hover:opacity-100' : 'text-emerald-400 hover:gap-2'
+                          n.read ? 'text-slate-400 hover:text-emerald-400' : 'text-emerald-400 hover:gap-2'
                         }`}
                       >
                         RESOLVER <ChevronRight className="w-3 h-3" />

@@ -80,6 +80,65 @@ function AppContent() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
+    let startY = 0;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      startY = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - startY;
+
+      // Intercept only when pulling the screen DOWN (finger moving downwards)
+      if (deltaY <= 5) return;
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // Allow touch drag interactions on maps, sliders, and canvases
+      if (target.closest('.leaflet-container, input[type="range"], canvas')) {
+        return;
+      }
+
+      // Check if any scrollable ancestor still has content above (scrollTop > 0)
+      let el: HTMLElement | null = target;
+      while (el && el !== document.body && el !== document.documentElement) {
+        const style = window.getComputedStyle(el);
+        const overflowY = style.overflowY;
+        const isScrollable =
+          (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+          el.scrollHeight > el.clientHeight;
+
+        if (isScrollable && el.scrollTop > 0) {
+          return;
+        }
+        el = el.parentElement;
+      }
+
+      const docScrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      if (docScrollTop > 0) {
+        return;
+      }
+
+      // At the very top of the scroll container and pulling down: prevent browser pull-to-refresh
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, []);
+
+  useEffect(() => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
 

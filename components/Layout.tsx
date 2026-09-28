@@ -64,7 +64,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   if (!userRole) return <>{children}</>;
 
   return (
-    <div className="h-full bg-[#020617] flex flex-col md:flex-row font-sans text-slate-100 overflow-hidden">
+    <div className="h-full bg-[#020617] flex flex-col md:flex-row font-sans text-slate-100 overflow-hidden overscroll-none">
       {/* Mobile Header */}
       <div className="md:hidden bg-[#020617]/80 dark:bg-[#020617]/80 backdrop-blur-md text-white p-4 flex justify-between items-center sticky top-0 z-20 border-b border-white/5 no-print safe-top">
         <div className="flex items-center gap-2">
@@ -214,7 +214,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-full bg-[#020617] scroll-smooth">
+      <main className="flex-1 overflow-y-auto overscroll-y-contain h-[calc(100vh-64px)] md:h-full bg-[#020617] scroll-smooth">
         <div className="max-w-7xl mx-auto p-4 md:p-10 space-y-8 pb-32">
           {children}
         </div>

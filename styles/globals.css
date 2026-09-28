@@ -10,6 +10,11 @@
 @layer base {
   html, body, #root {
     height: 100%;
+    overscroll-behavior-y: none;
+    overscroll-behavior: none;
+  }
+  main, .custom-scrollbar, [class*="overflow-y-auto"], [class*="overflow-auto"] {
+    overscroll-behavior-y: contain;
   }
   html {
     @apply bg-[#020617] text-slate-100 transition-colors duration-200;

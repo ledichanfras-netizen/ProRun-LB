@@ -53,7 +53,8 @@ import {
 import { calculateATL_CTL_TSB } from '../utils/stressModel';
 
 export default function Dashboard() {
-  const { userRole, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis } = useApp();
+  const { userRole, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis, theme } = useApp();
+  const isLight = theme === 'light';
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeEvolutionChartTab, setActiveEvolutionChartTab] = useState<'stress' | 'readiness'>('stress');
   const [showAdditionalMetricsInfo, setShowAdditionalMetricsInfo] = useState(false);
@@ -1001,13 +1002,19 @@ export default function Dashboard() {
           )}
 
           {/* Gráficos de Evolução Física com Alternância de Abas (Stress Model vs Prontidão Holística) */}
-          <div className="border border-slate-200 rounded-3xl p-5 bg-slate-50/60 space-y-4">
+          <div className={`border rounded-3xl p-5 space-y-4 transition-all ${
+            isLight ? 'border-slate-200 bg-slate-50/60' : 'border-slate-800 bg-slate-900'
+          }`}>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-emerald-600" /> Evolução Gráfica de Performance & Prontidão
+                <h3 className={`text-xs font-black uppercase tracking-widest flex items-center gap-1.5 ${
+                  isLight ? 'text-slate-800' : 'text-white'
+                }`}>
+                  <TrendingUp className="w-4 h-4 text-emerald-500" /> Evolução Gráfica de Performance & Prontidão
                 </h3>
-                <p className="text-[11px] text-slate-500 font-medium">
+                <p className={`text-[11px] font-semibold mt-0.5 ${
+                  isLight ? 'text-slate-600' : 'text-slate-200'
+                }`}>
                   {activeEvolutionChartTab === 'stress' 
                     ? 'Acompanhamento do Condicionamento (CTL), Cansaço (ATL) e Frescor (TSB)'
                     : 'Histórico diário de Scores de Prontidão (0-100%) e Horas de Sono'}
@@ -1015,14 +1022,16 @@ export default function Dashboard() {
               </div>
 
               {/* Botões de Alternância de Gráfico */}
-              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
+              <div className={`flex items-center gap-1 p-1 rounded-xl border ${
+                isLight ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-700'
+              }`}>
                 <button
                   type="button"
                   onClick={() => setActiveEvolutionChartTab('stress')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
                     activeEvolutionChartTab === 'stress'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? (isLight ? 'bg-slate-900 text-white shadow-xs' : 'bg-emerald-500 text-slate-950 shadow-xs')
+                      : (isLight ? 'text-slate-700 hover:text-slate-950' : 'text-slate-200 hover:text-white')
                   }`}
                 >
                   Fisiologia & Carga
@@ -1032,8 +1041,8 @@ export default function Dashboard() {
                   onClick={() => setActiveEvolutionChartTab('readiness')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
                     activeEvolutionChartTab === 'readiness'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? (isLight ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-500 text-slate-950 shadow-xs')
+                      : (isLight ? 'text-slate-700 hover:text-slate-950' : 'text-slate-200 hover:text-white')
                   }`}
                 >
                   Histórico de Prontidão
@@ -1060,23 +1069,31 @@ export default function Dashboard() {
                           <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#cbd5e1' : '#334155'} />
                       <XAxis 
                         dataKey="dateStr" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{fill: '#64748b', fontSize: 10, fontWeight: 700}} 
+                        tick={{fill: isLight ? '#1e293b' : '#ffffff', fontSize: 10, fontWeight: 800}} 
                       />
                       <YAxis 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{fill: '#94a3b8', fontSize: 10}} 
+                        tick={{fill: isLight ? '#334155' : '#e2e8f0', fontSize: 10, fontWeight: 700}} 
                       />
                       <Tooltip 
-                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                        contentStyle={{
+                          backgroundColor: isLight ? '#ffffff' : '#0f172a',
+                          borderRadius: '16px',
+                          border: isLight ? '1px solid #e2e8f0' : '1px solid #334155',
+                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.25)',
+                          color: isLight ? '#0f172a' : '#f8fafc',
+                          fontWeight: 700
+                        }}
+                        labelStyle={{ color: isLight ? '#0f172a' : '#ffffff', fontWeight: 900 }}
                       />
-                      <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginTop: '10px' }} />
-                      <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: isLight ? '#1e293b' : '#f1f5f9', marginTop: '10px' }} />
+                      <ReferenceLine y={0} stroke={isLight ? '#94a3b8' : '#475569'} strokeWidth={1.5} />
                       
                       <Area 
                         type="monotone" 
@@ -1108,7 +1125,9 @@ export default function Dashboard() {
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 italic text-xs">
+                  <div className={`h-full flex flex-col items-center justify-center italic text-xs ${
+                    isLight ? 'text-slate-500' : 'text-slate-300'
+                  }`}>
                     Aguardando registros de treinos concluídos com PSE e feedback para mapear evolução de carga...
                   </div>
                 )
@@ -1122,25 +1141,33 @@ export default function Dashboard() {
                           <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#cbd5e1' : '#334155'} />
                       <XAxis 
                         dataKey="dateStr" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{fill: '#64748b', fontSize: 10, fontWeight: 700}} 
+                        tick={{fill: isLight ? '#1e293b' : '#ffffff', fontSize: 10, fontWeight: 800}} 
                       />
                       <YAxis 
                         domain={[0, 100]}
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{fill: '#94a3b8', fontSize: 10}} 
+                        tick={{fill: isLight ? '#334155' : '#e2e8f0', fontSize: 10, fontWeight: 700}} 
                       />
                       <Tooltip 
-                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                        contentStyle={{
+                          backgroundColor: isLight ? '#ffffff' : '#0f172a',
+                          borderRadius: '16px',
+                          border: isLight ? '1px solid #e2e8f0' : '1px solid #334155',
+                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.25)',
+                          color: isLight ? '#0f172a' : '#f8fafc',
+                          fontWeight: 700
+                        }}
+                        labelStyle={{ color: isLight ? '#0f172a' : '#ffffff', fontWeight: 900 }}
                       />
-                      <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginTop: '10px' }} />
-                      <ReferenceLine y={70} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Zona Pronta (70%)', fill: '#10b981', fontSize: 10 }} />
-                      <ReferenceLine y={40} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Zona Atenção (40%)', fill: '#f59e0b', fontSize: 10 }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: isLight ? '#1e293b' : '#f1f5f9', marginTop: '10px' }} />
+                      <ReferenceLine y={70} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Zona Pronta (70%)', fill: isLight ? '#047857' : '#34d399', fontSize: 10, fontWeight: 800 }} />
+                      <ReferenceLine y={40} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Zona Atenção (40%)', fill: isLight ? '#b45309' : '#fbbf24', fontSize: 10, fontWeight: 800 }} />
                       
                       <Area 
                         type="monotone" 
@@ -1162,7 +1189,9 @@ export default function Dashboard() {
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 italic text-xs">
+                  <div className={`h-full flex flex-col items-center justify-center italic text-xs ${
+                    isLight ? 'text-slate-500' : 'text-slate-300'
+                  }`}>
                     Nenhum check-in diário de prontidão preenchido ainda pelo atleta no portal.
                   </div>
                 )
@@ -1216,41 +1245,55 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-            <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase italic tracking-tighter mb-6">
-              <TrendingUp className="text-emerald-600 w-5 h-5" /> Distribuição de Volume Semanal
+          <div className={`p-6 rounded-[2rem] shadow-sm border transition-all ${
+            isLight ? 'bg-white border-slate-100' : 'bg-slate-900 border-slate-800'
+          }`}>
+            <h2 className={`text-xl font-black flex items-center gap-2 uppercase italic tracking-tighter mb-6 ${
+              isLight ? 'text-slate-800' : 'text-white'
+            }`}>
+              <TrendingUp className="text-emerald-500 w-5 h-5" /> Distribuição de Volume Semanal
             </h2>
             <div style={{ height: 300, width: '100%', minWidth: 0 }}>
               {metrics.history.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={metrics.history} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <BarChart data={metrics.history} margin={{ top: 24, right: 10, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#1e293b'} />
                     <XAxis 
                       dataKey="label" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fill: '#475569', fontSize: 10, fontWeight: 800}} 
+                      tick={{fill: isLight ? '#1e293b' : '#ffffff', fontSize: 11, fontWeight: 900}} 
                       dy={10} 
                     />
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fill: '#94a3b8', fontSize: 10}} 
+                      tick={{fill: isLight ? '#334155' : '#e2e8f0', fontSize: 10, fontWeight: 800}} 
                     />
                     <Tooltip 
-                      cursor={{fill: '#f8fafc'}} 
-                      contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                      cursor={{fill: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.06)'}} 
+                      contentStyle={{
+                        backgroundColor: isLight ? '#ffffff' : '#0f172a',
+                        borderRadius: '16px',
+                        border: isLight ? '1px solid #e2e8f0' : '1px solid #334155',
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.25)',
+                        color: isLight ? '#0f172a' : '#f8fafc',
+                        fontWeight: 700
+                      }}
+                      labelStyle={{ color: isLight ? '#0f172a' : '#ffffff', fontWeight: 900 }}
                     />
-                    <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]} fill="#e2e8f0">
-                       <LabelList dataKey="planned" position="top" style={{ fill: '#94a3b8', fontSize: '9px', fontWeight: '900' }} offset={10} />
+                    <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]} fill={isLight ? '#cbd5e1' : '#334155'}>
+                       <LabelList dataKey="planned" position="top" style={{ fill: isLight ? '#334155' : '#cbd5e1', fontSize: '10px', fontWeight: '900' }} offset={8} />
                     </Bar>
                     <Bar dataKey="completed" name="Executado" radius={[6, 6, 0, 0]} fill="#10b981">
-                       <LabelList dataKey="completed" position="top" style={{ fill: '#10b981', fontSize: '9px', fontWeight: '900' }} offset={10} />
+                       <LabelList dataKey="completed" position="top" style={{ fill: isLight ? '#047857' : '#34d399', fontSize: '10px', fontWeight: '900' }} offset={8} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-100 rounded-[2rem] italic">
+                <div className={`h-full flex flex-col items-center justify-center border-2 border-dashed rounded-[2rem] italic ${
+                  isLight ? 'text-slate-500 border-slate-200' : 'text-slate-300 border-slate-800'
+                }`}>
                   Aguardando dados de periodização...
                 </div>
               )}

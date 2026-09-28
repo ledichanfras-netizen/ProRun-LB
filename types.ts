@@ -21,6 +21,7 @@ export interface Exercise {
   sets: string;
   reps: string;
   load: string;
+  description?: string;
   order: number;
 }
 

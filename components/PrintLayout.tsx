@@ -158,31 +158,70 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
                      <span className="text-[8px] font-black uppercase px-3 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 shadow-sm text-center">{workout.type?.substring(0, 3).toUpperCase() || 'TRN'}</span>
                    </div>
                    <div className="flex-1 flex flex-col items-center justify-center text-center px-1 py-2">
-                     <div className="text-[11px] leading-[1.4] font-black text-slate-800 italic break-words text-center">
-                       {workout.customDescription || (workout.structuredWorkout ? formatStructuredWorkoutFullDescription(workout.structuredWorkout) : '')}
-                     </div>
+                     {(() => {
+                       const validExercises = (workout.exercises || []).filter((ex: any) => ex && ex.name && ex.name.trim().length > 0);
+                       const rawDesc = workout.customDescription || (workout.structuredWorkout ? formatStructuredWorkoutFullDescription(workout.structuredWorkout) : '');
+                       // Se a descrição customizada for apenas a string automática "Fortalecimento: ..." gerada a partir dos exercícios, limpamos o prefixo redundante para exibir o card detalhado completo abaixo
+                       const isAutoExerciseSummary = validExercises.length > 0 && rawDesc.startsWith('Fortalecimento:');
+                       const cleanMainDesc = isAutoExerciseSummary ? 'Sessão de Fortalecimento & Educativos' : rawDesc;
 
-                     {workout.structuredWorkout && (
-                       <div className="mt-2 flex flex-col items-center gap-1 w-full">
-                         <span className="text-[8px] font-black px-2 py-0.5 bg-blue-100/90 text-blue-900 rounded-lg uppercase italic border border-blue-200 text-center leading-tight">
-                           ⚡ {formatStructuredWorkoutSummary(workout.structuredWorkout)}
-                         </span>
-                       </div>
-                     )}
+                       return (
+                         <>
+                           {cleanMainDesc && (
+                             <div className="text-[11px] leading-[1.4] font-black text-slate-800 italic break-words whitespace-pre-wrap text-center w-full">
+                               {cleanMainDesc}
+                             </div>
+                           )}
 
-                     {workout.exercises && workout.exercises.length > 0 && !workout.customDescription?.toLowerCase().includes(workout.exercises[0]?.name?.toLowerCase()) && (
-                       <div className="mt-2 w-full text-left bg-purple-50/70 p-2 rounded-xl border border-purple-100 text-[8px] text-purple-900 font-bold space-y-0.5">
-                         <span className="text-[7px] font-black uppercase text-purple-700 block">🏋️ Exercícios:</span>
-                         {workout.exercises.slice(0, 4).map((ex: any, exIdx: number) => (
-                           <div key={exIdx} className="truncate">
-                             • {ex.name || 'Exercício'} ({ex.sets}x{ex.reps}{ex.load ? ` ${ex.load}` : ''})
-                           </div>
-                         ))}
-                         {workout.exercises.length > 4 && (
-                           <div className="text-[7px] text-purple-600 italic">+ {workout.exercises.length - 4} outros</div>
-                         )}
-                       </div>
-                     )}
+                           {workout.structuredWorkout && (
+                             <div className="mt-2 flex flex-col items-center gap-1 w-full">
+                               <span className="text-[8px] font-black px-2 py-0.5 bg-blue-100/90 text-blue-900 rounded-lg uppercase italic border border-blue-200 text-center leading-tight break-words">
+                                 ⚡ {formatStructuredWorkoutSummary(workout.structuredWorkout)}
+                               </span>
+                             </div>
+                           )}
+
+                           {validExercises.length > 0 && (
+                             <div className="mt-2.5 w-full text-left bg-purple-50/90 p-2.5 rounded-2xl border border-purple-200 text-[8.5px] text-purple-950 font-bold space-y-1.5 shadow-xs">
+                               <span className="text-[8px] font-black uppercase text-purple-800 tracking-wider block border-b border-purple-200/70 pb-1">
+                                 🏋️ Exercícios Detalhados ({validExercises.length}):
+                               </span>
+                               <div className="space-y-1.5">
+                                 {validExercises.map((ex: any, exIdx: number) => {
+                                   const setsReps = ex.sets && ex.reps
+                                     ? `${ex.sets}x${ex.reps}`
+                                     : ex.sets
+                                     ? `${ex.sets} séries`
+                                     : ex.reps
+                                     ? `${ex.reps} reps`
+                                     : '';
+                                   const loadStr = ex.load && ex.load.trim() ? `Carga: ${ex.load.trim()}` : '';
+                                   const metaParts = [setsReps, loadStr].filter(Boolean).join(' • ');
+
+                                   return (
+                                     <div key={ex.id || exIdx} className="leading-snug break-words whitespace-normal bg-white/80 p-1.5 rounded-lg border border-purple-100">
+                                       <div className="font-black text-[9px] text-purple-950 break-words">
+                                         {exIdx + 1}. {ex.name}
+                                       </div>
+                                       {metaParts && (
+                                         <div className="text-[8px] font-extrabold text-purple-700 mt-0.5 break-words">
+                                           {metaParts}
+                                         </div>
+                                       )}
+                                       {ex.description && ex.description.trim() && (
+                                         <div className="text-[8px] font-semibold italic text-slate-600 mt-0.5 break-words whitespace-pre-wrap">
+                                           {ex.description.trim()}
+                                         </div>
+                                       )}
+                                     </div>
+                                   );
+                                 })}
+                               </div>
+                             </div>
+                           )}
+                         </>
+                       );
+                     })()}
                    </div>
                    <div className="mt-3 pt-3 border-t border-slate-200/50 flex justify-center items-center">
                      {workout.distance && workout.distance > 0 ? (

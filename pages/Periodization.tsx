@@ -693,29 +693,49 @@ const Periodization: React.FC = () => {
     setTargetDay(null);
   };
 
+  const syncWorkoutDescriptionWithExercises = (workout: any) => {
+    const validExercises = (workout.exercises || []).filter((ex: Exercise) => ex && ex.name && ex.name.trim().length > 0);
+    const exFormatted = validExercises.map((ex: Exercise) => {
+      const setsReps = ex.sets && ex.reps ? `${ex.sets}x${ex.reps}` : (ex.sets ? `${ex.sets} séries` : (ex.reps ? `${ex.reps} reps` : ''));
+      const loadStr = ex.load && ex.load.trim() ? ` (${ex.load.trim()})` : '';
+      const descStr = ex.description && ex.description.trim() ? ` - ${ex.description.trim()}` : '';
+      return `${ex.name.trim()}${setsReps ? ` ${setsReps}` : ''}${loadStr}${descStr}`;
+    }).join(' • ');
+
+    const currentDesc = workout.customDescription || '';
+    if (currentDesc.includes(' | Exercícios:')) {
+      const basePart = currentDesc.split(' | Exercícios:')[0].trim();
+      workout.customDescription = validExercises.length > 0 ? `${basePart} | Exercícios: ${exFormatted}` : basePart;
+      return;
+    }
+
+    const isGenericOrAuto =
+      !currentDesc ||
+      currentDesc.toLowerCase().includes('descanso') ||
+      currentDesc.toLowerCase().includes('treino de fortalecimento') ||
+      currentDesc.toLowerCase() === 'fortalecimento' ||
+      currentDesc.toLowerCase().startsWith('fortalecimento:') ||
+      currentDesc.trim() === '';
+
+    if (isGenericOrAuto) {
+      workout.customDescription = validExercises.length > 0
+        ? `Fortalecimento: ${exFormatted}`
+        : (workout.type === 'Fortalecimento' ? 'Treino de fortalecimento.' : '');
+    }
+  };
+
   const handleFinishExercises = (wIdx: number, dIdx: number) => {
     if (!fullPlan) return;
-    const workout = fullPlan.weeks[wIdx]?.workouts[dIdx];
-    if (workout && workout.exercises && workout.exercises.length > 0) {
-      const validExercises = workout.exercises.filter((ex: Exercise) => ex.name && ex.name.trim().length > 0);
-      if (validExercises.length > 0) {
-        const exFormatted = validExercises.map((ex: Exercise) => {
-          const setsReps = ex.sets && ex.reps ? `${ex.sets}x${ex.reps}` : (ex.sets ? `${ex.sets} séries` : (ex.reps ? `${ex.reps} reps` : ''));
-          const loadStr = ex.load ? ` (${ex.load})` : '';
-          return `${ex.name}${setsReps ? ` ${setsReps}` : ''}${loadStr}`;
-        }).join(' • ');
-        
-        const isGeneric = !workout.customDescription || 
-          workout.customDescription.toLowerCase().includes('descanso') || 
-          workout.customDescription.toLowerCase().includes('treino de fortalecimento') ||
-          workout.customDescription.toLowerCase() === 'fortalecimento' ||
-          workout.customDescription.trim() === '';
-
-        if (isGeneric) {
-          updateWorkout(wIdx, dIdx, 'customDescription', `Fortalecimento: ${exFormatted}`);
-        }
+    const newPlan = safeDeepClone(fullPlan);
+    const workout = newPlan.weeks[wIdx]?.workouts[dIdx];
+    if (workout) {
+      syncWorkoutDescriptionWithExercises(workout);
+      setFullPlan(newPlan);
+      if (activeAthlete) {
+        saveAthletePlan(activeAthlete.id, newPlan);
       }
     }
+    setConfirmingDeleteExercise(null);
     setEditingExercises(null);
   };
 
@@ -760,6 +780,12 @@ const Periodization: React.FC = () => {
   };
 
   const [editingExercises, setEditingExercises] = useState<{ wIdx: number, dIdx: number } | null>(null);
+  const [confirmingDeleteExercise, setConfirmingDeleteExercise] = useState<{
+    wIdx: number;
+    dIdx: number;
+    exId: string;
+    exName: string;
+  } | null>(null);
 
   const addWorkoutExercise = (wIdx: number, dIdx: number) => {
     if (!fullPlan) return;
@@ -771,6 +797,7 @@ const Periodization: React.FC = () => {
       sets: '',
       reps: '',
       load: '',
+      description: '',
       order: (workout.exercises?.length || 0) + 1
     };
     workout.exercises = [...(workout.exercises || []), newEx];
@@ -784,6 +811,7 @@ const Periodization: React.FC = () => {
     workout.exercises = (workout.exercises || []).map((ex: Exercise) => 
       ex.id === exId ? { ...ex, [field]: value } : ex
     );
+    syncWorkoutDescriptionWithExercises(workout);
     setFullPlan(newPlan);
   };
 
@@ -792,7 +820,12 @@ const Periodization: React.FC = () => {
     const newPlan = safeDeepClone(fullPlan);
     const workout = newPlan.weeks[wIdx].workouts[dIdx];
     workout.exercises = (workout.exercises || []).filter((ex: Exercise) => ex.id !== exId);
+    syncWorkoutDescriptionWithExercises(workout);
     setFullPlan(newPlan);
+    if (activeAthlete) {
+      saveAthletePlan(activeAthlete.id, newPlan);
+    }
+    setConfirmingDeleteExercise(null);
   };
 
   const athletePaces = activeAthlete ? (activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax)) : [];
@@ -1553,11 +1586,13 @@ const Periodization: React.FC = () => {
                                   </button>
                                   <button 
                                     onClick={() => setEditingExercises({ wIdx: weekIndex, dIdx: dayIndex })}
-                                    className="px-3 py-1.5 bg-purple-600 text-white rounded-xl shadow-lg shadow-purple-500/20 hover:bg-purple-700 transition-all flex items-center gap-2"
-                                    title="Editar Exercícios do Torneio"
+                                    className="px-3 py-1.5 bg-purple-600 text-white rounded-xl shadow-lg shadow-purple-500/20 hover:bg-purple-700 transition-all flex items-center gap-2 cursor-pointer"
+                                    title="Editar Exercícios Detalhados"
                                   >
                                     <ListOrdered className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-black uppercase italic tracking-tight">Exercícios</span>
+                                    <span className="text-[10px] font-black uppercase italic tracking-tight">
+                                      Exercícios Detalhados{workout.exercises && workout.exercises.length > 0 ? ` (${workout.exercises.length})` : ''}
+                                    </span>
                                   </button>
                                   <button 
                                     onClick={() => handleOpenRescheduleModal(weekIndex, dayIndex)}
@@ -1575,6 +1610,84 @@ const Periodization: React.FC = () => {
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
+
+                                {/* Lista de Exercícios Detalhados Visível na Edição com Botão X e Confirmação */}
+                                {workout.exercises && workout.exercises.length > 0 && (
+                                  <div className="mt-1.5 p-3 rounded-2xl bg-purple-500/10 border border-purple-500/25 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                                        <Dumbbell className="w-3 h-3 text-purple-400" />
+                                        Exercícios Detalhados ({workout.exercises.length})
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingExercises({ wIdx: weekIndex, dIdx: dayIndex })}
+                                        className="text-[9px] font-black uppercase italic text-purple-300 hover:text-white underline cursor-pointer"
+                                      >
+                                        Editar Lista
+                                      </button>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      {workout.exercises.map((ex: Exercise, exIdx: number) => {
+                                        const isConfirmingThis =
+                                          confirmingDeleteExercise?.wIdx === weekIndex &&
+                                          confirmingDeleteExercise?.dIdx === dayIndex &&
+                                          confirmingDeleteExercise?.exId === ex.id;
+                                        const setsReps = ex.sets && ex.reps ? `${ex.sets}x${ex.reps}` : (ex.sets ? `${ex.sets} séries` : (ex.reps ? `${ex.reps} reps` : ''));
+                                        return (
+                                          <div key={ex.id || exIdx} className="bg-slate-900/80 border border-white/10 rounded-xl p-2 flex flex-col gap-1.5">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="text-[11px] font-bold text-slate-100 leading-snug break-words flex-1">
+                                                <span className="text-purple-400 font-black mr-1.5">#{exIdx + 1}</span>
+                                                <span className="font-black">{ex.name || 'Exercício sem nome'}</span>
+                                                {setsReps && <span className="text-emerald-400 font-mono text-[10px] ml-1.5">({setsReps})</span>}
+                                                {ex.load && <span className="text-amber-300 text-[10px] ml-1.5">• Carga: {ex.load}</span>}
+                                                {ex.description && <p className="text-[10px] text-slate-400 italic mt-0.5">{ex.description}</p>}
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => setConfirmingDeleteExercise({
+                                                  wIdx: weekIndex,
+                                                  dIdx: dayIndex,
+                                                  exId: ex.id,
+                                                  exName: ex.name || `Exercício #${exIdx + 1}`
+                                                })}
+                                                className="shrink-0 w-6 h-6 rounded-lg bg-red-500/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 flex items-center justify-center transition-all cursor-pointer"
+                                                title="Excluir Exercício"
+                                                aria-label="Excluir Exercício"
+                                              >
+                                                <X className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                            {isConfirmingThis && (
+                                              <div className="flex items-center justify-between gap-2 bg-red-950/80 border border-red-500/40 rounded-lg px-2.5 py-1.5 animate-fade-in">
+                                                <span className="text-[10px] font-black text-red-200 uppercase italic">
+                                                  Excluir "{confirmingDeleteExercise.exName}"?
+                                                </span>
+                                                <div className="flex items-center gap-1.5">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => removeWorkoutExercise(weekIndex, dayIndex, ex.id)}
+                                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-md text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                                                  >
+                                                    Sim, Excluir
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setConfirmingDeleteExercise(null)}
+                                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[9px] font-bold uppercase cursor-pointer"
+                                                  >
+                                                    Cancelar
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                            ) : (
                               <div className="space-y-1">
@@ -1588,6 +1701,82 @@ const Periodization: React.FC = () => {
                                   {workout.type === 'Prova' && <span className="inline-block mr-1">🏁 PROVA ALVO:</span>}
                                   {workout.customDescription}
                                 </p>
+                                {workout.exercises && workout.exercises.length > 0 && (
+                                  <div className="mt-2 p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-purple-300 flex items-center gap-1">
+                                        <ListOrdered className="w-3 h-3 text-purple-400" />
+                                        <span>Exercícios Detalhados ({workout.exercises.length})</span>
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingExercises({ wIdx: weekIndex, dIdx: dayIndex })}
+                                        className="text-[9px] font-black uppercase italic text-purple-300 hover:text-white cursor-pointer"
+                                      >
+                                        Gerenciar
+                                      </button>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {workout.exercises.map((ex: Exercise, exIdx: number) => {
+                                        const isConfirmingThis =
+                                          confirmingDeleteExercise?.wIdx === weekIndex &&
+                                          confirmingDeleteExercise?.dIdx === dayIndex &&
+                                          confirmingDeleteExercise?.exId === ex.id;
+                                        const setsReps = ex.sets && ex.reps ? `${ex.sets}x${ex.reps}` : (ex.sets ? `${ex.sets} séries` : (ex.reps ? `${ex.reps} reps` : ''));
+                                        return (
+                                          <div key={ex.id || exIdx} className="bg-slate-900/60 border border-white/5 rounded-lg px-2.5 py-1.5 flex flex-col gap-1">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="text-[11px] text-slate-200 font-semibold leading-snug break-words flex-1">
+                                                <span className="text-purple-400 font-black mr-1">{exIdx + 1}.</span>
+                                                <span className="font-bold text-white">{ex.name || 'Exercício'}</span>
+                                                {setsReps && <span className="text-emerald-400 font-mono text-[10px] ml-1.5">({setsReps})</span>}
+                                                {ex.load && <span className="text-amber-300 text-[10px] ml-1.5">• {ex.load}</span>}
+                                                {ex.description && <span className="text-slate-400 italic text-[10px] ml-1.5">— {ex.description}</span>}
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => setConfirmingDeleteExercise({
+                                                  wIdx: weekIndex,
+                                                  dIdx: dayIndex,
+                                                  exId: ex.id,
+                                                  exName: ex.name || `Exercício #${exIdx + 1}`
+                                                })}
+                                                className="shrink-0 w-5 h-5 rounded-md bg-red-500/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 flex items-center justify-center transition-all cursor-pointer"
+                                                title="Excluir Exercício"
+                                                aria-label="Excluir Exercício"
+                                              >
+                                                <X className="w-3 h-3" />
+                                              </button>
+                                            </div>
+                                            {isConfirmingThis && (
+                                              <div className="flex items-center justify-between gap-2 bg-red-950/80 border border-red-500/40 rounded-lg px-2.5 py-1.5 animate-fade-in">
+                                                <span className="text-[10px] font-black text-red-200 uppercase italic">
+                                                  Confirmar exclusão de "{confirmingDeleteExercise.exName}"?
+                                                </span>
+                                                <div className="flex items-center gap-1.5">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => removeWorkoutExercise(weekIndex, dayIndex, ex.id)}
+                                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-md text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                                                  >
+                                                    Sim, Excluir
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setConfirmingDeleteExercise(null)}
+                                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[9px] font-bold uppercase cursor-pointer"
+                                                  >
+                                                    Cancelar
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                                 {workout.structuredWorkout && (
                                   <button
                                     type="button"
@@ -1702,61 +1891,117 @@ const Periodization: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-4">
-                  {(fullPlan?.weeks[editingExercises.wIdx].workouts[editingExercises.dIdx].exercises || []).map((ex, idx) => (
-                    <div key={ex.id} className="grid grid-cols-12 gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 group relative">
-                       <div className="col-span-12 md:col-span-1 flex items-center justify-center">
-                          <span className="text-xs font-black text-slate-600">#{idx + 1}</span>
-                       </div>
-                       <div className="col-span-12 md:col-span-4">
-                          <input 
-                            placeholder="Exercício"
-                            className="pro-input w-full text-xs"
-                            value={ex.name}
-                            onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'name', e.target.value)}
-                          />
-                       </div>
-                       <div className="col-span-4 md:col-span-2">
-                          <input 
-                            placeholder="Séries"
-                            className="pro-input w-full text-[10px] text-center"
-                            value={ex.sets}
-                            onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'sets', e.target.value)}
-                          />
-                       </div>
-                       <div className="col-span-4 md:col-span-2">
-                          <input 
-                            placeholder="Reps"
-                            className="pro-input w-full text-[10px] text-center"
-                            value={ex.reps}
-                            onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'reps', e.target.value)}
-                          />
-                       </div>
-                       <div className="col-span-4 md:col-span-2">
-                          <input 
-                            placeholder="Carga"
-                            className="pro-input w-full text-[10px] text-center"
-                            value={ex.load}
-                            onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'load', e.target.value)}
-                          />
-                       </div>
-                       <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => removeWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id)}
-                            className="bg-red-500 text-white p-1.5 rounded-lg shadow-lg hover:bg-red-600 transition-colors"
+                <div className="p-6 sm:p-8 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+                  {(fullPlan?.weeks[editingExercises.wIdx].workouts[editingExercises.dIdx].exercises || []).map((ex, idx) => {
+                    const isConfirmingDelete =
+                      confirmingDeleteExercise?.wIdx === editingExercises.wIdx &&
+                      confirmingDeleteExercise?.dIdx === editingExercises.dIdx &&
+                      confirmingDeleteExercise?.exId === ex.id;
+
+                    return (
+                      <div key={ex.id} className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-3 relative transition-all">
+                        <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+                          <span className="text-xs font-black text-purple-400 uppercase italic tracking-wider">
+                            Exercício #{idx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingDeleteExercise({
+                              wIdx: editingExercises.wIdx,
+                              dIdx: editingExercises.dIdx,
+                              exId: ex.id,
+                              exName: ex.name || `Exercício #${idx + 1}`
+                            })}
+                            className="bg-red-500/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 px-2.5 py-1 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                            title="Excluir Exercício"
+                            aria-label="Excluir Exercício"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span className="text-[10px] font-black uppercase">Excluir</span>
                           </button>
-                       </div>
-                    </div>
-                  ))}
+                        </div>
+
+                        {isConfirmingDelete && (
+                          <div className="p-3 rounded-xl bg-red-950/90 border border-red-500/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+                            <p className="text-xs font-black text-red-200 italic">
+                              Tem certeza que deseja excluir "{confirmingDeleteExercise.exName}"?
+                            </p>
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                              <button
+                                type="button"
+                                onClick={() => removeWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id)}
+                                className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-lg cursor-pointer transition-all"
+                              >
+                                Sim, Excluir
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingDeleteExercise(null)}
+                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-bold uppercase cursor-pointer transition-all"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-12 gap-3">
+                          <div className="col-span-12 md:col-span-6">
+                            <label className="text-[9px] font-black uppercase text-slate-400 block mb-1">Nome do Exercício</label>
+                            <input 
+                              placeholder="Ex: Agachamento Búlgaro, Prancha..."
+                              className="pro-input w-full text-xs"
+                              value={ex.name}
+                              onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'name', e.target.value)}
+                            />
+                          </div>
+                          <div className="col-span-4 md:col-span-2">
+                            <label className="text-[9px] font-black uppercase text-slate-400 block mb-1 text-center">Séries</label>
+                            <input 
+                              placeholder="Ex: 3"
+                              className="pro-input w-full text-xs text-center"
+                              value={ex.sets}
+                              onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'sets', e.target.value)}
+                            />
+                          </div>
+                          <div className="col-span-4 md:col-span-2">
+                            <label className="text-[9px] font-black uppercase text-slate-400 block mb-1 text-center">Repetições</label>
+                            <input 
+                              placeholder="Ex: 12"
+                              className="pro-input w-full text-xs text-center"
+                              value={ex.reps}
+                              onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'reps', e.target.value)}
+                            />
+                          </div>
+                          <div className="col-span-4 md:col-span-2">
+                            <label className="text-[9px] font-black uppercase text-slate-400 block mb-1 text-center">Carga / Peso</label>
+                            <input 
+                              placeholder="Ex: 20kg"
+                              className="pro-input w-full text-xs text-center"
+                              value={ex.load}
+                              onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'load', e.target.value)}
+                            />
+                          </div>
+                          <div className="col-span-12">
+                            <label className="text-[9px] font-black uppercase text-slate-400 block mb-1">Descrição Completa / Observações de Execução (Aparece no Download)</label>
+                            <input
+                              placeholder="Ex: Cadência controlada, pausa de 60s entre séries, manter coluna neutra..."
+                              className="pro-input w-full text-xs"
+                              value={ex.description || ''}
+                              onChange={(e) => updateWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx, ex.id, 'description', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
 
                   <button 
                     onClick={() => addWorkoutExercise(editingExercises.wIdx, editingExercises.dIdx)}
-                    className="w-full py-4 border-2 border-dashed border-white/5 rounded-2xl text-slate-500 hover:text-emerald-500 hover:border-emerald-500/20 transition-all flex items-center justify-center gap-2 group"
+                    className="w-full py-4 border-2 border-dashed border-white/10 rounded-2xl text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all flex items-center justify-center gap-2 group cursor-pointer"
                   >
                     <Plus className="w-4 h-4 group-hover:scale-110" />
-                    <span className="text-[10px] font-black uppercase italic tracking-widest">Adicionar Exercício Técnica</span>
+                    <span className="text-[10px] font-black uppercase italic tracking-widest">Adicionar Exercício Detalhado</span>
                   </button>
                 </div>
 

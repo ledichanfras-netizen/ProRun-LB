@@ -2052,25 +2052,45 @@ const AthletePortal: React.FC = () => {
                           });
 
                         return (
-                          <div className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 space-y-2">
-                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest italic">
+                          <div className={`p-4 rounded-2xl border space-y-2 ${
+                            isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'
+                          }`}>
+                            <p className={`text-[10px] font-black uppercase tracking-widest italic ${
+                              isLight ? 'text-emerald-700' : 'text-emerald-400'
+                            }`}>
                               📈 Evolução da Prontidão (Score %)
                             </p>
-                            <div className="h-40 w-full text-slate-300 font-mono text-[9px]">
+                            <div className="h-40 w-full font-mono text-[10px]">
                               <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
+                                <AreaChart data={chartData} margin={{ top: 10, right: 8, left: -20, bottom: 0 }}>
                                   <defs>
                                     <linearGradient id="colorScoreModal" x1="0" y1="0" x2="0" y2="1">
                                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
                                       <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
                                     </linearGradient>
                                   </defs>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                                  <XAxis dataKey="label" stroke="#94a3b860" tickLine={false} />
-                                  <YAxis stroke="#94a3b860" domain={[0, 100]} tickLine={false} />
+                                  <CartesianGrid strokeDasharray="3 3" stroke={isLight ? '#cbd5e1' : '#334155'} vertical={false} />
+                                  <XAxis 
+                                    dataKey="label" 
+                                    axisLine={false}
+                                    tickLine={false} 
+                                    tick={{ fill: isLight ? '#1e293b' : '#ffffff', fontSize: 10, fontWeight: 800 }} 
+                                  />
+                                  <YAxis 
+                                    domain={[0, 100]} 
+                                    axisLine={false}
+                                    tickLine={false} 
+                                    tick={{ fill: isLight ? '#334155' : '#e2e8f0', fontSize: 10, fontWeight: 700 }} 
+                                  />
                                   <Tooltip 
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
-                                    labelStyle={{ color: '#94a3b8', fontWeight: 'bold' }}
+                                    contentStyle={{ 
+                                      backgroundColor: isLight ? '#ffffff' : '#0f172a', 
+                                      borderColor: isLight ? '#cbd5e1' : '#334155', 
+                                      borderRadius: '12px',
+                                      color: isLight ? '#0f172a' : '#f8fafc'
+                                    }}
+                                    labelStyle={{ color: isLight ? '#0f172a' : '#ffffff', fontWeight: 'bold' }}
+                                    itemStyle={{ color: isLight ? '#059669' : '#34d399', fontWeight: 'bold' }}
                                   />
                                   <Area type="monotone" dataKey="Score" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorScoreModal)" />
                                 </AreaChart>
@@ -2732,8 +2752,12 @@ const AthletePortal: React.FC = () => {
       </div>
 
       {/* Seção de Evolução */}
-      <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
-        <h3 className="font-black text-slate-800 text-sm uppercase italic tracking-tighter mb-8 flex items-center gap-2">
+      <div className={`rounded-[2rem] p-6 sm:p-8 border shadow-sm transition-all ${
+        isLight ? 'bg-white border-slate-100' : 'bg-slate-900 border-slate-800'
+      }`}>
+        <h3 className={`font-black text-sm uppercase italic tracking-tighter mb-8 flex items-center gap-2 ${
+          isLight ? 'text-slate-800' : 'text-white'
+        }`}>
           <TrendingUp className="text-emerald-500 w-5 h-5" /> Sua Evolução Semanal
         </h3>
         
@@ -2761,19 +2785,29 @@ const AthletePortal: React.FC = () => {
                   load: Math.round((kmReal > 0 ? kmReal : kmPlanejado) * 10) 
                 };
               })}
-              margin={{ top: 30, right: 10, left: 0, bottom: 0 }}
+              margin={{ top: 30, right: 10, left: 0, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#1e293b'} />
               <XAxis 
                 dataKey="name" 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fill: '#475569', fontSize: 10, fontWeight: 900 }} 
+                tick={{ fill: isLight ? '#1e293b' : '#f8fafc', fontSize: 11, fontWeight: 900 }} 
               />
               <YAxis hide />
               <Tooltip 
-                cursor={{ fill: '#f1f5f9', radius: 8 }}
-                contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
+                cursor={{ fill: isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.06)', radius: 8 }}
+                contentStyle={{ 
+                  backgroundColor: isLight ? '#ffffff' : '#0f172a',
+                  borderRadius: '1rem', 
+                  border: isLight ? '1px solid #e2e8f0' : '1px solid #334155', 
+                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.25)', 
+                  fontSize: '11px', 
+                  fontWeight: 'bold',
+                  color: isLight ? '#0f172a' : '#f8fafc'
+                }}
+                labelStyle={{ color: isLight ? '#0f172a' : '#ffffff', fontWeight: 900, marginBottom: '4px' }}
+                itemStyle={{ color: isLight ? '#059669' : '#34d399', fontWeight: 800 }}
                 formatter={(value: any, name: any, item: any) => [
                   item.payload.kmReal > 0 
                     ? `${item.payload.kmReal} KM Real (${item.payload.kmPlanejado} KM Planejado)` 
@@ -2782,7 +2816,12 @@ const AthletePortal: React.FC = () => {
                 ]}
               />
               <Bar dataKey="km" fill="url(#barGradient)" radius={[8, 8, 0, 0]} barSize={28} >
-                 <LabelList dataKey="km" position="top" style={{ fill: '#10b981', fontSize: '11px', fontWeight: '900' }} offset={15} />
+                 <LabelList 
+                   dataKey="km" 
+                   position="top" 
+                   style={{ fill: isLight ? '#047857' : '#34d399', fontSize: '11px', fontWeight: '900' }} 
+                   offset={12} 
+                 />
                  <defs>
                     <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#10b981" />
@@ -2794,7 +2833,9 @@ const AthletePortal: React.FC = () => {
           </ResponsiveContainer>
         </div>
         
-        <p className="text-[9px] text-slate-400 font-bold uppercase italic tracking-widest text-center mt-6">
+        <p className={`text-[10px] font-extrabold uppercase italic tracking-widest text-center mt-6 ${
+          isLight ? 'text-slate-600' : 'text-slate-200'
+        }`}>
           Volume total acumulado (KM) por semana
         </p>
       </div>
@@ -2943,7 +2984,7 @@ const AthletePortal: React.FC = () => {
                     <h3 className={`font-black text-sm uppercase italic tracking-tight ${isLight ? 'text-slate-800' : 'text-white'}`}>
                       Controle de Prontidão & Recuperação
                     </h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                       Qualidade de sono, dor muscular, fadiga e biomarcadores diários
                     </p>
                   </div>
@@ -2952,7 +2993,7 @@ const AthletePortal: React.FC = () => {
 
               <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
                 <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold ${
-                  isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-slate-800/60 border-slate-700 text-slate-300'
+                  isLight ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-slate-800/80 border-slate-700 text-slate-200'
                 }`}>
                   <Calendar className="w-3.5 h-3.5 text-emerald-500" />
                   <span>Hoje, {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>
@@ -2974,17 +3015,17 @@ const AthletePortal: React.FC = () => {
 
             {/* HERO BANNER: SCORE GERAL DE PRONTIDÃO */}
             <div className={`relative overflow-hidden rounded-[1.8rem] p-5 sm:p-6 border bg-gradient-to-br ${statusInfo.gradient} ${
-              isLight ? 'border-slate-100 bg-slate-50/60' : 'border-white/5 bg-slate-950/40'
+              isLight ? 'border-slate-100 bg-slate-50/60' : 'border-white/10 bg-slate-950/50'
             }`}>
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
                 <div className="flex items-center gap-4">
                   <div className={`w-18 h-18 sm:w-20 sm:h-20 rounded-2xl flex flex-col items-center justify-center border shadow-inner ${
-                    isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-white/10'
+                    isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-white/15'
                   }`}>
                     <span className={`text-2xl sm:text-3xl font-black font-mono leading-none ${statusInfo.colorClass}`}>
                       {currentScore !== null ? `${currentScore}%` : '--'}
                     </span>
-                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                    <span className={`text-[8px] font-black uppercase tracking-widest mt-1 ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                       Score
                     </span>
                   </div>
@@ -2995,7 +3036,7 @@ const AthletePortal: React.FC = () => {
                         {statusInfo.sublabel}
                       </span>
                       <span className={`text-[10px] font-bold italic ${
-                        isTodayRegistered ? 'text-emerald-500' : 'text-amber-500'
+                        isTodayRegistered ? (isLight ? 'text-emerald-600' : 'text-emerald-400') : (isLight ? 'text-amber-600' : 'text-amber-400')
                       }`}>
                         {isTodayRegistered ? '• Check-in de hoje preenchido' : '• Check-in de hoje pendente'}
                       </span>
@@ -3003,14 +3044,16 @@ const AthletePortal: React.FC = () => {
                     <h4 className={`text-base sm:text-lg font-black uppercase italic tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
                       {statusInfo.label}
                     </h4>
-                    <p className={`text-xs max-w-xl font-medium leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                    <p className={`text-xs max-w-xl font-medium leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                       {statusInfo.advice}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex sm:flex-col items-end justify-between sm:justify-center border-t sm:border-t-0 sm:border-l pt-3 sm:pt-0 sm:pl-6 border-slate-200/60 dark:border-white/5 text-right">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                <div className={`flex sm:flex-col items-end justify-between sm:justify-center border-t sm:border-t-0 sm:border-l pt-3 sm:pt-0 sm:pl-6 text-right ${
+                  isLight ? 'border-slate-200/60' : 'border-white/10'
+                }`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-widest ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                     Orientação de Carga
                   </span>
                   <span className={`text-xs font-black uppercase italic mt-0.5 ${statusInfo.colorClass}`}>
@@ -3024,14 +3067,16 @@ const AthletePortal: React.FC = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {/* 1. QUALIDADE DO SONO */}
               <div className={`p-4 rounded-2xl border transition-all ${
-                isLight ? 'bg-slate-50 border-slate-100 hover:border-indigo-200' : 'bg-slate-950/40 border-white/5 hover:border-indigo-500/30'
+                isLight ? 'bg-slate-50 border-slate-100 hover:border-indigo-200' : 'bg-slate-950/60 border-slate-800 hover:border-indigo-500/40'
               }`}>
                 <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[10px] font-black uppercase italic text-indigo-400 tracking-wider flex items-center gap-1.5">
-                    <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className={`text-[10px] font-black uppercase italic tracking-wider flex items-center gap-1.5 ${
+                    isLight ? 'text-indigo-600' : 'text-indigo-300'
+                  }`}>
+                    <Moon className="w-3.5 h-3.5" />
                     Sono
                   </span>
-                  <span className="text-[10px] font-mono font-black text-indigo-400">
+                  <span className={`text-[10px] font-mono font-black ${isLight ? 'text-indigo-600' : 'text-indigo-300'}`}>
                     {currentSleep !== null ? `${currentSleep}/10` : '--'}
                   </span>
                 </div>
@@ -3041,19 +3086,19 @@ const AthletePortal: React.FC = () => {
                     <span className={`text-lg font-black font-mono leading-none ${isLight ? 'text-slate-800' : 'text-white'}`}>
                       {currentSleepHours ? `${currentSleepHours}h` : '--'}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                    <span className={`text-[9px] font-bold uppercase ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                       {currentSleepHours && currentSleepHours >= 7 ? 'Tempo Ideal' : 'Horas de Repouso'}
                     </span>
                   </div>
 
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
                     <div 
                       className="bg-indigo-500 h-full rounded-full transition-all"
                       style={{ width: `${currentSleep !== null ? Math.min(100, currentSleep * 10) : 0}%` }}
                     />
                   </div>
 
-                  <p className="text-[9px] text-slate-400 font-medium leading-tight line-clamp-1">
+                  <p className={`text-[9.5px] font-medium leading-tight line-clamp-1 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
                     {currentSleep !== null 
                       ? (currentSleep >= 8 ? 'Sono reparador profundo' : currentSleep >= 6 ? 'Descanso razoável' : 'Sono insuficiente / fragmentado')
                       : 'Não avaliado hoje'}
@@ -3063,14 +3108,16 @@ const AthletePortal: React.FC = () => {
 
               {/* 2. NÍVEL DE FADIGA / CANSAÇO */}
               <div className={`p-4 rounded-2xl border transition-all ${
-                isLight ? 'bg-slate-50 border-slate-100 hover:border-amber-200' : 'bg-slate-950/40 border-white/5 hover:border-amber-500/30'
+                isLight ? 'bg-slate-50 border-slate-100 hover:border-amber-200' : 'bg-slate-950/60 border-slate-800 hover:border-amber-500/40'
               }`}>
                 <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[10px] font-black uppercase italic text-amber-400 tracking-wider flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span className={`text-[10px] font-black uppercase italic tracking-wider flex items-center gap-1.5 ${
+                    isLight ? 'text-amber-600' : 'text-amber-300'
+                  }`}>
+                    <Zap className="w-3.5 h-3.5" />
                     Fadiga
                   </span>
-                  <span className="text-[10px] font-mono font-black text-amber-400">
+                  <span className={`text-[10px] font-mono font-black ${isLight ? 'text-amber-600' : 'text-amber-300'}`}>
                     {currentStress !== null ? `${currentStress}/10` : '--'}
                   </span>
                 </div>
@@ -3082,12 +3129,12 @@ const AthletePortal: React.FC = () => {
                         ? (currentStress <= 3 ? 'Baixa' : currentStress <= 6 ? 'Moderada' : 'Alta')
                         : '--'}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                    <span className={`text-[9px] font-bold uppercase ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                       Sensação Física
                     </span>
                   </div>
 
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
                     <div 
                       className={`h-full rounded-full transition-all ${
                         currentStress === null ? 'bg-slate-400' : currentStress <= 3 ? 'bg-emerald-500' : currentStress <= 6 ? 'bg-amber-500' : 'bg-rose-500'
@@ -3096,7 +3143,7 @@ const AthletePortal: React.FC = () => {
                     />
                   </div>
 
-                  <p className="text-[9px] text-slate-400 font-medium leading-tight line-clamp-1">
+                  <p className={`text-[9.5px] font-medium leading-tight line-clamp-1 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
                     {currentStress !== null 
                       ? (currentStress <= 3 ? 'Corpo leve e descansado' : currentStress <= 6 ? 'Cansaço físico tolerável' : 'Sobrecarga muscular acumulada')
                       : 'Não avaliado hoje'}
@@ -3106,14 +3153,16 @@ const AthletePortal: React.FC = () => {
 
               {/* 3. NÍVEL DE DOR MUSCULAR */}
               <div className={`p-4 rounded-2xl border transition-all ${
-                isLight ? 'bg-slate-50 border-slate-100 hover:border-rose-200' : 'bg-slate-950/40 border-white/5 hover:border-rose-500/30'
+                isLight ? 'bg-slate-50 border-slate-100 hover:border-rose-200' : 'bg-slate-950/60 border-slate-800 hover:border-rose-500/40'
               }`}>
                 <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[10px] font-black uppercase italic text-rose-400 tracking-wider flex items-center gap-1.5">
-                    <Flame className="w-3.5 h-3.5 text-rose-400" />
+                  <span className={`text-[10px] font-black uppercase italic tracking-wider flex items-center gap-1.5 ${
+                    isLight ? 'text-rose-600' : 'text-rose-300'
+                  }`}>
+                    <Flame className="w-3.5 h-3.5" />
                     Dor Muscular
                   </span>
-                  <span className="text-[10px] font-mono font-black text-rose-400">
+                  <span className={`text-[10px] font-mono font-black ${isLight ? 'text-rose-600' : 'text-rose-300'}`}>
                     {currentSoreness !== null ? `${currentSoreness}/10` : '--'}
                   </span>
                 </div>
@@ -3125,12 +3174,12 @@ const AthletePortal: React.FC = () => {
                         ? (currentSoreness <= 2 ? 'Nenhuma' : currentSoreness <= 5 ? 'Leve' : 'Intensa')
                         : '--'}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                    <span className={`text-[9px] font-bold uppercase ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                       Desconforto
                     </span>
                   </div>
 
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
                     <div 
                       className={`h-full rounded-full transition-all ${
                         currentSoreness === null ? 'bg-slate-400' : currentSoreness <= 2 ? 'bg-emerald-500' : currentSoreness <= 5 ? 'bg-amber-500' : 'bg-rose-500'
@@ -3139,7 +3188,7 @@ const AthletePortal: React.FC = () => {
                     />
                   </div>
 
-                  <p className="text-[9px] text-slate-400 font-medium leading-tight line-clamp-1">
+                  <p className={`text-[9.5px] font-medium leading-tight line-clamp-1 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
                     {currentSoreness !== null 
                       ? (currentSoreness <= 2 ? 'Músculos livres de dor' : currentSoreness <= 5 ? 'Dor pós-treino tolerável' : 'Dor aguda / requer atenção')
                       : 'Não avaliado hoje'}
@@ -3149,14 +3198,16 @@ const AthletePortal: React.FC = () => {
 
               {/* 4. DISPOSIÇÃO & ESTRESSE */}
               <div className={`p-4 rounded-2xl border transition-all ${
-                isLight ? 'bg-slate-50 border-slate-100 hover:border-teal-200' : 'bg-slate-950/40 border-white/5 hover:border-teal-500/30'
+                isLight ? 'bg-slate-50 border-slate-100 hover:border-teal-200' : 'bg-slate-950/60 border-slate-800 hover:border-teal-500/40'
               }`}>
                 <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[10px] font-black uppercase italic text-teal-400 tracking-wider flex items-center gap-1.5">
-                    <Brain className="w-3.5 h-3.5 text-teal-400" />
+                  <span className={`text-[10px] font-black uppercase italic tracking-wider flex items-center gap-1.5 ${
+                    isLight ? 'text-teal-600' : 'text-teal-300'
+                  }`}>
+                    <Brain className="w-3.5 h-3.5" />
                     Disposição
                   </span>
-                  <span className="text-[10px] font-mono font-black text-teal-400">
+                  <span className={`text-[10px] font-mono font-black ${isLight ? 'text-teal-600' : 'text-teal-300'}`}>
                     {currentMood !== null ? `${currentMood}/10` : '--'}
                   </span>
                 </div>
@@ -3168,19 +3219,19 @@ const AthletePortal: React.FC = () => {
                         ? (currentMood >= 7 ? 'Alta' : currentMood >= 4 ? 'Normal' : 'Baixa')
                         : '--'}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                    <span className={`text-[9px] font-bold uppercase ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                       Foco Mental
                     </span>
                   </div>
 
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
                     <div 
                       className="bg-teal-500 h-full rounded-full transition-all"
                       style={{ width: `${currentMood !== null ? Math.min(100, currentMood * 10) : 0}%` }}
                     />
                   </div>
 
-                  <p className="text-[9px] text-slate-400 font-medium leading-tight line-clamp-1">
+                  <p className={`text-[9.5px] font-medium leading-tight line-clamp-1 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
                     {currentMood !== null 
                       ? (currentMood >= 7 ? 'Motivado para treinar forte' : currentMood >= 4 ? 'Foco estável' : 'Desmotivado / mentalmente cansado')
                       : 'Não avaliado hoje'}
@@ -3191,7 +3242,7 @@ const AthletePortal: React.FC = () => {
 
             {/* GRÁFICO SEMANAL ANALÍTICO DOS ÚLTIMOS 7 DIAS (OPÇÃO 2) */}
             <div className={`p-5 sm:p-6 rounded-[1.8rem] border space-y-4 ${
-              isLight ? 'bg-slate-50/70 border-slate-100' : 'bg-slate-950/40 border-white/5'
+              isLight ? 'bg-slate-50/80 border-slate-200/80' : 'bg-slate-950/70 border-slate-800'
             }`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
@@ -3201,19 +3252,23 @@ const AthletePortal: React.FC = () => {
                     <TrendingUp className="w-4 h-4 text-emerald-500" />
                     Tendência dos Últimos 7 Dias (Prontidão vs Treinos)
                   </h4>
-                  <p className="text-[10px] text-slate-400 font-medium">
+                  <p className={`text-[10px] font-semibold mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                     Correlação entre volume de corrida (KM), índice de prontidão, sono e fadiga
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 text-[10px] font-black uppercase italic self-start sm:self-auto">
+                <div className={`flex items-center gap-1.5 p-1 rounded-xl border text-[10px] font-black uppercase italic self-start sm:self-auto ${
+                  isLight ? 'bg-slate-200/80 border-slate-300' : 'bg-slate-800 border-slate-700'
+                }`}>
                   <button
                     type="button"
                     onClick={() => setReadinessChartTab('readiness')}
-                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                       readinessChartTab === 'readiness'
-                        ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                        ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                        : isLight
+                          ? 'text-slate-700 hover:text-slate-950 font-extrabold'
+                          : 'text-slate-200 hover:text-white font-extrabold'
                     }`}
                   >
                     Prontidão (%)
@@ -3221,10 +3276,12 @@ const AthletePortal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setReadinessChartTab('multi')}
-                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                       readinessChartTab === 'multi'
-                        ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                        ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                        : isLight
+                          ? 'text-slate-700 hover:text-slate-950 font-extrabold'
+                          : 'text-slate-200 hover:text-white font-extrabold'
                     }`}
                   >
                     Multimétricas
@@ -3232,13 +3289,30 @@ const AthletePortal: React.FC = () => {
                 </div>
               </div>
 
+              {readinessChartTab === 'multi' && (
+                <div className="flex flex-wrap items-center gap-4 pt-1 text-[10px] font-black uppercase tracking-wider">
+                  <span className={`flex items-center gap-1.5 ${isLight ? 'text-emerald-700' : 'text-emerald-300'}`}>
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Prontidão
+                  </span>
+                  <span className={`flex items-center gap-1.5 ${isLight ? 'text-indigo-700' : 'text-indigo-300'}`}>
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block" /> Sono
+                  </span>
+                  <span className={`flex items-center gap-1.5 ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Fadiga
+                  </span>
+                  <span className={`flex items-center gap-1.5 ${isLight ? 'text-rose-700' : 'text-rose-300'}`}>
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Dor Muscular
+                  </span>
+                </div>
+              )}
+
               {/* ÁREA DO GRÁFICO RECHARTS */}
-              <div className="h-[220px] w-full" style={{ width: '100%', minWidth: 0 }}>
+              <div className="h-[230px] w-full" style={{ width: '100%', minWidth: 0 }}>
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   {readinessChartTab === 'readiness' ? (
                     <AreaChart
                       data={weekDays}
-                      margin={{ top: 20, right: 10, left: -25, bottom: 0 }}
+                      margin={{ top: 24, right: 14, left: -18, bottom: 5 }}
                     >
                       <defs>
                         <linearGradient id="readinessGradient" x1="0" y1="0" x2="0" y2="1">
@@ -3246,19 +3320,19 @@ const AthletePortal: React.FC = () => {
                           <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#1e293b'} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#cbd5e1' : '#334155'} />
                       <XAxis 
                         dataKey="name" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: isLight ? '#64748b' : '#94a3b8', fontSize: 10, fontWeight: 900 }} 
+                        tick={{ fill: isLight ? '#1e293b' : '#ffffff', fontSize: 11, fontWeight: 900 }} 
                       />
                       <YAxis 
                         domain={[0, 100]} 
                         ticks={[0, 25, 50, 75, 100]}
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: isLight ? '#94a3b8' : '#64748b', fontSize: 9 }}
+                        tick={{ fill: isLight ? '#334155' : '#e2e8f0', fontSize: 10, fontWeight: 800 }}
                         unit="%"
                       />
                       <Tooltip 
@@ -3267,49 +3341,51 @@ const AthletePortal: React.FC = () => {
                           if (!active || !payload || !payload.length) return null;
                           const d = payload[0].payload;
                           return (
-                            <div className={`p-3.5 rounded-2xl shadow-xl border text-xs space-y-2 min-w-[170px] ${
-                              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-800 text-white'
+                            <div className={`p-3.5 rounded-2xl shadow-xl border text-xs space-y-2 min-w-[180px] ${
+                              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
                             }`}>
-                              <div className="flex items-center justify-between border-b pb-1.5 border-slate-100 dark:border-white/10">
+                              <div className={`flex items-center justify-between border-b pb-1.5 ${
+                                isLight ? 'border-slate-200' : 'border-white/15'
+                              }`}>
                                 <span className="font-black uppercase tracking-wider text-[11px]">{d.fullLabel}</span>
                                 {d.km > 0 && (
-                                  <span className="text-emerald-500 font-black text-[11px]">{d.km} KM</span>
+                                  <span className={`font-black text-[11px] ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>{d.km} KM</span>
                                 )}
                               </div>
-                              <div className="space-y-1 pt-0.5 text-[10px]">
+                              <div className="space-y-1.5 pt-0.5 text-[10.5px]">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                                  <span className={`font-bold flex items-center gap-1.5 ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                                     Prontidão:
                                   </span>
-                                  <span className="font-black font-mono text-emerald-500">
+                                  <span className={`font-black font-mono ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
                                     {d.readiness !== null ? `${d.readiness}%` : 'Sem registro'}
                                   </span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                                  <span className={`font-bold flex items-center gap-1.5 ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                                     <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
                                     Sono:
                                   </span>
-                                  <span className="font-black font-mono">
+                                  <span className={`font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
                                     {d.sleepScore !== null ? `${d.sleepScore}/10 (${d.sleepHours || 0}h)` : '--'}
                                   </span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                                  <span className={`font-bold flex items-center gap-1.5 ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                                     <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                                     Fadiga:
                                   </span>
-                                  <span className="font-black font-mono">
+                                  <span className={`font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
                                     {d.fatigueScore !== null ? `${d.fatigueScore}/10` : '--'}
                                   </span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                                  <span className={`font-bold flex items-center gap-1.5 ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                                     <span className="w-2 h-2 rounded-full bg-rose-400"></span>
                                     Dor Muscular:
                                   </span>
-                                  <span className="font-black font-mono">
+                                  <span className={`font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
                                     {d.sorenessScore !== null ? `${d.sorenessScore}/10` : '--'}
                                   </span>
                                 </div>
@@ -3327,26 +3403,34 @@ const AthletePortal: React.FC = () => {
                         dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: isLight ? '#fff' : '#0f172a' }}
                         activeDot={{ r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
                         connectNulls={true}
-                      />
+                      >
+                        <LabelList 
+                          dataKey="readiness" 
+                          position="top" 
+                          formatter={(val: any) => val !== null && val !== undefined ? `${val}%` : ''} 
+                          style={{ fill: isLight ? '#047857' : '#34d399', fontSize: '10px', fontWeight: '900' }} 
+                          offset={8} 
+                        />
+                      </Area>
                     </AreaChart>
                   ) : (
                     <LineChart
                       data={weekDays}
-                      margin={{ top: 20, right: 10, left: -25, bottom: 0 }}
+                      margin={{ top: 20, right: 14, left: -18, bottom: 5 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#1e293b'} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#cbd5e1' : '#334155'} />
                       <XAxis 
                         dataKey="name" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: isLight ? '#64748b' : '#94a3b8', fontSize: 10, fontWeight: 900 }} 
+                        tick={{ fill: isLight ? '#1e293b' : '#ffffff', fontSize: 11, fontWeight: 900 }} 
                       />
                       <YAxis 
                         domain={[0, 100]} 
                         ticks={[0, 25, 50, 75, 100]}
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: isLight ? '#94a3b8' : '#64748b', fontSize: 9 }}
+                        tick={{ fill: isLight ? '#334155' : '#e2e8f0', fontSize: 10, fontWeight: 800 }}
                         unit="%"
                       />
                       <Tooltip 
@@ -3354,29 +3438,31 @@ const AthletePortal: React.FC = () => {
                           if (!active || !payload || !payload.length) return null;
                           const d = payload[0].payload;
                           return (
-                            <div className={`p-3.5 rounded-2xl shadow-xl border text-xs space-y-2 min-w-[170px] ${
-                              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-800 text-white'
+                            <div className={`p-3.5 rounded-2xl shadow-xl border text-xs space-y-2 min-w-[180px] ${
+                              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
                             }`}>
-                              <div className="flex items-center justify-between border-b pb-1.5 border-slate-100 dark:border-white/10">
+                              <div className={`flex items-center justify-between border-b pb-1.5 ${
+                                isLight ? 'border-slate-200' : 'border-white/15'
+                              }`}>
                                 <span className="font-black uppercase tracking-wider text-[11px]">{d.fullLabel}</span>
-                                {d.km > 0 && <span className="text-emerald-500 font-black text-[11px]">{d.km} KM</span>}
+                                {d.km > 0 && <span className={`font-black text-[11px] ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>{d.km} KM</span>}
                               </div>
-                              <div className="space-y-1 pt-0.5 text-[10px]">
+                              <div className="space-y-1.5 pt-0.5 text-[10.5px]">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-emerald-500 font-bold">Prontidão:</span>
-                                  <span className="font-black font-mono">{d.readiness !== null ? `${d.readiness}%` : '--'}</span>
+                                  <span className={`font-bold ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Prontidão:</span>
+                                  <span className={`font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>{d.readiness !== null ? `${d.readiness}%` : '--'}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-indigo-400 font-bold">Sono:</span>
-                                  <span className="font-black font-mono">{d.sleepScore !== null ? `${d.sleepScore}/10` : '--'}</span>
+                                  <span className={`font-bold ${isLight ? 'text-indigo-700' : 'text-indigo-300'}`}>Sono:</span>
+                                  <span className={`font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>{d.sleepScore !== null ? `${d.sleepScore}/10` : '--'}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-amber-400 font-bold">Fadiga:</span>
-                                  <span className="font-black font-mono">{d.fatigueScore !== null ? `${d.fatigueScore}/10` : '--'}</span>
+                                  <span className={`font-bold ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>Fadiga:</span>
+                                  <span className={`font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>{d.fatigueScore !== null ? `${d.fatigueScore}/10` : '--'}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-rose-400 font-bold">Dor Muscular:</span>
-                                  <span className="font-black font-mono">{d.sorenessScore !== null ? `${d.sorenessScore}/10` : '--'}</span>
+                                  <span className={`font-bold ${isLight ? 'text-rose-700' : 'text-rose-300'}`}>Dor Muscular:</span>
+                                  <span className={`font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>{d.sorenessScore !== null ? `${d.sorenessScore}/10` : '--'}</span>
                                 </div>
                               </div>
                             </div>
@@ -3389,7 +3475,7 @@ const AthletePortal: React.FC = () => {
                         dataKey="readiness" 
                         stroke="#10b981" 
                         strokeWidth={2.5} 
-                        dot={{ r: 3, fill: '#10b981' }} 
+                        dot={{ r: 3.5, fill: '#10b981' }} 
                         connectNulls={true} 
                       />
                       <Line 
@@ -3399,7 +3485,7 @@ const AthletePortal: React.FC = () => {
                         stroke="#818cf8" 
                         strokeWidth={2} 
                         strokeDasharray="4 4" 
-                        dot={{ r: 3, fill: '#818cf8' }} 
+                        dot={{ r: 3.5, fill: '#818cf8' }} 
                         connectNulls={true} 
                       />
                       <Line 
@@ -3408,7 +3494,7 @@ const AthletePortal: React.FC = () => {
                         dataKey="fatiguePct" 
                         stroke="#f59e0b" 
                         strokeWidth={2} 
-                        dot={{ r: 3, fill: '#f59e0b' }} 
+                        dot={{ r: 3.5, fill: '#f59e0b' }} 
                         connectNulls={true} 
                       />
                       <Line 
@@ -3417,7 +3503,7 @@ const AthletePortal: React.FC = () => {
                         dataKey="sorenessPct" 
                         stroke="#f43f5e" 
                         strokeWidth={2} 
-                        dot={{ r: 3, fill: '#f43f5e' }} 
+                        dot={{ r: 3.5, fill: '#f43f5e' }} 
                         connectNulls={true} 
                       />
                     </LineChart>
@@ -3426,28 +3512,54 @@ const AthletePortal: React.FC = () => {
               </div>
 
               {/* RODAPÉ COM INDICADORES SEMANAIS */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200/70 dark:border-white/5">
-                <div className="text-center p-2 rounded-xl bg-white/50 dark:bg-slate-900/50">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Média Prontidão</span>
-                  <span className="text-xs font-black font-mono text-emerald-500">
+              <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t ${
+                isLight ? 'border-slate-200/80' : 'border-slate-800'
+              }`}>
+                <div className={`text-center p-2.5 rounded-xl border ${
+                  isLight ? 'bg-white border-slate-200/80 shadow-2xs' : 'bg-slate-900 border-slate-800'
+                }`}>
+                  <span className={`text-[9.5px] font-extrabold uppercase tracking-wider block mb-0.5 ${
+                    isLight ? 'text-slate-600' : 'text-slate-200'
+                  }`}>Média Prontidão</span>
+                  <span className={`text-xs sm:text-sm font-black font-mono ${
+                    isLight ? 'text-emerald-700' : 'text-emerald-400'
+                  }`}>
                     {avgReadiness !== null ? `${avgReadiness}%` : '--'}
                   </span>
                 </div>
-                <div className="text-center p-2 rounded-xl bg-white/50 dark:bg-slate-900/50">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Média de Sono</span>
-                  <span className="text-xs font-black font-mono text-indigo-400">
+                <div className={`text-center p-2.5 rounded-xl border ${
+                  isLight ? 'bg-white border-slate-200/80 shadow-2xs' : 'bg-slate-900 border-slate-800'
+                }`}>
+                  <span className={`text-[9.5px] font-extrabold uppercase tracking-wider block mb-0.5 ${
+                    isLight ? 'text-slate-600' : 'text-slate-200'
+                  }`}>Média de Sono</span>
+                  <span className={`text-xs sm:text-sm font-black font-mono ${
+                    isLight ? 'text-indigo-700' : 'text-indigo-300'
+                  }`}>
                     {avgSleepHours ? `${avgSleepHours}h / noite` : '--'}
                   </span>
                 </div>
-                <div className="text-center p-2 rounded-xl bg-white/50 dark:bg-slate-900/50">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Volume Semana</span>
-                  <span className="text-xs font-black font-mono text-slate-700 dark:text-slate-200">
+                <div className={`text-center p-2.5 rounded-xl border ${
+                  isLight ? 'bg-white border-slate-200/80 shadow-2xs' : 'bg-slate-900 border-slate-800'
+                }`}>
+                  <span className={`text-[9.5px] font-extrabold uppercase tracking-wider block mb-0.5 ${
+                    isLight ? 'text-slate-600' : 'text-slate-200'
+                  }`}>Volume Semana</span>
+                  <span className={`text-xs sm:text-sm font-black font-mono ${
+                    isLight ? 'text-slate-900' : 'text-white'
+                  }`}>
                     {totalKm7Days} KM
                   </span>
                 </div>
-                <div className="text-center p-2 rounded-xl bg-white/50 dark:bg-slate-900/50">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Monitorados</span>
-                  <span className="text-xs font-black font-mono text-teal-400">
+                <div className={`text-center p-2.5 rounded-xl border ${
+                  isLight ? 'bg-white border-slate-200/80 shadow-2xs' : 'bg-slate-900 border-slate-800'
+                }`}>
+                  <span className={`text-[9.5px] font-extrabold uppercase tracking-wider block mb-0.5 ${
+                    isLight ? 'text-slate-600' : 'text-slate-200'
+                  }`}>Monitorados</span>
+                  <span className={`text-xs sm:text-sm font-black font-mono ${
+                    isLight ? 'text-teal-700' : 'text-teal-300'
+                  }`}>
                     {registeredDays.length} / 7 dias
                   </span>
                 </div>

@@ -273,7 +273,8 @@ const AthletePortal: React.FC = () => {
         route: completedWorkoutPrompt.route,
         workoutType: completedWorkoutPrompt.workout.type,
         initialPhotoUrl: photoUrl,
-        rpe: completedWorkoutPrompt.rpe
+        rpe: completedWorkoutPrompt.rpe,
+        exercisesCount: completedWorkoutPrompt.workout.exercises?.length || 0
       });
       setCompletedWorkoutPrompt(null);
     };
@@ -754,6 +755,9 @@ const AthletePortal: React.FC = () => {
     { id: 'recovering', label: 'Recuperação', color: 'text-blue-500', icon: '🧘' }
   ];
 
+  const isStrengthWorkoutType = (type?: string) =>
+    Boolean(type && (type.toLowerCase().includes('fortalecimento') || type.toLowerCase().includes('força') || type.toLowerCase().includes('mobilidade')));
+
   const handleSaveAndShareWorkout = async (customDist?: number, customDur?: string, customRoute?: any, customHr?: number) => {
     if (!selectedWorkout || !activeAthlete || isSaving) return;
 
@@ -761,21 +765,27 @@ const AthletePortal: React.FC = () => {
     setSaveSuccess(false);
 
     try {
-      const dist = customDist !== undefined 
-        ? customDist 
-        : (actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0));
+      const effectiveType = editWorkoutType || selectedWorkout.data.type || 'Corrida';
+      const isStrength = isStrengthWorkoutType(effectiveType);
+
+      const dist = isStrength
+        ? 0
+        : (customDist !== undefined 
+            ? customDist 
+            : (actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0)));
       
       const dur = customDur !== undefined 
         ? customDur 
-        : (actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || (selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : '30:00')));
+        : (actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || (selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : (isStrength ? '45:00' : '30:00'))));
       
       const heartRate = customHr !== undefined 
         ? customHr 
         : (actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (customRoute?.avgHeartRate || currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || undefined));
       
-      const durSeconds = parseDurationStringToSeconds(dur);
-      const avgPaceCalculated = calculatePace(String(dist), dur);
-      const routeToSave = customRoute || currentGpsRoute || selectedWorkout.data.gpsRoute;
+      const durSeconds = parseDurationStringToSeconds(dur) || (isStrength ? 2700 : 1800);
+      const avgPaceCalculated = isStrength ? '--' : calculatePace(String(dist), dur);
+      const routeToSave = isStrength ? undefined : (customRoute || currentGpsRoute || selectedWorkout.data.gpsRoute);
+      const effectiveRpe = rpeValue || selectedWorkout.data.rpe || (isStrength ? 6 : 5);
 
       // Calculate scientific readiness score
       const sleepPct = ((sleepValue - 1) / 4) * 100;
@@ -790,9 +800,9 @@ const AthletePortal: React.FC = () => {
         selectedWorkout.dayIndex,
         true, // always marked completed
         feedbackText,
-        rpeValue || selectedWorkout.data.rpe || 5,
+        effectiveRpe,
         localExercises,
-        dist,
+        isStrength ? undefined : dist,
         undefined,
         undefined,
         undefined,
@@ -813,10 +823,10 @@ const AthletePortal: React.FC = () => {
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
-      if ((rpeValue || 0) >= 8) {
+      if (effectiveRpe >= 8) {
         addNotification({
           title: 'Alerta de Esforço Alto!',
-          message: `${activeAthlete.name} registrou PSE ${rpeValue} no treino "${editWorkoutType || selectedWorkout.data.type || 'Corrida'}". Verifique a fadiga!`,
+          message: `${activeAthlete.name} registrou PSE ${effectiveRpe} no treino "${effectiveType}". Verifique a fadiga!`,
           type: 'critical',
           link: '/dashboard',
           category: 'workout'
@@ -827,7 +837,7 @@ const AthletePortal: React.FC = () => {
 
       // Open WorkoutShareModal immediately
       setShareWorkoutData({
-        title: editCustomDescription?.slice(0, 45) || selectedWorkout.data.customDescription?.slice(0, 45) || `${editWorkoutType || selectedWorkout.data.type || 'Treino'}`,
+        title: editCustomDescription?.slice(0, 45) || selectedWorkout.data.customDescription?.slice(0, 45) || `${effectiveType}`,
         athleteName: activeAthlete.name,
         date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
         distanceKm: dist,
@@ -836,10 +846,11 @@ const AthletePortal: React.FC = () => {
         elevationGainMeters: routeToSave?.elevationGainMeters,
         avgHeartRate: heartRate,
         route: routeToSave,
-        workoutType: editWorkoutType || selectedWorkout.data.type,
+        workoutType: effectiveType,
         initialBackgroundType: 'transparent',
         initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
-        rpe: rpeValue || selectedWorkout.data.rpe || 5
+        rpe: effectiveRpe,
+        exercisesCount: localExercises?.length || selectedWorkout.data.exercises?.length || 0
       });
 
       setSelectedWorkout(null);
@@ -867,8 +878,13 @@ const AthletePortal: React.FC = () => {
     try {
       const wasCompletedBefore = Boolean(selectedWorkout.data.completed);
       const newStatus = shouldCloseAfterSave ? true : !selectedWorkout.data.completed;
-      const parsedDistance = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (selectedWorkout.data.actualDistance || selectedWorkout.data.distance || undefined);
+      const effectiveType = editWorkoutType || selectedWorkout.data.type || 'Corrida';
+      const isStrength = isStrengthWorkoutType(effectiveType);
+      const parsedDistance = isStrength
+        ? undefined
+        : (actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (selectedWorkout.data.actualDistance || selectedWorkout.data.distance || undefined));
       const parsedHeartRate = actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || undefined);
+      const effectiveRpe = rpeValue || selectedWorkout.data.rpe || (isStrength ? 6 : 0);
       
       // Calculate scientific readiness score
       const sleepPct = ((sleepValue - 1) / 4) * 100;
@@ -879,7 +895,7 @@ const AthletePortal: React.FC = () => {
 
       const durStr = actualDurationValue !== '' 
         ? actualDurationValue 
-        : (selectedWorkout.data.actualDuration || (selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : undefined));
+        : (selectedWorkout.data.actualDuration || (selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : (isStrength ? '45:00' : undefined)));
 
       await updateWorkoutStatus(
         activeAthlete.id, 
@@ -887,7 +903,7 @@ const AthletePortal: React.FC = () => {
         selectedWorkout.dayIndex, 
         newStatus, 
         feedbackText,
-        rpeValue,
+        effectiveRpe,
         localExercises,
         parsedDistance,
         undefined,
@@ -896,12 +912,12 @@ const AthletePortal: React.FC = () => {
         undefined,
         undefined,
         undefined, // don't fabricate or overwrite readiness
-        currentGpsRoute ? {
+        isStrength ? undefined : (currentGpsRoute ? {
           ...currentGpsRoute,
           totalDistanceKm: parsedDistance !== undefined ? parsedDistance : currentGpsRoute.totalDistanceKm,
           totalDurationSeconds: actualDurationValue !== '' ? parseDurationStringToSeconds(actualDurationValue) : (currentGpsRoute.totalDurationSeconds || currentGpsRoute.durationSeconds || 0),
           avgHeartRate: parsedHeartRate || currentGpsRoute.avgHeartRate
-        } : selectedWorkout.data.gpsRoute,
+        } : selectedWorkout.data.gpsRoute),
         localSteps,
         durStr,
         parsedHeartRate,
@@ -910,10 +926,10 @@ const AthletePortal: React.FC = () => {
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
-      if (newStatus && rpeValue >= 8) {
+      if (newStatus && effectiveRpe >= 8) {
         addNotification({
           title: 'Alerta de Esforço Alto!',
-          message: `${activeAthlete.name} registrou PSE ${rpeValue} no treino "${editWorkoutType || selectedWorkout.data.type || 'Corrida'}". Verifique a fadiga!`,
+          message: `${activeAthlete.name} registrou PSE ${effectiveRpe} no treino "${effectiveType}". Verifique a fadiga!`,
           type: 'critical',
           link: '/dashboard',
           category: 'workout'
@@ -931,7 +947,7 @@ const AthletePortal: React.FC = () => {
           type: editWorkoutType || prev.data.type,
           customDescription: editCustomDescription !== undefined ? editCustomDescription : prev.data.customDescription,
           feedback: feedbackText,
-          rpe: rpeValue,
+          rpe: effectiveRpe,
           actualDistance: parsedDistance,
           actualDuration: durStr,
           avgHeartRate: parsedHeartRate
@@ -941,9 +957,9 @@ const AthletePortal: React.FC = () => {
       // Snapshot for post-workout sharing prompt if completed
       const durSeconds = durStr 
         ? parseDurationStringToSeconds(durStr) 
-        : (currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)));
-      const distKm = parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0;
-      const avgPaceCalculated = calculatePace(
+        : (currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : (isStrength ? 2700 : 1800))));
+      const distKm = isStrength ? 0 : (parsedDistance || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0);
+      const avgPaceCalculated = isStrength ? '--' : calculatePace(
         String(distKm),
         durStr || formatSecondsToTimeString(durSeconds)
       );
@@ -958,9 +974,9 @@ const AthletePortal: React.FC = () => {
         durationSeconds: durSeconds,
         avgPace: avgPaceCalculated,
         avgHeartRate: parsedHeartRate,
-        route: currentGpsRoute || selectedWorkout.data.gpsRoute,
+        route: isStrength ? undefined : (currentGpsRoute || selectedWorkout.data.gpsRoute),
         workoutType: editWorkoutType || selectedWorkout.data.type,
-        rpe: rpeValue || selectedWorkout.data.rpe
+        rpe: effectiveRpe
       } : null;
 
       setTimeout(() => {
@@ -991,7 +1007,8 @@ const AthletePortal: React.FC = () => {
               workoutType: completedWorkoutSnapshot.workout.type,
               initialBackgroundType: 'transparent',
               initialPhotoUrl: (completedWorkoutSnapshot.workout as any).photoUrl || (completedWorkoutSnapshot.workout as any).imageUrl || undefined,
-              rpe: completedWorkoutSnapshot.rpe
+              rpe: completedWorkoutSnapshot.rpe,
+              exercisesCount: completedWorkoutSnapshot.workout.exercises?.length || 0
             });
           }
         }
@@ -1053,13 +1070,14 @@ const AthletePortal: React.FC = () => {
   };
 
   const openWorkoutModal = (wIdx: number, dIdx: number, workout: any) => {
+    const isStrength = isStrengthWorkoutType(workout.type);
     setSelectedWorkout({ weekIndex: wIdx, dayIndex: dIdx, data: workout });
     setEditWorkoutType(workout.type || 'Corrida');
     setEditCustomDescription(workout.customDescription || '');
     setFeedbackText(workout.feedback || '');
-    setRpeValue(workout.rpe || 0);
+    setRpeValue(workout.rpe || (isStrength ? 6 : 0));
     setLocalExercises(workout.exercises || []);
-    setActualDistanceValue(workout.actualDistance !== undefined ? String(workout.actualDistance) : String(workout.distance || ''));
+    setActualDistanceValue(isStrength ? '' : (workout.actualDistance !== undefined ? String(workout.actualDistance) : String(workout.distance || '')));
     let initialDuration = '';
     if (workout.actualDuration) {
       initialDuration = String(workout.actualDuration);
@@ -1067,6 +1085,8 @@ const AthletePortal: React.FC = () => {
       initialDuration = formatSecondsToTimeString(workout.gpsRoute.totalDurationSeconds);
     } else if (workout.durationMinutes) {
       initialDuration = `${workout.durationMinutes}:00`;
+    } else if (isStrength) {
+      initialDuration = '45:00';
     }
     setActualDurationValue(initialDuration);
     const initialHeartRate = workout.avgHeartRate || workout.gpsRoute?.avgHeartRate || '';
@@ -2242,30 +2262,59 @@ const AthletePortal: React.FC = () => {
               <div className={`mb-6 p-4 rounded-2xl border ${
                 isLight ? 'bg-white/80 border-emerald-200/80 shadow-xs' : 'bg-white/5 border-white/10'
               }`}>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Distância</span>
-                    <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
-                      {todayWorkout.workout.actualDistance !== undefined 
-                        ? `${todayWorkout.workout.actualDistance} km` 
-                        : (todayWorkout.workout.distance ? `${todayWorkout.workout.distance} km` : '--')}
-                    </span>
+                {isStrengthWorkoutType(todayWorkout.workout.type) ? (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
+                      <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                        {todayWorkout.workout.actualDuration || (todayWorkout.workout.durationMinutes ? `${todayWorkout.workout.durationMinutes}:00` : '45:00')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Intensidade</span>
+                      <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                        PSE {todayWorkout.workout.rpe || 6}/10
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Carga (sRPE)</span>
+                      <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>
+                        {(() => {
+                          const durSec = todayWorkout.workout.actualDuration
+                            ? parseDurationStringToSeconds(todayWorkout.workout.actualDuration)
+                            : ((todayWorkout.workout.durationMinutes || 45) * 60);
+                          const durMin = Math.max(1, Math.round(durSec / 60));
+                          return `${durMin * (todayWorkout.workout.rpe || 6)} UA`;
+                        })()}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
-                    <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                      {todayWorkout.workout.actualDuration || (todayWorkout.workout.durationMinutes ? `${todayWorkout.workout.durationMinutes} min` : '--')}
-                    </span>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Distância</span>
+                      <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                        {todayWorkout.workout.actualDistance !== undefined 
+                          ? `${todayWorkout.workout.actualDistance} km` 
+                          : (todayWorkout.workout.distance ? `${todayWorkout.workout.distance} km` : '--')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
+                      <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                        {todayWorkout.workout.actualDuration || (todayWorkout.workout.durationMinutes ? `${todayWorkout.workout.durationMinutes} min` : '--')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Ritmo / FC</span>
+                      <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                        {todayWorkout.workout.actualDistance && todayWorkout.workout.actualDuration
+                          ? calculatePace(String(todayWorkout.workout.actualDistance), todayWorkout.workout.actualDuration)
+                          : (todayWorkout.workout.avgHeartRate ? `${todayWorkout.workout.avgHeartRate} bpm` : 'Concluído')}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Ritmo / FC</span>
-                    <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                      {todayWorkout.workout.actualDistance && todayWorkout.workout.actualDuration
-                        ? calculatePace(String(todayWorkout.workout.actualDistance), todayWorkout.workout.actualDuration)
-                        : (todayWorkout.workout.avgHeartRate ? `${todayWorkout.workout.avgHeartRate} bpm` : 'Concluído')}
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -2275,11 +2324,12 @@ const AthletePortal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const distKm = todayWorkout.workout.actualDistance || todayWorkout.workout.distance || 0;
+                      const isStrength = isStrengthWorkoutType(todayWorkout.workout.type);
+                      const distKm = isStrength ? 0 : (todayWorkout.workout.actualDistance || todayWorkout.workout.distance || 0);
                       const durSec = todayWorkout.workout.actualDuration 
                         ? parseDurationStringToSeconds(todayWorkout.workout.actualDuration) 
-                        : (todayWorkout.workout.gpsRoute?.totalDurationSeconds || todayWorkout.workout.gpsRoute?.durationSeconds || (distKm * 300) || 1800);
-                      const pace = calculatePace(String(distKm), todayWorkout.workout.actualDuration || formatSecondsToTimeString(durSec));
+                        : (todayWorkout.workout.gpsRoute?.totalDurationSeconds || todayWorkout.workout.gpsRoute?.durationSeconds || (isStrength ? 2700 : ((distKm * 300) || 1800)));
+                      const pace = isStrength ? '--' : calculatePace(String(distKm), todayWorkout.workout.actualDuration || formatSecondsToTimeString(durSec));
                       setShareWorkoutData({
                         title: todayWorkout.workout.customDescription?.slice(0, 45) || `${todayWorkout.workout.type || 'Treino'}`,
                         athleteName: activeAthlete?.name,
@@ -2289,11 +2339,12 @@ const AthletePortal: React.FC = () => {
                         avgPace: pace,
                         elevationGainMeters: todayWorkout.workout.gpsRoute?.elevationGainMeters,
                         avgHeartRate: todayWorkout.workout.avgHeartRate || todayWorkout.workout.gpsRoute?.avgHeartRate,
-                        route: todayWorkout.workout.gpsRoute,
+                        route: isStrength ? undefined : todayWorkout.workout.gpsRoute,
                         workoutType: todayWorkout.workout.type,
                         initialBackgroundType: 'transparent',
                         initialPhotoUrl: (todayWorkout.workout as any).photoUrl || (todayWorkout.workout as any).imageUrl || undefined,
-                        rpe: todayWorkout.workout.rpe
+                        rpe: todayWorkout.workout.rpe,
+                        exercisesCount: todayWorkout.workout.exercises?.length || 0
                       });
                     }}
                     className="w-full font-black py-4 rounded-2xl flex items-center justify-center gap-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.98] uppercase italic tracking-wider text-xs sm:text-sm cursor-pointer"
@@ -2399,28 +2450,59 @@ const AthletePortal: React.FC = () => {
             <div className={`mb-3 p-3 rounded-2xl border grid grid-cols-3 gap-2 text-center ${
               isLight ? 'bg-white border-slate-200/70 shadow-xs' : 'bg-black/20 border-white/5'
             }`}>
-              <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Distância</span>
-                <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
-                  {yesterdayWorkout.workout.actualDistance !== undefined 
-                    ? `${yesterdayWorkout.workout.actualDistance} km` 
-                    : (yesterdayWorkout.workout.distance ? `${yesterdayWorkout.workout.distance} km` : '--')}
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
-                <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                  {yesterdayWorkout.workout.actualDuration || (yesterdayWorkout.workout.durationMinutes ? `${yesterdayWorkout.workout.durationMinutes} min` : '--')}
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Ritmo / FC</span>
-                <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                  {yesterdayWorkout.workout.actualDistance && yesterdayWorkout.workout.actualDuration
-                    ? calculatePace(String(yesterdayWorkout.workout.actualDistance), yesterdayWorkout.workout.actualDuration)
-                    : (yesterdayWorkout.workout.avgHeartRate ? `${yesterdayWorkout.workout.avgHeartRate} bpm` : 'OK')}
-                </span>
-              </div>
+              {isStrengthWorkoutType(yesterdayWorkout.workout.type) ? (
+                <>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
+                    <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                      {yesterdayWorkout.workout.actualDuration || (yesterdayWorkout.workout.durationMinutes ? `${yesterdayWorkout.workout.durationMinutes}:00` : '45:00')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Intensidade</span>
+                    <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      PSE {yesterdayWorkout.workout.rpe || 6}/10
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Carga (sRPE)</span>
+                    <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>
+                      {(() => {
+                        const durSec = yesterdayWorkout.workout.actualDuration
+                          ? parseDurationStringToSeconds(yesterdayWorkout.workout.actualDuration)
+                          : ((yesterdayWorkout.workout.durationMinutes || 45) * 60);
+                        const durMin = Math.max(1, Math.round(durSec / 60));
+                        return `${durMin * (yesterdayWorkout.workout.rpe || 6)} UA`;
+                      })()}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Distância</span>
+                    <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                      {yesterdayWorkout.workout.actualDistance !== undefined 
+                        ? `${yesterdayWorkout.workout.actualDistance} km` 
+                        : (yesterdayWorkout.workout.distance ? `${yesterdayWorkout.workout.distance} km` : '--')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
+                    <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      {yesterdayWorkout.workout.actualDuration || (yesterdayWorkout.workout.durationMinutes ? `${yesterdayWorkout.workout.durationMinutes} min` : '--')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Ritmo / FC</span>
+                    <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      {yesterdayWorkout.workout.actualDistance && yesterdayWorkout.workout.actualDuration
+                        ? calculatePace(String(yesterdayWorkout.workout.actualDistance), yesterdayWorkout.workout.actualDuration)
+                        : (yesterdayWorkout.workout.avgHeartRate ? `${yesterdayWorkout.workout.avgHeartRate} bpm` : 'OK')}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -2428,11 +2510,12 @@ const AthletePortal: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                const distKm = yesterdayWorkout.workout.actualDistance || yesterdayWorkout.workout.distance || 0;
+                const isStrength = isStrengthWorkoutType(yesterdayWorkout.workout.type);
+                const distKm = isStrength ? 0 : (yesterdayWorkout.workout.actualDistance || yesterdayWorkout.workout.distance || 0);
                 const durSec = yesterdayWorkout.workout.actualDuration 
                   ? parseDurationStringToSeconds(yesterdayWorkout.workout.actualDuration) 
-                  : (yesterdayWorkout.workout.gpsRoute?.totalDurationSeconds || (distKm * 300) || 1800);
-                const pace = calculatePace(String(distKm), yesterdayWorkout.workout.actualDuration || formatSecondsToTimeString(durSec));
+                  : (yesterdayWorkout.workout.gpsRoute?.totalDurationSeconds || (isStrength ? 2700 : ((distKm * 300) || 1800)));
+                const pace = isStrength ? '--' : calculatePace(String(distKm), yesterdayWorkout.workout.actualDuration || formatSecondsToTimeString(durSec));
                 setShareWorkoutData({
                   title: yesterdayWorkout.workout.customDescription?.slice(0, 45) || `${yesterdayWorkout.workout.type || 'Treino'}`,
                   athleteName: activeAthlete?.name,
@@ -2442,11 +2525,12 @@ const AthletePortal: React.FC = () => {
                   avgPace: pace,
                   elevationGainMeters: yesterdayWorkout.workout.gpsRoute?.elevationGainMeters,
                   avgHeartRate: yesterdayWorkout.workout.avgHeartRate || yesterdayWorkout.workout.gpsRoute?.avgHeartRate,
-                  route: yesterdayWorkout.workout.gpsRoute,
+                  route: isStrength ? undefined : yesterdayWorkout.workout.gpsRoute,
                   workoutType: yesterdayWorkout.workout.type,
                   initialBackgroundType: 'transparent',
                   initialPhotoUrl: (yesterdayWorkout.workout as any).photoUrl || (yesterdayWorkout.workout as any).imageUrl || undefined,
-                  rpe: yesterdayWorkout.workout.rpe
+                  rpe: yesterdayWorkout.workout.rpe,
+                  exercisesCount: yesterdayWorkout.workout.exercises?.length || 0
                 });
               }}
               className="w-full font-black py-3 rounded-xl flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md shadow-emerald-500/20 uppercase italic tracking-wider text-xs cursor-pointer active:scale-95 transition-all"
@@ -2706,14 +2790,26 @@ const AthletePortal: React.FC = () => {
                           </div>
                           {wk.type !== 'Descanso' && (
                             <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-100/50 italic flex items-center justify-center gap-1">
-                              📏{' '}
-                              {wk.completed && wk.actualDistance !== undefined ? (
+                              {isStrengthWorkoutType(wk.type) ? (
                                 <>
-                                  <span className="line-through text-slate-400 font-medium mr-1">{wk.distance || 0} KM</span>
-                                  <span>{wk.actualDistance} KM Real</span>
+                                  💪{' '}
+                                  <span>
+                                    {wk.actualDuration || (wk.durationMinutes ? `${wk.durationMinutes} min` : 'Força')}
+                                    {wk.completed && wk.rpe ? ` • PSE ${wk.rpe}/10` : ''}
+                                  </span>
                                 </>
                               ) : (
-                                <span>{wk.distance || '--'} KM</span>
+                                <>
+                                  📏{' '}
+                                  {wk.completed && wk.actualDistance !== undefined ? (
+                                    <>
+                                      <span className="line-through text-slate-400 font-medium mr-1">{wk.distance || 0} KM</span>
+                                      <span>{wk.actualDistance} KM Real</span>
+                                    </>
+                                  ) : (
+                                    <span>{wk.distance || '--'} KM</span>
+                                  )}
+                                </>
                               )}
                             </span>
                           )}
@@ -3820,7 +3916,7 @@ const AthletePortal: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Card Destacado do Objetivo da Corrida */}
+                {/* Card Destacado do Objetivo da Corrida / Fortalecimento */}
                 <div className={`p-4 rounded-2xl border transition-all ${
                   isLight 
                     ? 'bg-gradient-to-br from-emerald-50 via-white to-teal-50 border-emerald-300 shadow-sm text-slate-900' 
@@ -3835,7 +3931,7 @@ const AthletePortal: React.FC = () => {
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-emerald-500 text-slate-950">
-                          🎯 Objetivo da Corrida
+                          {isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type) ? '💪 Objetivo do Fortalecimento' : '🎯 Objetivo da Corrida'}
                         </span>
                         {(editWorkoutType || selectedWorkout.data.type) && (
                           <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
@@ -3849,9 +3945,11 @@ const AthletePortal: React.FC = () => {
                         isLight ? 'text-slate-900' : 'text-white'
                       }`}>
                         {editCustomDescription || selectedWorkout.data.customDescription || selectedWorkout.data.description || (
-                          selectedWorkout.data.distance
-                            ? `${selectedWorkout.data.type || 'Treino'} ${selectedWorkout.data.distance} km`
-                            : `${selectedWorkout.data.type || 'Corrida'} Prescrita`
+                          isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type)
+                            ? `${editWorkoutType || selectedWorkout.data.type || 'Fortalecimento'} Prescrito`
+                            : selectedWorkout.data.distance
+                              ? `${selectedWorkout.data.type || 'Treino'} ${selectedWorkout.data.distance} km`
+                              : `${selectedWorkout.data.type || 'Corrida'} Prescrita`
                         )}
                       </p>
                     </div>
@@ -3862,7 +3960,7 @@ const AthletePortal: React.FC = () => {
                       type="text"
                       value={editCustomDescription}
                       onChange={(e) => setEditCustomDescription(e.target.value)}
-                      placeholder="Editar objetivo ou notas (ex: Longão 12km em Z2)"
+                      placeholder={isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type) ? "Editar objetivo ou foco (ex: Core, Glúteos e Estabilidade)" : "Editar objetivo ou notas (ex: Longão 12km em Z2)"}
                       className={`w-full text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all ${
                         isLight 
                           ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-emerald-500' 
@@ -3878,11 +3976,10 @@ const AthletePortal: React.FC = () => {
               isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
             }`}>
               <div className="space-y-4">
-                {((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || 
-                  (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0) || 
+                {((!isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type) && ((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0))) || 
                   (selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0)) && (
                   <div className="flex justify-center gap-3">
-                    {((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0)) && (
+                    {!isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type) && ((selectedWorkout.data.distance && selectedWorkout.data.distance > 0) || (selectedWorkout.data.distanceKm && selectedWorkout.data.distanceKm > 0)) && (
                       <span className={`inline-flex items-center gap-2 text-xs font-black uppercase px-4 py-2 rounded-2xl border italic tracking-wider ${
                         isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
                       }`}>
@@ -3958,9 +4055,260 @@ const AthletePortal: React.FC = () => {
                     <span>Lançar Atividade Realizada</span>
                   </button>
                 </div>
+              ) : isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type) ? (
+                /* =========================================================================
+                 * OPÇÃO 1: CONCLUSÃO RÁPIDA DE FORÇA (SEM DADOS DE CORRIDA)
+                 * ========================================================================= */
+                <div className="space-y-6">
+                  {/* Lista de Exercícios Detalhados Prescritos (se houver) */}
+                  {localExercises && localExercises.length > 0 && (
+                    <div className={`p-5 rounded-[2rem] border space-y-3.5 ${
+                      isLight ? 'bg-emerald-50/50 border-emerald-200 text-slate-900' : 'bg-emerald-950/20 border-emerald-500/20 text-white'
+                    }`}>
+                      <div className="flex items-center justify-between border-b pb-2.5 border-emerald-500/15">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🏋️</span>
+                          <div>
+                            <h4 className={`text-xs font-black uppercase italic tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              Exercícios Prescritos
+                            </h4>
+                            <p className={`text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>
+                              {localExercises.length} {localExercises.length === 1 ? 'Exercício na Ficha' : 'Exercícios na Ficha'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                        {localExercises.map((ex, idx) => (
+                          <div
+                            key={ex.id || idx}
+                            className={`p-3.5 rounded-2xl border space-y-1.5 ${
+                              isLight ? 'bg-white border-slate-200 shadow-2xs' : 'bg-slate-950/60 border-white/10'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className={`text-xs font-black uppercase italic ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                {idx + 1}. {ex.name}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {ex.sets && (
+                                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                    isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-500/20 text-emerald-300'
+                                  }`}>
+                                    {ex.sets} Séries
+                                  </span>
+                                )}
+                                {ex.reps && (
+                                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                    isLight ? 'bg-teal-100 text-teal-800' : 'bg-teal-500/20 text-teal-300'
+                                  }`}>
+                                    {ex.reps} Reps
+                                  </span>
+                                )}
+                                {ex.load && (
+                                  <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-md ${
+                                    isLight ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-slate-300'
+                                  }`}>
+                                    {ex.load}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {ex.description && (
+                              <p className={`text-[11px] leading-relaxed font-medium ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                                {ex.description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Painel de Conclusão Rápida de Fortalecimento (Tempo + PSE = Carga Interna) */}
+                  <div className={`p-6 rounded-[2rem] border space-y-6 transition-all ${
+                    isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-sm' : 'bg-white/5 border-white/10 text-white'
+                  }`}>
+                    <div className="flex items-center justify-between border-b pb-3 border-emerald-500/15">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-emerald-500" />
+                        <div>
+                          <h4 className={`text-sm font-black uppercase italic tracking-tighter ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                            Check-in de Força & Controle de Carga
+                          </h4>
+                          <p className={`text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Informe o tempo e esforço (PSE) para registrar sua carga sem dados de corrida
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 1. Tempo Total + Atalhos Rápidos + FC Média Opcional */}
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Tempo Total */}
+                        <div className="space-y-1.5">
+                          <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                            <Timer className="w-3.5 h-3.5 text-amber-500" /> Tempo Total de Treino
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="text"
+                              disabled={isSaving}
+                              className={`pro-input w-full py-3.5 px-3.5 text-sm font-black italic rounded-2xl outline-none transition-all pr-14 ${
+                                isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
+                              }`}
+                              placeholder="Ex: 45:00"
+                              value={actualDurationValue}
+                              onChange={e => setActualDurationValue(e.target.value)}
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
+                              MIN/SEG
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* FC Média (Opcional) */}
+                        <div className="space-y-1.5">
+                          <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                            <HeartPulse className="w-3.5 h-3.5 text-rose-500" /> FC Média (Opcional)
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="text"
+                              disabled={isSaving}
+                              className={`pro-input w-full py-3.5 px-3.5 text-sm font-black italic rounded-2xl outline-none transition-all pr-10 ${
+                                isLight ? 'bg-white border-slate-300 text-rose-600 focus:border-rose-500' : 'bg-white/5 border-white/10 text-rose-400 focus:border-rose-500/50'
+                              }`}
+                              placeholder="Ex: 125"
+                              value={actualHeartRateValue}
+                              onChange={e => setActualHeartRateValue(e.target.value.replace(/\D/g, ''))}
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
+                              BPM
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botões Rápidos de Tempo */}
+                      <div className="space-y-1">
+                        <span className={`text-[9px] font-black uppercase tracking-wider block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Seleção Rápida de Duração:
+                        </span>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[
+                            { label: '30 min', value: '30:00' },
+                            { label: '45 min', value: '45:00' },
+                            { label: '60 min', value: '60:00' },
+                            { label: '75 min', value: '75:00' }
+                          ].map((preset) => {
+                            const isSelected = actualDurationValue === preset.value;
+                            return (
+                              <button
+                                key={preset.value}
+                                type="button"
+                                disabled={isSaving}
+                                onClick={() => setActualDurationValue(preset.value)}
+                                className={`py-2 rounded-xl font-black text-xs uppercase italic transition-all border cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-500 shadow-sm'
+                                    : isLight
+                                      ? 'bg-white hover:bg-emerald-50 text-slate-700 border-slate-200'
+                                      : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. Percepção de Esforço (PSE) + Carga Interna Calculada */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                          <Zap className="w-4 h-4 text-amber-500" /> Percepção de Esforço (PSE 1 a 10)
+                        </label>
+                        <span className={`text-[10px] font-black italic uppercase tracking-tighter ${getRPEColor(rpeValue || 6)}`}>
+                          {getRPELabel(rpeValue || 6)}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => setRpeValue(num)}
+                            className={`h-10 rounded-xl font-black text-xs transition-all border flex items-center justify-center cursor-pointer
+                              ${(rpeValue || 6) === num 
+                                ? 'bg-emerald-500 text-white border-emerald-500 font-extrabold shadow-sm' 
+                                : (isLight 
+                                    ? 'bg-white text-slate-700 border-slate-200 hover:border-emerald-500 hover:text-emerald-700' 
+                                    : 'bg-white/5 text-slate-400 border-white/5 hover:border-emerald-500/50 hover:text-emerald-400')}
+                            `}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Resumo da Carga Calculada em Tempo Real (sRPE) */}
+                      {(() => {
+                        const durSec = parseDurationStringToSeconds(actualDurationValue || '45:00') || 2700;
+                        const durMin = Math.max(1, Math.round(durSec / 60));
+                        const currentRpe = rpeValue || 6;
+                        const loadUA = durMin * currentRpe;
+                        return (
+                          <div className={`p-3.5 rounded-2xl border flex items-center justify-between ${
+                            isLight ? 'bg-emerald-50/80 border-emerald-200 text-slate-900' : 'bg-emerald-950/30 border-emerald-500/30 text-white'
+                          }`}>
+                            <div className="flex items-center gap-2.5">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${
+                                isLight ? 'bg-emerald-600 text-white' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              }`}>
+                                ⚡
+                              </div>
+                              <div>
+                                <span className={`text-[10px] font-black uppercase tracking-wider block ${isLight ? 'text-emerald-900' : 'text-emerald-300'}`}>
+                                  Carga Interna do Fortalecimento (sRPE)
+                                </span>
+                                <span className={`text-[10px] font-semibold ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                                  {durMin} min × PSE {currentRpe} • Computado no Controle de Carga
+                                </span>
+                              </div>
+                            </div>
+                            <span className={`text-base sm:text-lg font-black font-mono italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                              {loadUA} UA
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* 3. Feedback do Treino */}
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                        <MessageSquare className="w-4 h-4 text-emerald-500" /> Feedback para o Treinador
+                      </label>
+                      <textarea 
+                        disabled={isSaving}
+                        className="pro-input w-full h-24 focus:ring-4 focus:ring-emerald-500/20 text-xs py-3 px-4 rounded-2xl"
+                        placeholder="Relate como se sentiu nos exercícios, cargas utilizadas ou alguma dor articular/muscular..."
+                        value={feedbackText}
+                        onChange={e => setFeedbackText(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <>
-                  {/* PRESCRIÇÃO ESTRUTURADA DETALHADA (GREEN THEME) */}
+                  {/* PRESCRIÇÃO ESTRUTURADA DETALHADA (GREEN THEME - APENAS CORRIDA) */}
                   {!selectedWorkout.data.completed && (
                     <div className={`space-y-4 p-5 sm:p-6 rounded-[2rem] border shadow-xl transition-all ${
                       isLight 
@@ -4433,66 +4781,108 @@ const AthletePortal: React.FC = () => {
               <div className={`p-4 sm:p-6 border-t flex-shrink-0 font-sans ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-white/5'
               }`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowGpsTracker(true)}
-                    className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                  >
-                    <Play className="w-4 h-4 fill-white" />
-                    <span>INICIAR CORRIDA</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!actualDistanceValue && selectedWorkout.data.distance) {
-                        setActualDistanceValue(String(selectedWorkout.data.distance));
-                      }
-                      if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
-                        setActualDurationValue(`${selectedWorkout.data.durationMinutes}:00`);
-                      }
-                      if (!actualHeartRateValue && (selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate)) {
-                        setActualHeartRateValue(String(selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate));
-                      }
-                      handleSaveAndShareWorkout();
-                    }}
-                    className="py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>CONCLUIR E POSTAR</span>
-                  </button>
-                </div>
-                <div className="mt-2.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!actualDistanceValue && selectedWorkout.data.distance) {
-                        setActualDistanceValue(String(selectedWorkout.data.distance));
-                      }
-                      if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
-                        setActualDurationValue(`${selectedWorkout.data.durationMinutes}:00`);
-                      }
-                      if (!actualHeartRateValue && (selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate)) {
-                        setActualHeartRateValue(String(selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate));
-                      }
-                      setSelectedWorkout(prev => prev ? {
-                        ...prev,
-                        data: {
-                          ...prev.data,
-                          completed: true
+                {isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type) ? (
+                  /* RODAPÉ EXCLUSIVO DE FORTALECIMENTO (SEM BOTÃO DE CORRIDA / ESTEIRA) */
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={() => {
+                        if (!actualDurationValue) {
+                          setActualDurationValue(selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : '45:00');
                         }
-                      } : null);
-                    }}
-                    className={`w-full py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
-                      isLight 
-                        ? 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200' 
-                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
-                    }`}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Preencher Métricas Manuais / Esteira</span>
-                  </button>
-                </div>
+                        if (!rpeValue) {
+                          setRpeValue(selectedWorkout.data.rpe || 6);
+                        }
+                        handleToggleComplete(false);
+                      }}
+                      className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>CONCLUIR FORTALECIMENTO</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={() => {
+                        if (!actualDurationValue) {
+                          setActualDurationValue(selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : '45:00');
+                        }
+                        if (!rpeValue) {
+                          setRpeValue(selectedWorkout.data.rpe || 6);
+                        }
+                        handleSaveAndShareWorkout();
+                      }}
+                      className="py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span>CONCLUIR E POSTAR</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowGpsTracker(true)}
+                        className="py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        <Play className="w-4 h-4 fill-white" />
+                        <span>INICIAR CORRIDA</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!actualDistanceValue && selectedWorkout.data.distance) {
+                            setActualDistanceValue(String(selectedWorkout.data.distance));
+                          }
+                          if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
+                            setActualDurationValue(`${selectedWorkout.data.durationMinutes}:00`);
+                          }
+                          if (!actualHeartRateValue && (selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate)) {
+                            setActualHeartRateValue(String(selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate));
+                          }
+                          handleSaveAndShareWorkout();
+                        }}
+                        className="py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>CONCLUIR E POSTAR</span>
+                      </button>
+                    </div>
+                    <div className="mt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!actualDistanceValue && selectedWorkout.data.distance) {
+                            setActualDistanceValue(String(selectedWorkout.data.distance));
+                          }
+                          if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
+                            setActualDurationValue(`${selectedWorkout.data.durationMinutes}:00`);
+                          }
+                          if (!actualHeartRateValue && (selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate)) {
+                            setActualHeartRateValue(String(selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate));
+                          }
+                          setSelectedWorkout(prev => prev ? {
+                            ...prev,
+                            data: {
+                              ...prev.data,
+                              completed: true
+                            }
+                          } : null);
+                        }}
+                        className={`w-full py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
+                          isLight 
+                            ? 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200' 
+                            : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Preencher Métricas Manuais / Esteira</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className={`p-6 md:p-8 border-t flex-shrink-0 font-sans ${
@@ -4503,31 +4893,36 @@ const AthletePortal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
+                        const effectiveType = editWorkoutType || selectedWorkout.data.type || 'Treino';
+                        const isStrength = isStrengthWorkoutType(effectiveType);
                         const parsedDist = actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : undefined;
-                        const distKm = parsedDist || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0;
+                        const distKm = isStrength ? 0 : (parsedDist || currentGpsRoute?.totalDistanceKm || selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0);
                         const durSec = actualDurationValue !== ''
                           ? parseDurationStringToSeconds(actualDurationValue)
-                          : (currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800)));
-                        const pace = calculatePace(
-                          String(distKm),
-                          actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || 1800))
-                        );
+                          : (currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || (selectedWorkout.data.actualDuration ? parseDurationStringToSeconds(selectedWorkout.data.actualDuration) : (isStrength ? 2700 : (selectedWorkout.data.distance ? Math.round(selectedWorkout.data.distance * 300) : 1800))));
+                        const pace = isStrength
+                          ? '--'
+                          : calculatePace(
+                              String(distKm),
+                              actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || formatSecondsToTimeString(currentGpsRoute?.totalDurationSeconds || currentGpsRoute?.durationSeconds || 1800))
+                            );
                         const heartRate = actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || selectedWorkout.data.gpsRoute?.avgHeartRate);
 
                         setShareWorkoutData({
-                          title: editCustomDescription?.slice(0, 45) || selectedWorkout.data.customDescription?.slice(0, 45) || `${editWorkoutType || selectedWorkout.data.type || 'Treino'}`,
+                          title: editCustomDescription?.slice(0, 45) || selectedWorkout.data.customDescription?.slice(0, 45) || `${effectiveType}`,
                           athleteName: activeAthlete?.name,
                           date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
                           distanceKm: distKm,
                           durationSeconds: durSec,
                           avgPace: pace,
-                          elevationGainMeters: currentGpsRoute?.elevationGainMeters || selectedWorkout.data.gpsRoute?.elevationGainMeters,
+                          elevationGainMeters: isStrength ? undefined : (currentGpsRoute?.elevationGainMeters || selectedWorkout.data.gpsRoute?.elevationGainMeters),
                           avgHeartRate: heartRate,
-                          route: currentGpsRoute || selectedWorkout.data.gpsRoute,
-                          workoutType: editWorkoutType || selectedWorkout.data.type,
+                          route: isStrength ? undefined : (currentGpsRoute || selectedWorkout.data.gpsRoute),
+                          workoutType: effectiveType,
                           initialBackgroundType: 'transparent',
                           initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
-                          rpe: rpeValue || selectedWorkout.data.rpe
+                          rpe: rpeValue || selectedWorkout.data.rpe || (isStrength ? 6 : undefined),
+                          exercisesCount: localExercises?.length || selectedWorkout.data.exercises?.length || 0
                         });
                         setSelectedWorkout(null);
                       }}

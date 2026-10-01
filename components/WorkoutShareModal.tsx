@@ -56,6 +56,7 @@ export interface WorkoutShareData {
   initialBackgroundType?: BackgroundType;
   autoOpenCamera?: boolean;
   rpe?: number;
+  exercisesCount?: number;
 }
 
 interface WorkoutShareModalProps {
@@ -224,6 +225,17 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
     e.target.value = '';
   };
 
+  const isStrength = Boolean(
+    data.workoutType &&
+    (data.workoutType.toLowerCase().includes('fortalecimento') ||
+     data.workoutType.toLowerCase().includes('força') ||
+     data.workoutType.toLowerCase().includes('mobilidade'))
+  );
+  const strengthDurationSec = data.durationSeconds && data.durationSeconds > 0 ? data.durationSeconds : 2700;
+  const strengthDurationMin = Math.max(1, Math.round(strengthDurationSec / 60));
+  const strengthRpe = data.rpe && data.rpe > 0 ? data.rpe : 6;
+  const strengthLoadUA = Math.round(strengthDurationMin * strengthRpe);
+
   // Handle Export Download
   const handleDownload = async () => {
     setIsExporting(true);
@@ -233,7 +245,9 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
     try {
       const isTransparent = backgroundType === 'transparent';
       const cleanTitle = (data.title || 'Treino').replace(/\s+/g, '_');
-      const filename = `ProRun_${cleanTitle}_${data.distanceKm}km`;
+      const filename = isStrength
+        ? `ProRun_${cleanTitle}_${strengthDurationMin}min`
+        : `ProRun_${cleanTitle}_${data.distanceKm}km`;
 
       const result = await exportElementAsImage(cardElementId, filename, {
         format: 'png',
@@ -264,7 +278,9 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
     try {
       const isTransparent = backgroundType === 'transparent';
       const cleanTitle = (data.title || 'Treino').replace(/\s+/g, '_');
-      const filename = `ProRun_${cleanTitle}_${data.distanceKm}km`;
+      const filename = isStrength
+        ? `ProRun_${cleanTitle}_${strengthDurationMin}min`
+        : `ProRun_${cleanTitle}_${data.distanceKm}km`;
 
       const result = await exportElementAsImage(cardElementId, filename, {
         format: 'png',
@@ -280,8 +296,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
         const file = new File([result.blob], `${filename}.png`, { type: 'image/png' });
         await navigator.share({
           files: [file],
-          title: `Treino ProRun - ${data.distanceKm}km`,
-          text: `🏃‍♂️ ${data.distanceKm}km • Pace ${data.avgPace}/km • Tempo ${formatDuration(data.durationSeconds)}${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
+          title: isStrength ? `Treino ProRun - Fortalecimento` : `Treino ProRun - ${data.distanceKm}km`,
+          text: isStrength
+            ? `💪 ${data.workoutType || 'Fortalecimento'} • Tempo ${formatDuration(strengthDurationSec)} • PSE ${strengthRpe}/10 (${strengthLoadUA} UA)${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
+            : `🏃‍♂️ ${data.distanceKm}km • Pace ${data.avgPace}/km • Tempo ${formatDuration(data.durationSeconds)}${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
         });
       } else {
         setExportSuccess(true);
@@ -502,9 +520,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     )}
                   </div>
 
-                  {/* 2. ABAIXO DA LOGO: O MAPA (TRAÇADO DA CORRIDA CENTRALIZADO) */}
+                  {/* 2. ABAIXO DA LOGO: O MAPA (OU EMBLEMA DE FORÇA SE FORTALECIMENTO) */}
                   {showRoute && (() => {
-                    const activeRouteSvg = svgRoute.pathData ? svgRoute : SAMPLE_STRAVA_ROUTE;
                     const strokeMainColor =
                       stravaRouteColor === 'orange'
                         ? '#fc4c02'
@@ -513,6 +530,41 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                         : stravaRouteColor === 'black'
                         ? '#000000'
                         : '#ffffff';
+
+                    if (isStrength) {
+                      return (
+                        <div className={`relative z-10 flex-1 min-h-0 w-full flex flex-col items-center justify-center overflow-hidden ${aspectRatio === 'square' ? 'my-0.5' : 'my-2'}`}>
+                          <svg
+                            viewBox="0 0 240 120"
+                            className={`w-full h-full filter drop-shadow-[0_6px_16px_rgba(0,0,0,0.65)] ${
+                              aspectRatio === 'square'
+                                ? 'max-h-[68px] sm:max-h-[82px]'
+                                : aspectRatio === 'portrait'
+                                ? 'max-h-[95px] sm:max-h-[115px]'
+                                : 'max-h-[125px] sm:max-h-[150px]'
+                            }`}
+                          >
+                            {/* Haltere / Emblema Vetorial Esportivo de Fortalecimento */}
+                            <g stroke={stravaRouteColor === 'black' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.65)'} strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" fill="none">
+                              <line x1="65" y1="60" x2="175" y2="60" />
+                              <rect x="42" y="32" width="16" height="56" rx="5" />
+                              <rect x="24" y="42" width="12" height="36" rx="4" />
+                              <rect x="182" y="32" width="16" height="56" rx="5" />
+                              <rect x="204" y="42" width="12" height="36" rx="4" />
+                            </g>
+                            <g stroke={strokeMainColor} strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
+                              <line x1="65" y1="60" x2="175" y2="60" />
+                              <rect x="42" y="32" width="16" height="56" rx="5" fill={strokeMainColor} fillOpacity="0.2" />
+                              <rect x="24" y="42" width="12" height="36" rx="4" fill={strokeMainColor} fillOpacity="0.35" />
+                              <rect x="182" y="32" width="16" height="56" rx="5" fill={strokeMainColor} fillOpacity="0.2" />
+                              <rect x="204" y="42" width="12" height="36" rx="4" fill={strokeMainColor} fillOpacity="0.35" />
+                            </g>
+                          </svg>
+                        </div>
+                      );
+                    }
+
+                    const activeRouteSvg = svgRoute.pathData ? svgRoute : SAMPLE_STRAVA_ROUTE;
 
                     return (
                       <div className={`relative z-10 flex-1 min-h-0 w-full flex flex-col items-center justify-center overflow-hidden ${aspectRatio === 'square' ? 'my-0.5' : 'my-2'}`}>
@@ -666,9 +718,147 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     );
                   })()}
 
-                  {/* 3. ABAIXO DO MAPA: DADOS SIMPLES DA CORRIDA (ESTILO STRAVA) */}
+                  {/* 3. ABAIXO DO MAPA: DADOS SIMPLES (FORTALECIMENTO OU CORRIDA) */}
                   <div className="w-full flex flex-col items-center justify-center shrink-0 space-y-2">
-                    {stravaStatsAlign === 'vertical' && aspectRatio !== 'square' ? (
+                    {isStrength ? (
+                      stravaStatsAlign === 'vertical' && aspectRatio !== 'square' ? (
+                        <div className="flex flex-col items-center justify-center space-y-1.5 sm:space-y-2">
+                          {/* Tempo de Sessão */}
+                          <div className="flex flex-col items-center leading-none">
+                            <span
+                              className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.22em] opacity-90"
+                              style={{
+                                color: isDarkText ? '#000000' : '#e2e8f0',
+                                textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 4px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              Tempo de Treino
+                            </span>
+                            <span
+                              className="text-2xl sm:text-3xl font-black tracking-tight mt-0.5"
+                              style={{
+                                color: isDarkText ? '#000000' : '#ffffff',
+                                textShadow: isDarkText ? '0 2px 4px rgba(255,255,255,0.95)' : '0 3px 8px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              {formatDuration(strengthDurationSec)}
+                            </span>
+                          </div>
+
+                          {/* Intensidade (PSE) */}
+                          <div className="flex flex-col items-center leading-none">
+                            <span
+                              className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.22em] opacity-90"
+                              style={{
+                                color: isDarkText ? '#000000' : '#e2e8f0',
+                                textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 4px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              Intensidade
+                            </span>
+                            <span
+                              className="text-xl sm:text-2xl font-black tracking-tight mt-0.5"
+                              style={{
+                                color: isDarkText ? '#000000' : '#ffffff',
+                                textShadow: isDarkText ? '0 2px 4px rgba(255,255,255,0.95)' : '0 3px 8px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              PSE {strengthRpe}<span className="text-xs sm:text-sm font-bold">/10</span>
+                            </span>
+                          </div>
+
+                          {/* Volume / Exercícios ou Modalidade */}
+                          <div className="flex flex-col items-center leading-none">
+                            <span
+                              className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.22em] opacity-90"
+                              style={{
+                                color: isDarkText ? '#000000' : '#e2e8f0',
+                                textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 4px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              {data.exercisesCount && data.exercisesCount > 0 ? 'Prescrição' : 'Modalidade'}
+                            </span>
+                            <span
+                              className="text-lg sm:text-xl font-black uppercase italic tracking-tight mt-0.5"
+                              style={{
+                                color: isDarkText ? '#000000' : '#34d399',
+                                textShadow: isDarkText ? '0 2px 4px rgba(255,255,255,0.95)' : '0 3px 8px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              {data.exercisesCount && data.exercisesCount > 0 ? `${data.exercisesCount} Exercícios` : (data.workoutType || 'Força & Core')}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full grid grid-cols-3 gap-2 pt-1 items-center text-center">
+                          <div className="flex flex-col items-center">
+                            <span
+                              className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest opacity-90"
+                              style={{
+                                color: isDarkText ? '#000000' : '#e2e8f0',
+                                textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              Tempo
+                            </span>
+                            <span
+                              className={`${aspectRatio === 'square' ? 'text-sm sm:text-base' : 'text-lg sm:text-xl'} font-black tracking-tight`}
+                              style={{
+                                color: isDarkText ? '#000000' : '#ffffff',
+                                textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 6px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              {formatDuration(strengthDurationSec)}
+                            </span>
+                          </div>
+
+                          <div
+                            className="flex flex-col items-center border-x px-1"
+                            style={{ borderColor: isDarkText ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)' }}
+                          >
+                            <span
+                              className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest opacity-90"
+                              style={{
+                                color: isDarkText ? '#000000' : '#e2e8f0',
+                                textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              Esforço
+                            </span>
+                            <span
+                              className={`${aspectRatio === 'square' ? 'text-sm sm:text-base' : 'text-lg sm:text-xl'} font-black tracking-tight`}
+                              style={{
+                                color: isDarkText ? '#000000' : '#ffffff',
+                                textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 6px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              PSE {strengthRpe}<span className="text-[9px] font-bold">/10</span>
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col items-center">
+                            <span
+                              className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest opacity-90"
+                              style={{
+                                color: isDarkText ? '#000000' : '#e2e8f0',
+                                textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              {data.exercisesCount && data.exercisesCount > 0 ? 'Ficha' : 'Foco'}
+                            </span>
+                            <span
+                              className={`${aspectRatio === 'square' ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'} font-black uppercase italic tracking-tight`}
+                              style={{
+                                color: isDarkText ? '#000000' : '#34d399',
+                                textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 6px rgba(0,0,0,0.95)'
+                              }}
+                            >
+                              {data.exercisesCount && data.exercisesCount > 0 ? `${data.exercisesCount} Exerc.` : 'Força'}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    ) : stravaStatsAlign === 'vertical' && aspectRatio !== 'square' ? (
                       /* Coluna Centralizada Clássica Estilo Sticker Strava */
                       <div className="flex flex-col items-center justify-center space-y-1.5 sm:space-y-2">
                         {/* Distância */}
@@ -912,8 +1102,26 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 )}
               </div>
 
-              {/* CENTER: Vector GPS Route Track / Standard / Satellite Map */}
-              {showRoute && (svgRoute.pathData || tileLayout.pathData) ? (
+              {/* CENTER: Vector GPS Route Track / Standard / Satellite Map (or Strength Emblem) */}
+              {isStrength ? (
+                showRoute ? (
+                  <div className={`relative z-10 flex-1 min-h-0 flex items-center justify-center ${aspectRatio === 'square' ? 'my-1' : 'my-3'}`}>
+                    <div 
+                      className="px-5 py-3.5 rounded-2xl border flex flex-col items-center justify-center text-center backdrop-blur-xs"
+                      style={{
+                        borderColor: isDarkText ? 'rgba(0,0,0,0.35)' : 'rgba(16,185,129,0.4)',
+                        backgroundColor: isDarkText ? 'rgba(255,255,255,0.35)' : 'rgba(2,6,23,0.45)',
+                        color: isDarkText ? '#000000' : '#ffffff'
+                      }}
+                    >
+                      <Shield className="w-7 h-7 mb-1 text-emerald-400" />
+                      <span className="text-[10px] font-black uppercase italic tracking-[0.2em]">
+                        Fortalecimento & Estabilidade
+                      </span>
+                    </div>
+                  </div>
+                ) : <div className="flex-1" />
+              ) : showRoute && (svgRoute.pathData || tileLayout.pathData) ? (
                 <div className={`relative z-10 flex-1 min-h-0 flex items-center justify-center overflow-hidden ${aspectRatio === 'square' ? 'my-1' : 'my-3'}`}>
                   {mapDisplayMode === 'transparent' ? (
                     <svg 
@@ -1067,9 +1275,114 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 </div>
               )}
 
-              {/* BOTTOM: Performance Running Metrics */}
+              {/* BOTTOM: Performance Metrics (Strength vs Running) */}
               <div className={`relative z-10 shrink-0 ${aspectRatio === 'square' ? 'space-y-1.5 pt-1' : 'space-y-3 pt-2'}`}>
-                
+                {isStrength ? (
+                  <>
+                    {/* Hero Duration for Strength */}
+                    <div 
+                      className={`border-b ${aspectRatio === 'square' ? 'pb-1' : 'pb-2.5'}`} 
+                      style={{ borderColor: isDarkText ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.25)' }}
+                    >
+                      <span 
+                        className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest block italic transition-colors"
+                        style={{
+                          color: isDarkText ? '#000000' : '#ffffff',
+                          textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                        }}
+                      >
+                        Tempo de Sessão
+                      </span>
+                      <div className="flex items-baseline gap-2">
+                        <span 
+                          className={`font-black italic tracking-tight transition-colors ${aspectRatio === 'square' ? 'text-3xl sm:text-4xl' : 'text-4xl sm:text-5xl'}`}
+                          style={{
+                            color: isDarkText ? '#000000' : '#ffffff',
+                            textShadow: isDarkText ? '0 2px 4px rgba(255,255,255,0.95)' : '0 3px 8px rgba(0,0,0,0.95)'
+                          }}
+                        >
+                          {formatDuration(strengthDurationSec)}
+                        </span>
+                        <span 
+                          className={`font-black italic uppercase transition-colors ${aspectRatio === 'square' ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'}`}
+                          style={{
+                            color: isDarkText ? '#000000' : '#10b981',
+                            textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                          }}
+                        >
+                          FORÇA
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Sub-metrics 3-Column Grid for Strength */}
+                    <div className={`grid grid-cols-3 ${aspectRatio === 'square' ? 'gap-1.5 sm:gap-2' : 'gap-2 sm:gap-4'}`}>
+                      <div>
+                        <span 
+                          className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider block transition-colors"
+                          style={{
+                            color: isDarkText ? '#000000' : '#ffffff',
+                            textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                          }}
+                        >
+                          Intensidade
+                        </span>
+                        <p 
+                          className={`font-black italic transition-colors ${aspectRatio === 'square' ? 'text-sm sm:text-base' : 'text-base sm:text-xl'}`}
+                          style={{
+                            color: isDarkText ? '#000000' : '#ffffff',
+                            textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 4px rgba(0,0,0,0.95)'
+                          }}
+                        >
+                          PSE {strengthRpe}<span className="text-[10px] font-bold">/10</span>
+                        </p>
+                      </div>
+
+                      <div>
+                        <span 
+                          className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider block transition-colors"
+                          style={{
+                            color: isDarkText ? '#000000' : '#ffffff',
+                            textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                          }}
+                        >
+                          {data.exercisesCount && data.exercisesCount > 0 ? 'Prescrição' : 'Modalidade'}
+                        </span>
+                        <p 
+                          className={`font-black italic uppercase transition-colors ${aspectRatio === 'square' ? 'text-xs sm:text-sm' : 'text-sm sm:text-lg'}`}
+                          style={{
+                            color: isDarkText ? '#000000' : '#34d399',
+                            textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 4px rgba(0,0,0,0.95)'
+                          }}
+                        >
+                          {data.exercisesCount && data.exercisesCount > 0 ? `${data.exercisesCount} Exerc.` : 'Core & Força'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <span 
+                          className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider block transition-colors"
+                          style={{
+                            color: isDarkText ? '#000000' : '#ffffff',
+                            textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.9)' : '0 1px 3px rgba(0,0,0,0.95)'
+                          }}
+                        >
+                          Status
+                        </span>
+                        <p 
+                          className={`font-black italic uppercase transition-colors ${aspectRatio === 'square' ? 'text-xs sm:text-sm' : 'text-sm sm:text-lg'}`}
+                          style={{
+                            color: isDarkText ? '#000000' : '#ffffff',
+                            textShadow: isDarkText ? '0 1px 3px rgba(255,255,255,0.95)' : '0 2px 4px rgba(0,0,0,0.95)'
+                          }}
+                        >
+                          Concluído ✓
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
                 {/* Hero Distance */}
                 <div 
                   className={`border-b ${aspectRatio === 'square' ? 'pb-1' : 'pb-2.5'}`} 
@@ -1180,6 +1493,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     </p>
                   </div>
                 </div>
+                  </>
+                )}
 
                 {showHeartRate && data.avgHeartRate && (
                   <div
@@ -1253,7 +1568,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   }`}
                 >
                   <MapPin className="w-3.5 h-3.5" />
-                  <span>Logo Central + Mapa</span>
+                  <span>{isStrength ? 'Logo Central + Ícone' : 'Logo Central + Mapa'}</span>
                 </button>
                 <button
                   type="button"
@@ -1269,7 +1584,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 </button>
               </div>
 
-              {/* SELETOR RÁPIDO DO MODO DO MAPA: PADRÃO vs SATÉLITE vs TRANSPARENTE */}
+              {/* SELETOR RÁPIDO DO MODO DO MAPA: PADRÃO vs SATÉLITE vs TRANSPARENTE (Apenas Corrida) */}
+              {!isStrength && (
               <div className="w-full max-w-md bg-slate-950/90 p-2 rounded-2xl border border-white/10 shadow-lg space-y-1.5">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
@@ -1330,12 +1646,13 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   </button>
                 </div>
               </div>
+              )}
 
               {/* Opções Rápidas Exclusivas quando o formato Logo Central está ativo */}
               {cardLayout === 'strava' && (
                 <div className="flex flex-wrap items-center justify-center gap-2 w-full max-w-md bg-slate-950/80 px-3 py-2 rounded-2xl border border-orange-500/20">
                   <span className="text-[10px] font-black uppercase tracking-wider text-orange-400">
-                    Cor do Mapa:
+                    {isStrength ? 'Cor do Ícone:' : 'Cor do Mapa:'}
                   </span>
                   {[
                     { id: 'orange', label: 'Laranja', color: 'bg-[#fc4c02]' },

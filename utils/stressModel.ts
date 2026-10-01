@@ -57,30 +57,54 @@ export function getEstimatedPace(type: string, vdot: number): number {
   }
 }
 
+// Converte string de duração (ex: "45:00", "01:00:00", "45") em minutos
+export function parseWorkoutDurationToMinutes(dur?: string | number): number {
+  if (dur === undefined || dur === null || dur === '') return 0;
+  if (typeof dur === 'number') return dur > 0 ? dur : 0;
+  const clean = String(dur).trim().replace(/[^0-9:.,]/g, '');
+  if (!clean) return 0;
+  if (clean.includes(':')) {
+    const parts = clean.split(':').map(Number);
+    if (parts.length === 3) {
+      return (parts[0] || 0) * 60 + (parts[1] || 0) + (parts[2] || 0) / 60;
+    }
+    if (parts.length === 2) {
+      return (parts[0] || 0) + (parts[1] || 0) / 60;
+    }
+  }
+  const num = parseFloat(clean.replace(',', '.'));
+  return isNaN(num) || num <= 0 ? 0 : num;
+}
+
 // Calcula o TRIMP (ou carga de treino) baseado no sRPE (session RPE)
 export function calculateWorkoutTRIMP(workout: {
   type: string;
   distance?: number;
   actualDistance?: number;
+  durationMinutes?: number;
+  actualDuration?: string;
   rpe?: number;
   completed?: boolean;
 }, vdot?: number): number {
   if (!workout.completed || workout.type === 'Descanso') return 0;
 
   const dist = workout.actualDistance ?? workout.distance ?? 0;
-  const rpe = workout.rpe ?? getDefaultRpeForType(workout.type);
+  const rpe = (workout.rpe && workout.rpe > 0) ? workout.rpe : getDefaultRpeForType(workout.type);
+
+  const explicitDurationMin = parseWorkoutDurationToMinutes(workout.actualDuration) || (workout.durationMinutes && workout.durationMinutes > 0 ? workout.durationMinutes : 0);
 
   let durationMin = 0;
-  if (dist > 0) {
+  const isStrength = Boolean(workout.type && (workout.type.toLowerCase().includes('fortalecimento') || workout.type.toLowerCase().includes('força') || workout.type.toLowerCase().includes('mobilidade')));
+
+  if (isStrength) {
+    durationMin = explicitDurationMin > 0 ? explicitDurationMin : 45;
+  } else if (explicitDurationMin > 0) {
+    durationMin = explicitDurationMin;
+  } else if (dist > 0) {
     const pace = getEstimatedPace(workout.type, vdot ?? 45);
     durationMin = dist * pace;
   } else {
-    // Treinos sem distância (ex: fortalecimento)
-    if (workout.type === 'Fortalecimento') {
-      durationMin = 45; // 45 minutos padrão
-    } else {
-      durationMin = 30; // 30 minutos padrão
-    }
+    durationMin = 30;
   }
 
   // Carga sRPE = Duração (minutos) * RPE (1-10)

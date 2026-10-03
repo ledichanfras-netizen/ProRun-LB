@@ -2300,7 +2300,9 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                       elevationGainMeters: gpxParsedRoute.elevationGainMeters,
                       avgHeartRate: gpxParsedRoute.avgHeartRate,
                       route: gpxParsedRoute,
-                      workoutType: workoutType
+                      workoutType: workoutType,
+                      structuredWorkout: activeStructured || undefined,
+                      completedSteps: gpxParsedRoute.completedSteps
                     });
                   }}
                   className={`font-black py-3 rounded-xl flex items-center justify-center gap-1.5 text-xs uppercase italic tracking-wider transition-all cursor-pointer ${

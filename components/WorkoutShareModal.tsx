@@ -1584,70 +1584,6 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 </button>
               </div>
 
-              {/* SELETOR RÁPIDO DO MODO DO MAPA: PADRÃO vs SATÉLITE vs TRANSPARENTE (Apenas Corrida) */}
-              {!isStrength && (
-              <div className="w-full max-w-md bg-slate-950/90 p-2 rounded-2xl border border-white/10 shadow-lg space-y-1.5">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                    <MapIcon className="w-3 h-3" /> Modo de Exibição do Mapa:
-                  </span>
-                  <span className="text-[9px] text-slate-400 font-bold">
-                    {mapDisplayMode === 'standard' ? '🗺️ Ruas & Terreno' : mapDisplayMode === 'satellite' ? '🛰️ Foto de Satélite' : '⚡ Traçado Puro'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMapDisplayMode('standard');
-                      setShowRoute(true);
-                    }}
-                    className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase italic tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                      mapDisplayMode === 'standard'
-                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
-                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <MapIcon className="w-3.5 h-3.5 text-emerald-300" />
-                    <span>Padrão</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMapDisplayMode('satellite');
-                      setShowRoute(true);
-                    }}
-                    className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase italic tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                      mapDisplayMode === 'satellite'
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <Globe className="w-3.5 h-3.5 text-cyan-300" />
-                    <span>Satélite</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMapDisplayMode('transparent');
-                      setShowRoute(true);
-                    }}
-                    className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase italic tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                      mapDisplayMode === 'transparent'
-                        ? 'bg-white/20 text-white border border-white/30 shadow-md'
-                        : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5 text-slate-300" />
-                    <span>Transparente</span>
-                  </button>
-                </div>
-              </div>
-              )}
-
               {/* Opções Rápidas Exclusivas quando o formato Logo Central está ativo */}
               {cardLayout === 'strava' && (
                 <div className="flex flex-wrap items-center justify-center gap-2 w-full max-w-md bg-slate-950/80 px-3 py-2 rounded-2xl border border-orange-500/20">
@@ -1892,32 +1828,6 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 className="hidden"
               />
 
-              {/* Photo Source Actions (Tirar Foto ou Galeria) */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBackgroundType('photo');
-                    cameraInputRef.current?.click();
-                  }}
-                  className="py-2.5 px-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 flex items-center justify-center gap-1.5 text-xs font-black uppercase italic transition-all shadow-sm cursor-pointer"
-                >
-                  <Camera className="w-4 h-4 text-emerald-400" />
-                  <span>Tirar Foto</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBackgroundType('photo');
-                    fileInputRef.current?.click();
-                  }}
-                  className="py-2.5 px-3 rounded-xl border border-white/15 bg-slate-900 hover:bg-white/10 text-slate-200 flex items-center justify-center gap-1.5 text-xs font-black uppercase italic transition-all cursor-pointer"
-                >
-                  <ImageIcon className="w-4 h-4 text-teal-400" />
-                  <span>Galeria</span>
-                </button>
-              </div>
-
               {/* Controls for Photo Background */}
               {backgroundType === 'photo' && (
                 <div className="pt-3 border-t border-white/10 space-y-3">
@@ -1925,36 +1835,19 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                       <Sliders className="w-3.5 h-3.5 text-emerald-400" /> Ajustes da Foto
                     </span>
-                    <div className="flex items-center gap-2">
-                      {customPhotoUrl && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCustomPhotoUrl(null);
-                            setPhotoSrc(null);
-                          }}
-                          className="text-[10px] font-black text-rose-400 hover:text-rose-300 uppercase underline cursor-pointer"
-                          title="Remover foto atual"
-                        >
-                          Remover Foto
-                        </button>
-                      )}
+                    {customPhotoUrl && (
                       <button
                         type="button"
-                        onClick={() => cameraInputRef.current?.click()}
-                        className="text-[10px] font-black text-emerald-400 hover:text-emerald-300 uppercase underline cursor-pointer"
+                        onClick={() => {
+                          setCustomPhotoUrl(null);
+                          setPhotoSrc(null);
+                        }}
+                        className="text-[10px] font-black text-rose-400 hover:text-rose-300 uppercase underline cursor-pointer"
+                        title="Remover foto atual"
                       >
-                        Nova Foto
+                        Remover Foto
                       </button>
-                      <span className="text-slate-600">|</span>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-[10px] font-black text-slate-400 hover:text-slate-300 uppercase underline cursor-pointer"
-                      >
-                        Galeria
-                      </button>
-                    </div>
+                    )}
                   </div>
 
                   {/* Active Photo Status */}

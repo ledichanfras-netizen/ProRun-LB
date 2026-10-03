@@ -254,6 +254,19 @@ const AthletePortal: React.FC = () => {
   const completionCameraInputRef = useRef<HTMLInputElement>(null);
   const completionGalleryInputRef = useRef<HTMLInputElement>(null);
 
+  const resolveStructuredWorkoutForShare = (workout: any) => {
+    if (workout?.structuredWorkout && workout.structuredWorkout.steps && workout.structuredWorkout.steps.length > 0) {
+      return workout.structuredWorkout;
+    }
+    if (workout?.customDescription) {
+      const parsed = parseWorkoutTextToStructure(workout.customDescription);
+      if (parsed && parsed.steps && parsed.steps.length > 0) {
+        return parsed;
+      }
+    }
+    return undefined;
+  };
+
   const handleCompletionPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !completedWorkoutPrompt) return;
@@ -274,7 +287,9 @@ const AthletePortal: React.FC = () => {
         workoutType: completedWorkoutPrompt.workout.type,
         initialPhotoUrl: photoUrl,
         rpe: completedWorkoutPrompt.rpe,
-        exercisesCount: completedWorkoutPrompt.workout.exercises?.length || 0
+        exercisesCount: completedWorkoutPrompt.workout.exercises?.length || 0,
+        structuredWorkout: resolveStructuredWorkoutForShare(completedWorkoutPrompt.workout),
+        completedSteps: completedWorkoutPrompt.route?.completedSteps
       });
       setCompletedWorkoutPrompt(null);
     };
@@ -850,7 +865,9 @@ const AthletePortal: React.FC = () => {
         initialBackgroundType: 'transparent',
         initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
         rpe: effectiveRpe,
-        exercisesCount: localExercises?.length || selectedWorkout.data.exercises?.length || 0
+        exercisesCount: localExercises?.length || selectedWorkout.data.exercises?.length || 0,
+        structuredWorkout: resolveStructuredWorkoutForShare(selectedWorkout.data),
+        completedSteps: routeToSave?.completedSteps || selectedWorkout.data.gpsRoute?.completedSteps
       });
 
       setSelectedWorkout(null);
@@ -1008,7 +1025,9 @@ const AthletePortal: React.FC = () => {
               initialBackgroundType: 'transparent',
               initialPhotoUrl: (completedWorkoutSnapshot.workout as any).photoUrl || (completedWorkoutSnapshot.workout as any).imageUrl || undefined,
               rpe: completedWorkoutSnapshot.rpe,
-              exercisesCount: completedWorkoutSnapshot.workout.exercises?.length || 0
+              exercisesCount: completedWorkoutSnapshot.workout.exercises?.length || 0,
+              structuredWorkout: resolveStructuredWorkoutForShare(completedWorkoutSnapshot.workout),
+              completedSteps: completedWorkoutSnapshot.route?.completedSteps
             });
           }
         }
@@ -2344,7 +2363,9 @@ const AthletePortal: React.FC = () => {
                         initialBackgroundType: 'transparent',
                         initialPhotoUrl: (todayWorkout.workout as any).photoUrl || (todayWorkout.workout as any).imageUrl || undefined,
                         rpe: todayWorkout.workout.rpe,
-                        exercisesCount: todayWorkout.workout.exercises?.length || 0
+                        exercisesCount: todayWorkout.workout.exercises?.length || 0,
+                        structuredWorkout: resolveStructuredWorkoutForShare(todayWorkout.workout),
+                        completedSteps: todayWorkout.workout.gpsRoute?.completedSteps
                       });
                     }}
                     className="w-full font-black py-4 rounded-2xl flex items-center justify-center gap-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.98] uppercase italic tracking-wider text-xs sm:text-sm cursor-pointer"
@@ -2530,7 +2551,9 @@ const AthletePortal: React.FC = () => {
                   initialBackgroundType: 'transparent',
                   initialPhotoUrl: (yesterdayWorkout.workout as any).photoUrl || (yesterdayWorkout.workout as any).imageUrl || undefined,
                   rpe: yesterdayWorkout.workout.rpe,
-                  exercisesCount: yesterdayWorkout.workout.exercises?.length || 0
+                  exercisesCount: yesterdayWorkout.workout.exercises?.length || 0,
+                  structuredWorkout: resolveStructuredWorkoutForShare(yesterdayWorkout.workout),
+                  completedSteps: yesterdayWorkout.workout.gpsRoute?.completedSteps
                 });
               }}
               className="w-full font-black py-3 rounded-xl flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md shadow-emerald-500/20 uppercase italic tracking-wider text-xs cursor-pointer active:scale-95 transition-all"
@@ -4922,7 +4945,9 @@ const AthletePortal: React.FC = () => {
                           initialBackgroundType: 'transparent',
                           initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
                           rpe: rpeValue || selectedWorkout.data.rpe || (isStrength ? 6 : undefined),
-                          exercisesCount: localExercises?.length || selectedWorkout.data.exercises?.length || 0
+                          exercisesCount: localExercises?.length || selectedWorkout.data.exercises?.length || 0,
+                          structuredWorkout: resolveStructuredWorkoutForShare(selectedWorkout.data),
+                          completedSteps: currentGpsRoute?.completedSteps || selectedWorkout.data.gpsRoute?.completedSteps
                         });
                         setSelectedWorkout(null);
                       }}
@@ -5213,7 +5238,9 @@ const AthletePortal: React.FC = () => {
                       avgHeartRate: completedWorkoutPrompt.route?.avgHeartRate,
                       route: completedWorkoutPrompt.route,
                       workoutType: completedWorkoutPrompt.workout.type,
-                      rpe: completedWorkoutPrompt.rpe
+                      rpe: completedWorkoutPrompt.rpe,
+                      structuredWorkout: resolveStructuredWorkoutForShare(completedWorkoutPrompt.workout),
+                      completedSteps: completedWorkoutPrompt.route?.completedSteps
                     });
                     setCompletedWorkoutPrompt(null);
                   }}

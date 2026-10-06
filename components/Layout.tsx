@@ -22,6 +22,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import NotificationPrompt from './NotificationPrompt';
 import NotificationCenter from './NotificationCenter';
+import { AthleteSelectorModal } from './AthleteSelectorModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -30,6 +31,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAthleteSelectorOpen, setIsAthleteSelectorOpen] = useState(false);
   const { athletes, selectedAthleteId, setSelectedAthleteId, userRole, logout, isCloudConnected, notifications, theme, toggleTheme } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
@@ -165,23 +167,38 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <div className="p-6 border-t border-white/5 bg-[#080d1a]/50">
           {userRole === 'coach' && (
-            <div className="bg-white/5 rounded-[1.5rem] p-4 mb-4 border border-white/5 backdrop-blur-md">
+            <div 
+              onClick={() => setIsAthleteSelectorOpen(true)}
+              className="bg-white/5 hover:bg-white/10 rounded-[1.5rem] p-4 mb-4 border border-white/5 hover:border-emerald-500/30 backdrop-blur-md cursor-pointer transition-all group shadow-sm"
+              title="Clique para trocar de aluno rapidamente"
+            >
                <div className="flex justify-between items-center mb-2">
-                 <p className="text-[9px] text-emerald-400 uppercase font-black tracking-[0.2em]">Atleta em Foco</p>
-                 {selectedAthleteId && (
-                   <button 
-                     onClick={() => setSelectedAthleteId(null)}
-                     className="text-[8px] font-black text-emerald-400/60 hover:text-white uppercase tracking-tighter transition-colors"
-                   >
-                     TROCAR
-                   </button>
-                 )}
+                 <p className="text-[9px] text-emerald-400 uppercase font-black tracking-[0.2em] flex items-center gap-1.5">
+                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                   Atleta em Foco
+                 </p>
+                 <span className="text-[8px] font-black text-emerald-400 group-hover:text-white uppercase tracking-tighter transition-colors bg-emerald-500/15 group-hover:bg-emerald-500 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                   {selectedAthleteId ? 'TROCAR' : 'ESCOLHER'}
+                 </span>
                </div>
                <div className="font-bold text-sm text-white truncate flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform shrink-0">
                     <UserCheck className="w-4 h-4 text-emerald-400" />
                   </div>
-                  <span className="truncate">{activeAthlete ? activeAthlete.name : 'Nenhum atleta'}</span>
+                  <div className="truncate">
+                    <span className="truncate block font-black uppercase italic text-xs tracking-tight">
+                      {activeAthlete ? activeAthlete.name : 'Selecionar Atleta'}
+                    </span>
+                    {activeAthlete ? (
+                      <span className="text-[10px] text-slate-400 font-medium italic block truncate">
+                        {activeAthlete.experience} • VDOT {activeAthlete.metrics?.vdot || '--'}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 font-medium italic block">
+                        Toque para focar em um aluno
+                      </span>
+                    )}
+                  </div>
                </div>
             </div>
           )}
@@ -229,6 +246,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       )}
       <NotificationPrompt />
       <NotificationCenter isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
+      <AthleteSelectorModal isOpen={isAthleteSelectorOpen} onClose={() => setIsAthleteSelectorOpen(false)} />
     </div>
   );
 };

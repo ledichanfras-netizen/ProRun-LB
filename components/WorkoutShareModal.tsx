@@ -57,6 +57,8 @@ export interface WorkoutShareData {
   autoOpenCamera?: boolean;
   rpe?: number;
   exercisesCount?: number;
+  structuredWorkout?: any;
+  completedSteps?: any;
 }
 
 interface WorkoutShareModalProps {

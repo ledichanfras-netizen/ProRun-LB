@@ -773,6 +773,118 @@ const AthletePortal: React.FC = () => {
   const isStrengthWorkoutType = (type?: string) =>
     Boolean(type && (type.toLowerCase().includes('fortalecimento') || type.toLowerCase().includes('força') || type.toLowerCase().includes('mobilidade')));
 
+  const getWorkoutTypeTheme = (type?: string) => {
+    const t = (type || '').toLowerCase();
+    
+    if (t.includes('limiar') || t.includes('tempo') || t.includes('threshold') || t.includes('t-pace')) {
+      return {
+        name: 'Limiar',
+        code: 'LIM',
+        cardBg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-500/50 text-amber-800 dark:text-amber-300',
+        badgeBg: 'bg-amber-500 text-white',
+        dotColor: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]',
+        icon: '⚡'
+      };
+    }
+    
+    if (t.includes('velocidade') || t.includes('tiro curto') || t.includes('r-pace') || t.includes('pista') || t.includes('speed')) {
+      return {
+        name: 'Velocidade',
+        code: 'VEL',
+        cardBg: 'bg-fuchsia-50 dark:bg-fuchsia-950/40 border-fuchsia-300 dark:border-fuchsia-500/50 text-fuchsia-800 dark:text-fuchsia-300',
+        badgeBg: 'bg-fuchsia-500 text-white',
+        dotColor: 'bg-fuchsia-500 shadow-[0_0_8px_rgba(217,70,239,0.6)]',
+        icon: '🚀'
+      };
+    }
+    
+    if (t.includes('interval') || t.includes('vo2') || t.includes('tiro') || t.includes('i-pace')) {
+      return {
+        name: 'Intervalado',
+        code: 'INT',
+        cardBg: 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-500/50 text-red-800 dark:text-red-300',
+        badgeBg: 'bg-red-500 text-white',
+        dotColor: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]',
+        icon: '🔥'
+      };
+    }
+    
+    if (t.includes('longão') || t.includes('longao') || t.includes('long run')) {
+      return {
+        name: 'Longão',
+        code: 'LON',
+        cardBg: 'bg-teal-50 dark:bg-teal-950/40 border-teal-300 dark:border-teal-500/50 text-teal-800 dark:text-teal-300',
+        badgeBg: 'bg-teal-600 text-white',
+        dotColor: 'bg-teal-600 shadow-[0_0_8px_rgba(13,148,136,0.6)]',
+        icon: '🏃‍♂️'
+      };
+    }
+    
+    if (t.includes('regenerativ') || t.includes('recovery') || t.includes('leve') || t.includes('rodagem') || t.includes('e-pace')) {
+      return {
+        name: 'Regenerativo',
+        code: 'REG',
+        cardBg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/50 text-emerald-800 dark:text-emerald-300',
+        badgeBg: 'bg-emerald-500 text-white',
+        dotColor: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]',
+        icon: '🌿'
+      };
+    }
+    
+    if (t.includes('maratona') || t.includes('m-pace') || t.includes('ritmo')) {
+      return {
+        name: 'Maratona',
+        code: 'MAR',
+        cardBg: 'bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-500/50 text-sky-800 dark:text-sky-300',
+        badgeBg: 'bg-sky-500 text-white',
+        dotColor: 'bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.6)]',
+        icon: '🎯'
+      };
+    }
+    
+    if (t.includes('fortalecimento') || t.includes('força') || t.includes('muscula') || t.includes('funcional') || t.includes('mobilidade')) {
+      return {
+        name: 'Fortalecimento',
+        code: 'FOR',
+        cardBg: 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-500/50 text-indigo-800 dark:text-indigo-300',
+        badgeBg: 'bg-indigo-500 text-white',
+        dotColor: 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]',
+        icon: '💪'
+      };
+    }
+    
+    if (t.includes('prova') || t.includes('race') || t.includes('competi')) {
+      return {
+        name: 'Prova',
+        code: 'PRO',
+        cardBg: 'bg-amber-100 dark:bg-amber-900/50 border-amber-400 dark:border-amber-400 text-amber-900 dark:text-amber-200 ring-2 ring-amber-400/30',
+        badgeBg: 'bg-amber-500 text-white',
+        dotColor: 'bg-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.8)]',
+        icon: '🏁'
+      };
+    }
+    
+    if (t.includes('descanso') || t.includes('off') || t.includes('repouso')) {
+      return {
+        name: 'Descanso',
+        code: 'OFF',
+        cardBg: 'bg-slate-50 dark:bg-white/[0.03] border-slate-200/80 dark:border-white/5 text-slate-400 dark:text-slate-500 opacity-60',
+        badgeBg: 'bg-slate-200 dark:bg-slate-800 text-slate-500',
+        dotColor: 'bg-slate-200 dark:bg-slate-700',
+        icon: '💤'
+      };
+    }
+    
+    return {
+      name: type || 'Treino',
+      code: (type || 'TRN').slice(0, 3).toUpperCase(),
+      cardBg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300',
+      badgeBg: 'bg-emerald-500 text-white',
+      dotColor: 'bg-emerald-500',
+      icon: '🏃'
+    };
+  };
+
   const handleSaveAndShareWorkout = async (customDist?: number, customDur?: string, customRoute?: any, customHr?: number) => {
     if (!selectedWorkout || !activeAthlete || isSaving) return;
 
@@ -2664,46 +2776,128 @@ const AthletePortal: React.FC = () => {
         </div>
       )}
 
-      {/* Resumo Semanal Mini */}
-      <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-        <div className="flex justify-between items-center mb-6">
+      {/* Resumo Semanal Mini - Constância da Semana */}
+      <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-white/5 shadow-sm space-y-5">
+        <div className="flex justify-between items-center flex-wrap gap-2">
           <div>
-            <h3 className="font-black text-slate-800 text-xs uppercase italic tracking-tighter flex items-center gap-2">
-              <Activity className="w-4 h-4 text-emerald-500" /> Constância Semana {currentWeek?.weekNumber || ''}
+            <h3 className="font-black text-slate-800 dark:text-white text-xs uppercase italic tracking-tighter flex items-center gap-2">
+              <Activity className="w-4 h-4 text-emerald-500" /> Constância da Semana {currentWeek?.weekNumber ? `• Semana ${currentWeek.weekNumber}` : ''}
             </h3>
             {currentWeek?.weekNumber === 8 && (
-              <p className="text-[8px] font-bold text-emerald-600 uppercase italic mt-1 bg-emerald-50 px-2 py-0.5 rounded-full w-fit">
+              <p className="text-[8px] font-bold text-emerald-600 uppercase italic mt-1 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full w-fit">
                 Semana da Prova
               </p>
             )}
           </div>
-          <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase italic border border-emerald-100">
+          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1 rounded-full uppercase italic border border-emerald-100 dark:border-emerald-500/20">
             {weeklyProgress.completed}/{weeklyProgress.total} Concluídos
           </span>
         </div>
         
-        <div className="flex justify-between gap-2">
-          {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((day, i) => {
+        {/* Barra dos 7 Dias da Semana com Cores do Treino Proposto */}
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+          {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((dayInitial, i) => {
             const today = getAppNow();
             const currentDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
             const isToday = i === currentDayIndex;
-            
+            const workout = currentWeek?.workouts[i];
+            const theme = getWorkoutTypeTheme(workout?.type);
+            const isCompleted = Boolean(workout?.completed);
+            const isRest = workout?.type === 'Descanso' || !workout?.type;
+            const originalWeekIndex = allWeeks.findIndex(p => p.weekNumber === currentWeek?.weekNumber);
+            const weekdaysFull = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
+
             return (
-              <div key={i} className="flex flex-col items-center gap-3 flex-1">
-                <div className={`w-full aspect-square rounded-xl flex items-center justify-center text-[10px] transition-all border-2 ${
-                  isToday
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-600 font-black scale-105' 
-                    : 'border-slate-50 bg-slate-50 text-slate-400 font-bold'
-                }`}>
-                  {day}
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  if (workout && originalWeekIndex >= 0) {
+                    setSelectedDayPerWeek(prev => ({ ...prev, [currentWeek.weekNumber]: i }));
+                    openWorkoutModal(originalWeekIndex, i, workout);
+                  }
+                }}
+                className={`flex flex-col items-center gap-2 p-1 rounded-2xl transition-all group relative cursor-pointer ${
+                  isToday 
+                    ? 'ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-900 scale-[1.03] z-10' 
+                    : 'hover:scale-[1.02]'
+                }`}
+                title={`${weekdaysFull[i]}: ${workout?.type || 'Descanso'} ${workout?.distance ? `(${workout.distance} KM)` : ''}`}
+              >
+                {/* Caixinha do Dia estilizada com a cor do treino proposto */}
+                <div 
+                  className={`w-full aspect-square rounded-xl flex flex-col items-center justify-between p-1.5 transition-all border-2 relative overflow-hidden ${
+                    isCompleted 
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/20' 
+                      : `${theme.cardBg}`
+                  }`}
+                >
+                  {/* Selo HOJE */}
+                  {isToday && !isCompleted && (
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  )}
+
+                  {/* Letra do Dia */}
+                  <span className={`text-[10px] sm:text-xs font-black uppercase italic leading-none pt-0.5 ${
+                    isCompleted ? 'text-white' : ''
+                  }`}>
+                    {dayInitial}
+                  </span>
+
+                  {/* Código / Ícone do Treino Proposto */}
+                  {isCompleted ? (
+                    <div className="pb-0.5">
+                      <Check className="w-3.5 h-3.5 stroke-[3] text-white" />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center leading-none pb-0.5 w-full">
+                      <span className="text-[7px] sm:text-[8px] font-black tracking-tighter uppercase italic opacity-90 truncate max-w-full">
+                        {theme.code}
+                      </span>
+                      {workout?.distance && workout.distance > 0 && !isRest ? (
+                        <span className="text-[6px] font-extrabold opacity-75 hidden sm:inline">
+                          {workout.distance}k
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
-                <div className={`w-2 h-2 rounded-full transition-all duration-500 ${
-                  currentWeek?.workouts[i]?.completed ? 'bg-emerald-500 scale-110 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-200'
-                }`} />
-              </div>
+
+                {/* Marcador / Ponto de Status Inferior */}
+                <div className="flex items-center justify-center h-2">
+                  {isCompleted ? (
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)] scale-110" />
+                  ) : isRest ? (
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 opacity-50" />
+                  ) : (
+                    <div className={`w-2 h-2 rounded-full ${theme.dotColor} opacity-90`} />
+                  )}
+                </div>
+              </button>
             );
           })}
         </div>
+
+        {/* Legenda Dinâmica dos Treinos Propostos da Semana */}
+        {currentWeek?.workouts && (
+          <div className="pt-3 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center gap-2 text-[10px]">
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px] mr-1">
+              Legenda da semana:
+            </span>
+            {Array.from(new Set(currentWeek.workouts.map((w: any) => w.type || 'Descanso'))).map((type: any) => {
+              const theme = getWorkoutTypeTheme(type);
+              return (
+                <span 
+                  key={type}
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase italic ${theme.cardBg}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${theme.dotColor}`} />
+                  <span>{theme.name}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Navegação de Semanas Moderna */}
@@ -2763,35 +2957,47 @@ const AthletePortal: React.FC = () => {
                     </div>
                   </div>
                   <div className="grid grid-cols-7 gap-1.5 md:gap-2 mb-4">
-                    {week.workouts.map((workout, dIdx) => (
-                      <button 
-                        key={dIdx}
-                        onClick={() => {
-                          setSelectedDayPerWeek(prev => ({ ...prev, [week.weekNumber]: dIdx }));
-                          openWorkoutModal(originalWeekIndex, dIdx, workout);
-                        }}
-                        className={`aspect-square rounded-xl flex flex-col items-center justify-center transition-all border-2 ${
-                          workout.completed 
-                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                            : workout.type === 'Descanso' 
-                              ? 'bg-slate-100 border-slate-100 text-slate-300' 
-                              : workout.type === 'Prova'
-                                ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/25 animate-pulse'
-                                : 'bg-white border-slate-100 text-slate-300 hover:border-emerald-200'
-                        }`}
-                      >
-                         <span className="text-[7px] font-black uppercase mb-0.5 opacity-60">
-                           {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'][dIdx]}
-                         </span>
-                         {workout.completed ? (
-                           <Check className="w-3 h-3" />
-                         ) : workout.type === 'Prova' ? (
-                           <span className="text-[10px] leading-none">🏁</span>
-                         ) : (
-                           <div className="w-1 h-1 rounded-full bg-current opacity-20" />
-                         )}
-                      </button>
-                    ))}
+                    {week.workouts.map((workout, dIdx) => {
+                      const theme = getWorkoutTypeTheme(workout.type);
+                      const isCompleted = Boolean(workout.completed);
+                      const isRest = workout.type === 'Descanso' || !workout.type;
+
+                      return (
+                        <button 
+                          key={dIdx}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDayPerWeek(prev => ({ ...prev, [week.weekNumber]: dIdx }));
+                            openWorkoutModal(originalWeekIndex, dIdx, workout);
+                          }}
+                          className={`aspect-square rounded-xl flex flex-col items-center justify-center transition-all border-2 cursor-pointer ${
+                            isCompleted 
+                              ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/20' 
+                              : isRest 
+                                ? 'bg-slate-100 dark:bg-white/[0.03] border-slate-100 dark:border-white/5 text-slate-300 dark:text-slate-600' 
+                                : `${theme.cardBg} hover:scale-105 shadow-xs`
+                          }`}
+                          title={`${workout.type || 'Descanso'} ${workout.distance ? `(${workout.distance} KM)` : ''}`}
+                        >
+                          <span className={`text-[7px] font-black uppercase mb-0.5 ${
+                            isCompleted ? 'text-white' : 'opacity-70'
+                          }`}>
+                            {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'][dIdx]}
+                          </span>
+                          {isCompleted ? (
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          ) : workout.type === 'Prova' ? (
+                            <span className="text-[10px] leading-none">🏁</span>
+                          ) : isRest ? (
+                            <div className="w-1 h-1 rounded-full bg-current opacity-20" />
+                          ) : (
+                            <span className="text-[7px] font-black uppercase tracking-tighter opacity-90 truncate max-w-full">
+                              {theme.code}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* NOVO: Detalhe interativo do Dia Selecionado / Quilometragem & Descrição */}
@@ -2817,7 +3023,7 @@ const AthletePortal: React.FC = () => {
                                 <>
                                   💪{' '}
                                   <span>
-                                    {wk.actualDuration || (wk.durationMinutes ? `${wk.durationMinutes} min` : 'Força')}
+                                    {wk.actualDuration || ((wk as any).durationMinutes ? `${(wk as any).durationMinutes} min` : 'Força')}
                                     {wk.completed && wk.rpe ? ` • PSE ${wk.rpe}/10` : ''}
                                   </span>
                                 </>

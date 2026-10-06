@@ -38,7 +38,11 @@ import {
   MapPin,
   FileCode2,
   Timer,
-  Camera
+  Camera,
+  Users,
+  UserCheck,
+  ArrowRight,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculatePaces } from '../utils/calculations';
@@ -49,10 +53,12 @@ import { decodePolyline } from '../utils/gpsUtils';
 import { StructuredWorkoutModal } from '../components/StructuredWorkoutModal';
 import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure, formatStructuredWorkoutFullDescription } from '../utils/workoutParser';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
+import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 
 const Periodization: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, saveAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
+  const { athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
+  const [showAthleteSelector, setShowAthleteSelector] = useState(false);
   const [raceDate, setRaceDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [raceDistance, setRaceDistance] = useState('10km');
@@ -1053,7 +1059,18 @@ const Periodization: React.FC = () => {
           <p className="text-slate-300 font-medium italic text-sm">IA Treinador: Prescrição personalizada até o dia da prova.</p>
         </div>
         
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+           {/* Botão Seletor / Troca Rápida de Atleta no Header */}
+           <button 
+             onClick={() => setShowAthleteSelector(true)} 
+             className="bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 hover:border-transparent px-4 py-2.5 rounded-xl font-black flex items-center gap-2 transition shadow-lg uppercase text-[10px] italic tracking-widest group"
+             title="Clique para trocar de aluno rapidamente"
+           >
+             <Users className="w-4 h-4 transition-transform group-hover:scale-110" />
+             <span>{activeAthlete ? `Atleta: ${activeAthlete.name}` : 'Selecionar Atleta'}</span>
+             <ChevronDown className="w-3.5 h-3.5 opacity-70 group-hover:translate-y-0.5 transition-transform" />
+           </button>
+
            {fullPlan && (
              <>
                <button 
@@ -1080,11 +1097,122 @@ const Periodization: React.FC = () => {
         </div>
       </header>
 
-      {!activeAthlete ? (
-         <div className="bg-white p-16 rounded-3xl text-center border-2 border-dashed border-slate-200">
-            <Activity className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500 font-black uppercase text-xs tracking-widest">Selecione um atleta para periodizar.</p>
+      {/* CARD DO ATLETA EM FOCO */}
+      {activeAthlete && (
+        <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-5 md:p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-800 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-emerald-500/20 italic">
+                {activeAthlete.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center text-white shadow" title="Atleta Ativo">
+                <CheckCircle className="w-3 h-3" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full italic flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Atleta em Foco
+                </span>
+                <span className="text-xs text-slate-400 font-bold">
+                  {activeAthlete.experience} • VDOT {activeAthlete.metrics?.vdot || '--'}
+                </span>
+              </div>
+              <h2 className="text-xl md:text-2xl font-black text-white uppercase italic tracking-tight mt-1 flex items-center gap-2">
+                {activeAthlete.name}
+              </h2>
+              <p className="text-xs text-slate-400 italic mt-0.5">
+                {fullPlan ? (
+                  <>Ciclo em edição: <strong className="text-emerald-300 font-bold">{fullPlan.specificGoal || raceDistance}</strong> • {fullPlan.weeks?.length || 0} semanas cadastradas</>
+                ) : (
+                  <>Nenhum ciclo ativo cadastrado para este atleta. Defina os parâmetros abaixo para gerar.</>
+                )}
+              </p>
+            </div>
           </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowAthleteSelector(true)}
+              className="w-full md:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-wider italic flex items-center justify-center gap-2.5 transition-all shadow-xl shadow-emerald-600/25 active:scale-95 group"
+            >
+              <Users className="w-4 h-4 transition-transform group-hover:scale-110" />
+              <span>Trocar de Aluno</span>
+              <ChevronDown className="w-4 h-4 opacity-75 group-hover:translate-y-0.5 transition-transform" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!activeAthlete ? (
+        <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 md:p-12 text-center shadow-2xl backdrop-blur-md">
+          <div className="max-w-xl mx-auto space-y-6">
+            <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/10">
+              <UserCheck className="w-8 h-8" />
+            </div>
+            
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 italic">
+                Nenhum Atleta em Foco
+              </span>
+              <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tight text-white mt-3">
+                Selecione o Aluno para Periodizar
+              </h2>
+              <p className="text-sm text-slate-400 italic mt-2 leading-relaxed">
+                Escolha o atleta abaixo para visualizar a planilha existente, prescrever novos treinos ou criar um ciclo completo com IA — sem precisar voltar à tela de alunos.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowAthleteSelector(true)}
+              className="inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest italic shadow-xl shadow-emerald-600/25 transition-all active:scale-95"
+            >
+              <Users className="w-4 h-4" />
+              <span>Abrir Seletor Completo ({athletes.length} Alunos)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            {/* Grid Rápido de Alunos Disponíveis */}
+            {athletes.length > 0 && (
+              <div className="pt-6 border-t border-white/5">
+                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-4 text-left">
+                  Escolha rápida de atleta:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-left">
+                  {athletes.slice(0, 6).map((athlete) => {
+                    const hasPlan = Boolean(athletePlans[athlete.id]?.weeks?.length);
+                    return (
+                      <div
+                        key={athlete.id}
+                        onClick={() => setSelectedAthleteId(athlete.id)}
+                        className="p-3.5 bg-white/5 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/30 rounded-2xl cursor-pointer transition-all flex items-center justify-between gap-3 group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-white/10 group-hover:bg-emerald-500 group-hover:text-white flex items-center justify-center font-black italic text-xs transition-colors shrink-0">
+                            {athlete.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-black text-xs uppercase italic tracking-tight text-white group-hover:text-emerald-300 truncate">
+                              {athlete.name}
+                            </h4>
+                            <span className="text-[10px] text-slate-400 block truncate">
+                              {athlete.experience} {hasPlan ? '• Com ciclo' : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-black text-emerald-400 group-hover:translate-x-0.5 transition-transform shrink-0">
+                          Focar →
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
           <div className="space-y-6">
@@ -2370,6 +2498,14 @@ const Periodization: React.FC = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Modal de Seleção e Troca Rápida de Atleta em Foco */}
+      <AthleteSelectorModal 
+        isOpen={showAthleteSelector} 
+        onClose={() => setShowAthleteSelector(false)} 
+        title="Trocar Atleta em Foco"
+        subtitle="Escolha o aluno para analisar e periodizar sem sair desta tela"
+      />
     </div>
   );
 };

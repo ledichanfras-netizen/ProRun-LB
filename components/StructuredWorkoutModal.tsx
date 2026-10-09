@@ -182,6 +182,18 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
   // Initialize from initialWorkout if provided
   useEffect(() => {
     if (initialWorkout && initialWorkout.steps && initialWorkout.steps.length > 0) {
+      if (workoutDescription) {
+        const parsed = parseWorkoutTextToStructure(workoutDescription, workoutType, athletePaces);
+        if (parsed && parsed.steps) {
+          const initialHasWarmup = initialWorkout.steps.some(s => s.type === 'warmup');
+          const parsedHasWarmup = parsed.steps.some(s => s.type === 'warmup');
+          if (!initialHasWarmup && parsedHasWarmup) {
+            setPreviewWorkout(parsed);
+            syncBuilderFromStructuredWorkout(parsed);
+            return;
+          }
+        }
+      }
       setPreviewWorkout(initialWorkout);
       syncBuilderFromStructuredWorkout(initialWorkout);
     } else if (workoutDescription) {

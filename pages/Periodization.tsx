@@ -326,8 +326,17 @@ const Periodization: React.FC = () => {
            );
            if (found) {
              let structured = found.structuredWorkout;
-             if (!structured && found.customDescription && found.type !== 'Descanso' && found.type !== 'Fortalecimento') {
-               structured = parseWorkoutTextToStructure(found.customDescription, found.type, athletePaces) || undefined;
+             if (found.customDescription && found.type !== 'Descanso' && found.type !== 'Fortalecimento') {
+               const parsed = parseWorkoutTextToStructure(found.customDescription, found.type, athletePaces) || undefined;
+               if (!structured || !structured.steps || structured.steps.length === 0) {
+                 structured = parsed;
+               } else if (parsed && parsed.steps) {
+                 const dbHasWarmup = structured.steps.some(s => s.type === 'warmup');
+                 const parsedHasWarmup = parsed.steps.some(s => s.type === 'warmup');
+                 if (!dbHasWarmup && parsedHasWarmup) {
+                   structured = parsed;
+                 }
+               }
              }
              return { ...found, day: dayName, structuredWorkout: structured };
            }
@@ -1923,14 +1932,17 @@ const Periodization: React.FC = () => {
                                     {(workout.rpe || 0) > 0 && (
                                       <span className="text-[9px] font-black px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-md uppercase italic border border-amber-500/20">Percepção: {workout.rpe}/10</span>
                                     )}
-                                    {workout.gpsRoute && (
+                                    {(workout.gpsRoute || workout.route) && (
                                       <button
                                         type="button"
-                                        onClick={() => setViewingWorkoutRoute({ ...workout.gpsRoute, workoutType: workout.type, workoutDate: fullPlan?.startDate ? formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex)) : undefined })}
+                                        onClick={() => {
+                                          const r = workout.gpsRoute || workout.route;
+                                          setViewingWorkoutRoute({ ...r, workoutType: workout.type, workoutDate: fullPlan?.startDate ? formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex)) : undefined });
+                                        }}
                                         className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-md uppercase italic border border-emerald-500/30 flex items-center gap-1 transition-all cursor-pointer"
                                       >
                                         <Navigation className="w-2.5 h-2.5" />
-                                        <span>Rota GPS ({workout.gpsRoute.totalDistanceKm}km)</span>
+                                        <span>Rota GPS ({(workout.gpsRoute || workout.route).totalDistanceKm || workout.actualDistance || workout.distance}km)</span>
                                       </button>
                                     )}
                                     {workout.feedback && (

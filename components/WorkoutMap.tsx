@@ -33,10 +33,10 @@ export const WorkoutMap: React.FC<WorkoutMapProps> = ({
         doubleClickZoom: interactive
       });
 
-      // CartoDB Positron Dark style or OpenStreetMap standard
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      // ArcGIS World Street Map com ruas reais e nomes detalhados
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 19,
-        subdomains: 'abcd'
+        attribution: ''
       }).addTo(map);
 
       mapInstanceRef.current = map;

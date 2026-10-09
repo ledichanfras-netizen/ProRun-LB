@@ -450,3 +450,46 @@ export function convertBackupToRouteData(backup: ActiveWorkoutBackup): RouteData
   };
 }
 
+export const COMPLETED_UNSAVED_ROUTE_KEY = 'prorun_completed_unsaved_route_v1';
+
+export interface UnsavedRouteBackup {
+  routeData: RouteData;
+  workoutContext?: { weekIndex?: number; dayIndex?: number };
+  savedAt: string;
+}
+
+export function saveUnsavedRouteBackup(routeData: RouteData, workoutContext?: { weekIndex?: number; dayIndex?: number }): void {
+  try {
+    const payload: UnsavedRouteBackup = {
+      routeData,
+      workoutContext,
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(COMPLETED_UNSAVED_ROUTE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Error saving unsaved route backup:', err);
+  }
+}
+
+export function getUnsavedRouteBackup(): UnsavedRouteBackup | null {
+  try {
+    const raw = localStorage.getItem(COMPLETED_UNSAVED_ROUTE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as UnsavedRouteBackup;
+    const savedTime = new Date(parsed.savedAt).getTime();
+    if (isNaN(savedTime) || Date.now() - savedTime > 48 * 60 * 60 * 1000) {
+      localStorage.removeItem(COMPLETED_UNSAVED_ROUTE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+export function clearUnsavedRouteBackup(): void {
+  try {
+    localStorage.removeItem(COMPLETED_UNSAVED_ROUTE_KEY);
+  } catch (err) {}
+}
+

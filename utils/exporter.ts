@@ -23,7 +23,7 @@ export const exportElementAsImage = async (
     return { success: false };
   }
 
-  // Pré-carrega todas as imagens
+  // Pré-carrega todas as imagens (tiles do mapa, fotos e logos)
   const images = Array.from(element.querySelectorAll('img'));
   await Promise.all(
     images.map(img => {
@@ -31,12 +31,12 @@ export const exportElementAsImage = async (
       return new Promise((resolve) => {
         img.onload = resolve;
         img.onerror = resolve;
-        setTimeout(resolve, 600);
+        setTimeout(resolve, 2500);
       });
     })
   );
 
-  await new Promise(resolve => setTimeout(resolve, 150));
+  await new Promise(resolve => setTimeout(resolve, 200));
 
   const cleanFilename = filename.replace(/\.[^/.]+$/, '').replace(/[^\w\s-]/gi, '_');
   const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';

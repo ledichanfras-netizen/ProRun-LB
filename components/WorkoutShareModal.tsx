@@ -35,7 +35,10 @@ import {
   SvgRouteResult,
   MapDisplayMode,
   RenderedMapLayout,
-  generateMapTileLayout
+  generateMapTileLayout,
+  normalizeGpsPoints,
+  getSavedAthleteGpsLocation,
+  requestCurrentAthletePosition
 } from '../utils/socialCardUtils';
 import { formatDuration } from '../utils/gpsUtils';
 import { decodePolyline } from '../utils/gpsUtils';
@@ -114,6 +117,189 @@ const PRESET_QUOTES = [
   ]}
 ];
 
+interface SocialWorkoutMapRendererProps {
+  points: [number, number][];
+  mapMode: MapDisplayMode;
+  aspectRatio: AspectRatio;
+  routeColor: StravaRouteColor;
+  isDarkText: boolean;
+  strokeMainColor: string;
+}
+
+/**
+ * Renderizador de Mapa Oficial com Esri ArcGIS em Alta Definição (Satélite Real e Ruas Reais)
+ * Garante sobreposição milimétrica (1:1) do traçado da corrida do atleta diretamente sobre as ruas,
+ * sem marcas d'água de API e com CORS liberado para exportação sem corte ou tela branca.
+ */
+const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
+  points,
+  mapMode,
+  aspectRatio,
+  routeColor,
+  isDarkText,
+  strokeMainColor
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState<{ width: number; height: number }>({
+    width: 250,
+    height: aspectRatio === 'square' ? 98 : aspectRatio === 'portrait' ? 145 : 190
+  });
+
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 40 && rect.height > 40) {
+          setDims({
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          });
+        }
+      }
+    };
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [aspectRatio]);
+
+  const tileLayout = React.useMemo(() => {
+    return generateMapTileLayout(points, dims.width, dims.height, mapMode, 22);
+  }, [points, dims.width, dims.height, mapMode]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
+        aspectRatio === 'square'
+          ? 'h-[82px] sm:h-[98px]'
+          : aspectRatio === 'portrait'
+          ? 'h-[125px] sm:h-[150px]'
+          : 'h-[160px] sm:h-[200px]'
+      }`}
+      style={{
+        borderColor: isDarkText ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)',
+        backgroundColor: mapMode === 'satellite' ? '#090d16' : '#f8fafc'
+      }}
+    >
+      {/* 1. Camada de Tiles do Mapa com Esri ArcGIS Oficial */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {tileLayout.tiles.map((tile) => (
+          <img
+            key={tile.key}
+            src={tile.url}
+            alt="Map Tile"
+            crossOrigin="anonymous"
+            loading="eager"
+            onError={(e) => {
+              // Se o servidor primário falhar, troca imediatamente para o espelho de alta disponibilidade
+              if (tile.fallbackUrl && e.currentTarget.src !== tile.fallbackUrl) {
+                e.currentTarget.src = tile.fallbackUrl;
+              }
+            }}
+            className="absolute pointer-events-none select-none"
+            style={{
+              left: `${tile.x}px`,
+              top: `${tile.y}px`,
+              width: `${tile.width}px`,
+              height: `${tile.height}px`,
+              maxWidth: 'none'
+            }}
+          />
+        ))}
+        {/* Overlay de Suavização */}
+        <div
+          className={`absolute inset-0 pointer-events-none ${
+            mapMode === 'satellite' ? 'bg-black/25' : 'bg-slate-900/5'
+          }`}
+        />
+      </div>
+
+      {/* 2. Traçado Vetorial com Coordenadas 1:1 Travadas no Mapa */}
+      <svg
+        viewBox={`0 0 ${tileLayout.width} ${tileLayout.height}`}
+        className="absolute inset-0 w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.75)]"
+      >
+        {tileLayout.pathData ? (
+          <>
+            {/* Linha de contraste / halo */}
+            <path
+              d={tileLayout.pathData}
+              fill="none"
+              stroke={routeColor === 'black' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)'}
+              strokeWidth="7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Linha principal de percurso */}
+            <path
+              d={tileLayout.pathData}
+              fill="none"
+              stroke={strokeMainColor}
+              strokeWidth="4.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Ponto de Início (Verde ProRun) */}
+            {tileLayout.startPoint && (
+              <circle
+                cx={tileLayout.startPoint.x}
+                cy={tileLayout.startPoint.y}
+                r="5"
+                fill="#10b981"
+                stroke="#ffffff"
+                strokeWidth="2"
+              />
+            )}
+            {/* Ponto de Conclusão (Laranja / Cor do Tema) */}
+            {tileLayout.finishPoint && (
+              <circle
+                cx={tileLayout.finishPoint.x}
+                cy={tileLayout.finishPoint.y}
+                r="5"
+                fill={routeColor === 'orange' ? '#f59e0b' : strokeMainColor}
+                stroke="#ffffff"
+                strokeWidth="2"
+              />
+            )}
+          </>
+        ) : (
+          /* Quando não há percurso contínuo gravado, exibe o marcador no local exato do atleta */
+          tileLayout.startPoint && (
+            <g>
+              <circle
+                cx={tileLayout.startPoint.x}
+                cy={tileLayout.startPoint.y}
+                r="9"
+                fill={strokeMainColor}
+                fillOpacity="0.35"
+              />
+              <circle
+                cx={tileLayout.startPoint.x}
+                cy={tileLayout.startPoint.y}
+                r="5.5"
+                fill={strokeMainColor}
+                stroke="#ffffff"
+                strokeWidth="2.5"
+              />
+            </g>
+          )
+        )}
+      </svg>
+
+      {/* 3. Badge do Modo do Mapa */}
+      <div className="absolute bottom-1 right-1.5 z-20 pointer-events-none">
+        <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-sm text-white border border-white/10 flex items-center gap-1 shadow-sm">
+          <span>{mapMode === 'satellite' ? '🛰️ Satélite Real' : '🗺️ Ruas Reais'}</span>
+          <span className="text-emerald-400 font-bold">
+            {tileLayout.pathData ? '• Percurso' : '• Local Exato'}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+};
+
 export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onClose }) => {
   // Theme and Styling State - DEFAULT TO TRANSPARENT BACKGROUND (Sticker PNG)
   const [textTheme, setTextTheme] = useState<TextTheme>('white');
@@ -121,7 +307,6 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('story');
   const [logoStyle, setLogoStyle] = useState<LogoStyle>('original');
   const [cardLayout, setCardLayout] = useState<CardLayout>('strava');
-  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>('transparent');
   const [stravaRouteColor, setStravaRouteColor] = useState<StravaRouteColor>('orange');
   const [stravaStatsAlign, setStravaStatsAlign] = useState<'vertical' | 'horizontal'>('vertical');
   const [activePhraseTab, setActivePhraseTab] = useState<number>(0);
@@ -169,13 +354,37 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
     }
   }, [data.autoOpenCamera]);
 
-  // Extract points from route
+  const [athleteLiveLocation, setAthleteLiveLocation] = useState<[number, number] | null>(() => getSavedAthleteGpsLocation());
+
+  useEffect(() => {
+    // Busca localização atual silenciosamente caso o treino não tenha coordenadas gravadas
+    requestCurrentAthletePosition().then((pos) => {
+      if (pos) setAthleteLiveLocation(pos);
+    });
+  }, []);
+
+  // Extract real points from route, supporting all structures and polyline formats
   const points: [number, number][] = React.useMemo(() => {
-    if (!data.route) return [];
-    if (data.route.points && data.route.points.length > 0) return data.route.points;
-    if (data.route.polyline) return decodePolyline(data.route.polyline);
-    return [];
-  }, [data.route]);
+    const raw = 
+      data.route || 
+      (data as any).gpsRoute || 
+      (data as any).points || 
+      (data as any).coordinates ||
+      (data as any).rawRoute ||
+      (data as any).workout?.gpsRoute ||
+      (data as any).workout?.route;
+    
+    const normalized = normalizeGpsPoints(raw);
+    if (normalized.length > 0) return normalized;
+    // Tenta fallback com a posição real do atleta
+    const lastPos = athleteLiveLocation || getSavedAthleteGpsLocation();
+    return lastPos ? [lastPos] : [];
+  }, [data.route, (data as any).gpsRoute, (data as any).points, (data as any).coordinates, (data as any).rawRoute, (data as any).workout, athleteLiveLocation]);
+
+  // Se houver percurso real registrado e o fundo não for foto, inicializa no Modo Padrão (ruas reais)
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>(
+    data.initialBackgroundType === 'photo' ? 'transparent' : (points.length >= 2 ? 'standard' : 'transparent')
+  );
 
   // Generate SVG Route
   const svgRoute: SvgRouteResult = React.useMemo(() => {
@@ -241,10 +450,28 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   // Handle Export Download
   const handleDownload = async () => {
     setIsExporting(true);
-    // Small delay to let export card render at full unscaled resolution
-    await new Promise(r => setTimeout(r, 60));
 
     try {
+      // Pré-carrega e aguarda todas as imagens do card (especialmente tiles do mapa e foto)
+      const cardEl = document.getElementById(cardElementId);
+      if (cardEl) {
+        const imgElements = Array.from(cardEl.querySelectorAll('img')) as HTMLImageElement[];
+        if (imgElements.length > 0) {
+          await Promise.all(
+            imgElements.map(img => {
+              if (img.complete && img.naturalWidth > 0) return Promise.resolve(true);
+              return new Promise(res => {
+                const onFinish = () => res(true);
+                img.addEventListener('load', onFinish, { once: true });
+                img.addEventListener('error', onFinish, { once: true });
+                setTimeout(onFinish, 2000);
+              });
+            })
+          );
+        }
+      }
+      await new Promise(r => setTimeout(r, 120));
+
       const isTransparent = backgroundType === 'transparent';
       const cleanTitle = (data.title || 'Treino').replace(/\s+/g, '_');
       const filename = isStrength
@@ -274,10 +501,27 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   // Handle Mobile Native Share
   const handleNativeShare = async () => {
     setIsExporting(true);
-    // Small delay to let export card render at full unscaled resolution
-    await new Promise(r => setTimeout(r, 60));
 
     try {
+      const cardEl = document.getElementById(cardElementId);
+      if (cardEl) {
+        const imgElements = Array.from(cardEl.querySelectorAll('img')) as HTMLImageElement[];
+        if (imgElements.length > 0) {
+          await Promise.all(
+            imgElements.map(img => {
+              if (img.complete && img.naturalWidth > 0) return Promise.resolve(true);
+              return new Promise(res => {
+                const onFinish = () => res(true);
+                img.addEventListener('load', onFinish, { once: true });
+                img.addEventListener('error', onFinish, { once: true });
+                setTimeout(onFinish, 2000);
+              });
+            })
+          );
+        }
+      }
+      await new Promise(r => setTimeout(r, 120));
+
       const isTransparent = backgroundType === 'transparent';
       const cleanTitle = (data.title || 'Treino').replace(/\s+/g, '_');
       const filename = isStrength
@@ -624,97 +868,15 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                             )}
                           </svg>
                         ) : (
-                          /* MODO PADRÃO (RUAS) OU MODO SATÉLITE COM TILES REAIS */
-                          <div 
-                            className={`relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
-                              aspectRatio === 'square' 
-                                ? 'h-[82px] sm:h-[98px]' 
-                                : aspectRatio === 'portrait'
-                                ? 'h-[125px] sm:h-[150px]'
-                                : 'h-[160px] sm:h-[200px]'
-                            }`}
-                            style={{
-                              borderColor: isDarkText ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)',
-                              backgroundColor: mapDisplayMode === 'satellite' ? '#090d16' : '#f8fafc'
-                            }}
-                          >
-                            {/* Camada de Tiles do Mapa */}
-                            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                              {tileLayout.tiles.map((tile) => (
-                                <img
-                                  key={tile.key}
-                                  src={tile.url}
-                                  alt="Map Tile"
-                                  crossOrigin="anonymous"
-                                  loading="eager"
-                                  className="absolute pointer-events-none"
-                                  style={{
-                                    left: `${tile.x}px`,
-                                    top: `${tile.y}px`,
-                                    width: `${tile.width}px`,
-                                    height: `${tile.height}px`,
-                                    maxWidth: 'none'
-                                  }}
-                                />
-                              ))}
-                              {/* Overlay de Vinheta / Suavização */}
-                              <div className={`absolute inset-0 pointer-events-none ${mapDisplayMode === 'satellite' ? 'bg-black/25' : 'bg-slate-900/5'}`} />
-                            </div>
-
-                            {/* Linha do Traçado sobre o Mapa */}
-                            <svg
-                              viewBox={`0 0 ${tileLayout.width} ${tileLayout.height}`}
-                              className="relative z-10 w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.75)]"
-                            >
-                              {tileLayout.pathData && (
-                                <>
-                                  <path
-                                    d={tileLayout.pathData}
-                                    fill="none"
-                                    stroke={stravaRouteColor === 'black' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)'}
-                                    strokeWidth="8"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                  <path
-                                    d={tileLayout.pathData}
-                                    fill="none"
-                                    stroke={strokeMainColor}
-                                    strokeWidth="5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                  {tileLayout.startPoint && (
-                                    <circle
-                                      cx={tileLayout.startPoint.x}
-                                      cy={tileLayout.startPoint.y}
-                                      r="5.5"
-                                      fill="#10b981"
-                                      stroke="#ffffff"
-                                      strokeWidth="2.5"
-                                    />
-                                  )}
-                                  {tileLayout.finishPoint && (
-                                    <circle
-                                      cx={tileLayout.finishPoint.x}
-                                      cy={tileLayout.finishPoint.y}
-                                      r="5.5"
-                                      fill={strokeMainColor}
-                                      stroke="#ffffff"
-                                      strokeWidth="2.5"
-                                    />
-                                  )}
-                                </>
-                              )}
-                            </svg>
-
-                            {/* Badge do Modo do Mapa */}
-                            <div className="absolute bottom-1 right-1.5 z-20 pointer-events-none">
-                              <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/65 backdrop-blur-sm text-white border border-white/10">
-                                {mapDisplayMode === 'satellite' ? '🛰️ Satélite' : '🗺️ Padrão'}
-                              </span>
-                            </div>
-                          </div>
+                          /* MODO PADRÃO (RUAS REAIS) OU MODO SATÉLITE REAL */
+                          <SocialWorkoutMapRenderer
+                            points={points}
+                            mapMode={mapDisplayMode}
+                            aspectRatio={aspectRatio}
+                            routeColor={stravaRouteColor}
+                            isDarkText={isDarkText}
+                            strokeMainColor={strokeMainColor}
+                          />
                         )}
                       </div>
                     );
@@ -1172,94 +1334,15 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                       )}
                     </svg>
                   ) : (
-                    /* MODO PADRÃO (RUAS) OU SATÉLITE */
-                    <div 
-                      className={`relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
-                        aspectRatio === 'square' 
-                          ? 'h-[85px] sm:h-[110px]' 
-                          : 'h-[170px] sm:h-[220px]'
-                      }`}
-                      style={{
-                        borderColor: isDarkText ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)',
-                        backgroundColor: mapDisplayMode === 'satellite' ? '#090d16' : '#f8fafc'
-                      }}
-                    >
-                      {/* Tiles Layer */}
-                      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                        {tileLayout.tiles.map((tile) => (
-                          <img
-                            key={tile.key}
-                            src={tile.url}
-                            alt="Map Tile"
-                            crossOrigin="anonymous"
-                            loading="eager"
-                            className="absolute pointer-events-none"
-                            style={{
-                              left: `${tile.x}px`,
-                              top: `${tile.y}px`,
-                              width: `${tile.width}px`,
-                              height: `${tile.height}px`,
-                              maxWidth: 'none'
-                            }}
-                          />
-                        ))}
-                        <div className={`absolute inset-0 pointer-events-none ${mapDisplayMode === 'satellite' ? 'bg-black/25' : 'bg-slate-900/5'}`} />
-                      </div>
-
-                      {/* Route Path on Map */}
-                      <svg
-                        viewBox={`0 0 ${tileLayout.width} ${tileLayout.height}`}
-                        className="relative z-10 w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.75)]"
-                      >
-                        {tileLayout.pathData && (
-                          <>
-                            <path
-                              d={tileLayout.pathData}
-                              fill="none"
-                              stroke={isDarkText ? '#ffffff' : 'rgba(0,0,0,0.75)'}
-                              strokeWidth="8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d={tileLayout.pathData}
-                              fill="none"
-                              stroke="#10b981"
-                              strokeWidth="5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            {tileLayout.startPoint && (
-                              <circle
-                                cx={tileLayout.startPoint.x}
-                                cy={tileLayout.startPoint.y}
-                                r="5.5"
-                                fill="#10b981"
-                                stroke="#ffffff"
-                                strokeWidth="2.5"
-                              />
-                            )}
-                            {tileLayout.finishPoint && (
-                              <circle
-                                cx={tileLayout.finishPoint.x}
-                                cy={tileLayout.finishPoint.y}
-                                r="5.5"
-                                fill="#f59e0b"
-                                stroke="#ffffff"
-                                strokeWidth="2.5"
-                              />
-                            )}
-                          </>
-                        )}
-                      </svg>
-
-                      {/* Map Mode Badge */}
-                      <div className="absolute bottom-1 right-1.5 z-20 pointer-events-none">
-                        <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/65 backdrop-blur-sm text-white border border-white/10">
-                          {mapDisplayMode === 'satellite' ? '🛰️ Satélite' : '🗺️ Padrão'}
-                        </span>
-                      </div>
-                    </div>
+                    /* MODO PADRÃO (RUAS REAIS) OU MODO SATÉLITE REAL */
+                    <SocialWorkoutMapRenderer
+                      points={points}
+                      mapMode={mapDisplayMode}
+                      aspectRatio={aspectRatio}
+                      routeColor={stravaRouteColor}
+                      isDarkText={isDarkText}
+                      strokeMainColor={strokeMainColor}
+                    />
                   )}
                 </div>
               ) : (

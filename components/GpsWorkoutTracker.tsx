@@ -35,7 +35,8 @@ import {
   Lock,
   Unlock,
   ShieldCheck,
-  RotateCcw
+  RotateCcw,
+  Gauge
 } from 'lucide-react';
 import { WorkoutMap } from './WorkoutMap';
 import { 
@@ -49,7 +50,8 @@ import {
   saveActiveWorkoutBackup,
   getActiveWorkoutBackup,
   clearActiveWorkoutBackup,
-  convertBackupToRouteData
+  convertBackupToRouteData,
+  saveUnsavedRouteBackup
 } from '../utils/gpsUtils';
 import { 
   MotionCadenceTracker, 
@@ -68,7 +70,10 @@ import {
   toggleCooldownInStructuredWorkout,
   adjustIntervalCountInStructuredWorkout,
   adjustRestDurationInStructuredWorkout,
-  parseWorkoutTextToStructure
+  parseWorkoutTextToStructure,
+  evaluatePaceCompliance,
+  getSuggestedPaces,
+  PaceComplianceResult
 } from '../utils/workoutParser';
 import { StructuredWorkoutModal } from './StructuredWorkoutModal';
 import { WorkoutShareModal, WorkoutShareData } from './WorkoutShareModal';
@@ -119,13 +124,19 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // Structured Workout State (Modo Detalhado)
   const initialResolvedStructured = useMemo(() => {
+    const fromDesc = workoutDescription 
+      ? parseWorkoutTextToStructure(workoutDescription, workoutType, athletePaces)
+      : null;
+
     if (initialStructuredWorkout && initialStructuredWorkout.steps && initialStructuredWorkout.steps.length > 0) {
+      const initialHasWarmup = initialStructuredWorkout.steps.some(s => s.type === 'warmup');
+      const fromDescHasWarmup = fromDesc?.steps?.some(s => s.type === 'warmup');
+      if (!initialHasWarmup && fromDescHasWarmup) {
+        return fromDesc;
+      }
       return initialStructuredWorkout;
     }
-    if (workoutDescription) {
-      return parseWorkoutTextToStructure(workoutDescription, workoutType, athletePaces);
-    }
-    return null;
+    return fromDesc;
   }, [initialStructuredWorkout, workoutDescription, workoutType, athletePaces]);
 
   const [activeStructured, setActiveStructured] = useState<StructuredWorkout | null>(initialResolvedStructured);
@@ -217,6 +228,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [currentPace, setCurrentPace] = useState('--:--');
   const [currentSpeedKmh, setCurrentSpeedKmh] = useState(0);
   const [gpsPoints, setGpsPoints] = useState<[number, number][]>([]);
+  const gpsPointsRef = useRef<[number, number][]>([]);
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
   const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
@@ -449,6 +461,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setDurationSeconds(backup.durationSeconds || 0);
     setCurrentPace(backup.currentPace || formatPace(backup.durationSeconds || 0, backup.distanceKm || 0));
     setGpsPoints(backup.gpsPoints || []);
+    gpsPointsRef.current = backup.gpsPoints ? [...backup.gpsPoints] : [];
     if (backup.currentPosition) {
       setCurrentPosition(backup.currentPosition);
     } else if (backup.gpsPoints && backup.gpsPoints.length > 0) {
@@ -867,13 +880,24 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 return nextMeters;
               });
 
-              setGpsPoints(prev => [...prev, [latitude, longitude]]);
+              setGpsPoints(prev => {
+                const updated = [...prev, [latitude, longitude]];
+                gpsPointsRef.current = updated;
+                return updated;
+              });
+              try {
+                localStorage.setItem('prorun_last_gps_position', JSON.stringify([latitude, longitude]));
+              } catch {}
               lastPositionRef.current = { lat: latitude, lng: longitude, time: now };
             }
           } else {
             // First fix
             lastPositionRef.current = { lat: latitude, lng: longitude, time: now };
             setGpsPoints([[latitude, longitude]]);
+            gpsPointsRef.current = [[latitude, longitude]];
+            try {
+              localStorage.setItem('prorun_last_gps_position', JSON.stringify([latitude, longitude]));
+            } catch {}
           }
         },
         (error) => {
@@ -971,8 +995,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       setKmSplits([...kmSplitsRef.current]);
     }
 
+    const recordedGpsPoints = (gpsPointsRef.current && gpsPointsRef.current.length > 0)
+      ? gpsPointsRef.current
+      : gpsPoints;
+
     // If no GPS coordinates or very short, save as an indoor/manual workout (e.g. treadmill or lost signal)
-    if (gpsPoints.length < 2 && distanceKm < 0.05) {
+    if (recordedGpsPoints.length < 2 && distanceKm < 0.05) {
       let finalCompleted = [...completedSteps];
       if (activeStructured && activeStructured.steps && activeStepIndex < activeStructured.steps.length && stepDurationSeconds > 5) {
         const curStep = activeStructured.steps[activeStepIndex];
@@ -988,10 +1016,16 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         });
       }
 
+      const fallbackPoints: [number, number][] = recordedGpsPoints.length === 1
+        ? [recordedGpsPoints[0]]
+        : lastPositionRef.current
+        ? [[lastPositionRef.current.lat, lastPositionRef.current.lng]]
+        : [];
+
       const routeData: RouteData = {
-        polyline: '',
-        points: [],
-        totalDistanceKm: 0,
+        polyline: fallbackPoints.length > 0 ? encodePolyline(fallbackPoints) : '',
+        points: fallbackPoints,
+        totalDistanceKm: Number(distanceKm.toFixed(2)),
         totalDurationSeconds: durationSeconds,
         avgPace: "00:00",
         avgCadence: finalAvgCadence,
@@ -1002,11 +1036,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         completedSteps: finalCompleted.length > 0 ? finalCompleted : undefined
       };
 
+      saveUnsavedRouteBackup(routeData, workoutContext);
       onRouteCaptured(routeData);
       return;
     }
 
-    const polyline = encodePolyline(gpsPoints);
+    const polyline = encodePolyline(recordedGpsPoints);
     const avgPace = formatPace(durationSeconds, distanceKm);
 
     // Save final lap if unfinished
@@ -1027,7 +1062,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
     const routeData: RouteData = {
       polyline,
-      points: gpsPoints,
+      points: recordedGpsPoints,
       totalDistanceKm: Number(distanceKm.toFixed(2)),
       totalDurationSeconds: durationSeconds,
       avgPace,
@@ -1043,6 +1078,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       completedSteps: finalCompleted.length > 0 ? finalCompleted : undefined
     };
 
+    saveUnsavedRouteBackup(routeData, workoutContext);
     onRouteCaptured(routeData);
   };
 
@@ -1246,6 +1282,67 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // Calculate Current Step Pace
   const currentStepPace = formatPace(stepDurationSeconds, stepDistanceMeters / 1000);
+
+  // Zonas de referência sugeridas para o tipo de treino (Maratona, Longão, Limiar, Velocidade, Tiros, etc.)
+  const workoutSuggestedInfo = useMemo(() => {
+    return getSuggestedPaces(workoutType, athletePaces);
+  }, [workoutType, athletePaces]);
+
+  // Ritmo proposto ativo para o aluno (da etapa atual ou do treino geral)
+  const activeTargetPaces = useMemo(() => {
+    if (currentStep) {
+      if (currentStep.targetPaceMin) {
+        return {
+          minPace: currentStep.targetPaceMin,
+          maxPace: currentStep.targetPaceMax,
+          zoneName: currentStep.name
+        };
+      }
+      if (currentStep.type === 'warmup' || currentStep.type === 'cooldown') {
+        const z1 = athletePaces?.find(p => p.zone === 'Z1') || workoutSuggestedInfo.allPaces?.find(p => p.zone === 'Z1');
+        return {
+          minPace: z1?.minPace,
+          maxPace: z1?.maxPace,
+          zoneName: 'Z1 Leve / Aquecimento'
+        };
+      }
+      if (currentStep.type === 'interval') {
+        return {
+          minPace: workoutSuggestedInfo.suggestedPace?.minPace,
+          maxPace: workoutSuggestedInfo.suggestedPace?.maxPace,
+          zoneName: workoutSuggestedInfo.suggestedPace?.name || workoutType || 'Intervalado'
+        };
+      }
+      return {
+        minPace: undefined,
+        maxPace: undefined,
+        zoneName: 'Livre'
+      };
+    }
+    // Corrida Contínua / Livre (Longão, Maratona, Limiar, Regenerativo)
+    return {
+      minPace: workoutSuggestedInfo.suggestedPace?.minPace,
+      maxPace: workoutSuggestedInfo.suggestedPace?.maxPace,
+      zoneName: workoutSuggestedInfo.suggestedPace?.name || workoutType
+    };
+  }, [currentStep, workoutSuggestedInfo, athletePaces, workoutType]);
+
+  // Pace avaliado contra a meta (usa o pace da etapa se estiver ativa há pelo menos 6s, ou o pace geral)
+  const paceToEvaluate = useMemo(() => {
+    if (currentStep && stepDurationSeconds >= 6 && stepDistanceMeters >= 20) {
+      return currentStepPace;
+    }
+    return currentPace !== '--:--' ? currentPace : '';
+  }, [currentStep, stepDurationSeconds, stepDistanceMeters, currentStepPace, currentPace]);
+
+  // Avaliação em tempo real se o aluno está dentro do ritmo
+  const paceCompliance = useMemo(() => {
+    return evaluatePaceCompliance(
+      paceToEvaluate, 
+      activeTargetPaces.minPace, 
+      activeTargetPaces.maxPace
+    );
+  }, [paceToEvaluate, activeTargetPaces.minPace, activeTargetPaces.maxPace]);
 
   return (
     <div className={`border rounded-3xl p-4 sm:p-5 space-y-5 animate-fade-in shadow-2xl transition-all pb-32 sm:pb-36 ${
@@ -1838,23 +1935,84 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   </div>
 
                   {/* Pace Gauge & Lap Info */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className={`p-2 rounded-xl text-center border ${theme.boxBg}`}>
-                      <span className={`text-[8px] font-black uppercase tracking-widest block ${theme.subColor}`}>
-                        Pace da Etapa
-                      </span>
-                      <span className={`text-sm font-black font-mono ${theme.titleColor}`}>
-                        {currentStepPace} <span className={`text-[9px] ${theme.subColor}`}>/km</span>
-                      </span>
+                  <div className="space-y-2 pt-1">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className={`p-2.5 rounded-xl text-center border ${theme.boxBg}`}>
+                        <span className={`text-[8px] font-black uppercase tracking-widest block ${theme.subColor}`}>
+                          Pace da Etapa
+                        </span>
+                        <span className={`text-base font-black font-mono ${theme.titleColor}`}>
+                          {currentStepPace} <span className={`text-[9px] ${theme.subColor}`}>/km</span>
+                        </span>
+                      </div>
+                      <div className={`p-2.5 rounded-xl text-center border ${theme.boxBg}`}>
+                        <span className={`text-[8px] font-black uppercase tracking-widest block ${theme.subColor}`}>
+                          Ritmo Proposto
+                        </span>
+                        <span className={`text-base font-black font-mono ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>
+                          {activeTargetPaces.minPace 
+                            ? `${activeTargetPaces.minPace}${activeTargetPaces.maxPace && activeTargetPaces.maxPace !== activeTargetPaces.minPace ? ' a ' + activeTargetPaces.maxPace : ''}` 
+                            : 'Livre'}
+                        </span>
+                      </div>
                     </div>
-                    <div className={`p-2 rounded-xl text-center border ${theme.boxBg}`}>
-                      <span className={`text-[8px] font-black uppercase tracking-widest block ${theme.subColor}`}>
-                        Ritmo Alvo
-                      </span>
-                      <span className={`text-sm font-black font-mono ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>
-                        {currentStep.targetPaceMin ? `${currentStep.targetPaceMin}` : 'Livre'}
-                      </span>
-                    </div>
+
+                    {/* Badge e Medidor de Conformidade "Está Dentro do Ritmo" */}
+                    {activeTargetPaces.minPace && (
+                      <div className={`p-2.5 rounded-xl border space-y-1.5 ${
+                        paceCompliance.status === 'in_range'
+                          ? (isLight ? 'bg-emerald-50 border-emerald-300' : 'bg-emerald-950/40 border-emerald-500/30')
+                          : paceCompliance.status === 'too_slow'
+                          ? (isLight ? 'bg-blue-50 border-blue-300' : 'bg-blue-950/40 border-blue-500/30')
+                          : paceCompliance.status === 'too_fast'
+                          ? (isLight ? 'bg-amber-50 border-amber-300' : 'bg-amber-950/40 border-amber-500/30')
+                          : (isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10')
+                      }`}>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <div className="flex items-center gap-1.5 font-black uppercase tracking-wider">
+                            {paceCompliance.status === 'in_range' && (
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                            )}
+                            <span className={
+                              paceCompliance.status === 'in_range'
+                                ? (isLight ? 'text-emerald-800' : 'text-emerald-300')
+                                : paceCompliance.status === 'too_slow'
+                                ? (isLight ? 'text-blue-800' : 'text-blue-300')
+                                : paceCompliance.status === 'too_fast'
+                                ? (isLight ? 'text-amber-800' : 'text-amber-300')
+                                : (isLight ? 'text-slate-600' : 'text-slate-400')
+                            }>
+                              {paceCompliance.label}
+                            </span>
+                          </div>
+                          <span className="font-mono font-bold text-slate-500">
+                            Meta: {paceCompliance.targetRangeText}
+                          </span>
+                        </div>
+
+                        {/* Velocímetro Visual (Pace Gauge) */}
+                        <div className="relative pt-1 pb-1">
+                          <div className="h-2 rounded-full w-full bg-slate-800 overflow-hidden flex shadow-inner">
+                            <div className="w-[36%] bg-blue-500/70" title="Abaixo do Ritmo (Lento)" />
+                            <div className="w-[28%] bg-emerald-500 shadow-sm shadow-emerald-400/50" title="Faixa Alvo (Ideal)" />
+                            <div className="w-[36%] bg-amber-500/80" title="Acima do Ritmo (Rápido)" />
+                          </div>
+                          {/* Ponteiro Indicador do Aluno */}
+                          <div 
+                            className="absolute top-0 -ml-1.5 w-3 h-4 flex flex-col items-center transition-all duration-300"
+                            style={{ left: `${Math.max(4, Math.min(96, paceCompliance.gaugePositionPct))}%` }}
+                          >
+                            <div className="w-2.5 h-2.5 rounded-full bg-white shadow-md border border-slate-900 ring-2 ring-emerald-400" />
+                            <div className="w-0.5 h-1.5 bg-white" />
+                          </div>
+                          <div className="flex justify-between text-[8px] font-mono font-bold text-slate-500 mt-1">
+                            <span>◄ Lento</span>
+                            <span className="text-emerald-400 font-black">● Na Faixa Ideal</span>
+                            <span>Rápido ►</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Botão LAP / Avançar Etapa */}
@@ -1911,6 +2069,104 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* PAINEL DE RITMO PROPOSTO (CORRIDA CONTÍNUA / LONGÃO / MARATONA / LIMIAR) */}
+          {(!activeStructured || !activeStructured.steps || activeStructured.steps.length === 0) && activeTargetPaces.minPace && (
+            <div className={`p-4 rounded-2xl border transition-all space-y-3 relative overflow-hidden shadow-xs ${
+              isLight ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 text-slate-900' : 'bg-slate-900/90 border-emerald-500/30 text-white'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                    isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  }`}>
+                    🎯 RITMO PROPOSTO
+                  </span>
+                  <span className="text-xs font-black uppercase italic tracking-tight">
+                    {workoutType} {plannedDistanceKm ? `• ${plannedDistanceKm} km` : ''}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {activeTargetPaces.zoneName}
+                </span>
+              </div>
+
+              {/* Grid Métricas: Pace Atual e Ritmo Alvo */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className={`p-2.5 rounded-xl text-center border ${isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'}`}>
+                  <span className={`text-[8px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Pace Atual
+                  </span>
+                  <span className={`text-base font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    {currentPace !== '--:--' ? currentPace : '--:--'} <span className="text-[9px] text-slate-400">/km</span>
+                  </span>
+                </div>
+                <div className={`p-2.5 rounded-xl text-center border ${isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'}`}>
+                  <span className={`text-[8px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Ritmo Alvo
+                  </span>
+                  <span className={`text-base font-black font-mono ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                    {activeTargetPaces.minPace}{activeTargetPaces.maxPace && activeTargetPaces.maxPace !== activeTargetPaces.minPace ? ' a ' + activeTargetPaces.maxPace : ''} /km
+                  </span>
+                </div>
+              </div>
+
+              {/* Badge e Medidor de Conformidade "Está Dentro do Ritmo" */}
+              <div className={`p-2.5 rounded-xl border space-y-1.5 ${
+                paceCompliance.status === 'in_range'
+                  ? (isLight ? 'bg-emerald-50 border-emerald-300' : 'bg-emerald-950/40 border-emerald-500/30')
+                  : paceCompliance.status === 'too_slow'
+                  ? (isLight ? 'bg-blue-50 border-blue-300' : 'bg-blue-950/40 border-blue-500/30')
+                  : paceCompliance.status === 'too_fast'
+                  ? (isLight ? 'bg-amber-50 border-amber-300' : 'bg-amber-950/40 border-amber-500/30')
+                  : (isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10')
+              }`}>
+                <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1.5 font-black uppercase tracking-wider">
+                    {paceCompliance.status === 'in_range' && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                    )}
+                    <span className={
+                      paceCompliance.status === 'in_range'
+                        ? (isLight ? 'text-emerald-800' : 'text-emerald-300')
+                        : paceCompliance.status === 'too_slow'
+                        ? (isLight ? 'text-blue-800' : 'text-blue-300')
+                        : paceCompliance.status === 'too_fast'
+                        ? (isLight ? 'text-amber-800' : 'text-amber-300')
+                        : (isLight ? 'text-slate-600' : 'text-slate-400')
+                    }>
+                      {paceCompliance.label}
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-slate-500">
+                    Faixa: {paceCompliance.targetRangeText}
+                  </span>
+                </div>
+
+                {/* Régua Visual do Velocímetro de Ritmo */}
+                <div className="relative pt-1 pb-1">
+                  <div className="h-2 rounded-full w-full bg-slate-800 overflow-hidden flex shadow-inner">
+                    <div className="w-[36%] bg-blue-500/70" title="Abaixo do Ritmo (Lento)" />
+                    <div className="w-[28%] bg-emerald-500 shadow-sm shadow-emerald-400/50" title="Faixa Alvo (Ideal)" />
+                    <div className="w-[36%] bg-amber-500/80" title="Acima do Ritmo (Rápido)" />
+                  </div>
+                  {/* Ponteiro Indicador do Aluno */}
+                  <div 
+                    className="absolute top-0 -ml-1.5 w-3 h-4 flex flex-col items-center transition-all duration-300"
+                    style={{ left: `${Math.max(4, Math.min(96, paceCompliance.gaugePositionPct))}%` }}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full bg-white shadow-md border border-slate-900 ring-2 ring-emerald-400" />
+                    <div className="w-0.5 h-1.5 bg-white" />
+                  </div>
+                  <div className="flex justify-between text-[8px] font-mono font-bold text-slate-500 mt-1">
+                    <span>◄ Lento</span>
+                    <span className="text-emerald-400 font-black">● Na Faixa Ideal</span>
+                    <span>Rápido ►</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -2830,9 +3086,55 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     </h3>
                     <p className="text-xs text-slate-300 font-mono mt-0.5">
                       Meta: <strong className="text-amber-400">{formatStepTarget(currentStep)}</strong>
-                      {currentStep.targetPaceMin && ` • Ritmo Alvo: ${currentStep.targetPaceMin}`}
+                      {activeTargetPaces.minPace && (
+                        <span> • Ritmo Alvo: <strong className="text-emerald-300 font-bold">{activeTargetPaces.minPace}{activeTargetPaces.maxPace && activeTargetPaces.maxPace !== activeTargetPaces.minPace ? ' a ' + activeTargetPaces.maxPace : ''}/km</strong></span>
+                      )}
                     </p>
                   </div>
+
+                  {/* Medidor e Status de Ritmo em Tempo Real no Modo Foco */}
+                  {activeTargetPaces.minPace && (
+                    <div className="p-3 bg-black/40 rounded-2xl border border-white/10 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${
+                          paceCompliance.status === 'in_range'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-sm shadow-emerald-500/30'
+                            : paceCompliance.status === 'too_slow'
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-400/40'
+                            : paceCompliance.status === 'too_fast'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                            : 'bg-white/10 text-slate-300 border-white/10'
+                        }`}>
+                          {paceCompliance.status === 'in_range' && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />}
+                          <span>{paceCompliance.label}</span>
+                        </div>
+                        <span className="font-mono font-black text-amber-300 text-sm">
+                          {currentStep ? currentStepPace : currentPace} <span className="text-[10px] text-slate-400">/km</span>
+                        </span>
+                      </div>
+
+                      {/* Velocímetro Visual */}
+                      <div className="relative pt-1 pb-1">
+                        <div className="h-2.5 rounded-full w-full bg-slate-800 overflow-hidden flex shadow-inner">
+                          <div className="w-[36%] bg-blue-500/70" />
+                          <div className="w-[28%] bg-emerald-500 shadow-sm shadow-emerald-400/50" />
+                          <div className="w-[36%] bg-amber-500/80" />
+                        </div>
+                        <div 
+                          className="absolute top-0 -ml-2 w-4 h-5 flex flex-col items-center transition-all duration-300"
+                          style={{ left: `${Math.max(4, Math.min(96, paceCompliance.gaugePositionPct))}%` }}
+                        >
+                          <div className="w-3 h-3 rounded-full bg-white shadow-md border-2 border-slate-900 ring-2 ring-emerald-400" />
+                          <div className="w-0.5 h-2 bg-white" />
+                        </div>
+                        <div className="flex justify-between text-[8px] font-mono font-bold text-slate-400 mt-1">
+                          <span>◄ Lento</span>
+                          <span className="text-emerald-300">● Na Faixa ({activeTargetPaces.minPace}-{activeTargetPaces.maxPace})</span>
+                          <span>Rápido ►</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Barra de Progresso em Destaque */}
                   <div className="space-y-1">
@@ -2855,6 +3157,74 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                       <span className="text-amber-300">{formatStepTarget(activeStructured.steps[activeStepIndex + 1])}</span>
                     </div>
                   )}
+                </div>
+              ) : (!currentStep || !activeStructured) && !isWorkoutCompleted && activeTargetPaces.minPace ? (
+                <div className="p-4 rounded-3xl border bg-slate-900/90 border-emerald-500/30 space-y-3 shadow-xl relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                      🎯 RITMO PROPOSTO • {workoutType}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-400">
+                      {activeTargetPaces.zoneName}
+                    </span>
+                  </div>
+
+                  <div className="flex items-baseline justify-between">
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Ritmo Alvo</p>
+                      <h3 className="text-2xl font-black font-mono text-emerald-300">
+                        {activeTargetPaces.minPace}{activeTargetPaces.maxPace && activeTargetPaces.maxPace !== activeTargetPaces.minPace ? ' a ' + activeTargetPaces.maxPace : ''} <span className="text-xs text-slate-400">/km</span>
+                      </h3>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Pace Atual</p>
+                      <span className="text-2xl font-black font-mono text-white">
+                        {currentPace !== '--:--' ? currentPace : '--:--'} <span className="text-xs text-slate-400">/km</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Medidor e Status de Ritmo em Tempo Real */}
+                  <div className="p-3 bg-black/40 rounded-2xl border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${
+                        paceCompliance.status === 'in_range'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-sm shadow-emerald-500/30'
+                          : paceCompliance.status === 'too_slow'
+                          ? 'bg-blue-500/20 text-blue-300 border-blue-400/40'
+                          : paceCompliance.status === 'too_fast'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                          : 'bg-white/10 text-slate-300 border-white/10'
+                      }`}>
+                        {paceCompliance.status === 'in_range' && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />}
+                        <span>{paceCompliance.label}</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-slate-400">
+                        Faixa Alvo Ideal
+                      </span>
+                    </div>
+
+                    {/* Velocímetro Visual */}
+                    <div className="relative pt-1 pb-1">
+                      <div className="h-2.5 rounded-full w-full bg-slate-800 overflow-hidden flex shadow-inner">
+                        <div className="w-[36%] bg-blue-500/70" />
+                        <div className="w-[28%] bg-emerald-500 shadow-sm shadow-emerald-400/50" />
+                        <div className="w-[36%] bg-amber-500/80" />
+                      </div>
+                      <div 
+                        className="absolute top-0 -ml-2 w-4 h-5 flex flex-col items-center transition-all duration-300"
+                        style={{ left: `${Math.max(4, Math.min(96, paceCompliance.gaugePositionPct))}%` }}
+                      >
+                        <div className="w-3 h-3 rounded-full bg-white shadow-md border-2 border-slate-900 ring-2 ring-emerald-400" />
+                        <div className="w-0.5 h-2 bg-white" />
+                      </div>
+                      <div className="flex justify-between text-[8px] font-mono font-bold text-slate-400 mt-1">
+                        <span>◄ Lento</span>
+                        <span className="text-emerald-300">● Na Faixa Alvo</span>
+                        <span>Rápido ►</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : isWorkoutCompleted ? (
                 <div className="p-4 bg-emerald-500/20 border border-emerald-500/40 rounded-3xl text-center space-y-1">

@@ -51,8 +51,112 @@ export interface IntervalBuilderParams {
   targetPaceMax?: string;
   warmupValue?: number; // meters or seconds
   warmupTargetType?: 'distance' | 'time';
+  warmupPaceMin?: string;
+  warmupPaceMax?: string;
   cooldownValue?: number; // meters or seconds
   cooldownTargetType?: 'distance' | 'time';
+  cooldownPaceMin?: string;
+  cooldownPaceMax?: string;
+}
+
+/**
+ * Converts pace string "MM:SS" to total seconds
+ */
+export function parsePaceToSeconds(paceStr?: string): number {
+  if (!paceStr || paceStr === '--:--' || paceStr === '00:00') return 0;
+  const clean = paceStr.replace(/[^\d:]/g, '').trim();
+  const parts = clean.split(':');
+  if (parts.length !== 2) return 0;
+  const m = parseInt(parts[0], 10);
+  const s = parseInt(parts[1], 10);
+  if (isNaN(m) || isNaN(s)) return 0;
+  return m * 60 + s;
+}
+
+export interface PaceComplianceResult {
+  status: 'in_range' | 'too_slow' | 'too_fast' | 'no_target' | 'no_data';
+  label: string;
+  diffText: string;
+  diffSeconds: number;
+  gaugePositionPct: number; // 0% (muito lento) -> 50% (faixa ideal) -> 100% (muito rápido)
+  targetRangeText: string;
+}
+
+/**
+ * Evaluates in real time if current running pace is within the target pace range
+ * Running pace logic: fewer seconds = faster; more seconds = slower
+ */
+export function evaluatePaceCompliance(
+  currentPaceStr: string,
+  targetPaceMin?: string,
+  targetPaceMax?: string
+): PaceComplianceResult {
+  const cur = parsePaceToSeconds(currentPaceStr);
+  const targetText = targetPaceMin
+    ? (targetPaceMax && targetPaceMax !== targetPaceMin ? `${targetPaceMin} a ${targetPaceMax}/km` : `${targetPaceMin}/km`)
+    : 'Ritmo Livre';
+
+  if (!cur || cur <= 0) {
+    return {
+      status: 'no_data',
+      label: 'Sincronizando sinal GPS...',
+      diffText: '',
+      diffSeconds: 0,
+      gaugePositionPct: 50,
+      targetRangeText: targetText
+    };
+  }
+
+  if (!targetPaceMin) {
+    return {
+      status: 'no_target',
+      label: 'Ritmo Livre (Sem meta estrita)',
+      diffText: 'Livre',
+      diffSeconds: 0,
+      gaugePositionPct: 50,
+      targetRangeText: targetText
+    };
+  }
+
+  const minSec = parsePaceToSeconds(targetPaceMin);
+  const maxSec = targetPaceMax ? parsePaceToSeconds(targetPaceMax) : minSec + 15;
+  const tolerance = 4; // 4s/km de tolerância suave
+
+  if (cur >= minSec - tolerance && cur <= maxSec + tolerance) {
+    const rangeSpan = Math.max(1, maxSec - minSec);
+    const relOffset = (cur - minSec) / rangeSpan;
+    const pct = Math.round(58 - relOffset * 16);
+    return {
+      status: 'in_range',
+      label: 'Dentro do Ritmo Alvo',
+      diffText: 'Na Faixa',
+      diffSeconds: 0,
+      gaugePositionPct: Math.max(42, Math.min(58, pct)),
+      targetRangeText: targetText
+    };
+  } else if (cur > maxSec + tolerance) {
+    const diff = cur - maxSec;
+    const pct = Math.max(6, 40 - Math.round((diff / 45) * 34));
+    return {
+      status: 'too_slow',
+      label: `Abaixo do Ritmo • Acelere +${diff}s/km`,
+      diffText: `+${diff}s/km mais lento`,
+      diffSeconds: diff,
+      gaugePositionPct: pct,
+      targetRangeText: targetText
+    };
+  } else {
+    const diff = minSec - cur;
+    const pct = Math.min(94, 60 + Math.round((diff / 45) * 34));
+    return {
+      status: 'too_fast',
+      label: `Acima do Ritmo • Controle -${diff}s/km`,
+      diffText: `-${diff}s/km mais rápido`,
+      diffSeconds: diff,
+      gaugePositionPct: pct,
+      targetRangeText: targetText
+    };
+  }
 }
 
 /**
@@ -64,15 +168,22 @@ export function buildStructuredWorkout(params: IntervalBuilderParams): Structure
   // 1. Warm-up (Aquecimento)
   if (params.warmupValue && params.warmupValue > 0) {
     const isDist = params.warmupTargetType !== 'time';
+    const distText = isDist 
+      ? (params.warmupValue >= 1000 ? (params.warmupValue / 1000).toFixed(1).replace('.0', '') + ' km' : params.warmupValue + 'm')
+      : `${Math.round(params.warmupValue / 60)} min`;
+    const paceNotes = params.warmupPaceMin 
+      ? ` • Ritmo: ${params.warmupPaceMin}${params.warmupPaceMax ? ' a ' + params.warmupPaceMax : ''}/km`
+      : ' • Ritmo leve';
+
     steps.push({
       id: `step-warmup-${Date.now()}`,
       name: 'Aquecimento',
       type: 'warmup',
       targetType: isDist ? 'distance' : 'time',
       targetValue: params.warmupValue,
-      notes: isDist 
-        ? `${params.warmupValue >= 1000 ? (params.warmupValue / 1000).toFixed(1) + ' km' : params.warmupValue + 'm'} ritmo leve`
-        : `${Math.round(params.warmupValue / 60)} min ritmo leve`
+      targetPaceMin: params.warmupPaceMin,
+      targetPaceMax: params.warmupPaceMax,
+      notes: `${distText}${paceNotes}`
     });
   }
 
@@ -85,6 +196,9 @@ export function buildStructuredWorkout(params: IntervalBuilderParams): Structure
     const workNotes = isWorkDist
       ? `${params.intervalValue >= 1000 ? (params.intervalValue / 1000) + 'k' : params.intervalValue + 'm'}`
       : `${Math.round(params.intervalValue / 60)}min forte`;
+    const paceNotes = params.targetPaceMin
+      ? ` • Ritmo: ${params.targetPaceMin}${params.targetPaceMax ? ' a ' + params.targetPaceMax : ''}/km`
+      : '';
 
     steps.push({
       id: `step-int-${i}-${Date.now()}`,
@@ -94,7 +208,7 @@ export function buildStructuredWorkout(params: IntervalBuilderParams): Structure
       targetValue: params.intervalValue,
       targetPaceMin: params.targetPaceMin?.trim() || undefined,
       targetPaceMax: params.targetPaceMax?.trim() || undefined,
-      notes: workNotes,
+      notes: `${workNotes}${paceNotes}`,
       repeatIndex: i,
       repeatTotal: reps
     });
@@ -104,7 +218,13 @@ export function buildStructuredWorkout(params: IntervalBuilderParams): Structure
     const recName = `Recuperação ${i}/${reps}`;
     const recNotes = isRecDist
       ? `${params.recoveryValue}m trote/caminhada`
-      : `${Math.round(params.recoveryValue >= 60 ? params.recoveryValue / 60 : params.recoveryValue)}${params.recoveryValue >= 60 ? ' min' : 's'} trote/parado`;
+      : (() => {
+          const m = Math.floor(params.recoveryValue / 60);
+          const s = params.recoveryValue % 60;
+          if (m > 0 && s > 0) return `${m}m ${s}s trote/caminhada`;
+          if (m > 0) return `${m} min trote/caminhada`;
+          return `${s}s trote/caminhada`;
+        })();
 
     steps.push({
       id: `step-rec-${i}-${Date.now()}`,
@@ -121,15 +241,22 @@ export function buildStructuredWorkout(params: IntervalBuilderParams): Structure
   // 3. Cool-down (Desaquecimento)
   if (params.cooldownValue && params.cooldownValue > 0) {
     const isDist = params.cooldownTargetType !== 'time';
+    const distText = isDist 
+      ? (params.cooldownValue >= 1000 ? (params.cooldownValue / 1000).toFixed(1).replace('.0', '') + ' km' : params.cooldownValue + 'm')
+      : `${Math.round(params.cooldownValue / 60)} min`;
+    const paceNotes = params.cooldownPaceMin 
+      ? ` • Ritmo: ${params.cooldownPaceMin}${params.cooldownPaceMax ? ' a ' + params.cooldownPaceMax : ''}/km`
+      : ' • Regenerativo';
+
     steps.push({
       id: `step-cooldown-${Date.now()}`,
       name: 'Desaquecimento',
       type: 'cooldown',
       targetType: isDist ? 'distance' : 'time',
       targetValue: params.cooldownValue,
-      notes: isDist 
-        ? `${params.cooldownValue >= 1000 ? (params.cooldownValue / 1000).toFixed(1) + ' km' : params.cooldownValue + 'm'} regenerativo`
-        : `${Math.round(params.cooldownValue / 60)} min regenerativo`
+      targetPaceMin: params.cooldownPaceMin,
+      targetPaceMax: params.cooldownPaceMax,
+      notes: `${distText}${paceNotes}`
     });
   }
 
@@ -154,12 +281,11 @@ export function buildStructuredWorkout(params: IntervalBuilderParams): Structure
 /**
  * Parses freeform natural language text from running coaches
  * Examples:
+ * - "Aq. 1k + 5x 500m com 1min e 30seg. De Rec."
  * - "5x1000m rec 2min"
- * - "5x 1000m r: 2'"
  * - "2km aq + 6x400m rec 1min + 1km des"
- * - "8x 200m / rec 45s"
- * - "4x 2km rec 3min"
- * - "10x 1min forte / 1min leve"
+ * - "Longão 18km"
+ * - "Limiar 8km"
  */
 export function parseWorkoutTextToStructure(
   text: string,
@@ -169,15 +295,161 @@ export function parseWorkoutTextToStructure(
   if (!text || text.trim().length === 0) return null;
   const clean = text.toLowerCase().trim();
 
-  // Pattern 1: Repeat interval search, e.g. "5x1000", "5x 1km", "8x400m", "10x 1min", "6x 1.000m"
   // Normalize thousand dots like 1.000m -> 1000m
   const normalizedText = clean.replace(/(\d+)\.(\d{3})/g, '$1$2');
 
-  const repeatRegex = /(\d{1,2})\s*x\s*(\d+(?:[.,]\d+)?)\s*(km|k|metros|m|minutos|min|m|s|seg|segundos|'|")?/i;
+  const fallbackPaces = calculatePaces(38);
+  const paces = (athletePaces && athletePaces.length > 0) ? athletePaces : fallbackPaces;
+  const z1Pace = paces.find(p => p.zone === 'Z1') || paces[0];
+  const workoutSuggested = getSuggestedPaces(workoutType, paces).suggestedPace;
+
+  // Tokens for units (longer first so 'min' is matched before 'm', 'metros' before 'm')
+  const unitGroup = "(km|k|minutos|min|segundos|seg|metros|m|s|'|\")";
+
+  // 1. Warm-up search (ex: "Aq. 1k", "Aq: 1km", "Aquec. 1k", "1k aq.", "1.5km de aquec", "10min aq.")
+  let warmupValue = 0;
+  let warmupTargetType: 'distance' | 'time' = 'distance';
+
+  const warmupPrefixRegex = new RegExp("(?:aq(?:uec(?:imento)?)?|warm(?:up)?)\\.?\\s*(?:de|:|-)?\\s*(\\d+(?:[.,]\\d+)?)\\s*" + unitGroup + "?", "i");
+  const warmupPostfixRegex = new RegExp("(\\d+(?:[.,]\\d+)?)\\s*" + unitGroup + "?\\s*(?:de\\s+)?(?:aq(?:uec(?:imento)?)?|warm(?:up)?)\\.?", "i");
+
+  let warmupMatch = normalizedText.match(warmupPostfixRegex);
+  if (!warmupMatch) {
+    warmupMatch = normalizedText.match(warmupPrefixRegex);
+  }
+
+  if (warmupMatch) {
+    const rawVal = warmupMatch[1];
+    const rawUnit = (warmupMatch[2] || '').toLowerCase();
+    if (rawVal) {
+      const wNum = parseFloat(rawVal.replace(',', '.'));
+      if (rawUnit === 'min' || rawUnit === 'minutos' || rawUnit === "'" || rawUnit === '"') {
+        warmupTargetType = 'time';
+        warmupValue = Math.round(wNum * 60);
+      } else if (rawUnit === 'km' || rawUnit === 'k') {
+        warmupTargetType = 'distance';
+        warmupValue = Math.round(wNum * 1000);
+      } else if (rawUnit === 'm' || rawUnit === 'metros') {
+        warmupTargetType = 'distance';
+        warmupValue = Math.round(wNum);
+      } else {
+        if (wNum >= 5 && wNum <= 30) {
+          warmupTargetType = 'time';
+          warmupValue = Math.round(wNum * 60);
+        } else if (wNum < 5) {
+          warmupTargetType = 'distance';
+          warmupValue = Math.round(wNum * 1000);
+        } else {
+          warmupTargetType = 'distance';
+          warmupValue = Math.round(wNum);
+        }
+      }
+    }
+  }
+
+  // 2. Cool-down search (ex: "Des. 1k", "1k des.", "Desaq. 1km", "10min des.", "5' des.")
+  let cooldownValue = 0;
+  let cooldownTargetType: 'distance' | 'time' = 'distance';
+
+  const cooldownPrefixRegex = new RegExp("(?:des(?:aq(?:uec(?:imento)?)?)?|cool(?:down)?|volta [àa] calma)\\.?\\s*(?:de|:|-)?\\s*(\\d+(?:[.,]\\d+)?)\\s*" + unitGroup + "?", "i");
+  const cooldownPostfixRegex = new RegExp("(\\d+(?:[.,]\\d+)?)\\s*" + unitGroup + "?\\s*(?:de\\s+)?(?:des(?:aq(?:uec(?:imento)?)?)?|cool(?:down)?|volta [àa] calma)\\.?", "i");
+
+  let cooldownMatch = normalizedText.match(cooldownPostfixRegex);
+  if (!cooldownMatch) {
+    cooldownMatch = normalizedText.match(cooldownPrefixRegex);
+  }
+
+  if (cooldownMatch) {
+    const rawVal = cooldownMatch[1];
+    const rawUnit = (cooldownMatch[2] || '').toLowerCase();
+    if (rawVal) {
+      const cNum = parseFloat(rawVal.replace(',', '.'));
+      if (rawUnit === 'min' || rawUnit === 'minutos' || rawUnit === "'" || rawUnit === '"') {
+        cooldownTargetType = 'time';
+        cooldownValue = Math.round(cNum * 60);
+      } else if (rawUnit === 'km' || rawUnit === 'k') {
+        cooldownTargetType = 'distance';
+        cooldownValue = Math.round(cNum * 1000);
+      } else if (rawUnit === 'm' || rawUnit === 'metros') {
+        cooldownTargetType = 'distance';
+        cooldownValue = Math.round(cNum);
+      } else {
+        if (cNum >= 5 && cNum <= 30) {
+          cooldownTargetType = 'time';
+          cooldownValue = Math.round(cNum * 60);
+        } else if (cNum < 5) {
+          cooldownTargetType = 'distance';
+          cooldownValue = Math.round(cNum * 1000);
+        } else {
+          cooldownTargetType = 'distance';
+          cooldownValue = Math.round(cNum);
+        }
+      }
+    }
+  }
+
+  // 3. Repeat interval search, e.g. "5x1000", "5x 1km", "8x400m", "10x 1min", "5x 500m"
+  const repeatRegex = /(\d{1,2})\s*x\s*(\d+(?:[.,]\d+)?)\s*(km|k|minutos|min|segundos|seg|metros|m|s|'|")?/i;
   const repeatMatch = normalizedText.match(repeatRegex);
 
+  // If there are NO interval repeats, check if this is a continuous workout (Longão, Limiar, Maratona, etc.)
   if (!repeatMatch) {
-    return null; // Not an interval expression
+    const continuousDistRegex = /(\d+(?:[.,]\d+)?)\s*(km|k|metros|m)/i;
+    const contMatch = normalizedText.match(continuousDistRegex);
+
+    if (contMatch) {
+      const rawVal = parseFloat(contMatch[1].replace(',', '.'));
+      const unit = contMatch[2].toLowerCase();
+      const distMeters = (unit === 'km' || unit === 'k') ? Math.round(rawVal * 1000) : Math.round(rawVal);
+
+      const targetPace = workoutSuggested;
+      const stepName = workoutType ? `${workoutType}` : 'Corrida Contínua';
+      const mainStep: WorkoutStep = {
+        id: `step-cont-${Date.now()}`,
+        name: stepName,
+        type: 'interval',
+        targetType: 'distance',
+        targetValue: distMeters,
+        targetPaceMin: targetPace?.minPace,
+        targetPaceMax: targetPace?.maxPace,
+        notes: `${(distMeters / 1000).toFixed(1).replace('.0', '')} km • Ritmo Alvo: ${targetPace?.minPace || ''}${targetPace?.maxPace ? ' a ' + targetPace.maxPace : ''}/km (${targetPace?.name || workoutType || ''})`
+      };
+
+      const steps: WorkoutStep[] = [];
+      if (warmupValue > 0) {
+        steps.push({
+          id: `step-warmup-${Date.now()}`,
+          name: 'Aquecimento',
+          type: 'warmup',
+          targetType: warmupTargetType,
+          targetValue: warmupValue,
+          targetPaceMin: z1Pace?.minPace,
+          targetPaceMax: z1Pace?.maxPace,
+          notes: `${warmupTargetType === 'distance' ? (warmupValue / 1000).toFixed(1).replace('.0', '') + ' km' : Math.round(warmupValue / 60) + ' min'} • Ritmo Leve (Z1: ${z1Pace?.minPace} - ${z1Pace?.maxPace}/km)`
+        });
+      }
+      steps.push(mainStep);
+      if (cooldownValue > 0) {
+        steps.push({
+          id: `step-cooldown-${Date.now()}`,
+          name: 'Desaquecimento',
+          type: 'cooldown',
+          targetType: cooldownTargetType,
+          targetValue: cooldownValue,
+          targetPaceMin: z1Pace?.minPace,
+          targetPaceMax: z1Pace?.maxPace,
+          notes: `${cooldownTargetType === 'distance' ? (cooldownValue / 1000).toFixed(1).replace('.0', '') + ' km' : Math.round(cooldownValue / 60) + ' min'} • Regenerativo (Z1: ${z1Pace?.minPace} - ${z1Pace?.maxPace}/km)`
+        });
+      }
+
+      return {
+        title: `${workoutType || 'Corrida'} ${(distMeters / 1000).toFixed(1).replace('.0', '')}km`,
+        steps,
+        totalDistanceEstimatedKm: Number(((distMeters + (warmupTargetType === 'distance' ? warmupValue : 0) + (cooldownTargetType === 'distance' ? cooldownValue : 0)) / 1000).toFixed(2))
+      };
+    }
+
+    return null;
   }
 
   const repetitions = parseInt(repeatMatch[1], 10);
@@ -197,7 +469,6 @@ export function parseWorkoutTextToStructure(
     intervalTargetType = 'time';
     intervalValue = Math.round(rawIntervalNum);
   } else {
-    // Default unit: if number <= 10, likely km (e.g. 5x 1) or minutes; if > 50, meters (e.g. 5x 1000, 5x 400)
     if (rawIntervalNum <= 10) {
       intervalTargetType = 'distance';
       intervalValue = Math.round(rawIntervalNum * 1000);
@@ -207,25 +478,36 @@ export function parseWorkoutTextToStructure(
     }
   }
 
-  // Recovery search, e.g. "rec 2min", "r: 90s", "desc 2'", "rec 400m", "intervalo 2m", "recuperação de 2min", "rec 1'30", "r: 1:30"
-  const recCompositeRegex = /(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\s*(?:de|:)?\s*(\d{1,2})[':m](\d{1,2})/i;
-  const recCompositeMatch = normalizedText.match(recCompositeRegex);
-
+  // 4. Recovery search (composite min+sec or single value with prefix or postfix)
+  // e.g.: "com 1min e 30seg. De Rec.", "rec 1min e 30s", "1'30\" de rec", "rec 90s", "rec 2min"
   let recoveryTargetType: 'distance' | 'time' = 'time';
   let recoveryValue = 90; // Default 90 seconds (1min 30s)
 
-  if (recCompositeMatch) {
-    const mins = parseInt(recCompositeMatch[1], 10);
-    const secs = parseInt(recCompositeMatch[2], 10);
+  const compAfter = /(?:com|c\/)?\s*(\d{1,2})\s*(?:min|minutos|m|'|:)\s*(?:e|\+)?\s*(\d{1,2})\s*(?:seg|segundos|s|"|\.)*?\s*(?:de\s+)?(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\.?/i;
+  const compBefore = /(?:com|c\/)?\s*(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\.?\s*(?:de|:)?\s*(\d{1,2})\s*(?:min|minutos|m|'|:)\s*(?:e|\+)?\s*(\d{1,2})\s*(?:seg|segundos|s|")?/i;
+
+  let recComp = normalizedText.match(compAfter);
+  if (!recComp) {
+    recComp = normalizedText.match(compBefore);
+  }
+
+  if (recComp) {
+    const mins = parseInt(recComp[1], 10);
+    const secs = parseInt(recComp[2], 10);
     recoveryTargetType = 'time';
     recoveryValue = mins * 60 + secs;
   } else {
-    const recRegex = /(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|m|metros|min|minutos|s|seg|segundos|'|")?/i;
-    const recMatch = normalizedText.match(recRegex);
+    const recSingleAfter = /(?:com|c\/)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|minutos|min|segundos|seg|metros|m|s|'|")?\s*(?:de\s+)?(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\.?/i;
+    const recSingleBefore = /(?:com|c\/)?\s*(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\.?\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|minutos|min|segundos|seg|metros|m|s|'|")?/i;
 
-    if (recMatch) {
-      const rawRecNum = parseFloat(recMatch[1].replace(',', '.'));
-      const recUnit = (recMatch[2] || '').toLowerCase();
+    let recSingle = normalizedText.match(recSingleAfter);
+    if (!recSingle) {
+      recSingle = normalizedText.match(recSingleBefore);
+    }
+
+    if (recSingle) {
+      const rawRecNum = parseFloat(recSingle[1].replace(',', '.'));
+      const recUnit = (recSingle[2] || '').toLowerCase();
 
       if (recUnit === 'm' || recUnit === 'metros') {
         recoveryTargetType = 'distance';
@@ -237,7 +519,6 @@ export function parseWorkoutTextToStructure(
         recoveryTargetType = 'time';
         recoveryValue = Math.round(rawRecNum);
       } else {
-        // Default time in minutes if <= 15, or seconds if > 15
         if (rawRecNum <= 15) {
           recoveryTargetType = 'time';
           recoveryValue = Math.round(rawRecNum * 60);
@@ -249,76 +530,7 @@ export function parseWorkoutTextToStructure(
     }
   }
 
-  // Warm-up search (ex: "2km aq", "2km de aquecimento", "15min aq", "10' aq", "aquecimento 15min", "aq: 2km", "aquecimento 10'")
-  let warmupValue = 0;
-  let warmupTargetType: 'distance' | 'time' = 'distance';
-  const warmupRegex = /(?:(\d+(?:[.,]\d+)?)\s*(km|k|m|metros|min|minutos|'|")?\s*(?:de\s+)?(?:aq|aquecimento|warmup|warm)|(?:aq|aquecimento|warmup|warm)\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|m|metros|min|minutos|'|")?)/i;
-  const warmupMatch = normalizedText.match(warmupRegex);
-  if (warmupMatch) {
-    const rawVal = warmupMatch[1] || warmupMatch[3];
-    const rawUnit = (warmupMatch[2] || warmupMatch[4] || '').toLowerCase();
-    if (rawVal) {
-      const wNum = parseFloat(rawVal.replace(',', '.'));
-      if (rawUnit === 'min' || rawUnit === 'minutos' || rawUnit === "'" || rawUnit === '"') {
-        warmupTargetType = 'time';
-        warmupValue = Math.round(wNum * 60);
-      } else if (rawUnit === 'm' || rawUnit === 'metros') {
-        warmupTargetType = 'distance';
-        warmupValue = Math.round(wNum);
-      } else if (rawUnit === 'km' || rawUnit === 'k') {
-        warmupTargetType = 'distance';
-        warmupValue = Math.round(wNum * 1000);
-      } else {
-        // If number is >= 5 and <= 30 without unit, assume minutes if aq
-        if (wNum >= 5 && wNum <= 30) {
-          warmupTargetType = 'time';
-          warmupValue = Math.round(wNum * 60);
-        } else if (wNum < 5) {
-          warmupTargetType = 'distance';
-          warmupValue = Math.round(wNum * 1000);
-        } else {
-          warmupTargetType = 'distance';
-          warmupValue = Math.round(wNum);
-        }
-      }
-    }
-  }
-
-  // Cool-down search (ex: "1km des", "1km de desaquecimento", "10min des", "5' des", "desaquecimento 10min", "des: 1km", "volta à calma 10min")
-  let cooldownValue = 0;
-  let cooldownTargetType: 'distance' | 'time' = 'distance';
-  const cooldownRegex = /(?:(\d+(?:[.,]\d+)?)\s*(km|k|m|metros|min|minutos|'|")?\s*(?:de\s+)?(?:des|desaq|desaquecimento|volta à calma|volta a calma|cool|cooldown)|(?:des|desaq|desaquecimento|volta à calma|volta a calma|cool|cooldown)\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|m|metros|min|minutos|'|")?)/i;
-  const cooldownMatch = normalizedText.match(cooldownRegex);
-  if (cooldownMatch) {
-    const rawVal = cooldownMatch[1] || cooldownMatch[3];
-    const rawUnit = (cooldownMatch[2] || cooldownMatch[4] || '').toLowerCase();
-    if (rawVal) {
-      const cNum = parseFloat(rawVal.replace(',', '.'));
-      if (rawUnit === 'min' || rawUnit === 'minutos' || rawUnit === "'" || rawUnit === '"') {
-        cooldownTargetType = 'time';
-        cooldownValue = Math.round(cNum * 60);
-      } else if (rawUnit === 'm' || rawUnit === 'metros') {
-        cooldownTargetType = 'distance';
-        cooldownValue = Math.round(cNum);
-      } else if (rawUnit === 'km' || rawUnit === 'k') {
-        cooldownTargetType = 'distance';
-        cooldownValue = Math.round(cNum * 1000);
-      } else {
-        if (cNum >= 5 && cNum <= 30) {
-          cooldownTargetType = 'time';
-          cooldownValue = Math.round(cNum * 60);
-        } else if (cNum < 5) {
-          cooldownTargetType = 'distance';
-          cooldownValue = Math.round(cNum * 1000);
-        } else {
-          cooldownTargetType = 'distance';
-          cooldownValue = Math.round(cNum);
-        }
-      }
-    }
-  }
-
-  // Pace search in text (ex: "ritmo 04:15", "pace 04:10 a 04:25", "pace: 04:10-04:25", "p: 04:15", "ritmo: 04:20")
+  // 5. Pace search in text (ex: "ritmo 04:15", "pace 04:10 a 04:25", "pace: 04:10-04:25", "p: 04:15")
   let targetPaceMin: string | undefined;
   let targetPaceMax: string | undefined;
   const paceRegex = /(?:ritmo|pace|p:)\s*:?\s*(\d{1,2}[:.]\d{2})(?:\s*(?:a|-|ate|à)\s*(\d{1,2}[:.]\d{2}))?/i;
@@ -328,13 +540,10 @@ export function parseWorkoutTextToStructure(
     if (paceMatch[2]) {
       targetPaceMax = paceMatch[2].replace('.', ':');
     }
-  } else if (workoutType) {
+  } else if (workoutSuggested) {
     // If not explicitly mentioned in text, use suggested paces from athlete zones
-    const suggested = getSuggestedPaces(workoutType, athletePaces).suggestedPace;
-    if (suggested) {
-      targetPaceMin = suggested.minPace;
-      targetPaceMax = suggested.maxPace;
-    }
+    targetPaceMin = workoutSuggested.minPace;
+    targetPaceMax = workoutSuggested.maxPace;
   }
 
   return buildStructuredWorkout({
@@ -347,8 +556,12 @@ export function parseWorkoutTextToStructure(
     targetPaceMax,
     warmupValue: warmupValue > 0 ? warmupValue : undefined,
     warmupTargetType,
+    warmupPaceMin: z1Pace?.minPace,
+    warmupPaceMax: z1Pace?.maxPace,
     cooldownValue: cooldownValue > 0 ? cooldownValue : undefined,
-    cooldownTargetType
+    cooldownTargetType,
+    cooldownPaceMin: z1Pace?.minPace,
+    cooldownPaceMax: z1Pace?.maxPace
   });
 }
 

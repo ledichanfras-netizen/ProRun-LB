@@ -58,14 +58,18 @@ import { WorkoutMap } from '../components/WorkoutMap';
 import { WorkoutTelemetryCharts } from '../components/WorkoutTelemetryCharts';
 import {
   decodePolyline,
+  encodePolyline,
   ActiveWorkoutBackup,
   getActiveWorkoutBackup,
   clearActiveWorkoutBackup,
   convertBackupToRouteData,
-  formatDuration
+  formatDuration,
+  getUnsavedRouteBackup,
+  clearUnsavedRouteBackup
 } from '../utils/gpsUtils';
 import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure } from '../utils/workoutParser';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
+import { normalizeGpsPoints, requestCurrentAthletePosition } from '../utils/socialCardUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProgressToNextLevel } from '../services/gamificationService';
 import { 
@@ -195,11 +199,47 @@ const AthletePortal: React.FC = () => {
   const [currentGpsRoute, setCurrentGpsRoute] = useState<any>(null);
   const [showGpsTracker, setShowGpsTracker] = useState(false);
   const [autoResumeGpsBackup, setAutoResumeGpsBackup] = useState(false);
-  const [activeBackup, setActiveBackup] = useState<ActiveWorkoutBackup | null>(() => getActiveWorkoutBackup());
+  const loadEffectiveBackup = (): ActiveWorkoutBackup | null => {
+    const active = getActiveWorkoutBackup();
+    if (active) return active;
+    const unsaved = getUnsavedRouteBackup();
+    if (unsaved && unsaved.routeData) {
+      const rd = unsaved.routeData;
+      const pts = (rd.points && rd.points.length > 0)
+        ? rd.points
+        : (rd.polyline ? decodePolyline(rd.polyline) : []);
+      return {
+        distanceKm: rd.totalDistanceKm || 0,
+        durationSeconds: rd.totalDurationSeconds || 0,
+        currentPace: rd.avgPace || '00:00',
+        gpsPoints: pts,
+        savedAt: unsaved.savedAt,
+        workoutType: 'Corrida Finalizada',
+        weekIndex: unsaved.workoutContext?.weekIndex,
+        dayIndex: unsaved.workoutContext?.dayIndex,
+        elevationGainMeters: rd.elevationGainMeters,
+        currentCalories: rd.calories,
+        currentCadence: rd.avgCadence || 0,
+        maxCadence: rd.maxCadence || 0,
+        heartRateAverage: rd.avgHeartRate,
+        kmSplits: rd.kmSplits,
+        telemetrySamples: rd.telemetrySamples,
+        completedSteps: rd.completedSteps
+      } as ActiveWorkoutBackup;
+    }
+    return null;
+  };
+
+  const [activeBackup, setActiveBackup] = useState<ActiveWorkoutBackup | null>(() => loadEffectiveBackup());
 
   useEffect(() => {
-    setActiveBackup(getActiveWorkoutBackup());
+    setActiveBackup(loadEffectiveBackup());
   }, [showGpsTracker, selectedWorkout]);
+
+  useEffect(() => {
+    // Sincroniza silenciosamente a localização GPS real do dispositivo do atleta
+    void requestCurrentAthletePosition();
+  }, []);
   const [localSteps, setLocalSteps] = useState<any[]>([]);
   const [editWorkoutType, setEditWorkoutType] = useState<string>('');
   const [editCustomDescription, setEditCustomDescription] = useState<string>('');
@@ -259,7 +299,7 @@ const AthletePortal: React.FC = () => {
       return workout.structuredWorkout;
     }
     if (workout?.customDescription) {
-      const parsed = parseWorkoutTextToStructure(workout.customDescription);
+      const parsed = parseWorkoutTextToStructure(workout.customDescription, workout.type, paces);
       if (parsed && parsed.steps && parsed.steps.length > 0) {
         return parsed;
       }
@@ -885,34 +925,54 @@ const AthletePortal: React.FC = () => {
     };
   };
 
-  const handleSaveAndShareWorkout = async (customDist?: number, customDur?: string, customRoute?: any, customHr?: number) => {
-    if (!selectedWorkout || !activeAthlete || isSaving) return;
+  const handleSaveAndShareWorkout = async (
+    customDist?: number, 
+    customDur?: string, 
+    customRoute?: any, 
+    customHr?: number,
+    workoutOverride?: { weekIndex: number; dayIndex: number; data: any }
+  ) => {
+    const currentSelected = workoutOverride || selectedWorkout;
+    if (!currentSelected || !activeAthlete || isSaving) return;
 
     setIsSaving(true);
     setSaveSuccess(false);
 
     try {
-      const effectiveType = editWorkoutType || selectedWorkout.data.type || 'Corrida';
+      const effectiveType = editWorkoutType || currentSelected.data.type || 'Corrida';
       const isStrength = isStrengthWorkoutType(effectiveType);
 
       const dist = isStrength
         ? 0
         : (customDist !== undefined 
             ? customDist 
-            : (actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (selectedWorkout.data.actualDistance || selectedWorkout.data.distance || 0)));
+            : (actualDistanceValue !== '' ? Number(String(actualDistanceValue).replace(',', '.')) : (currentSelected.data.actualDistance || currentSelected.data.distance || 0)));
       
       const dur = customDur !== undefined 
         ? customDur 
-        : (actualDurationValue !== '' ? actualDurationValue : (selectedWorkout.data.actualDuration || (selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : (isStrength ? '45:00' : '30:00'))));
+        : (actualDurationValue !== '' ? actualDurationValue : (currentSelected.data.actualDuration || (currentSelected.data.durationMinutes ? `${currentSelected.data.durationMinutes}:00` : (isStrength ? '45:00' : '30:00'))));
       
       const heartRate = customHr !== undefined 
         ? customHr 
-        : (actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (customRoute?.avgHeartRate || currentGpsRoute?.avgHeartRate || selectedWorkout.data.avgHeartRate || undefined));
+        : (actualHeartRateValue !== '' ? Number(actualHeartRateValue) : (customRoute?.avgHeartRate || currentGpsRoute?.avgHeartRate || currentSelected.data.avgHeartRate || undefined));
       
       const durSeconds = parseDurationStringToSeconds(dur) || (isStrength ? 2700 : 1800);
       const avgPaceCalculated = isStrength ? '--' : calculatePace(String(dist), dur);
-      const routeToSave = isStrength ? undefined : (customRoute || currentGpsRoute || selectedWorkout.data.gpsRoute);
-      const effectiveRpe = rpeValue || selectedWorkout.data.rpe || (isStrength ? 6 : 5);
+      const rawRoute = isStrength ? undefined : (customRoute || currentGpsRoute || currentSelected.data.gpsRoute || currentSelected.data.route);
+      
+      const normalizedRoutePoints = rawRoute ? normalizeGpsPoints(rawRoute) : [];
+
+      // Garante que o percurso sempre tenha tanto a lista de pontos quanto a polyline codificada com dados reais
+      const routeToSave = rawRoute ? {
+        ...rawRoute,
+        points: normalizedRoutePoints,
+        polyline: rawRoute.polyline || (normalizedRoutePoints.length > 0 ? encodePolyline(normalizedRoutePoints) : (rawRoute.encodedPolyline || '')),
+        totalDistanceKm: dist,
+        totalDurationSeconds: durSeconds,
+        avgHeartRate: heartRate || rawRoute.avgHeartRate
+      } : undefined;
+
+      const effectiveRpe = rpeValue || currentSelected.data.rpe || (isStrength ? 6 : 5);
 
       // Calculate scientific readiness score
       const sleepPct = ((sleepValue - 1) / 4) * 100;
@@ -923,8 +983,8 @@ const AthletePortal: React.FC = () => {
 
       await updateWorkoutStatus(
         activeAthlete.id,
-        selectedWorkout.weekIndex,
-        selectedWorkout.dayIndex,
+        currentSelected.weekIndex,
+        currentSelected.dayIndex,
         true, // always marked completed
         feedbackText,
         effectiveRpe,
@@ -936,12 +996,7 @@ const AthletePortal: React.FC = () => {
         undefined,
         undefined,
         undefined,
-        routeToSave ? {
-          ...routeToSave,
-          totalDistanceKm: dist,
-          totalDurationSeconds: durSeconds,
-          avgHeartRate: heartRate || routeToSave.avgHeartRate
-        } : undefined,
+        routeToSave,
         localSteps,
         dur,
         heartRate,
@@ -961,12 +1016,15 @@ const AthletePortal: React.FC = () => {
       }
 
       setSaveSuccess(true);
+      clearUnsavedRouteBackup();
+      clearActiveWorkoutBackup();
+      setActiveBackup(null);
 
       // Open WorkoutShareModal immediately
       setShareWorkoutData({
-        title: editCustomDescription?.slice(0, 45) || selectedWorkout.data.customDescription?.slice(0, 45) || `${effectiveType}`,
+        title: editCustomDescription?.slice(0, 45) || currentSelected.data.customDescription?.slice(0, 45) || `${effectiveType}`,
         athleteName: activeAthlete.name,
-        date: selectedWorkout.data.date || new Date().toLocaleDateString('pt-BR'),
+        date: currentSelected.data.date || new Date().toLocaleDateString('pt-BR'),
         distanceKm: dist,
         durationSeconds: durSeconds,
         avgPace: avgPaceCalculated,
@@ -975,11 +1033,11 @@ const AthletePortal: React.FC = () => {
         route: routeToSave,
         workoutType: effectiveType,
         initialBackgroundType: 'transparent',
-        initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
+        initialPhotoUrl: (currentSelected.data as any).photoUrl || (currentSelected.data as any).imageUrl || undefined,
         rpe: effectiveRpe,
-        exercisesCount: localExercises?.length || selectedWorkout.data.exercises?.length || 0,
-        structuredWorkout: resolveStructuredWorkoutForShare(selectedWorkout.data),
-        completedSteps: routeToSave?.completedSteps || selectedWorkout.data.gpsRoute?.completedSteps
+        exercisesCount: localExercises?.length || currentSelected.data.exercises?.length || 0,
+        structuredWorkout: resolveStructuredWorkoutForShare(currentSelected.data),
+        completedSteps: routeToSave?.completedSteps || currentSelected.data.gpsRoute?.completedSteps
       });
 
       setSelectedWorkout(null);
@@ -1229,10 +1287,21 @@ const AthletePortal: React.FC = () => {
     setMenstrualPhaseValue(workout.menstrualPhase || (activeAthlete?.lastReadiness?.menstrualPhase as any) || 'none');
     setCurrentGpsRoute(workout.gpsRoute || null);
 
-    // Auto-parse structured workout steps from description if not already structured in DB
-    const parsedStructured = (workout.structuredWorkout?.steps && workout.structuredWorkout.steps.length > 0)
-      ? workout.structuredWorkout
-      : parseWorkoutTextToStructure(workout.customDescription || workout.description || '', workout.type, paces);
+    // Auto-parse structured workout steps from description
+    const descText = workout.customDescription || workout.description || '';
+    const freshParsed = parseWorkoutTextToStructure(descText, workout.type, paces);
+
+    // Priorizar treino com aquecimento e detalhamento completo
+    let parsedStructured = workout.structuredWorkout;
+    if (!parsedStructured || !parsedStructured.steps || parsedStructured.steps.length === 0) {
+      parsedStructured = freshParsed;
+    } else if (freshParsed && freshParsed.steps && freshParsed.steps.length > 0) {
+      const dbHasWarmup = parsedStructured.steps.some((s: any) => s.type === 'warmup');
+      const freshHasWarmup = freshParsed.steps.some((s: any) => s.type === 'warmup');
+      if (!dbHasWarmup && freshHasWarmup) {
+        parsedStructured = freshParsed;
+      }
+    }
 
     setLocalSteps(parsedStructured?.steps ? JSON.parse(JSON.stringify(parsedStructured.steps)) : []);
     setShowGpsTracker(false);
@@ -1272,36 +1341,69 @@ const AthletePortal: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="flex flex-col gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
+                  const route = convertBackupToRouteData(activeBackup);
                   const wIdx = activeBackup.weekIndex ?? 0;
                   const dIdx = activeBackup.dayIndex ?? 0;
                   const targetW = athletePlan?.weeks?.[wIdx]?.workouts?.[dIdx] || athletePlan?.weeks?.[0]?.workouts?.[0];
                   if (targetW) {
-                    openWorkoutModal(wIdx, dIdx, targetW);
-                    setAutoResumeGpsBackup(true);
-                    setShowGpsTracker(true);
+                    const targetContext = { weekIndex: wIdx, dayIndex: dIdx, data: targetW };
+                    setSelectedWorkout(targetContext);
+                    setCurrentGpsRoute(route);
+                    setActualDistanceValue(String(route.totalDistanceKm));
+                    const durSec = route.totalDurationSeconds || (route as any).durationSeconds || 0;
+                    const formattedDuration = formatSecondsToTimeString(durSec);
+                    setActualDurationValue(formattedDuration);
+                    if (route.avgHeartRate) {
+                      setActualHeartRateValue(String(route.avgHeartRate));
+                    }
+                    await handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate, targetContext);
+                    clearActiveWorkoutBackup();
+                    clearUnsavedRouteBackup();
+                    setActiveBackup(null);
                   }
                 }}
-                className="py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 cursor-pointer transition-all"
+                className="w-full py-3 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-black text-[11px] uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/25 cursor-pointer transition-all active:scale-98"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Retomar Corrida</span>
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>Concluir e Salvar Percurso GPS</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  clearActiveWorkoutBackup();
-                  setActiveBackup(null);
-                }}
-                className="py-3 px-3 rounded-2xl bg-white/10 hover:bg-red-500/20 text-slate-300 hover:text-red-300 font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>Descartar Backup</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const wIdx = activeBackup.weekIndex ?? 0;
+                    const dIdx = activeBackup.dayIndex ?? 0;
+                    const targetW = athletePlan?.weeks?.[wIdx]?.workouts?.[dIdx] || athletePlan?.weeks?.[0]?.workouts?.[0];
+                    if (targetW) {
+                      openWorkoutModal(wIdx, dIdx, targetW);
+                      setAutoResumeGpsBackup(true);
+                      setShowGpsTracker(true);
+                    }
+                  }}
+                  className="py-2.5 px-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] uppercase italic tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Retomar Corrida</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearActiveWorkoutBackup();
+                    clearUnsavedRouteBackup();
+                    setActiveBackup(null);
+                  }}
+                  className="py-2.5 px-3 rounded-2xl bg-white/10 hover:bg-red-500/20 text-slate-300 hover:text-red-300 font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Descartar</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -2468,9 +2570,9 @@ const AthletePortal: React.FC = () => {
                         distanceKm: distKm,
                         durationSeconds: durSec,
                         avgPace: pace,
-                        elevationGainMeters: todayWorkout.workout.gpsRoute?.elevationGainMeters,
-                        avgHeartRate: todayWorkout.workout.avgHeartRate || todayWorkout.workout.gpsRoute?.avgHeartRate,
-                        route: isStrength ? undefined : todayWorkout.workout.gpsRoute,
+                        elevationGainMeters: todayWorkout.workout.gpsRoute?.elevationGainMeters || todayWorkout.workout.route?.elevationGainMeters,
+                        avgHeartRate: todayWorkout.workout.avgHeartRate || todayWorkout.workout.gpsRoute?.avgHeartRate || todayWorkout.workout.route?.avgHeartRate,
+                        route: isStrength ? undefined : (todayWorkout.workout.gpsRoute || todayWorkout.workout.route),
                         workoutType: todayWorkout.workout.type,
                         initialBackgroundType: 'transparent',
                         initialPhotoUrl: (todayWorkout.workout as any).photoUrl || (todayWorkout.workout as any).imageUrl || undefined,
@@ -2656,9 +2758,9 @@ const AthletePortal: React.FC = () => {
                   distanceKm: distKm,
                   durationSeconds: durSec,
                   avgPace: pace,
-                  elevationGainMeters: yesterdayWorkout.workout.gpsRoute?.elevationGainMeters,
-                  avgHeartRate: yesterdayWorkout.workout.avgHeartRate || yesterdayWorkout.workout.gpsRoute?.avgHeartRate,
-                  route: isStrength ? undefined : yesterdayWorkout.workout.gpsRoute,
+                  elevationGainMeters: yesterdayWorkout.workout.gpsRoute?.elevationGainMeters || yesterdayWorkout.workout.route?.elevationGainMeters,
+                  avgHeartRate: yesterdayWorkout.workout.avgHeartRate || yesterdayWorkout.workout.gpsRoute?.avgHeartRate || yesterdayWorkout.workout.route?.avgHeartRate,
+                  route: isStrength ? undefined : (yesterdayWorkout.workout.gpsRoute || yesterdayWorkout.workout.route),
                   workoutType: yesterdayWorkout.workout.type,
                   initialBackgroundType: 'transparent',
                   initialPhotoUrl: (yesterdayWorkout.workout as any).photoUrl || (yesterdayWorkout.workout as any).imageUrl || undefined,
@@ -2826,39 +2928,36 @@ const AthletePortal: React.FC = () => {
               >
                 {/* Caixinha do Dia estilizada com a cor do treino proposto */}
                 <div 
-                  className={`w-full aspect-square rounded-xl flex flex-col items-center justify-between p-1.5 transition-all border-2 relative overflow-hidden ${
-                    isCompleted 
-                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/20' 
-                      : `${theme.cardBg}`
-                  }`}
+                  className={`w-full aspect-square rounded-xl flex flex-col items-center justify-between p-1.5 transition-all border-2 relative overflow-hidden shadow-sm ${theme.cardBg}`}
                 >
                   {/* Selo HOJE */}
-                  {isToday && !isCompleted && (
-                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  {isToday && (
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping z-10" />
                   )}
 
                   {/* Letra do Dia */}
-                  <span className={`text-[10px] sm:text-xs font-black uppercase italic leading-none pt-0.5 ${
-                    isCompleted ? 'text-white' : ''
-                  }`}>
+                  <span className="text-[10px] sm:text-xs font-black uppercase italic leading-none pt-0.5">
                     {dayInitial}
                   </span>
 
                   {/* Código / Ícone do Treino Proposto */}
-                  {isCompleted ? (
-                    <div className="pb-0.5">
-                      <Check className="w-3.5 h-3.5 stroke-[3] text-white" />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center leading-none pb-0.5 w-full">
-                      <span className="text-[7px] sm:text-[8px] font-black tracking-tighter uppercase italic opacity-90 truncate max-w-full">
-                        {theme.code}
+                  <div className="flex flex-col items-center leading-none pb-0.5 w-full">
+                    <span className="text-[7px] sm:text-[8px] font-black tracking-tighter uppercase italic opacity-95 truncate max-w-full">
+                      {theme.code}
+                    </span>
+                    {workout?.distance && workout.distance > 0 && !isRest ? (
+                      <span className="text-[6px] font-extrabold opacity-80 hidden sm:inline">
+                        {workout.distance}k
                       </span>
-                      {workout?.distance && workout.distance > 0 && !isRest ? (
-                        <span className="text-[6px] font-extrabold opacity-75 hidden sm:inline">
-                          {workout.distance}k
-                        </span>
-                      ) : null}
+                    ) : null}
+                  </div>
+
+                  {/* Badge de Concluído que Preserva a Cor do Treino Proposto */}
+                  {isCompleted && (
+                    <div className="absolute inset-0 bg-emerald-600/25 backdrop-blur-[0.5px] flex items-center justify-center">
+                      <div className="bg-emerald-500 text-white p-0.5 rounded-full shadow-md shadow-emerald-500/40 ring-1 ring-white/50 animate-fade-in">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -4811,9 +4910,11 @@ const AthletePortal: React.FC = () => {
                         const routeCadence = activeRoute?.avgCadence;
                         const routeCalories = activeRoute?.calories;
                         const routeSplits = activeRoute?.kmSplits || [];
-                        const routePoints = activeRoute?.points && activeRoute.points.length > 0 
+                        const routePoints = (activeRoute?.points && activeRoute.points.length > 0)
                           ? activeRoute.points 
-                          : (activeRoute?.encodedPolyline ? decodePolyline(activeRoute.encodedPolyline) : []);
+                          : (activeRoute?.polyline || (activeRoute as any)?.encodedPolyline 
+                              ? decodePolyline(activeRoute.polyline || (activeRoute as any).encodedPolyline) 
+                              : []);
 
                         return (
                           <div className="space-y-4">
@@ -5144,9 +5245,9 @@ const AthletePortal: React.FC = () => {
                           distanceKm: distKm,
                           durationSeconds: durSec,
                           avgPace: pace,
-                          elevationGainMeters: isStrength ? undefined : (currentGpsRoute?.elevationGainMeters || selectedWorkout.data.gpsRoute?.elevationGainMeters),
+                          elevationGainMeters: isStrength ? undefined : (currentGpsRoute?.elevationGainMeters || selectedWorkout.data.gpsRoute?.elevationGainMeters || selectedWorkout.data.route?.elevationGainMeters),
                           avgHeartRate: heartRate,
-                          route: isStrength ? undefined : (currentGpsRoute || selectedWorkout.data.gpsRoute),
+                          route: isStrength ? undefined : (currentGpsRoute || selectedWorkout.data.gpsRoute || selectedWorkout.data.route),
                           workoutType: effectiveType,
                           initialBackgroundType: 'transparent',
                           initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
@@ -5440,9 +5541,9 @@ const AthletePortal: React.FC = () => {
                       distanceKm: completedWorkoutPrompt.distanceKm,
                       durationSeconds: completedWorkoutPrompt.durationSeconds,
                       avgPace: completedWorkoutPrompt.avgPace,
-                      elevationGainMeters: completedWorkoutPrompt.route?.elevationGainMeters,
-                      avgHeartRate: completedWorkoutPrompt.route?.avgHeartRate,
-                      route: completedWorkoutPrompt.route,
+                      elevationGainMeters: completedWorkoutPrompt.route?.elevationGainMeters || completedWorkoutPrompt.workout.gpsRoute?.elevationGainMeters || completedWorkoutPrompt.workout.route?.elevationGainMeters,
+                      avgHeartRate: completedWorkoutPrompt.route?.avgHeartRate || completedWorkoutPrompt.workout.avgHeartRate || completedWorkoutPrompt.workout.gpsRoute?.avgHeartRate,
+                      route: completedWorkoutPrompt.route || completedWorkoutPrompt.workout.gpsRoute || completedWorkoutPrompt.workout.route,
                       workoutType: completedWorkoutPrompt.workout.type,
                       rpe: completedWorkoutPrompt.rpe,
                       structuredWorkout: resolveStructuredWorkoutForShare(completedWorkoutPrompt.workout),
@@ -5705,12 +5806,22 @@ const AthletePortal: React.FC = () => {
               }}
               autoResumeBackup={autoResumeGpsBackup}
               structuredWorkout={
-                localSteps.length > 0
-                  ? {
+                (() => {
+                  const desc = selectedWorkout.data.customDescription || selectedWorkout.data.description || '';
+                  const parsed = parseWorkoutTextToStructure(desc, selectedWorkout.data.type, paces);
+                  if (localSteps.length > 0) {
+                    const localHasWarmup = localSteps.some((s: any) => s.type === 'warmup');
+                    const parsedHasWarmup = parsed?.steps?.some(s => s.type === 'warmup');
+                    if (!localHasWarmup && parsedHasWarmup) {
+                      return parsed || undefined;
+                    }
+                    return {
                       ...selectedWorkout.data.structuredWorkout,
                       steps: localSteps
-                    }
-                  : (parseWorkoutTextToStructure(selectedWorkout.data.customDescription || selectedWorkout.data.description || '', selectedWorkout.data.type, paces) || undefined)
+                    };
+                  }
+                  return parsed || selectedWorkout.data.structuredWorkout || undefined;
+                })()
               }
               workoutDescription={selectedWorkout.data.customDescription || selectedWorkout.data.description}
               athletePaces={paces}
@@ -5725,6 +5836,7 @@ const AthletePortal: React.FC = () => {
                 if (route.avgHeartRate) {
                   setActualHeartRateValue(String(route.avgHeartRate));
                 }
+                setShowGpsTracker(false);
                 handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate);
               }}
               onCancel={() => {

@@ -1,3 +1,5 @@
+import { decodePolyline } from './gpsUtils';
+
 /**
  * Utilities for Activity Share / Story Card Generation
  * Handles GPS coordinate to SVG path transformation and Logo transparency processing
@@ -93,6 +95,7 @@ export type MapDisplayMode = 'transparent' | 'standard' | 'satellite';
 
 export interface MapTileInfo {
   url: string;
+  fallbackUrl?: string;
   x: number;
   y: number;
   width: number;
@@ -110,7 +113,7 @@ export interface RenderedMapLayout {
   zoom: number;
 }
 
-// Default stylized running circuit coordinates (e.g. Parque Ibirapuera) when previewing with no GPS track
+// Default fallback coordinates if no GPS track exists anywhere
 export const SAMPLE_GPS_POINTS: [number, number][] = [
   [-23.5874, -46.6576],
   [-23.5862, -46.6558],
@@ -123,6 +126,199 @@ export const SAMPLE_GPS_POINTS: [number, number][] = [
   [-23.5874, -46.6576]
 ];
 
+/**
+ * Normaliza qualquer formato de rota GPS (arrays [lat, lng], objetos {lat, lng}, polylines codificadas, objetos de rota, JSON stringificado)
+ * garantindo uma lista estrita de coordenadas reais [latitude, longitude][].
+ * Corrige automaticamente inversões de coordenadas GeoJSON [longitude, latitude] para o padrão geográfico.
+ */
+export function normalizeGpsPoints(input: any): [number, number][] {
+  if (!input) return [];
+
+  // Se for uma string (pode ser JSON stringificado ou polyline codificada)
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const res = normalizeGpsPoints(parsed);
+        if (res.length > 0) return res;
+      } catch {}
+    }
+
+    if (trimmed.length > 5) {
+      try {
+        const decoded = decodePolyline(trimmed);
+        if (decoded && decoded.length > 0) return decoded;
+      } catch (e) {
+        console.warn('Falha ao decodificar polyline:', e);
+      }
+    }
+    return [];
+  }
+
+  // Se for um objeto com propriedades de rota (RouteData, GpsRoute, etc.)
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    // 1. Tenta pontos diretos
+    const candidateArrays = [
+      input.points,
+      input.gpsPoints,
+      input.routePoints,
+      input.coordinates,
+      input.latLngs,
+      input.path,
+      input.track
+    ];
+
+    for (const arr of candidateArrays) {
+      if (Array.isArray(arr) && arr.length > 0) {
+        const normalized = normalizeGpsPoints(arr);
+        if (normalized.length > 0) return normalized;
+      }
+    }
+
+    // 2. Tenta extrair de amostras de telemetria se disponível
+    if (Array.isArray(input.telemetrySamples) && input.telemetrySamples.length > 0) {
+      const fromTelemetry = normalizeGpsPoints(input.telemetrySamples);
+      if (fromTelemetry.length > 0) return fromTelemetry;
+    }
+
+    // 3. Tenta polylines codificadas
+    const polylineStr = 
+      input.polyline || 
+      input.encodedPolyline || 
+      input.summary_polyline || 
+      input.overview_polyline;
+
+    if (typeof polylineStr === 'string' && polylineStr.trim().length > 5) {
+      try {
+        const decoded = decodePolyline(polylineStr.trim());
+        if (decoded && decoded.length > 0) return decoded;
+      } catch (e) {
+        console.warn('Falha ao decodificar polyline do objeto:', e);
+      }
+    }
+
+    // 4. Tenta propriedades aninhadas
+    const nestedCandidates = [
+      input.gpsRoute,
+      input.route,
+      input.data?.gpsRoute,
+      input.data?.route,
+      input.workout?.gpsRoute,
+      input.workout?.route,
+      input.rawRoute
+    ];
+
+    for (const nested of nestedCandidates) {
+      if (nested && nested !== input) {
+        const res = normalizeGpsPoints(nested);
+        if (res.length > 0) return res;
+      }
+    }
+
+    return [];
+  }
+
+  // Se for um array de itens
+  if (Array.isArray(input)) {
+    const result: [number, number][] = [];
+    for (const item of input) {
+      if (!item) continue;
+
+      // Formato [lat, lng] ou [lng, lat] (GeoJSON)
+      if (Array.isArray(item) && item.length >= 2) {
+        let lat = Number(item[0]);
+        let lng = Number(item[1]);
+
+        // Detecta e corrige inversão GeoJSON [longitude, latitude] no hemisfério sul / Américas
+        if (Math.abs(lat) > 35 && Math.abs(lng) <= 35 && Math.abs(lng) > 0.0001) {
+          const temp = lat;
+          lat = lng;
+          lng = temp;
+        }
+
+        if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+          result.push([lat, lng]);
+        }
+      } 
+      // Formato { lat, lng } ou { latitude, longitude } ou { lat, lon }
+      else if (typeof item === 'object') {
+        let lat = Number(item.lat ?? item.latitude ?? item.y);
+        let lng = Number(item.lng ?? item.lon ?? item.longitude ?? item.x);
+
+        // Detecta e corrige inversão GeoJSON
+        if (Math.abs(lat) > 35 && Math.abs(lng) <= 35 && Math.abs(lng) > 0.0001) {
+          const temp = lat;
+          lat = lng;
+          lng = temp;
+        }
+
+        if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+          result.push([lat, lng]);
+        }
+      }
+    }
+    return result;
+  }
+
+  return [];
+}
+
+/**
+ * Salva a localização GPS real conhecida do atleta localmente
+ */
+export function saveAthleteGpsLocation(lat: number, lng: number): void {
+  try {
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      localStorage.setItem('prorun_last_gps_position', JSON.stringify([lat, lng]));
+    }
+  } catch {}
+}
+
+/**
+ * Obtém a última localização GPS real conhecida do atleta armazenada localmente
+ */
+export function getSavedAthleteGpsLocation(): [number, number] | null {
+  try {
+    const saved = localStorage.getItem('prorun_last_gps_position');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length >= 2 && !isNaN(parsed[0]) && !isNaN(parsed[1])) {
+        return [Number(parsed[0]), Number(parsed[1])];
+      }
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Tenta obter silenciosamente a localização atual do dispositivo do atleta via Geolocation API
+ */
+export function requestCurrentAthletePosition(): Promise<[number, number] | null> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      resolve(getSavedAthleteGpsLocation());
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        if (!isNaN(latitude) && !isNaN(longitude)) {
+          saveAthleteGpsLocation(latitude, longitude);
+          resolve([latitude, longitude]);
+          return;
+        }
+        resolve(getSavedAthleteGpsLocation());
+      },
+      () => {
+        resolve(getSavedAthleteGpsLocation());
+      },
+      { timeout: 4000, maximumAge: 600000, enableHighAccuracy: false }
+    );
+  });
+}
+
 function latLngToWorldPixel(lat: number, lng: number, zoom: number): { wx: number; wy: number } {
   const scale = 256 * Math.pow(2, zoom);
   const wx = ((lng + 180) / 360) * scale;
@@ -133,44 +329,62 @@ function latLngToWorldPixel(lat: number, lng: number, zoom: number): { wx: numbe
 }
 
 /**
- * Calculates map tile layout and precise overlay route path for Standard and Satellite maps
+ * Calculates map tile layout and precise overlay route path for Standard and Satellite maps.
+ * Mostra o local exato da corrida do atleta em alta definição, sem marca d'água de API.
  */
 export function generateMapTileLayout(
-  points: [number, number][],
+  points: any,
   width: number,
   height: number,
   mapMode: MapDisplayMode = 'standard',
-  padding = 28
+  padding = 24,
+  fallbackLocation?: [number, number] | null
 ): RenderedMapLayout {
-  const validPoints = (points && points.length >= 2)
-    ? points.filter(p => Array.isArray(p) && !isNaN(p[0]) && !isNaN(p[1]))
+  const normalized = normalizeGpsPoints(points);
+  const hasRealTrack = normalized.length >= 2;
+
+  // Se não houver percurso com múltiplos pontos, obtém ponto de referência real do atleta
+  const athleteCenter = fallbackLocation || getSavedAthleteGpsLocation() || (normalized.length === 1 ? normalized[0] : null);
+
+  // Pontos utilizados para dimensionar e centralizar o mapa
+  const pts: [number, number][] = hasRealTrack
+    ? normalized
+    : athleteCenter
+    ? [athleteCenter]
     : SAMPLE_GPS_POINTS;
 
-  const pts = validPoints.length >= 2 ? validPoints : SAMPLE_GPS_POINTS;
+  // Proteção contra dimensões inválidas
+  const safeWidth = Math.max(width || 450, 100);
+  const safeHeight = Math.max(height || 200, 80);
 
-  // Find best zoom (between 18 and 1)
+  // Cálculo do zoom ideal para cobrir todo o percurso mantendo margem de segurança
   let bestZoom = 15;
-  const usableW = Math.max(width - padding * 2, 80);
-  const usableH = Math.max(height - padding * 2, 80);
+  const usableW = Math.max(safeWidth - padding * 2, 60);
+  const usableH = Math.max(safeHeight - padding * 2, 60);
 
-  for (let z = 18; z >= 2; z--) {
-    let minWx = Infinity, maxWx = -Infinity, minWy = Infinity, maxWy = -Infinity;
-    for (const [lat, lng] of pts) {
-      const { wx, wy } = latLngToWorldPixel(lat, lng, z);
-      if (wx < minWx) minWx = wx;
-      if (wx > maxWx) maxWx = wx;
-      if (wy < minWy) minWy = wy;
-      if (wy > maxWy) maxWy = wy;
+  if (hasRealTrack) {
+    for (let z = 18; z >= 3; z--) {
+      let minWx = Infinity, maxWx = -Infinity, minWy = Infinity, maxWy = -Infinity;
+      for (const [lat, lng] of pts) {
+        const { wx, wy } = latLngToWorldPixel(lat, lng, z);
+        if (wx < minWx) minWx = wx;
+        if (wx > maxWx) maxWx = wx;
+        if (wy < minWy) minWy = wy;
+        if (wy > maxWy) maxWy = wy;
+      }
+      const spanX = maxWx - minWx;
+      const spanY = maxWy - minWy;
+      if (spanX <= usableW && spanY <= usableH) {
+        bestZoom = z;
+        break;
+      }
     }
-    const spanX = maxWx - minWx;
-    const spanY = maxWy - minWy;
-    if (spanX <= usableW && spanY <= usableH) {
-      bestZoom = z;
-      break;
-    }
+  } else {
+    // Para ponto único ou visão local, zoom 15 focado no bairro/rua real
+    bestZoom = 15;
   }
 
-  // Calculate coordinates at bestZoom
+  // Coordenadas mundiais dos pontos no bestZoom
   let minWx = Infinity, maxWx = -Infinity, minWy = Infinity, maxWy = -Infinity;
   const worldPoints = pts.map(([lat, lng]) => {
     const { wx, wy } = latLngToWorldPixel(lat, lng, bestZoom);
@@ -184,15 +398,15 @@ export function generateMapTileLayout(
   const centerWx = (minWx + maxWx) / 2;
   const centerWy = (minWy + maxWy) / 2;
 
-  // Screen coordinates
+  // Coordenadas na tela
   const screenPoints = worldPoints.map(({ wx, wy }) => ({
-    x: width / 2 + (wx - centerWx),
-    y: height / 2 + (wy - centerWy)
+    x: safeWidth / 2 + (wx - centerWx),
+    y: safeHeight / 2 + (wy - centerWy)
   }));
 
-  // Build SVG path
+  // Constrói o traçado SVG apenas se houver percurso real gravado
   let pathData = '';
-  if (screenPoints.length > 0) {
+  if (hasRealTrack && screenPoints.length > 0) {
     pathData = `M ${screenPoints[0].x.toFixed(1)} ${screenPoints[0].y.toFixed(1)}`;
     for (let i = 1; i < screenPoints.length; i++) {
       pathData += ` L ${screenPoints[i].x.toFixed(1)} ${screenPoints[i].y.toFixed(1)}`;
@@ -202,10 +416,10 @@ export function generateMapTileLayout(
   const tiles: MapTileInfo[] = [];
 
   if (mapMode === 'standard' || mapMode === 'satellite') {
-    const minTileX = Math.floor((centerWx - width / 2) / 256);
-    const maxTileX = Math.floor((centerWx + width / 2) / 256);
-    const minTileY = Math.floor((centerWy - height / 2) / 256);
-    const maxTileY = Math.floor((centerWy + height / 2) / 256);
+    const minTileX = Math.floor((centerWx - safeWidth / 2) / 256);
+    const maxTileX = Math.floor((centerWx + safeWidth / 2) / 256);
+    const minTileY = Math.floor((centerWy - safeHeight / 2) / 256);
+    const maxTileY = Math.floor((centerWy + safeHeight / 2) / 256);
     const numTilesX = 1 << bestZoom;
 
     for (let tx = minTileX; tx <= maxTileX; tx++) {
@@ -213,15 +427,24 @@ export function generateMapTileLayout(
         if (ty < 0 || ty >= (1 << bestZoom)) continue;
         const normalizedTx = ((tx % numTilesX) + numTilesX) % numTilesX;
 
-        const tileScreenX = width / 2 + (tx * 256 - centerWx);
-        const tileScreenY = height / 2 + (ty * 256 - centerWy);
+        const tileScreenX = safeWidth / 2 + (tx * 256 - centerWx);
+        const tileScreenY = safeHeight / 2 + (ty * 256 - centerWy);
 
+        // Servidores Oficiais Esri ArcGIS:
+        // Modo Satélite: World_Imagery (Foto aérea e satélite real em altíssima resolução)
+        // Modo Padrão: World_Street_Map (Ruas, avenidas, nomes e relevo com dados geográficos reais e livres de marcas d'água de API)
+        // Ambos possuem CORS total (Access-Control-Allow-Origin: *), garantindo exportação transparente sem falha no canvas
         const url = mapMode === 'satellite'
           ? `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${bestZoom}/${ty}/${normalizedTx}`
-          : `https://a.basemaps.cartocdn.com/rastertiles/voyager/${bestZoom}/${normalizedTx}/${ty}.png`;
+          : `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${bestZoom}/${ty}/${normalizedTx}`;
+
+        const fallbackUrl = mapMode === 'satellite'
+          ? `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/${bestZoom}/${ty}/${normalizedTx}`
+          : `https://tile.openstreetmap.org/${bestZoom}/${normalizedTx}/${ty}.png`;
 
         tiles.push({
           url,
+          fallbackUrl,
           x: Math.round(tileScreenX),
           y: Math.round(tileScreenY),
           width: 256,
@@ -235,34 +458,25 @@ export function generateMapTileLayout(
   return {
     tiles,
     pathData,
-    startPoint: screenPoints.length > 0 ? screenPoints[0] : null,
-    finishPoint: screenPoints.length > 1 ? screenPoints[screenPoints.length - 1] : null,
-    width,
-    height,
+    startPoint: hasRealTrack && screenPoints.length > 0 ? screenPoints[0] : (screenPoints.length === 1 ? screenPoints[0] : null),
+    finishPoint: hasRealTrack && screenPoints.length > 1 ? screenPoints[screenPoints.length - 1] : null,
+    width: safeWidth,
+    height: safeHeight,
     zoom: bestZoom
   };
 }
 
 /**
- * Converts GPS Coordinates ([lat, lng][]) into an SVG Path string fitted to a given box
+ * Converts GPS Coordinates into an SVG Path string fitted to a given box
  */
 export function convertGpsPointsToSvgPath(
-  points: [number, number][],
+  points: any,
   targetWidth = 400,
   targetHeight = 400,
   padding = 32
 ): SvgRouteResult {
-  if (!points || points.length < 2) {
-    return {
-      pathData: '',
-      startPoint: null,
-      finishPoint: null,
-      viewBox: `0 0 ${targetWidth} ${targetHeight}`
-    };
-  }
+  const valid = normalizeGpsPoints(points);
 
-  // Filter valid points
-  const valid = points.filter(p => Array.isArray(p) && !isNaN(p[0]) && !isNaN(p[1]));
   if (valid.length < 2) {
     return {
       pathData: '',

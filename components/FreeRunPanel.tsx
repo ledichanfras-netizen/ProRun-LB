@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Play } from 'lucide-react';
 import { Athlete, FreeRun } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { GpsWorkoutTracker } from './GpsWorkoutTracker';
@@ -8,7 +9,7 @@ import { normalizeGpsPoints } from '../utils/socialCardUtils';
 import { getAppNow, getTodayDateString } from '../utils/time';
 import { clearActiveWorkoutBackup, clearUnsavedRouteBackup, getActiveWorkoutBackup, getUnsavedRouteBackup } from '../utils/gpsUtils';
 
-export const FreeRunPanel = ({ athlete }: { athlete: Athlete }) => {
+export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; compact?: boolean }) => {
   const { athletePlans, saveFreeRun } = useApp();
   const [mode, setMode] = useState<'gps' | 'manual' | null>(null);
   const [distance, setDistance] = useState('');
@@ -72,31 +73,50 @@ export const FreeRunPanel = ({ athlete }: { athlete: Athlete }) => {
     } finally { saveLock.current = false; setSaving(false); }
   };
 
+  const recover = () => {
+    runId.current ||= crypto.randomUUID(); setError(''); setSuccess(false);
+    if (unsavedBackup?.workoutContext?.weekIndex === -1) capture(unsavedBackup.routeData);
+    else if (activeBackup?.weekIndex === -1) { setResume(true); setMode('gps'); }
+  };
+
+  const history = runs.length > 0 && <details className="space-y-2">
+    <summary className="text-[10px] font-black uppercase italic tracking-widest text-slate-400 cursor-pointer">Histórico de corridas livres</summary>
+    {[...runs].reverse().map(run => <button key={run.id} onClick={() => setSelected(run)} className="block w-full text-left rounded-xl bg-white/5 p-3 text-slate-200 text-xs font-semibold">
+      {run.date?.split('-').reverse().join('/')} · {run.actualDistance} km · {run.actualDuration}
+      {run.rpe !== undefined && ` · PSE ${run.rpe}`}
+    </button>)}
+  </details>;
+
   return (
-    <section className="glass-card p-5 space-y-4">
+    <section className={compact ? 'flex flex-col items-center gap-2' : 'glass-card p-5 space-y-4'}>
+      {compact ? (
+        <button type="button" onClick={() => recoverable ? recover() : open('gps')}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/30 font-black uppercase italic tracking-widest text-[10px] transition-all active:scale-[0.98]">
+          <Play className="w-3.5 h-3.5" /> Iniciar Corrida Livre
+        </button>
+      ) : <>
+
       <div><h2 className="text-lg font-black text-white">Corrida livre</h2>
         <p className="text-sm text-slate-400">Corra e registre sua atividade mesmo sem treino programado para hoje.</p></div>
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => open('gps')} className="bg-emerald-700 text-white rounded-xl p-3 font-bold">Correr com GPS</button>
         <button onClick={() => open('manual')} className="bg-slate-800 text-white rounded-xl p-3 font-bold">Registrar corrida</button>
       </div>
-      {recoverable && <button className="text-amber-400 text-sm font-bold" onClick={() => {
-        runId.current ||= crypto.randomUUID(); setError(''); setSuccess(false);
-        if (unsavedBackup?.workoutContext?.weekIndex === -1) capture(unsavedBackup.routeData);
-        else if (activeBackup?.weekIndex === -1) { setResume(true); setMode('gps'); }
-      }}>Recuperar corrida livre pendente</button>}
+      {recoverable && <button className="text-amber-400 text-sm font-bold" onClick={recover}>Recuperar corrida livre pendente</button>}
+      </>}
       {success && <p role="status" className="text-emerald-400 text-sm">Corrida salva no histórico.</p>}
       {!mode && error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
-      {runs.length > 0 && <div className="space-y-2">
-        <h3 className="pro-label">Histórico de corridas livres</h3>
-        {[...runs].reverse().map(run => <button key={run.id} onClick={() => setSelected(run)} className="block w-full text-left rounded-xl bg-white/5 p-3 text-slate-200 text-sm">
-          {run.date?.split('-').reverse().join('/')} · {run.actualDistance} km · {run.actualDuration}
-          {run.rpe !== undefined && ` · PSE ${run.rpe}`}
-        </button>)}
-      </div>}
+      {!compact && history}
       {mode && createPortal(<div className="fixed inset-0 z-[10001] bg-slate-950 overflow-y-auto p-4">
         <div className="max-w-lg mx-auto space-y-5">
           <button disabled={saving} className="text-slate-300 p-3" onClick={() => setMode(null)}>Fechar</button>
+          {compact && <div className="space-y-3">
+            <button type="button" disabled={saving} onClick={() => setMode(mode === 'gps' ? 'manual' : 'gps')}
+              className="text-[10px] font-black uppercase italic tracking-widest text-emerald-400 hover:underline">
+              {mode === 'gps' ? 'Registrar corrida manualmente' : 'Voltar ao GPS'}
+            </button>
+            {history}
+          </div>}
           {mode === 'gps' ? <GpsWorkoutTracker workoutType="Corrida livre" athleteWeight={athlete.weight || 70}
             workoutContext={{ weekIndex: -1, dayIndex: -1 }} autoResumeBackup={resume}
             onRouteCaptured={capture} onCancel={() => setMode(null)} /> : <>

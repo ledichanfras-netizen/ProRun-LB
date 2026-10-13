@@ -1294,7 +1294,6 @@ const AthletePortal: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-24 animate-fade-in no-print">
-      <FreeRunPanel key={activeAthlete.id} athlete={activeAthlete} />
       {visibleWeeks.length === 0 && (
         <div className="glass-card p-5 text-sm text-slate-300">
           Sua planilha ainda não foi publicada. Você já pode registrar uma corrida livre.
@@ -1616,6 +1615,8 @@ const AthletePortal: React.FC = () => {
               </div>
             );
           })()}
+
+          <FreeRunPanel key={activeAthlete.id} athlete={activeAthlete} compact />
 
           {/* MODAL DO FORMULÁRIO DE PRONTIDÃO DIÁRIA */}
           {showPortalForm && createPortal(

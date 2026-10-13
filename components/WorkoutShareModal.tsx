@@ -571,6 +571,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   };
 
   const isDarkText = textTheme === 'black';
+  const strokeMainColor = stravaRouteColor === 'orange' ? '#fc4c02' : stravaRouteColor === 'emerald' ? '#10b981' : stravaRouteColor === 'black' ? '#000000' : '#ffffff';
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-2 sm:p-4 overflow-y-auto" onClick={onClose}>

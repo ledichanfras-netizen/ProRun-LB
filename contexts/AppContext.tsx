@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
-import { Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal, Exercise } from '../types';
+import { FreeRun, Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal, Exercise } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
@@ -37,6 +37,7 @@ interface AppContextType {
   
   athletePlans: Record<string, AthletePlan>;
   saveAthletePlan: (athleteId: string, plan: AthletePlan) => Promise<void>;
+  saveFreeRun: (athleteId: string, run: FreeRun) => Promise<void>;
   clearAthletePlan: (athleteId: string) => Promise<void>;
   rescheduleWorkout: (
     athleteId: string,
@@ -441,6 +442,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               }
 
               plans[athleteId] = {
+                freeRuns: pd.freeRuns || [],
                 weeks: weeks,
                 raceStrategy: pd.raceStrategy || pd.race_strategy || null,
                 motivationalMessage: pd.motivationalMessage || pd.motivational_message || null,
@@ -779,6 +781,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const planWithMetadata = {
       ...plan,
+      freeRuns: plan.freeRuns || athletePlans[athleteId]?.freeRuns || [],
       weeks: weeksWithMetadata
     };
 
@@ -796,6 +799,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await supabase.from('athlete_plans').upsert({
         athlete_id: athleteId,
         plan_data: {
+          ...planWithMetadata,
           weeks: weeksWithMetadata,
           raceStrategy: plan.raceStrategy || null,
           motivationalMessage: plan.motivationalMessage || null,
@@ -820,6 +824,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (err) {
       console.warn("Could not sync plan to cloud (stored locally):", err);
     }
+  };
+
+  const saveFreeRun = async (athleteId: string, run: FreeRun) => {
+    // Read the current cloud plan so a free run never replaces a newer prescription.
+    const { data, error: readError } = await supabase.from('athlete_plans')
+      .select('plan_data').eq('athlete_id', athleteId).maybeSingle();
+    if (readError) throw readError;
+    const current = data?.plan_data || athletePlans[athleteId] || { weeks: [] };
+    const freeRuns = [...(current.freeRuns || [])];
+    const index = freeRuns.findIndex((item: FreeRun) => item.id === run.id);
+    if (index >= 0) freeRuns[index] = run;
+    else freeRuns.push(run);
+    const nextPlan = { ...current, freeRuns };
+    const { error } = await supabase.from('athlete_plans').upsert({
+      athlete_id: athleteId, plan_data: nextPlan
+    }, { onConflict: 'athlete_id' });
+    if (error) throw error;
+    setAthletePlans(prev => ({ ...prev, [athleteId]: nextPlan }));
   };
 
   const clearAthletePlan = async (athleteId: string) => {
@@ -1110,6 +1132,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await supabase.from('athlete_plans').upsert({
         athlete_id: athleteId,
         plan_data: {
+          ...planWithMetadata,
           weeks: weeksWithMetadata,
           raceStrategy: updatedPlan.raceStrategy || null,
           motivationalMessage: updatedPlan.motivationalMessage || null,
@@ -1174,7 +1197,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addNewAssessment, updateAssessment, deleteAssessment,
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout, seedDefaultWorkouts,
       selectedAthleteId, setSelectedAthleteId,
-      athletePlans, saveAthletePlan, clearAthletePlan, rescheduleWorkout, updateWorkoutStatus,
+      athletePlans, saveAthletePlan, saveFreeRun, clearAthletePlan, rescheduleWorkout, updateWorkoutStatus,
       getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected,
       isFirebaseConfigured: true, 
       subscription, hasActiveSubscription, refreshSubscription,

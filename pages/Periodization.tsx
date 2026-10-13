@@ -1,3 +1,4 @@
+import { FreeRunPanel } from '../components/FreeRunPanel';
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -1107,6 +1108,7 @@ const Periodization: React.FC = () => {
       </header>
 
       {/* CARD DO ATLETA EM FOCO */}
+      {activeAthlete && <FreeRunPanel key={activeAthlete.id} athlete={activeAthlete} />}
       {activeAthlete && (
         <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-5 md:p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
@@ -1942,7 +1944,7 @@ const Periodization: React.FC = () => {
                                         className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-md uppercase italic border border-emerald-500/30 flex items-center gap-1 transition-all cursor-pointer"
                                       >
                                         <Navigation className="w-2.5 h-2.5" />
-                                        <span>Rota GPS ({(workout.gpsRoute || workout.route).totalDistanceKm || workout.actualDistance || workout.distance}km)</span>
+                                        <span>Rota GPS ({(workout.gpsRoute || workout.route)?.totalDistanceKm || workout.actualDistance || workout.distance}km)</span>
                                       </button>
                                     )}
                                     {workout.feedback && (

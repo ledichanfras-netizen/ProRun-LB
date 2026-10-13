@@ -53,6 +53,7 @@ import {
 import { WorkoutType, UserAchievement, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
+import { FreeRunPanel } from '../components/FreeRunPanel';
 import { GpsWorkoutTracker } from '../components/GpsWorkoutTracker';
 import { WorkoutMap } from '../components/WorkoutMap';
 import { WorkoutTelemetryCharts } from '../components/WorkoutTelemetryCharts';
@@ -201,9 +202,9 @@ const AthletePortal: React.FC = () => {
   const [autoResumeGpsBackup, setAutoResumeGpsBackup] = useState(false);
   const loadEffectiveBackup = (): ActiveWorkoutBackup | null => {
     const active = getActiveWorkoutBackup();
-    if (active) return active;
+    if (active && active.weekIndex !== -1) return active;
     const unsaved = getUnsavedRouteBackup();
-    if (unsaved && unsaved.routeData) {
+    if (unsaved && unsaved.routeData && unsaved.workoutContext?.weekIndex !== -1) {
       const rd = unsaved.routeData;
       const pts = (rd.points && rd.points.length > 0)
         ? rd.points
@@ -610,30 +611,6 @@ const AthletePortal: React.FC = () => {
     .filter(w => w.isVisible === true)
     .sort((a, b) => a.weekNumber - b.weekNumber);
   const paces = activeAthlete.customZones || calculatePaces(activeAthlete.metrics.vdot, activeAthlete.metrics.fcThreshold, activeAthlete.metrics.fcMax);
-
-  if (visibleWeeks.length === 0) {
-    return (
-      <div className="max-w-md mx-auto space-y-8 pb-24 animate-fade-in flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
-        <div className="bg-emerald-500/10 p-8 rounded-[3rem] border border-emerald-500/20 mb-6">
-          <Sparkles className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-black text-slate-800 uppercase italic tracking-tighter">Preparando sua Evolução</h2>
-          <p className="text-slate-500 text-sm font-medium italic mt-2">
-            Seu treinador está finalizando sua periodização personalizada. Assim que as planilhas forem publicadas, elas aparecerão aqui em tempo real.
-          </p>
-        </div>
-        <div className="space-y-4 w-full">
-           <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-              <div className="w-10 h-10 bg-emerald-950 rounded-xl flex items-center justify-center text-xl">⚡</div>
-              <div className="text-left">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dica de Performance</p>
-                <p className="text-xs font-bold text-slate-700 italic">Mantenha seu VDOT atualizado nas avaliações.</p>
-              </div>
-           </div>
-           <button onClick={() => navigate('/')} className="w-full bg-emerald-950 text-white py-4 rounded-2xl font-black text-xs uppercase italic tracking-widest">VOLTAR AO PAINEL</button>
-        </div>
-      </div>
-    );
-  }
 
   const isFinalWorkout = useMemo(() => {
     if (!selectedWorkout || !allWeeks.length) return false;
@@ -1317,6 +1294,12 @@ const AthletePortal: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-24 animate-fade-in no-print">
+      <FreeRunPanel key={activeAthlete.id} athlete={activeAthlete} />
+      {visibleWeeks.length === 0 && (
+        <div className="glass-card p-5 text-sm text-slate-300">
+          Sua planilha ainda não foi publicada. Você já pode registrar uma corrida livre.
+        </div>
+      )}
       {/* Header com Status Físico */}
       <div className="flex flex-col gap-4 px-2">
         {/* Banner Global de Recuperação de Corrida Interrompida (Botão Voltar / Queda de App) */}
@@ -2469,7 +2452,7 @@ const AthletePortal: React.FC = () => {
                 ? isLight ? 'text-amber-800' : 'text-amber-400' 
                 : isLight ? 'text-emerald-800' : 'text-emerald-400'
             }`}>
-              {todayWorkout ? todayWorkout.workout.type : 'Dia de Descanso'}
+              {todayWorkout ? todayWorkout.workout.type : 'Sem treino programado'}
             </h2>
             
             <p className={`text-sm font-semibold mb-8 leading-relaxed line-clamp-3 ${
@@ -2477,7 +2460,7 @@ const AthletePortal: React.FC = () => {
             }`}>
               {todayWorkout?.workout.type.toUpperCase().includes('PROVA') 
                 ? 'Hoje é o grande dia! Coloque em prática tudo o que treinou. Boa prova!' 
-                : (todayWorkout ? todayWorkout.workout.customDescription : 'Aproveite para recuperar as energias e focar na mobilidade.')}
+                : (todayWorkout ? todayWorkout.workout.customDescription : 'Você pode registrar sua atividade na opção Corrida livre.')}
             </p>
  
             {todayWorkout?.workout.structuredWorkout && !todayWorkout.workout.completed && (

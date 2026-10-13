@@ -162,7 +162,7 @@ export interface UserGoal {
   completed: boolean;
 }
 
-export type WorkoutType = 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Maratona' | 'Descanso' | 'Fortalecimento' | 'Velocidade' | 'Natação' | 'Ciclismo' | 'Transição' | 'Prova';
+export type WorkoutType = 'Rodagem' | 'Regenerativo' | 'Longão' | 'Limiar' | 'Intervalado' | 'Maratona' | 'Descanso' | 'Fortalecimento' | 'Velocidade' | 'Natação' | 'Ciclismo' | 'Transição' | 'Prova';
 
 export type StepType = 'warmup' | 'interval' | 'recovery' | 'cooldown' | 'steady';
 export type StepTargetType = 'distance' | 'time' | 'lap_button';
@@ -217,6 +217,7 @@ export interface TrainingWeek {
       moodScore?: number;
       menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
       readinessScore?: number;
+      route?: TrainingWeek["workouts"][number]["gpsRoute"];
       gpsRoute?: {
         polyline?: string;
         points?: [number, number][]; // [lat, lng] array
@@ -266,7 +267,10 @@ export interface TrainingWeek {
     }[];
 }
 
+export type FreeRun = TrainingWeek["workouts"][number] & { id: string };
+
 export interface AthletePlan {
+  freeRuns?: FreeRun[];
   weeks: TrainingWeek[];
   raceStrategy?: string;
   motivationalMessage?: string;

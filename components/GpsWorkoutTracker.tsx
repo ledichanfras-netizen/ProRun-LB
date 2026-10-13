@@ -881,7 +881,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               });
 
               setGpsPoints(prev => {
-                const updated = [...prev, [latitude, longitude]];
+                const updated: [number, number][] = [...prev, [latitude, longitude]];
                 gpsPointsRef.current = updated;
                 return updated;
               });
@@ -1290,6 +1290,9 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // Ritmo proposto ativo para o aluno (da etapa atual ou do treino geral)
   const activeTargetPaces = useMemo(() => {
+    if (workoutType === "Corrida livre") {
+      return { minPace: undefined, maxPace: undefined, zoneName: "Livre" };
+    }
     if (currentStep) {
       if (currentStep.targetPaceMin) {
         return {
@@ -1616,7 +1619,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     {workoutDescription || (
                       plannedDistanceKm 
                         ? `${workoutType} ${plannedDistanceKm} km`
-                        : `${workoutType} - Treino Prescrito`
+                        : (workoutType === "Corrida livre" ? "Corrida livre — registre seu percurso" : `${workoutType} - Treino Prescrito`)
                     )}
                   </h3>
 

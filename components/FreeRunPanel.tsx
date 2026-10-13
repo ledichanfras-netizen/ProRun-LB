@@ -1,0 +1,122 @@
+import React, { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Athlete, FreeRun } from '../types';
+import { useApp } from '../contexts/AppContext';
+import { GpsWorkoutTracker } from './GpsWorkoutTracker';
+import { WorkoutMap } from './WorkoutMap';
+import { normalizeGpsPoints } from '../utils/socialCardUtils';
+import { getAppNow, getTodayDateString } from '../utils/time';
+import { clearActiveWorkoutBackup, clearUnsavedRouteBackup, getActiveWorkoutBackup, getUnsavedRouteBackup } from '../utils/gpsUtils';
+
+export const FreeRunPanel = ({ athlete }: { athlete: Athlete }) => {
+  const { athletePlans, saveFreeRun } = useApp();
+  const [mode, setMode] = useState<'gps' | 'manual' | null>(null);
+  const [distance, setDistance] = useState('');
+  const [duration, setDuration] = useState('');
+  const [rpe, setRpe] = useState('');
+  const [route, setRoute] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [selected, setSelected] = useState<FreeRun | null>(null);
+  const [resume, setResume] = useState(false);
+  const runId = useRef('');
+  const saveLock = useRef(false);
+  const runs = athletePlans[athlete.id]?.freeRuns || [];
+  const activeBackup = getActiveWorkoutBackup();
+  const unsavedBackup = getUnsavedRouteBackup();
+  const recoverable = activeBackup?.weekIndex === -1 || unsavedBackup?.workoutContext?.weekIndex === -1;
+
+  const open = (next: 'gps' | 'manual') => {
+    if (getActiveWorkoutBackup() && !recoverable) {
+      setError('Conclua ou descarte a corrida em andamento antes de iniciar outra.');
+      return;
+    }
+    runId.current = crypto.randomUUID();
+    setDistance(''); setDuration(''); setRpe(''); setRoute(null);
+    setError(''); setSuccess(false); setResume(false); setMode(next);
+  };
+
+  const capture = (captured: any) => {
+    setRoute(captured);
+    setDistance(String(captured.totalDistanceKm || 0));
+    const seconds = Math.round(captured.totalDurationSeconds || captured.durationSeconds || 0);
+    setDuration(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`);
+    setMode('manual');
+  };
+
+  const save = async () => {
+    if (saveLock.current) return;
+    const km = Number(distance.replace(',', '.'));
+    const parts = duration.split(':').map(Number);
+    const seconds = parts.length === 2 ? parts[0] * 60 + parts[1] : NaN;
+    const effort = rpe === '' ? undefined : Number(rpe);
+    if (!Number.isFinite(km) || km <= 0 || !/^\d+:[0-5]\d$/.test(duration) || seconds <= 0 ||
+        (effort !== undefined && (!Number.isInteger(effort) || effort < 0 || effort > 10))) {
+      setError('Informe distância maior que zero, tempo em minutos:segundos (ex.: 30:00) e PSE de 0 a 10.');
+      return;
+    }
+    saveLock.current = true; setSaving(true); setError('');
+    try {
+      await saveFreeRun(athlete.id, {
+        id: runId.current || (runId.current = crypto.randomUUID()),
+        day: getAppNow().toLocaleDateString('pt-BR', { weekday: 'long' }),
+        date: getTodayDateString(), type: 'Rodagem', customDescription: 'Corrida livre',
+        completed: true, actualDistance: km, actualDuration: duration, rpe: effort,
+        ...(route ? { gpsRoute: { ...route, totalDistanceKm: km, totalDurationSeconds: seconds }, avgHeartRate: route.avgHeartRate } : {})
+      });
+      if (recoverable || route) { clearActiveWorkoutBackup(); clearUnsavedRouteBackup(); }
+      setMode(null); setSuccess(true); setRoute(null);
+    } catch {
+      setError('Não foi possível salvar. Seus dados continuam aqui; verifique a conexão e tente novamente.');
+    } finally { saveLock.current = false; setSaving(false); }
+  };
+
+  return (
+    <section className="glass-card p-5 space-y-4">
+      <div><h2 className="text-lg font-black text-white">Corrida livre</h2>
+        <p className="text-sm text-slate-400">Corra e registre sua atividade mesmo sem treino programado para hoje.</p></div>
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => open('gps')} className="bg-emerald-700 text-white rounded-xl p-3 font-bold">Correr com GPS</button>
+        <button onClick={() => open('manual')} className="bg-slate-800 text-white rounded-xl p-3 font-bold">Registrar corrida</button>
+      </div>
+      {recoverable && <button className="text-amber-400 text-sm font-bold" onClick={() => {
+        runId.current ||= crypto.randomUUID(); setError(''); setSuccess(false);
+        if (unsavedBackup?.workoutContext?.weekIndex === -1) capture(unsavedBackup.routeData);
+        else if (activeBackup?.weekIndex === -1) { setResume(true); setMode('gps'); }
+      }}>Recuperar corrida livre pendente</button>}
+      {success && <p role="status" className="text-emerald-400 text-sm">Corrida salva no histórico.</p>}
+      {!mode && error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+      {runs.length > 0 && <div className="space-y-2">
+        <h3 className="pro-label">Histórico de corridas livres</h3>
+        {[...runs].reverse().map(run => <button key={run.id} onClick={() => setSelected(run)} className="block w-full text-left rounded-xl bg-white/5 p-3 text-slate-200 text-sm">
+          {run.date?.split('-').reverse().join('/')} · {run.actualDistance} km · {run.actualDuration}
+          {run.rpe !== undefined && ` · PSE ${run.rpe}`}
+        </button>)}
+      </div>}
+      {mode && createPortal(<div className="fixed inset-0 z-[10001] bg-slate-950 overflow-y-auto p-4">
+        <div className="max-w-lg mx-auto space-y-5">
+          <button disabled={saving} className="text-slate-300 p-3" onClick={() => setMode(null)}>Fechar</button>
+          {mode === 'gps' ? <GpsWorkoutTracker workoutType="Corrida livre" athleteWeight={athlete.weight || 70}
+            workoutContext={{ weekIndex: -1, dayIndex: -1 }} autoResumeBackup={resume}
+            onRouteCaptured={capture} onCancel={() => setMode(null)} /> : <>
+            <h2 className="text-xl font-black text-white">Registrar corrida livre</h2>
+            <label className="block text-slate-300">Distância (km)<input aria-label="Distância (km)" className="pro-input block w-full mt-2" inputMode="decimal" value={distance} onChange={e => setDistance(e.target.value)} /></label>
+            <label className="block text-slate-300">Tempo (minutos:segundos)<input aria-label="Tempo (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={duration} onChange={e => setDuration(e.target.value)} /></label>
+            <label className="block text-slate-300">PSE (0–10, opcional)<input aria-label="PSE" className="pro-input block w-full mt-2" type="number" min="0" max="10" value={rpe} onChange={e => setRpe(e.target.value)} /></label>
+            {error && <p role="alert" className="text-red-400">{error}</p>}
+            <button disabled={saving} onClick={save} className="w-full bg-emerald-700 text-white rounded-xl p-4 font-bold disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar corrida'}</button>
+          </>}
+        </div>
+      </div>, document.body)}
+      {selected && createPortal(<div className="fixed inset-0 z-[10001] bg-slate-950 overflow-y-auto p-5">
+        <div className="max-w-lg mx-auto space-y-4 text-slate-200">
+          <button className="p-3" onClick={() => setSelected(null)}>Fechar</button>
+          <h2 className="text-xl font-black">Corrida livre · {selected.date?.split('-').reverse().join('/')}</h2>
+          <p>{selected.actualDistance} km · {selected.actualDuration}{selected.rpe !== undefined && ` · PSE ${selected.rpe}`}</p>
+          {selected.gpsRoute && <WorkoutMap points={normalizeGpsPoints(selected.gpsRoute)} />}
+        </div>
+      </div>, document.body)}
+    </section>
+  );
+};

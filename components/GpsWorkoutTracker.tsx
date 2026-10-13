@@ -1677,7 +1677,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               <button
                 type="button"
                 onClick={initiateStartWithCountdown}
-                className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-emerald-50 text-slate-950 font-black text-sm sm:text-base uppercase italic tracking-wider rounded-2xl shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 cursor-pointer border-2 border-emerald-300 group"
+                className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-slate-800 text-slate-950 dark:text-white font-black text-sm sm:text-base uppercase italic tracking-wider rounded-2xl shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 cursor-pointer border-2 border-emerald-300 group"
               >
                 <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white group-hover:scale-110 transition-transform">
                   <Play className="w-4 h-4 fill-white text-white ml-0.5" />

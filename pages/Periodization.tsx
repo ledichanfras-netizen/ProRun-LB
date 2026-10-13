@@ -1,4 +1,3 @@
-import { FreeRunPanel } from '../components/FreeRunPanel';
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -1108,7 +1107,6 @@ const Periodization: React.FC = () => {
       </header>
 
       {/* CARD DO ATLETA EM FOCO */}
-      {activeAthlete && <FreeRunPanel key={activeAthlete.id} athlete={activeAthlete} />}
       {activeAthlete && (
         <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-5 md:p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">

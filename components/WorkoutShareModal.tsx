@@ -25,7 +25,10 @@ import {
   Flame,
   Crop,
   Globe,
-  Map as MapIcon
+  Map as MapIcon,
+  ZoomIn,
+  ZoomOut,
+  LocateFixed
 } from 'lucide-react';
 import { RouteData } from '../utils/gpsUtils';
 import { exportElementAsImage } from '../utils/exporter';
@@ -36,6 +39,7 @@ import {
   MapDisplayMode,
   RenderedMapLayout,
   generateMapTileLayout,
+  MapViewAdjustment,
   normalizeGpsPoints,
   getSavedAthleteGpsLocation,
   requestCurrentAthletePosition
@@ -124,6 +128,8 @@ interface SocialWorkoutMapRendererProps {
   routeColor: StravaRouteColor;
   isDarkText: boolean;
   strokeMainColor: string;
+  mapView: MapViewAdjustment;
+  onPan: (dx: number, dy: number) => void;
 }
 
 /**
@@ -137,9 +143,12 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
   aspectRatio,
   routeColor,
   isDarkText,
-  strokeMainColor
+  strokeMainColor,
+  mapView,
+  onPan
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ id: number; x: number; y: number } | null>(null);
   const [dims, setDims] = useState<{ width: number; height: number }>({
     width: 250,
     height: aspectRatio === 'square' ? 98 : aspectRatio === 'portrait' ? 145 : 190
@@ -164,12 +173,31 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
   }, [aspectRatio]);
 
   const tileLayout = React.useMemo(() => {
-    return generateMapTileLayout(points, dims.width, dims.height, mapMode, 22);
-  }, [points, dims.width, dims.height, mapMode]);
+    return generateMapTileLayout(points, dims.width, dims.height, mapMode, 22, undefined, mapView);
+  }, [points, dims.width, dims.height, mapMode, mapView]);
 
   return (
     <div
       ref={containerRef}
+      data-social-map="true"
+      data-map-zoom={tileLayout.zoom}
+      aria-label="Mapa da postagem; arraste para ajustar o enquadramento"
+      onPointerDown={event => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        event.preventDefault();
+        dragRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={event => {
+        const drag = dragRef.current;
+        if (!drag || drag.id !== event.pointerId) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (bounds.width > 0 && bounds.height > 0) onPan((event.clientX - drag.x) / bounds.width, (event.clientY - drag.y) / bounds.height);
+        drag.x = event.clientX; drag.y = event.clientY;
+      }}
+      onPointerUp={() => { dragRef.current = null; }}
+      onPointerCancel={() => { dragRef.current = null; }}
+      onLostPointerCapture={() => { dragRef.current = null; }}
       className={`relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
         aspectRatio === 'square'
           ? 'h-[82px] sm:h-[98px]'
@@ -178,6 +206,8 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
           : 'h-[160px] sm:h-[200px]'
       }`}
       style={{
+        touchAction: 'none',
+        cursor: 'grab',
         borderColor: isDarkText ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)',
         backgroundColor: mapMode === 'satellite' ? '#090d16' : '#f8fafc'
       }}
@@ -189,6 +219,7 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
             key={tile.key}
             src={tile.url}
             alt="Map Tile"
+            draggable={false}
             crossOrigin="anonymous"
             loading="eager"
             onError={(e) => {
@@ -386,6 +417,15 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
     data.initialBackgroundType === 'photo' ? 'transparent' : (points.length >= 2 ? 'standard' : 'transparent')
   );
 
+  const [mapView, setMapView] = useState<MapViewAdjustment>({ zoomOffset: 0, panX: 0, panY: 0 });
+  const panMap = (dx: number, dy: number) => setMapView(previous => ({
+    ...previous, panX: previous.panX - dx, panY: previous.panY - dy
+  }));
+  const changeZoom = (delta: number) => setMapView(previous => ({
+    zoomOffset: Math.max(-3, Math.min(4, previous.zoomOffset + delta)),
+    panX: previous.panX * Math.pow(2, delta), panY: previous.panY * Math.pow(2, delta)
+  }));
+
   // Generate SVG Route
   const svgRoute: SvgRouteResult = React.useMemo(() => {
     return convertGpsPointsToSvgPath(points, 450, 450, 36);
@@ -399,8 +439,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   }, [aspectRatio]);
 
   const tileLayout: RenderedMapLayout = React.useMemo(() => {
-    return generateMapTileLayout(points, mapLayoutDims.width, mapLayoutDims.height, mapDisplayMode, 30);
-  }, [points, mapLayoutDims.width, mapLayoutDims.height, mapDisplayMode]);
+    return generateMapTileLayout(points, mapLayoutDims.width, mapLayoutDims.height, mapDisplayMode, 30, undefined, mapView);
+  }, [points, mapLayoutDims.width, mapLayoutDims.height, mapDisplayMode, mapView]);
 
   // Effect to process the logo and strip out black background
   useEffect(() => {
@@ -873,6 +913,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                           <SocialWorkoutMapRenderer
                             points={points}
                             mapMode={mapDisplayMode}
+                            mapView={mapView}
+                            onPan={panMap}
                             aspectRatio={aspectRatio}
                             routeColor={stravaRouteColor}
                             isDarkText={isDarkText}
@@ -1339,6 +1381,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     <SocialWorkoutMapRenderer
                       points={points}
                       mapMode={mapDisplayMode}
+                      mapView={mapView}
+                      onPan={panMap}
                       aspectRatio={aspectRatio}
                       routeColor={stravaRouteColor}
                       isDarkText={isDarkText}
@@ -1639,6 +1683,75 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
             </div>
           </div>
+
+            {!isStrength && <section aria-label="Estilo e zoom do mapa" className="w-full mt-3 space-y-3 bg-slate-950/60 p-3 rounded-2xl border border-white/10">
+              {/* Seletor de Modo do Mapa (Padrão / Satélite / Transparente) */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
+                  Estilo do Mapa (Escolha o Fundo do Traçado):
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('standard');
+                      setShowRoute(true);
+                    }}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'standard'
+                        ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
+                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <MapIcon className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[11px] font-black uppercase block">Modo Padrão</span>
+                    <span className="text-[7.5px] text-slate-400">Ruas & Terreno</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('satellite');
+                      setShowRoute(true);
+                    }}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'satellite'
+                        ? 'bg-blue-600/25 border-blue-500 text-cyan-300 shadow-md ring-2 ring-blue-500/40 font-bold'
+                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4 text-cyan-400" />
+                    <span className="text-[11px] font-black uppercase block">Modo Satélite</span>
+                    <span className="text-[7.5px] text-slate-400">Foto Aérea Real</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapDisplayMode('transparent');
+                      setShowRoute(true);
+                    }}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                      mapDisplayMode === 'transparent'
+                        ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
+                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-slate-300" />
+                    <span className="text-[11px] font-black uppercase block">Transparente</span>
+                    <span className="text-[7.5px] text-slate-400">Apenas Traçado</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 border-t border-white/10 pt-3">
+                <button type="button" aria-label="Diminuir zoom do mapa" disabled={mapDisplayMode === 'transparent' || mapView.zoomOffset <= -3 || tileLayout.zoom <= 3} onClick={() => changeZoom(-1)} className="p-2.5 rounded-xl bg-white/10 text-white disabled:opacity-30"><ZoomOut className="w-4 h-4" /></button>
+                <span className="text-[10px] font-black uppercase italic tracking-wider text-slate-300">Zoom</span>
+                <button type="button" aria-label="Aumentar zoom do mapa" disabled={mapDisplayMode === 'transparent' || mapView.zoomOffset >= 4 || tileLayout.zoom >= 19} onClick={() => changeZoom(1)} className="p-2.5 rounded-xl bg-emerald-700 text-white disabled:opacity-30"><ZoomIn className="w-4 h-4" /></button>
+                <button type="button" onClick={() => setMapView({ zoomOffset: 0, panX: 0, panY: 0 })} className="px-3 py-2.5 rounded-xl bg-white/10 text-white text-[9px] font-black uppercase italic tracking-wider inline-flex items-center gap-1.5"><LocateFixed className="w-3.5 h-3.5" /> Enquadrar percurso</button>
+              </div>
+              <p className="text-[10px] text-slate-400 text-center">{mapDisplayMode === 'transparent' ? 'Escolha Ruas ou Satélite para aproximar os detalhes do local.' : 'Use + e − para aproximar. Arraste o mapa para escolher o local. O enquadramento será usado na imagem da postagem.'}</p>
+            </section>}
 
             {/* Preview Status Pill & Quick Action Bar (Logo abaixo da Foto em Primeiro Plano) */}
             <div className="mt-3 flex flex-col items-center gap-2.5 w-full">
@@ -2092,70 +2205,11 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
             <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-white/10">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-white uppercase italic tracking-wider flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-emerald-400" /> 3. Elementos do Treino & Estilo do Mapa
+                  <Sliders className="w-3.5 h-3.5 text-emerald-400" /> 3. Elementos do Treino
                 </label>
                 <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                   {mapDisplayMode === 'standard' ? 'Mapa Padrão' : mapDisplayMode === 'satellite' ? 'Modo Satélite' : 'Traçado Transparente'}
                 </span>
-              </div>
-
-              {/* Seletor de Modo do Mapa (Padrão / Satélite / Transparente) */}
-              <div className="space-y-1.5 pt-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
-                  Estilo do Mapa (Escolha o Fundo do Traçado):
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMapDisplayMode('standard');
-                      setShowRoute(true);
-                    }}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
-                      mapDisplayMode === 'standard'
-                        ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
-                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <MapIcon className="w-4 h-4 text-emerald-400" />
-                    <span className="text-[11px] font-black uppercase block">Modo Padrão</span>
-                    <span className="text-[7.5px] text-slate-400">Ruas & Terreno</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMapDisplayMode('satellite');
-                      setShowRoute(true);
-                    }}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
-                      mapDisplayMode === 'satellite'
-                        ? 'bg-blue-600/25 border-blue-500 text-cyan-300 shadow-md ring-2 ring-blue-500/40 font-bold'
-                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Globe className="w-4 h-4 text-cyan-400" />
-                    <span className="text-[11px] font-black uppercase block">Modo Satélite</span>
-                    <span className="text-[7.5px] text-slate-400">Foto Aérea Real</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMapDisplayMode('transparent');
-                      setShowRoute(true);
-                    }}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
-                      mapDisplayMode === 'transparent'
-                        ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/40 font-bold'
-                        : 'bg-slate-900/80 border-white/10 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Layers className="w-4 h-4 text-slate-300" />
-                    <span className="text-[11px] font-black uppercase block">Transparente</span>
-                    <span className="text-[7.5px] text-slate-400">Apenas Traçado</span>
-                  </button>
-                </div>
               </div>
 
               {/* Toggles de Métricas */}

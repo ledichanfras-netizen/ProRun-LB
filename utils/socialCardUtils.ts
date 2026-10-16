@@ -332,13 +332,20 @@ function latLngToWorldPixel(lat: number, lng: number, zoom: number): { wx: numbe
  * Calculates map tile layout and precise overlay route path for Standard and Satellite maps.
  * Mostra o local exato da corrida do atleta em alta definição, sem marca d'água de API.
  */
+export interface MapViewAdjustment {
+  zoomOffset: number;
+  panX: number;
+  panY: number;
+}
+
 export function generateMapTileLayout(
   points: any,
   width: number,
   height: number,
   mapMode: MapDisplayMode = 'standard',
   padding = 24,
-  fallbackLocation?: [number, number] | null
+  fallbackLocation?: [number, number] | null,
+  view?: MapViewAdjustment
 ): RenderedMapLayout {
   const normalized = normalizeGpsPoints(points);
   const hasRealTrack = normalized.length >= 2;
@@ -384,6 +391,8 @@ export function generateMapTileLayout(
     bestZoom = 15;
   }
 
+  bestZoom = Math.max(3, Math.min(19, bestZoom + Math.round(view?.zoomOffset || 0)));
+
   // Coordenadas mundiais dos pontos no bestZoom
   let minWx = Infinity, maxWx = -Infinity, minWy = Infinity, maxWy = -Infinity;
   const worldPoints = pts.map(([lat, lng]) => {
@@ -395,8 +404,8 @@ export function generateMapTileLayout(
     return { wx, wy };
   });
 
-  const centerWx = (minWx + maxWx) / 2;
-  const centerWy = (minWy + maxWy) / 2;
+  const centerWx = (minWx + maxWx) / 2 + (view?.panX || 0) * safeWidth;
+  const centerWy = (minWy + maxWy) / 2 + (view?.panY || 0) * safeHeight;
 
   // Coordenadas na tela
   const screenPoints = worldPoints.map(({ wx, wy }) => ({

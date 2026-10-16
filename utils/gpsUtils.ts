@@ -5,6 +5,7 @@
  * - GPX file parsing (XML parser extracts coordinates, time, elevation, speed)
  */
 
+import { paceFromTotals, crossingSeconds } from './runCalculations';
 import { KmSplit, TelemetryPoint, calculateRunningCalories, downsampleTelemetry } from './runningMetrics';
 
 export interface GpsPoint {
@@ -24,8 +25,11 @@ export interface RouteData {
   elevationGainMeters?: number;
   elevationLossMeters?: number;
   avgHeartRate?: number;
+  maxHeartRate?: number;
   avgCadence?: number; // SPM
   maxCadence?: number; // SPM peak
+  cadenceSource?: 'phone_accelerometer' | 'gpx';
+  completion?: { rpe: number; observations: string };
   calories?: number; // kcal
   kmSplits?: KmSplit[]; // Parciais por KM
   telemetrySamples?: TelemetryPoint[]; // Stream de telemetria compactado
@@ -146,12 +150,7 @@ export function decodePolyline(encoded: string): [number, number][] {
  * Formats pace in min/km (e.g. 330 seconds/km -> "05:30")
  */
 export function formatPace(totalSeconds: number, distanceKm: number): string {
-  if (distanceKm <= 0.05 || totalSeconds <= 0) return '--:--';
-  const secPerKm = totalSeconds / distanceKm;
-  if (secPerKm > 1800) return '--:--'; // > 30 min/km
-  const minutes = Math.floor(secPerKm / 60);
-  const seconds = Math.floor(secPerKm % 60);
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  return paceFromTotals(totalSeconds, distanceKm);
 }
 
 /**
@@ -173,7 +172,7 @@ export function formatDuration(totalSeconds: number): string {
 /**
  * Parses GPX (GPS Exchange Format XML) from GPS watches, Strava, Apple Watch, Polar, Coros
  */
-export function parseGpxFile(gpxXmlText: string): RouteData {
+export function parseGpxFile(gpxXmlText: string, weightKg = 70): RouteData {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(gpxXmlText, 'application/xml');
 
@@ -187,9 +186,11 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
     throw new Error('Nenhum ponto de rastreamento GPS encontrado no arquivo GPX.');
   }
 
-  const rawPoints: { lat: number; lng: number; time?: number; ele?: number }[] = [];
+  const rawPoints: { lat: number; lng: number; time?: number; ele?: number; cadence?: number; heartRate?: number }[] = [];
   let totalDistanceKm = 0;
   let totalElevationGain = 0;
+  let totalElevationLoss = 0;
+  let hasElevation = false;
   let lastEle: number | null = null;
 
   for (let i = 0; i < trkpts.length; i++) {
@@ -197,7 +198,7 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
     const lat = parseFloat(pt.getAttribute('lat') || '');
     const lon = parseFloat(pt.getAttribute('lon') || '');
 
-    if (isNaN(lat) || isNaN(lon)) continue;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
 
     const timeEl = pt.querySelector('time');
     const eleEl = pt.querySelector('ele');
@@ -206,6 +207,8 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
     const ele = eleEl && eleEl.textContent ? parseFloat(eleEl.textContent) : undefined;
 
     if (ele !== undefined && !isNaN(ele)) {
+      hasElevation = true;
+      if (lastEle !== null && ele < lastEle) totalElevationLoss += lastEle - ele;
       if (lastEle !== null && ele > lastEle) {
         totalElevationGain += ele - lastEle;
       }
@@ -218,7 +221,13 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
       totalDistanceKm += d;
     }
 
-    rawPoints.push({ lat, lng: lon, time, ele });
+    const extensions = Array.from(pt.getElementsByTagName('*'));
+    const readExtension = (names: string[]) => {
+      const element = extensions.find(node => names.includes(node.localName.toLowerCase()));
+      const value = Number(element?.textContent);
+      return Number.isFinite(value) && value > 0 ? value : undefined;
+    };
+    rawPoints.push({ lat, lng: lon, time, ele, cadence: readExtension(['cad', 'cadence']), heartRate: readExtension(['hr', 'heartrate']) });
   }
 
   if (rawPoints.length < 2) {
@@ -233,8 +242,8 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
   if (firstTime && lastTime && lastTime > firstTime) {
     totalDurationSeconds = Math.round((lastTime - firstTime) / 1000);
   } else {
-    // Estimate based on standard 5:30 pace if timestamps not present
-    totalDurationSeconds = Math.round(totalDistanceKm * 330);
+    // Missing timestamps must be supplied by the athlete during review.
+    totalDurationSeconds = 0;
   }
 
   // Simplify points to reduce polyline footprint (take max 800 sampled points for ultra long runs)
@@ -245,97 +254,62 @@ export function parseGpxFile(gpxXmlText: string): RouteData {
   }
   // Always include the finish point
   const lastPt = rawPoints[rawPoints.length - 1];
-  if (sampledPoints[sampledPoints.length - 1][0] !== lastPt.lat) {
+  if (sampledPoints[sampledPoints.length - 1][0] !== lastPt.lat || sampledPoints[sampledPoints.length - 1][1] !== lastPt.lng) {
     sampledPoints.push([lastPt.lat, lastPt.lng]);
   }
 
   const polyline = encodePolyline(sampledPoints);
   const avgPace = formatPace(totalDurationSeconds, totalDistanceKm);
-  const totalCalories = calculateRunningCalories(70, totalDistanceKm, totalElevationGain);
+  const totalCalories = calculateRunningCalories(weightKg, totalDistanceKm, totalElevationGain);
 
-  // Compute km splits from raw points
   const kmSplits: KmSplit[] = [];
   const telemetrySamples: TelemetryPoint[] = [];
-  let currentKmTarget = 1;
-  let splitStartDist = 0;
-  let splitStartTime = firstTime || 0;
   let accDist = 0;
-
+  let previousSeconds = 0;
+  let lastCrossing = 0;
+  let nextKm = 1;
+  let cadenceWeighted = 0;
+  let cadenceSeconds = 0;
+  const cadences = rawPoints.flatMap(point => point.cadence ? [point.cadence] : []);
+  const heartRates = rawPoints.flatMap(point => point.heartRate ? [point.heartRate] : []);
   for (let i = 1; i < rawPoints.length; i++) {
-    const prev = rawPoints[i - 1];
-    const curr = rawPoints[i];
-    const segDist = calculateHaversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
-    accDist += segDist;
-
-    const currTime = curr.time || (firstTime ? firstTime + Math.round(accDist * 330 * 1000) : 0);
-    const elapsedSec = firstTime ? Math.max(1, Math.round((currTime - firstTime) / 1000)) : Math.round(accDist * 330);
-    const paceSec = accDist > 0 ? Math.round(elapsedSec / accDist) : 330;
-    const speedKmh = paceSec > 0 ? 3600 / paceSec : 10;
-    const estCadence = Math.min(205, Math.max(140, Math.round(145 + speedKmh * 2.2)));
-
-    // Sample telemetry periodically (every ~80m)
-    if (i % Math.max(1, Math.floor(rawPoints.length / 75)) === 0 || i === rawPoints.length - 1) {
-      telemetrySamples.push({
-        distanceKm: Number(accDist.toFixed(2)),
-        durationSeconds: elapsedSec,
-        paceSeconds: paceSec,
-        paceFormatted: formatPace(elapsedSec, accDist),
-        cadenceSpm: estCadence,
-        altitudeMeters: curr.ele ? Math.round(curr.ele) : undefined,
-        calories: calculateRunningCalories(70, accDist, totalElevationGain * (accDist / (totalDistanceKm || 1)))
-      });
+    const prev = rawPoints[i - 1], curr = rawPoints[i];
+    const before = accDist;
+    accDist += calculateHaversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+    if (!firstTime || !curr.time || curr.time <= firstTime || curr.time < (prev.time || firstTime)) continue;
+    const elapsed = (curr.time - firstTime) / 1000;
+    const interval = prev.time ? (curr.time - prev.time) / 1000 : 0;
+    if (curr.cadence && interval > 0) { cadenceWeighted += curr.cadence * interval; cadenceSeconds += interval; }
+    while (accDist >= nextKm) {
+      const crossing = crossingSeconds({ seconds: previousSeconds, kilometers: before }, { seconds: elapsed, kilometers: accDist }, nextKm);
+      const duration = crossing - lastCrossing;
+      kmSplits.push({ km: nextKm, durationSeconds: duration, splitTimeSeconds: crossing,
+        pace: formatPace(duration, 1), paceSeconds: Math.round(duration), calories: calculateRunningCalories(weightKg, 1) });
+      lastCrossing = crossing; nextKm++;
     }
-
-    if (accDist >= currentKmTarget) {
-      const splitDuration = firstTime ? Math.max(1, Math.round((currTime - splitStartTime) / 1000)) : 330;
-      const splitDist = accDist - splitStartDist;
-      kmSplits.push({
-        km: currentKmTarget,
-        durationSeconds: splitDuration,
-        splitTimeSeconds: elapsedSec,
-        pace: formatPace(splitDuration, splitDist || 1),
-        paceSeconds: Math.round(splitDuration / (splitDist || 1)),
-        avgCadence: estCadence,
-        calories: calculateRunningCalories(70, 1, totalElevationGain / Math.max(1, totalDistanceKm))
-      });
-      currentKmTarget++;
-      splitStartDist = accDist;
-      splitStartTime = currTime;
-    }
+    telemetrySamples.push({ distanceKm: accDist, durationSeconds: elapsed,
+      paceSeconds: accDist > 0 ? Math.round(elapsed / accDist) : 0,
+      paceFormatted: formatPace(elapsed, accDist), cadenceSpm: curr.cadence ?? null,
+      altitudeMeters: curr.ele, calories: calculateRunningCalories(weightKg, accDist), heartRate: curr.heartRate });
+    previousSeconds = elapsed;
   }
-
-  // Final partial split if remaining > 300m
-  if (accDist - splitStartDist >= 0.3) {
-    const finalSec = totalDurationSeconds - (kmSplits.reduce((sum, s) => sum + s.durationSeconds, 0));
-    const finalDist = accDist - splitStartDist;
-    if (finalSec > 0 && finalDist > 0) {
-      kmSplits.push({
-        km: currentKmTarget,
-        durationSeconds: finalSec,
-        splitTimeSeconds: totalDurationSeconds,
-        pace: formatPace(finalSec, finalDist),
-        paceSeconds: Math.round(finalSec / finalDist),
-        avgCadence: 168,
-        calories: calculateRunningCalories(70, finalDist)
-      });
-    }
+  const finalDistance = totalDistanceKm - (nextKm - 1);
+  if (totalDurationSeconds > lastCrossing && finalDistance > 0.01) {
+    const duration = totalDurationSeconds - lastCrossing;
+    kmSplits.push({ km: nextKm, durationSeconds: duration, splitTimeSeconds: totalDurationSeconds,
+      pace: formatPace(duration, finalDistance), paceSeconds: Math.round(duration / finalDistance), calories: calculateRunningCalories(weightKg, finalDistance) });
   }
-
-  const avgSpeedKmh = totalDurationSeconds > 0 ? (totalDistanceKm / (totalDurationSeconds / 3600)) : 10;
-  const avgCadence = Math.min(200, Math.max(145, Math.round(145 + avgSpeedKmh * 2.2)));
-
+  const avgCadence = cadenceSeconds > 0 ? Math.round(cadenceWeighted / cadenceSeconds) : undefined;
   return {
-    polyline,
-    points: sampledPoints,
-    totalDistanceKm: Number(totalDistanceKm.toFixed(2)),
-    totalDurationSeconds,
-    avgPace,
-    avgCadence,
-    maxCadence: avgCadence + 14,
-    calories: totalCalories,
-    kmSplits: kmSplits.length > 0 ? kmSplits : undefined,
+    polyline, points: sampledPoints, totalDistanceKm, totalDurationSeconds, avgPace,
+    avgCadence, maxCadence: cadences.length ? Math.max(...cadences) : undefined,
+    cadenceSource: cadences.length ? 'gpx' : undefined,
+    maxHeartRate: heartRates.length ? Math.max(...heartRates) : undefined,
+    avgHeartRate: heartRates.length ? Math.round(heartRates.reduce((a, b) => a + b, 0) / heartRates.length) : undefined,
+    calories: totalCalories, kmSplits: kmSplits.length ? kmSplits : undefined,
     telemetrySamples: downsampleTelemetry(telemetrySamples, 75),
-    elevationGainMeters: Math.round(totalElevationGain),
+    elevationGainMeters: hasElevation ? Math.round(totalElevationGain) : undefined,
+    elevationLossMeters: hasElevation ? Math.round(totalElevationLoss) : undefined,
     source: 'gpx_file',
     recordedAt: new Date().toISOString()
   };
@@ -366,6 +340,8 @@ export interface ActiveWorkoutBackup {
   currentCalories: number;
   currentCadence: number;
   maxCadence: number;
+  cadenceSummary?: { sum: number; count: number };
+  maxSpeedKmh?: number;
   heartRateAverage: number | null;
   heartRateMax: number | null;
   kmSplits: KmSplit[];
@@ -428,17 +404,20 @@ export function clearActiveWorkoutBackup(): void {
 export function convertBackupToRouteData(backup: ActiveWorkoutBackup): RouteData {
   const hasGps = backup.gpsPoints && backup.gpsPoints.length >= 2 && backup.distanceKm >= 0.02;
   const polyline = hasGps ? encodePolyline(backup.gpsPoints) : '';
-  const avgPace = hasGps ? formatPace(backup.durationSeconds, backup.distanceKm) : backup.currentPace || '00:00';
+  const avgPace = hasGps ? formatPace(backup.durationSeconds, backup.distanceKm) : formatPace(backup.durationSeconds, backup.distanceKm);
   const finalCalories = backup.currentCalories || calculateRunningCalories(backup.athleteWeight || 70, backup.distanceKm, backup.elevationGainMeters);
 
   return {
     polyline,
     points: backup.gpsPoints || [],
-    totalDistanceKm: Number((backup.distanceKm || 0).toFixed(2)),
+    totalDistanceKm: backup.distanceKm || 0,
     totalDurationSeconds: backup.durationSeconds || 0,
     avgPace,
     elevationGainMeters: backup.elevationGainMeters || undefined,
-    avgCadence: backup.currentCadence > 0 ? backup.currentCadence : undefined,
+    avgCadence: backup.cadenceSummary?.count ? Math.round(backup.cadenceSummary.sum / backup.cadenceSummary.count) : undefined,
+    cadenceSource: backup.cadenceSummary?.count ? 'phone_accelerometer' : undefined,
+    maxHeartRate: backup.heartRateMax || undefined,
+    maxSpeedKmh: backup.maxSpeedKmh,
     maxCadence: backup.maxCadence > 0 ? backup.maxCadence : undefined,
     calories: finalCalories,
     kmSplits: backup.kmSplits && backup.kmSplits.length > 0 ? backup.kmSplits : undefined,

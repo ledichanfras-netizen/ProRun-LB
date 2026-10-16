@@ -4,6 +4,8 @@ import { Play } from 'lucide-react';
 import { Athlete, FreeRun } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { GpsWorkoutTracker } from './GpsWorkoutTracker';
+import { WorkoutShareModal, WorkoutShareData } from './WorkoutShareModal';
+import { RouteData, formatPace } from '../utils/gpsUtils';
 import { WorkoutMap } from './WorkoutMap';
 import { normalizeGpsPoints } from '../utils/socialCardUtils';
 import { getAppNow, getTodayDateString } from '../utils/time';
@@ -15,6 +17,8 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   const [distance, setDistance] = useState('');
   const [duration, setDuration] = useState('');
   const [rpe, setRpe] = useState('');
+  const [observations, setObservations] = useState('');
+  const [shareData, setShareData] = useState<WorkoutShareData | null>(null);
   const [route, setRoute] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -34,7 +38,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
       return;
     }
     runId.current = crypto.randomUUID();
-    setDistance(''); setDuration(''); setRpe(''); setRoute(null);
+    setDistance(''); setDuration(''); setRpe(''); setObservations(''); setRoute(null);
     setError(''); setSuccess(false); setResume(false); setMode(next);
   };
 
@@ -46,13 +50,13 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
     setMode('manual');
   };
 
-  const save = async () => {
+  const save = async (post = false) => {
     if (saveLock.current) return;
     const km = Number(distance.replace(',', '.'));
     const parts = duration.split(':').map(Number);
     const seconds = parts.length === 2 ? parts[0] * 60 + parts[1] : NaN;
     const effort = rpe === '' ? undefined : Number(rpe);
-    if (!Number.isFinite(km) || km <= 0 || !/^\d+:[0-5]\d$/.test(duration) || seconds <= 0 ||
+    if (rpe === '' || !Number.isFinite(km) || km <= 0 || !/^\d+:[0-5]\d$/.test(duration) || seconds <= 0 ||
         (effort !== undefined && (!Number.isInteger(effort) || effort < 0 || effort > 10))) {
       setError('Informe distância maior que zero, tempo em minutos:segundos (ex.: 30:00) e PSE de 0 a 10.');
       return;
@@ -63,19 +67,39 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
         id: runId.current || (runId.current = crypto.randomUUID()),
         day: getAppNow().toLocaleDateString('pt-BR', { weekday: 'long' }),
         date: getTodayDateString(), type: 'Rodagem', customDescription: 'Corrida livre',
-        completed: true, actualDistance: km, actualDuration: duration, rpe: effort,
+        completed: true, actualDistance: km, actualDuration: duration, rpe: effort, feedback: observations.trim(),
         ...(route ? { gpsRoute: { ...route, totalDistanceKm: km, totalDurationSeconds: seconds }, avgHeartRate: route.avgHeartRate } : {})
       });
       if (recoverable || route) { clearActiveWorkoutBackup(); clearUnsavedRouteBackup(); }
+      if (post) setShareData({ title: 'Corrida livre', athleteName: athlete.name, date: getTodayDateString(), distanceKm: km, durationSeconds: seconds, avgPace: formatPace(seconds, km), rpe: effort, route });
       setMode(null); setSuccess(true); setRoute(null);
     } catch {
       setError('Não foi possível salvar. Seus dados continuam aqui; verifique a conexão e tente novamente.');
     } finally { saveLock.current = false; setSaving(false); }
   };
 
+  const saveCapturedWorkout = async (captured: RouteData) => {
+    if (!captured.completion) { capture(captured); return; }
+    const { rpe: effort, observations: notes } = captured.completion;
+    const seconds = captured.totalDurationSeconds;
+    const duration = `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`;
+    await saveFreeRun(athlete.id, {
+      id: runId.current || (runId.current = crypto.randomUUID()),
+      day: getAppNow().toLocaleDateString('pt-BR', { weekday: 'long' }), date: getTodayDateString(),
+      type: 'Rodagem', customDescription: 'Corrida livre', completed: true,
+      actualDistance: captured.totalDistanceKm, actualDuration: duration, rpe: effort, feedback: notes,
+      gpsRoute: captured as FreeRun['gpsRoute'], avgHeartRate: captured.avgHeartRate
+    });
+    clearActiveWorkoutBackup(); clearUnsavedRouteBackup(); setMode(null); setSuccess(true);
+    setShareData({ title: 'Corrida livre', athleteName: athlete.name, date: getTodayDateString(),
+      distanceKm: captured.totalDistanceKm, durationSeconds: seconds, avgPace: captured.avgPace,
+      rpe: effort, route: captured, elevationGainMeters: captured.elevationGainMeters,
+      calories: captured.calories, avgHeartRate: captured.avgHeartRate, initialBackgroundType: 'transparent' });
+  };
+
   const recover = () => {
     runId.current ||= crypto.randomUUID(); setError(''); setSuccess(false);
-    if (unsavedBackup?.workoutContext?.weekIndex === -1) capture(unsavedBackup.routeData);
+    if (unsavedBackup?.workoutContext?.weekIndex === -1) { setResume(true); setMode('gps'); }
     else if (activeBackup?.weekIndex === -1) { setResume(true); setMode('gps'); }
   };
 
@@ -119,16 +143,18 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
           </div>}
           {mode === 'gps' ? <GpsWorkoutTracker workoutType="Corrida livre" athleteWeight={athlete.weight || 70}
             workoutContext={{ weekIndex: -1, dayIndex: -1 }} autoResumeBackup={resume}
-            onRouteCaptured={capture} onCancel={() => setMode(null)} /> : <>
+            onRouteCaptured={saveCapturedWorkout} onCancel={() => setMode(null)} /> : <>
             <h2 className="text-xl font-black text-white">Registrar corrida livre</h2>
             <label className="block text-slate-300">Distância (km)<input aria-label="Distância (km)" className="pro-input block w-full mt-2" inputMode="decimal" value={distance} onChange={e => setDistance(e.target.value)} /></label>
             <label className="block text-slate-300">Tempo (minutos:segundos)<input aria-label="Tempo (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={duration} onChange={e => setDuration(e.target.value)} /></label>
-            <label className="block text-slate-300">PSE (0–10, opcional)<input aria-label="PSE" className="pro-input block w-full mt-2" type="number" min="0" max="10" value={rpe} onChange={e => setRpe(e.target.value)} /></label>
+            <label className="block text-slate-300">PSE (0–10)<input aria-label="PSE" className="pro-input block w-full mt-2" type="number" min="0" max="10" value={rpe} onChange={e => setRpe(e.target.value)} /></label>
+            <label className="block text-slate-300">Observações<textarea aria-label="Observações" className="pro-input block w-full mt-2" value={observations} onChange={e => setObservations(e.target.value)} maxLength={3000} /></label>
             {error && <p role="alert" className="text-red-400">{error}</p>}
-            <button disabled={saving} onClick={save} className="w-full bg-emerald-700 text-white rounded-xl p-4 font-bold disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar corrida'}</button>
+            <button disabled={saving} onClick={() => save(true)} className="w-full bg-emerald-700 text-white rounded-xl p-4 font-bold disabled:opacity-50">{saving ? 'Salvando…' : 'Postar treino'}</button>
           </>}
         </div>
       </div>, document.body)}
+      {shareData && <WorkoutShareModal data={shareData} onClose={() => setShareData(null)} />}
       {selected && createPortal(<div className="fixed inset-0 z-[10001] bg-slate-950 overflow-y-auto p-5">
         <div className="max-w-lg mx-auto space-y-4 text-slate-200">
           <button className="p-3" onClick={() => setSelected(null)}>Fechar</button>

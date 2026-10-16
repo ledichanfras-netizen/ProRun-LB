@@ -1,6 +1,6 @@
 /**
  * Pro Running Metrics & Telemetry Utilities
- * - Real-time Cadence (SPM) detection via DeviceMotionEvent & biomechanical stride estimation
+ * - Phone accelerometer cadence estimate in foot contacts/minute
  * - ACSM Running Calorie expenditure calculation based on distance, weight & elevation
  * - Per-KM Splits aggregation (pace, duration, SPM, calories)
  * - Natural Portuguese Voice Audio Feedback for KM milestones (Web Speech API)
@@ -25,7 +25,7 @@ export interface TelemetryPoint {
   durationSeconds: number;
   paceSeconds: number; // seconds/km
   paceFormatted: string; // "05:14"
-  cadenceSpm: number;
+  cadenceSpm: number | null;
   altitudeMeters?: number;
   calories: number;
   heartRate?: number;
@@ -51,8 +51,7 @@ export function calculateRunningCalories(
 
 /**
  * Cadence (Steps Per Minute - SPM) Tracker
- * Combines high-pass filtered DeviceMotionEvent accelerometer detection on smartphones with
- * biomechanical human stride frequency estimation & GPS sensor fusion.
+ * Estimates foot contacts from phone accelerometer impacts. No cadence is invented from GPS speed.
  */
 export class MotionCadenceTracker {
   private stepTimestamps: number[] = [];
@@ -61,6 +60,8 @@ export class MotionCadenceTracker {
   private isListening: boolean = false;
   private onMotionBound: ((event: DeviceMotionEvent) => void) | null = null;
   private stepSamples: number[] = [];
+  private lastSampleTime = 0;
+  private previousMagnitude = 0;
 
   // Low-pass / gravity filter states
   private gravityX: number = 0;
@@ -70,6 +71,7 @@ export class MotionCadenceTracker {
 
   public async start(): Promise<boolean> {
     if (typeof window === 'undefined') return false;
+    if (this.isListening) return true;
 
     // iOS 13+ permission request if needed
     if (
@@ -102,6 +104,9 @@ export class MotionCadenceTracker {
       this.onMotionBound = null;
     }
     this.isListening = false;
+    this.stepTimestamps = [];
+    this.lastStepTime = 0;
+    this.isGravityInitialized = false;
   }
 
   private handleMotion(event: DeviceMotionEvent): void {
@@ -129,13 +134,14 @@ export class MotionCadenceTracker {
     const dynX = x - this.gravityX;
     const dynY = y - this.gravityY;
     const dynZ = z - this.gravityZ;
-    const dynamicMagnitude = Math.sqrt(dynX * dynX + dynY * dynY + dynZ * dynZ);
-
-    // 3. Foot strike impact detection:
-    // When running with the smartphone in pocket, hand or arm strap, true foot strike generates a distinct
-    // vertical shock wave of 3.8 - 12+ m/s^2.
-    // Refractory period: at least 295ms (prevents double bounces/rebound harmonic spikes, capping max sprint at ~200 SPM).
-    if (dynamicMagnitude > 3.6 && now - this.lastStepTime > 295) {
+    const gravityLength = Math.hypot(this.gravityX, this.gravityY, this.gravityZ);
+    const dynamicMagnitude = gravityLength > 1
+      ? (dynX * this.gravityX + dynY * this.gravityY + dynZ * this.gravityZ) / gravityLength
+      : dynZ;
+    const crossedThreshold = dynamicMagnitude > 1.2 && this.previousMagnitude <= 1.2;
+    this.previousMagnitude = dynamicMagnitude;
+    // One upward crossing per impact; 250 ms avoids counting the same rebound twice.
+    if (crossedThreshold && now - this.lastStepTime > 250) {
       this.lastStepTime = now;
       this.totalSteps++;
       this.stepTimestamps.push(now);
@@ -148,35 +154,7 @@ export class MotionCadenceTracker {
     }
   }
 
-  /**
-   * Biomechanically validated speed-to-cadence kinematics for running
-   */
-  public getKinematicCadence(speedKmh: number): number {
-    if (speedKmh < 1.5) return 0;
-    if (speedKmh < 6.0) {
-      // Walking (3 - 6 km/h) -> ~105 - 122 SPM
-      return Math.round(95 + speedKmh * 4.5);
-    }
-    if (speedKmh < 9.0) {
-      // Easy Jogging (6 - 9 km/h, 6:40-10:00/km) -> ~150 - 162 SPM
-      return Math.round(136 + speedKmh * 2.8);
-    }
-    if (speedKmh < 13.0) {
-      // Moderate Running (9 - 13 km/h, 4:37-6:40/km) -> ~162 - 173 SPM
-      return Math.round(144 + speedKmh * 2.2);
-    }
-    if (speedKmh < 17.0) {
-      // Threshold / Fast (13 - 17 km/h, 3:30-4:37/km) -> ~173 - 183 SPM
-      return Math.round(152 + speedKmh * 1.8);
-    }
-    // Sprints (> 17 km/h) -> ~184 - 198 SPM
-    return Math.round(162 + Math.min(10, speedKmh - 17) * 1.6);
-  }
-
-  /**
-   * Retrieves current SPM.
-   * Combines mobile accelerometer step rate with GPS speed sensor fusion.
-   */
+  /** Current detected phone cadence. GPS speed never supplies a missing step rate. */
   public getCadence(currentSpeedKmh: number = 0): { spm: number; totalSteps: number; isSensorActive: boolean } {
     const now = Date.now();
     const cutoff = now - 10000;
@@ -184,50 +162,36 @@ export class MotionCadenceTracker {
       this.stepTimestamps.shift();
     }
 
-    const kinematicSpm = this.getKinematicCadence(currentSpeedKmh);
-    const hasRecentSensorSteps = this.stepTimestamps.length >= 3 && (now - this.lastStepTime < 3500);
-
+    const hasRecentSensorSteps = this.isListening && this.stepTimestamps.length >= 3 && now - this.lastStepTime < 2000;
     let spm = 0;
-
     if (hasRecentSensorSteps) {
-      // Calculate inter-step intervals rather than raw window division to avoid quantization jitter
-      const intervals: number[] = [];
-      for (let i = 1; i < this.stepTimestamps.length; i++) {
-        intervals.push(this.stepTimestamps[i] - this.stepTimestamps[i - 1]);
-      }
-      const avgIntervalMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      let rawSensorSpm = Math.round(60000 / avgIntervalMs);
-
-      // Sanity bounds check: human running cadence is 120-205 SPM.
-      // If runner is moving at a known GPS speed, fuse with kinematic baseline to reject phone shaking
-      if (currentSpeedKmh >= 4.0 && kinematicSpm > 0) {
-        // If sensor is wildly off from speed (> 30 SPM difference), gently pull towards expected kinematic range
-        if (Math.abs(rawSensorSpm - kinematicSpm) > 28) {
-          spm = Math.round(rawSensorSpm * 0.5 + kinematicSpm * 0.5);
-        } else {
-          spm = Math.round(rawSensorSpm * 0.8 + kinematicSpm * 0.2);
-        }
-      } else {
-        spm = rawSensorSpm;
-      }
-
-      // Physiological realistic clamp: 120 to 200 SPM
-      spm = Math.min(200, Math.max(120, spm));
-    } else {
-      // Use Kinematic Cadence from GPS Speed
-      spm = kinematicSpm;
+      const span = this.stepTimestamps[this.stepTimestamps.length - 1] - this.stepTimestamps[0];
+      const measured = span > 0 ? Math.round(60000 * (this.stepTimestamps.length - 1) / span) : 0;
+      if (measured >= 40 && measured <= 240) spm = measured;
     }
-
-    // Accumulate into active running samples only when moving (speed > 1.5 km/h or active SPM)
-    if (spm >= 110 && (currentSpeedKmh > 1.5 || hasRecentSensorSteps)) {
-      this.stepSamples.push(spm);
-    }
-
     return {
       spm,
       totalSteps: this.totalSteps,
-      isSensorActive: hasRecentSensorSteps
+      isSensorActive: hasRecentSensorSteps && spm > 0
     };
+  }
+
+  public sampleCadence(): ReturnType<MotionCadenceTracker['getCadence']> {
+    const result = this.getCadence();
+    const now = Date.now();
+    if (result.spm > 0 && now - this.lastSampleTime >= 900) {
+      this.stepSamples.push(result.spm);
+      this.lastSampleTime = now;
+    }
+    return result;
+  }
+
+  public getSummary(): { sum: number; count: number } {
+    return { sum: this.stepSamples.reduce((a, b) => a + b, 0), count: this.stepSamples.length };
+  }
+  public restoreSummary(summary?: { sum: number; count: number }): void {
+    this.stepSamples = summary && summary.count > 0 && Number.isFinite(summary.sum)
+      ? Array(Math.min(86400, summary.count)).fill(summary.sum / summary.count) : [];
   }
 
   public getAverageCadence(): number {
@@ -241,6 +205,8 @@ export class MotionCadenceTracker {
     this.totalSteps = 0;
     this.lastStepTime = 0;
     this.stepSamples = [];
+    this.lastSampleTime = 0;
+    this.previousMagnitude = 0;
     this.gravityX = 0;
     this.gravityY = 0;
     this.gravityZ = 0;

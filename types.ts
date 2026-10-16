@@ -228,6 +228,9 @@ export interface TrainingWeek {
         elevationGainMeters?: number;
         elevationLossMeters?: number;
         avgHeartRate?: number;
+        maxHeartRate?: number;
+        cadenceSource?: 'phone_accelerometer' | 'gpx';
+        completion?: { rpe: number; observations: string };
         avgCadence?: number; // SPM
         maxCadence?: number;
         calories?: number; // kcal
@@ -246,7 +249,7 @@ export interface TrainingWeek {
           durationSeconds: number;
           paceSeconds: number;
           paceFormatted: string;
-          cadenceSpm: number;
+          cadenceSpm: number | null;
           altitudeMeters?: number;
           calories: number;
           heartRate?: number;

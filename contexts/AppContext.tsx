@@ -1050,6 +1050,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       weeks: weeksWithMetadata
     };
     
+    const { error: workoutSaveError } = await supabase.from('athlete_plans').upsert({
+      athlete_id: athleteId, plan_data: planWithMetadata
+    }, { onConflict: 'athlete_id' });
+    if (workoutSaveError) throw workoutSaveError;
+
     // Gamification Integration (handles new completion, edits, or unmarking without inflating counts)
     const athlete = athletes.find(a => a.id === athleteId);
     if (athlete) {
@@ -1127,36 +1132,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       [athleteId]: planWithMetadata
     }));
 
-    try {
-      // Upsert using the primary schema (athlete_id and plan_data)
-      await supabase.from('athlete_plans').upsert({
-        athlete_id: athleteId,
-        plan_data: {
-          ...planWithMetadata,
-          weeks: weeksWithMetadata,
-          raceStrategy: updatedPlan.raceStrategy || null,
-          motivationalMessage: updatedPlan.motivationalMessage || null,
-          specificGoal: updatedPlan.specificGoal || null,
-          startDate: currentPlan.startDate || null,
-          trainingDays: currentPlan.trainingDays || null
-        }
-      });
-
-      // Fallback format for compatibility with alternate schemas
-      try {
-        await supabase.from('athlete_plans').upsert({
-          id: athleteId,
-          weeks: weeksWithMetadata,
-          race_strategy: updatedPlan.raceStrategy || null,
-          motivational_message: updatedPlan.motivationalMessage || null,
-          specific_goal: updatedPlan.specificGoal || null
-        });
-      } catch (innerErr) {
-        // Safe to ignore
-      }
-    } catch (err) {
-      console.warn("Could not sync workout status update to cloud (stored locally):", err);
-    }
   };
 
   const getAthleteMetrics = useCallback((athleteId: string) => {

@@ -194,7 +194,7 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
           <span className={`text-base font-black font-mono italic ${
             isLight ? 'text-purple-700' : 'text-purple-400'
           }`}>
-            {avgCadence ? `${avgCadence} SPM` : (telemetrySamples.length > 0 ? `${Math.round(telemetrySamples.reduce((s, p) => s + p.cadenceSpm, 0) / telemetrySamples.length)} SPM` : '--')}
+            {avgCadence ? `${avgCadence} SPM` : 'Não informado'}
           </span>
         </div>
 
@@ -350,7 +350,7 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
                           }`}>
                             <p className="font-black text-emerald-500">{data.distanceKm} km</p>
                             <p className="font-bold">Ritmo: {data.paceFormatted} /km</p>
-                            <p className="text-purple-400">Cadência: {data.cadenceSpm} SPM</p>
+                            <p className="text-purple-400">Cadência: {data.cadenceSpm ?? 'Não informado'} SPM</p>
                             <p className="text-slate-400">Tempo: {formatSecToMinSec(data.durationSeconds)}</p>
                           </div>
                         );
@@ -403,7 +403,7 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
                           <div className={`p-2.5 rounded-xl shadow-xl border text-[11px] font-mono ${
                             isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/20 text-white'
                           }`}>
-                            <p className="font-black text-purple-400">{data.cadenceSpm} Passadas/min</p>
+                            <p className="font-black text-purple-400">{data.cadenceSpm ?? 'Não informado'} Passadas/min</p>
                             <p className="text-slate-300">Distância: {data.distanceKm} km</p>
                             <p className="text-emerald-400">Pace: {data.paceFormatted}/km</p>
                           </div>

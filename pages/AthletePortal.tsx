@@ -59,6 +59,7 @@ import { WorkoutMap } from '../components/WorkoutMap';
 import { WorkoutTelemetryCharts } from '../components/WorkoutTelemetryCharts';
 import {
   decodePolyline,
+  formatPace,
   encodePolyline,
   ActiveWorkoutBackup,
   getActiveWorkoutBackup,
@@ -66,7 +67,8 @@ import {
   convertBackupToRouteData,
   formatDuration,
   getUnsavedRouteBackup,
-  clearUnsavedRouteBackup
+  clearUnsavedRouteBackup,
+  saveUnsavedRouteBackup
 } from '../utils/gpsUtils';
 import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure } from '../utils/workoutParser';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
@@ -160,11 +162,7 @@ const calculatePace = (distanceStr: string, durationStr: string): string => {
   
   if (seconds <= 0) return '--:--';
   
-  const paceSecondsPerKm = seconds / distance;
-  const mins = Math.floor(paceSecondsPerKm / 60);
-  const secs = Math.round(paceSecondsPerKm % 60);
-  
-  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  return formatPace(seconds, distance);
 };
 
 const parseDurationStringToSeconds = (durationStr: string): number => {
@@ -949,7 +947,7 @@ const AthletePortal: React.FC = () => {
         avgHeartRate: heartRate || rawRoute.avgHeartRate
       } : undefined;
 
-      const effectiveRpe = rpeValue || currentSelected.data.rpe || (isStrength ? 6 : 5);
+      const effectiveRpe = customRoute?.completion?.rpe ?? rpeValue ?? currentSelected.data.rpe;
 
       // Calculate scientific readiness score
       const sleepPct = ((sleepValue - 1) / 4) * 100;
@@ -963,7 +961,7 @@ const AthletePortal: React.FC = () => {
         currentSelected.weekIndex,
         currentSelected.dayIndex,
         true, // always marked completed
-        feedbackText,
+        customRoute?.completion?.observations ?? feedbackText,
         effectiveRpe,
         localExercises,
         isStrength ? undefined : dist,
@@ -1027,6 +1025,7 @@ const AthletePortal: React.FC = () => {
       setCurrentGpsRoute(null);
     } catch (err: any) {
       console.error("Erro ao salvar e compartilhar treino:", err?.message || err);
+      if (customRoute?.completion) throw err;
       alert("Erro ao sincronizar. Verifique sua conexão.");
     } finally {
       setIsSaving(false);
@@ -1326,27 +1325,15 @@ const AthletePortal: React.FC = () => {
             <div className="flex flex-col gap-2 pt-1">
               <button
                 type="button"
-                onClick={async () => {
-                  const route = convertBackupToRouteData(activeBackup);
+                onClick={() => {
                   const wIdx = activeBackup.weekIndex ?? 0;
                   const dIdx = activeBackup.dayIndex ?? 0;
-                  const targetW = athletePlan?.weeks?.[wIdx]?.workouts?.[dIdx] || athletePlan?.weeks?.[0]?.workouts?.[0];
-                  if (targetW) {
-                    const targetContext = { weekIndex: wIdx, dayIndex: dIdx, data: targetW };
-                    setSelectedWorkout(targetContext);
-                    setCurrentGpsRoute(route);
-                    setActualDistanceValue(String(route.totalDistanceKm));
-                    const durSec = route.totalDurationSeconds || (route as any).durationSeconds || 0;
-                    const formattedDuration = formatSecondsToTimeString(durSec);
-                    setActualDurationValue(formattedDuration);
-                    if (route.avgHeartRate) {
-                      setActualHeartRateValue(String(route.avgHeartRate));
-                    }
-                    await handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate, targetContext);
-                    clearActiveWorkoutBackup();
-                    clearUnsavedRouteBackup();
-                    setActiveBackup(null);
-                  }
+                  const target = athletePlan?.weeks?.[wIdx]?.workouts?.[dIdx];
+                  if (!target) return;
+                  const route = getUnsavedRouteBackup()?.routeData || convertBackupToRouteData(activeBackup);
+                  saveUnsavedRouteBackup(route, { weekIndex: wIdx, dayIndex: dIdx });
+                  openWorkoutModal(wIdx, dIdx, target);
+                  setShowGpsTracker(true);
                 }}
                 className="w-full py-3 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-black text-[11px] uppercase italic tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/25 cursor-pointer transition-all active:scale-98"
               >
@@ -5809,7 +5796,7 @@ const AthletePortal: React.FC = () => {
               }
               workoutDescription={selectedWorkout.data.customDescription || selectedWorkout.data.description}
               athletePaces={paces}
-              onRouteCaptured={(route) => {
+              onRouteCaptured={async (route) => {
                 setAutoResumeGpsBackup(false);
                 setActiveBackup(null);
                 setCurrentGpsRoute(route);
@@ -5820,8 +5807,7 @@ const AthletePortal: React.FC = () => {
                 if (route.avgHeartRate) {
                   setActualHeartRateValue(String(route.avgHeartRate));
                 }
-                setShowGpsTracker(false);
-                handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate);
+                await handleSaveAndShareWorkout(route.totalDistanceKm, formattedDuration, route, route.avgHeartRate);
               }}
               onCancel={() => {
                 setAutoResumeGpsBackup(false);

@@ -444,7 +444,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   );
   const strengthDurationSec = data.durationSeconds && data.durationSeconds > 0 ? data.durationSeconds : 2700;
   const strengthDurationMin = Math.max(1, Math.round(strengthDurationSec / 60));
-  const strengthRpe = data.rpe && data.rpe > 0 ? data.rpe : 6;
+  const strengthRpe = data.rpe ?? 6;
   const strengthLoadUA = Math.round(strengthDurationMin * strengthRpe);
 
   // Handle Export Download
@@ -1571,7 +1571,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     >
                       {showElevation && data.elevationGainMeters 
                         ? `+${data.elevationGainMeters}m`
-                        : data.rpe
+                        : data.rpe !== undefined
                         ? `PSE ${data.rpe}/10`
                         : data.avgHeartRate 
                         ? `${data.avgHeartRate} bpm`

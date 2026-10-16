@@ -38,6 +38,8 @@ import {
   RotateCcw,
   Gauge
 } from 'lucide-react';
+import { WorkoutCompletionReview } from './WorkoutCompletionReview';
+import { rollingPace, crossingSeconds, DistanceSample } from '../utils/runCalculations';
 import { WorkoutMap } from './WorkoutMap';
 import { 
   RouteData, 
@@ -51,7 +53,8 @@ import {
   getActiveWorkoutBackup,
   clearActiveWorkoutBackup,
   convertBackupToRouteData,
-  saveUnsavedRouteBackup
+  saveUnsavedRouteBackup,
+  getUnsavedRouteBackup
 } from '../utils/gpsUtils';
 import { 
   MotionCadenceTracker, 
@@ -90,7 +93,7 @@ interface GpsWorkoutTrackerProps {
   athleteWeight?: number;
   workoutContext?: { weekIndex?: number; dayIndex?: number };
   autoResumeBackup?: boolean;
-  onRouteCaptured: (route: RouteData) => void;
+  onRouteCaptured: (route: RouteData) => void | Promise<void>;
   onCancel?: () => void;
 }
 
@@ -115,9 +118,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   athleteWeight = 70,
   workoutContext,
   autoResumeBackup = false,
-  onRouteCaptured,
+  onRouteCaptured: persistCapturedRoute,
   onCancel
 }) => {
+  const [pendingCompletion, setPendingCompletion] = useState<RouteData | null>(null);
+  const onRouteCaptured = (route: RouteData) => {
+    setIsFocusMode(false);
+    setPendingCompletion(route);
+  };
   const { theme: appTheme } = useApp();
   const isLight = appTheme === 'light';
   const [activeMode, setActiveMode] = useState<'live' | 'gpx'>('live');
@@ -226,6 +234,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [distanceKm, setDistanceKm] = useState(0);
   const [currentPace, setCurrentPace] = useState('--:--');
+  const averagePace = formatPace(durationSeconds, distanceKm);
   const [currentSpeedKmh, setCurrentSpeedKmh] = useState(0);
   const [gpsPoints, setGpsPoints] = useState<[number, number][]>([]);
   const gpsPointsRef = useRef<[number, number][]>([]);
@@ -301,6 +310,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const watchIdRef = useRef<number | null>(null);
   const timerIntervalRef = useRef<any>(null);
   const lastPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
+  const activeStartRef = useRef<number | null>(null);
+  const activeBaseSecondsRef = useRef(0);
+  const lastTimerElapsedRef = useRef(0);
+  const distanceRef = useRef(0);
+  const paceWindowRef = useRef<DistanceSample[]>([]);
+  const lastGpsFixRef = useRef(0);
+  const maxSpeedRef = useRef(0);
+  const elapsedNow = () => activeStartRef.current === null ? activeBaseSecondsRef.current : activeBaseSecondsRef.current + (performance.now() - activeStartRef.current) / 1000;
   const wakeLockRef = useRef<any>(null);
 
   // Clean up intervals on unmount
@@ -419,6 +436,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       currentCalories,
       currentCadence,
       maxCadence,
+      cadenceSummary: cadenceTrackerRef.current.getSummary(),
+      maxSpeedKmh: maxSpeedRef.current,
       heartRateAverage,
       heartRateMax,
       kmSplits: kmSplitsRef.current,
@@ -446,6 +465,11 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // 3. VERIFICAR SE EXISTE UMA CORRIDA INTERROMPIDA PARA RECUPERAR IMEDIATAMENTE
   useEffect(() => {
+    const unsaved = getUnsavedRouteBackup();
+    if (unsaved && unsaved.workoutContext?.weekIndex === workoutContext?.weekIndex && unsaved.workoutContext?.dayIndex === workoutContext?.dayIndex) {
+      setPendingCompletion(unsaved.routeData);
+      return;
+    }
     const saved = getActiveWorkoutBackup();
     if (saved) {
       if (autoResumeBackup) {
@@ -458,6 +482,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   const restoreWorkoutFromBackup = (backup: ActiveWorkoutBackup, autoStart: boolean = true) => {
     setDistanceKm(backup.distanceKm || 0);
+    distanceRef.current = backup.distanceKm || 0;
+    activeBaseSecondsRef.current = backup.durationSeconds || 0;
     setDurationSeconds(backup.durationSeconds || 0);
     setCurrentPace(backup.currentPace || formatPace(backup.durationSeconds || 0, backup.distanceKm || 0));
     setGpsPoints(backup.gpsPoints || []);
@@ -473,6 +499,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setCurrentCalories(backup.currentCalories || 0);
     setCurrentCadence(backup.currentCadence || 0);
     setMaxCadence(backup.maxCadence || 0);
+    cadenceTrackerRef.current.restoreSummary(backup.cadenceSummary);
+    maxSpeedRef.current = backup.maxSpeedKmh || 0;
     if (backup.heartRateAverage) setHeartRateAverage(backup.heartRateAverage);
     if (backup.heartRateMax) setHeartRateMax(backup.heartRateMax);
     if (backup.kmSplits && backup.kmSplits.length > 0) {
@@ -690,6 +718,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // Actual GPS Watch Initialization
   const startTrackingInternal = () => {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    activeBaseSecondsRef.current = Math.max(activeBaseSecondsRef.current, trackingRef.current.durationSeconds);
+    activeStartRef.current = performance.now();
+    lastTimerElapsedRef.current = Math.floor(activeBaseSecondsRef.current);
+    lastPositionRef.current = null; // Never connect coordinates across an explicit pause.
+    paceWindowRef.current = [{ seconds: activeBaseSecondsRef.current, kilometers: distanceRef.current }];
     setIsTracking(true);
     setIsPaused(false);
     setIsFocusMode(true); // Abre automaticamente a tela grande intuitiva de treino
@@ -703,25 +737,24 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       }, 1200);
     }
 
-    // Start cadence sensor (accelerometer with speed kinematic fallback)
+    // Start the phone accelerometer estimate; no speed-based substitute.
     void cadenceTrackerRef.current.start();
 
     // Timer Interval (every 1 second)
     timerIntervalRef.current = setInterval(() => {
-      setDurationSeconds(prev => {
-        const nextDur = prev + 1;
-        // Live biometric updates every second
-        const { spm, isSensorActive } = cadenceTrackerRef.current.getCadence(currentSpeedRef.current);
-        setCurrentCadence(spm);
-        if (spm > 0) {
-          setMaxCadence(old => Math.max(old, spm));
-        }
-        setIsCadenceSensorActive(isSensorActive);
-        return nextDur;
-      });
+      const elapsed = Math.floor(elapsedNow());
+      const delta = Math.max(0, elapsed - lastTimerElapsedRef.current);
+      lastTimerElapsedRef.current = elapsed;
+      setDurationSeconds(elapsed);
+      const staleGps = Date.now() - lastGpsFixRef.current > 8000;
+      if (staleGps) { setCurrentPace('--:--'); setCurrentSpeedKmh(0); currentSpeedRef.current = 0; }
+      const { spm, isSensorActive } = cadenceTrackerRef.current.sampleCadence();
+      setCurrentCadence(spm);
+      if (spm > 0) setMaxCadence(old => Math.max(old, spm));
+      setIsCadenceSensorActive(isSensorActive);
 
       setStepDurationSeconds(prev => {
-        const nextSec = prev + 1;
+        const nextSec = prev + delta;
         const { activeStructured: struct, activeStepIndex: curIdx } = trackingRef.current;
         if (struct && struct.steps && curIdx < struct.steps.length) {
           const currentStep = struct.steps[curIdx];
@@ -764,7 +797,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             lastAltitudeRef.current = altitude;
           }
 
-          const now = Date.now();
+          const now = position.timestamp || Date.now();
+          lastGpsFixRef.current = Date.now();
           if (speed !== null && speed !== undefined && speed >= 0) {
             const kmh = Number((speed * 3.6).toFixed(1));
             setCurrentSpeedKmh(kmh);
@@ -780,15 +814,21 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             );
 
             const timeDiffSec = (now - lastPositionRef.current.time) / 1000;
-            const approxSpeedKmh = (dKm / (timeDiffSec / 3600));
+            const approxSpeedKmh = timeDiffSec > 0 ? dKm * 3600 / timeDiffSec : Infinity;
+            if (speed === null || speed === undefined) {
+              const kmh = timeDiffSec > 0 && approxSpeedKmh < 70 ? approxSpeedKmh : 0;
+              setCurrentSpeedKmh(kmh); currentSpeedRef.current = kmh;
+            }
+            if (currentSpeedRef.current < 70) maxSpeedRef.current = Math.max(maxSpeedRef.current, currentSpeedRef.current);
 
             // Discard jitter (< 3m) or unrealistic GPS leaps (> 70 km/h)
             if (dKm > 0.003 && approxSpeedKmh < 70) {
               const deltaMeters = dKm * 1000;
 
-              setDistanceKm(prev => {
+              {
+                const prev = distanceRef.current;
                 const newDist = prev + dKm;
-                const curDuration = trackingRef.current.durationSeconds;
+                const curDuration = elapsedNow();
 
                 // Calorie update
                 const kcal = calculateRunningCalories(athleteWeight, newDist, elevationGainMeters);
@@ -802,14 +842,17 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 const currentKmInteger = Math.floor(newDist);
                 if (currentKmInteger > lastAnnouncedKmRef.current) {
                   for (let km = lastAnnouncedKmRef.current + 1; km <= currentKmInteger; km++) {
-                    const splitDur = Math.max(1, curDuration - lastKmSplitDurationRef.current);
+                    const crossing = crossingSeconds(
+                      { seconds: paceWindowRef.current[paceWindowRef.current.length - 1]?.seconds ?? curDuration - timeDiffSec, kilometers: prev },
+                      { seconds: curDuration, kilometers: newDist }, km);
+                    const splitDur = Math.max(0.001, crossing - lastKmSplitDurationRef.current);
                     const splitPace = formatPace(splitDur, 1);
                     const splitKcal = calculateRunningCalories(athleteWeight, 1);
 
                     const newSplit: KmSplit = {
                       km,
                       durationSeconds: splitDur,
-                      splitTimeSeconds: curDuration,
+                      splitTimeSeconds: crossing,
                       pace: splitPace,
                       paceSeconds: splitDur,
                       avgCadence: activeSpm,
@@ -819,7 +862,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     kmSplitsRef.current.push(newSplit);
                     setKmSplits([...kmSplitsRef.current]);
 
-                    lastKmSplitDurationRef.current = curDuration;
+                    lastKmSplitDurationRef.current = crossing;
                     lastAnnouncedKmRef.current = km;
 
                     // Speech Announcement for KM (Tempo Total e Pace do KM)
@@ -843,13 +886,13 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   ? telemetrySamplesRef.current[telemetrySamplesRef.current.length - 1].distanceKm 
                   : 0;
                 if (newDist - lastSampleDist >= 0.075 || kmSplitsRef.current.length === 0) {
-                  const paceSec = newDist > 0 ? Math.round(curDuration / newDist) : 330;
+                  const paceSec = newDist > 0 ? Math.round(curDuration / newDist) : 0;
                   telemetrySamplesRef.current.push({
-                    distanceKm: Number(newDist.toFixed(2)),
+                    distanceKm: newDist,
                     durationSeconds: curDuration,
                     paceSeconds: paceSec,
                     paceFormatted: formatPace(curDuration, newDist),
-                    cadenceSpm: activeSpm || 165,
+                    cadenceSpm: activeSpm ?? null,
                     altitudeMeters: altitude ? Math.round(altitude) : undefined,
                     calories: kcal,
                     heartRate: heartRateBpm || undefined
@@ -857,12 +900,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   setTelemetrySamples([...telemetrySamplesRef.current]);
                 }
 
-                setDurationSeconds(curTime => {
-                  setCurrentPace(formatPace(curTime, newDist));
-                  return curTime;
-                });
-                return newDist;
-              });
+                paceWindowRef.current.push({ seconds: curDuration, kilometers: newDist });
+                paceWindowRef.current = paceWindowRef.current.filter(sample => sample.seconds >= curDuration - 25);
+                setCurrentPace(currentSpeedRef.current < 1 ? '--:--' : rollingPace(paceWindowRef.current));
+                distanceRef.current = newDist;
+                setDistanceKm(newDist);
+              }
 
               // Update step distance
               setStepDistanceMeters(prev => {
@@ -942,7 +985,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // Pause Tracking
   const pauseTracking = () => {
+    activeBaseSecondsRef.current = elapsedNow();
+    activeStartRef.current = null;
+    setDurationSeconds(Math.floor(activeBaseSecondsRef.current));
     setIsPaused(true);
+    cadenceTrackerRef.current.stop();
+    setCurrentPace('--:--'); setCurrentCadence(0);
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
@@ -969,24 +1017,26 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setIsHoldingStop(false);
     setStopHoldProgress(0);
     setStopHoldSecondsLeft(3);
-    clearActiveWorkoutBackup();
+    const finalDuration = Math.floor(elapsedNow());
+    const finalDistance = distanceRef.current;
     pauseTracking();
     setIsTracking(false);
+    setIsFocusMode(false);
     setIsScreenLocked(false);
     void heartRateMonitorRef.current.disconnect();
     cadenceTrackerRef.current.stop();
 
-    const finalAvgCadence = cadenceTrackerRef.current.getAverageCadence() || (currentCadence > 0 ? currentCadence : undefined);
-    const finalCalories = currentCalories || calculateRunningCalories(athleteWeight, distanceKm, elevationGainMeters);
+    const finalAvgCadence = cadenceTrackerRef.current.getAverageCadence() || undefined;
+    const finalCalories = currentCalories || calculateRunningCalories(athleteWeight, finalDistance, elevationGainMeters);
 
     // If there is any remaining distance after last integer KM (e.g. 5.35 km -> 0.35 km final split)
-    if (distanceKm - lastAnnouncedKmRef.current >= 0.25) {
-      const remainingDist = Number((distanceKm - lastAnnouncedKmRef.current).toFixed(2));
-      const remainingSec = Math.max(1, durationSeconds - lastKmSplitDurationRef.current);
+    if (finalDistance - lastAnnouncedKmRef.current > 0.01) {
+      const remainingDist = finalDistance - lastAnnouncedKmRef.current;
+      const remainingSec = Math.max(1, finalDuration - lastKmSplitDurationRef.current);
       kmSplitsRef.current.push({
         km: Number((lastAnnouncedKmRef.current + remainingDist).toFixed(1)),
         durationSeconds: remainingSec,
-        splitTimeSeconds: durationSeconds,
+        splitTimeSeconds: finalDuration,
         pace: formatPace(remainingSec, remainingDist),
         paceSeconds: Math.round(remainingSec / remainingDist),
         avgCadence: finalAvgCadence,
@@ -1000,7 +1050,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       : gpsPoints;
 
     // If no GPS coordinates or very short, save as an indoor/manual workout (e.g. treadmill or lost signal)
-    if (recordedGpsPoints.length < 2 && distanceKm < 0.05) {
+    if (recordedGpsPoints.length < 2 && finalDistance < 0.05) {
       let finalCompleted = [...completedSteps];
       if (activeStructured && activeStructured.steps && activeStepIndex < activeStructured.steps.length && stepDurationSeconds > 5) {
         const curStep = activeStructured.steps[activeStepIndex];
@@ -1012,7 +1062,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           targetValue: curStep.targetValue,
           completedDistanceMeters: Math.round(stepDistanceMeters),
           completedDurationSeconds: stepDurationSeconds,
-          avgPace: "00:00"
+          avgPace: "--:--"
         });
       }
 
@@ -1025,10 +1075,13 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       const routeData: RouteData = {
         polyline: fallbackPoints.length > 0 ? encodePolyline(fallbackPoints) : '',
         points: fallbackPoints,
-        totalDistanceKm: Number(distanceKm.toFixed(2)),
-        totalDurationSeconds: durationSeconds,
-        avgPace: "00:00",
+        totalDistanceKm: finalDistance,
+        totalDurationSeconds: finalDuration,
+        avgPace: formatPace(finalDuration, finalDistance),
         avgCadence: finalAvgCadence,
+      cadenceSource: finalAvgCadence ? 'phone_accelerometer' : undefined,
+      maxSpeedKmh: maxSpeedRef.current || undefined,
+      maxHeartRate: heartRateMax || undefined,
         calories: finalCalories,
         source: 'manual_or_indoor',
         recordedAt: new Date().toISOString(),
@@ -1042,7 +1095,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     }
 
     const polyline = encodePolyline(recordedGpsPoints);
-    const avgPace = formatPace(durationSeconds, distanceKm);
+    const avgPace = formatPace(finalDuration, finalDistance);
 
     // Save final lap if unfinished
     let finalCompleted = [...completedSteps];
@@ -1063,12 +1116,15 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     const routeData: RouteData = {
       polyline,
       points: recordedGpsPoints,
-      totalDistanceKm: Number(distanceKm.toFixed(2)),
-      totalDurationSeconds: durationSeconds,
+      totalDistanceKm: finalDistance,
+      totalDurationSeconds: finalDuration,
       avgPace,
       elevationGainMeters: elevationGainMeters || undefined,
       avgCadence: finalAvgCadence,
-      maxCadence: maxCadence > 0 ? maxCadence : (finalAvgCadence ? finalAvgCadence + 12 : undefined),
+      cadenceSource: finalAvgCadence ? 'phone_accelerometer' : undefined,
+      maxSpeedKmh: maxSpeedRef.current || undefined,
+      maxHeartRate: heartRateMax || undefined,
+      maxCadence: maxCadence > 0 ? maxCadence : undefined,
       calories: finalCalories,
       kmSplits: kmSplitsRef.current.length > 0 ? kmSplitsRef.current : undefined,
       telemetrySamples: downsampleTelemetry(telemetrySamplesRef.current, 75),
@@ -1180,7 +1236,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
     try {
       const text = await file.text();
-      const parsed = parseGpxFile(text);
+      const parsed = parseGpxFile(text, athleteWeight);
       setGpxParsedRoute(parsed);
     } catch (err: any) {
       console.error('GPX parse error:', err);
@@ -1330,13 +1386,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     };
   }, [currentStep, workoutSuggestedInfo, athletePaces, workoutType]);
 
-  // Pace avaliado contra a meta (usa o pace da etapa se estiver ativa há pelo menos 6s, ou o pace geral)
-  const paceToEvaluate = useMemo(() => {
-    if (currentStep && stepDurationSeconds >= 6 && stepDistanceMeters >= 20) {
-      return currentStepPace;
-    }
-    return currentPace !== '--:--' ? currentPace : '';
-  }, [currentStep, stepDurationSeconds, stepDistanceMeters, currentStepPace, currentPace]);
+  // Evaluate recent pace against the target; the step average remains a separate metric.
+  const paceToEvaluate = currentPace !== '--:--' ? currentPace : '';
 
   // Avaliação em tempo real se o aluno está dentro do ritmo
   const paceCompliance = useMemo(() => {
@@ -1353,6 +1404,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         ? 'bg-white border-slate-200 text-slate-900' 
         : 'bg-slate-950/95 border-white/10 text-white'
     }`}>
+      {pendingCompletion && <WorkoutCompletionReview route={pendingCompletion}
+        onBack={() => setPendingCompletion(null)}
+        onConfirm={async reviewed => {
+          saveUnsavedRouteBackup(reviewed, workoutContext);
+          await persistCapturedRoute(reviewed);
+          setPendingCompletion(null);
+        }} />}
+
       {/* Header com Modos */}
       <div className={`flex items-center justify-between border-b pb-3 flex-wrap gap-2 ${
         isLight ? 'border-slate-200' : 'border-white/10'
@@ -2288,7 +2347,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-xs' 
               : 'bg-white/5 border-white/5 text-white'
           }`}>
-            <div className="grid grid-cols-3 gap-2 text-center pb-2 border-b border-white/5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pb-2 border-b border-white/5">
               <div>
                 <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Distância Total</span>
                 <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
@@ -2303,9 +2362,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 </span>
               </div>
               <div>
+                <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Pace Atual</span>
+                <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-emerald-700' : 'text-emerald-300'}`}>{currentPace}</span>
+                <span className="text-[8px] font-bold text-slate-500 ml-0.5">/KM</span>
+              </div>
+              <div>
                 <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Pace Geral</span>
                 <span className={`text-xl font-black font-mono tracking-tighter ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
-                  {currentPace}
+                  {averagePace}
                 </span>
                 <span className="text-[8px] font-bold text-slate-500 uppercase ml-0.5">/KM</span>
               </div>
@@ -2324,7 +2388,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   <span className="text-[8px] font-bold text-slate-400">SPM</span>
                 </div>
                 <span className="text-[7px] text-slate-400 block font-medium">
-                  {isCadenceSensorActive ? '📱 Sensor do Celular' : 'Estimativa de Movimento'}
+                  {isCadenceSensorActive ? 'Estimativa pelo acelerômetro' : 'Não disponível'}
                 </span>
               </div>
 
@@ -2420,7 +2484,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               <WorkoutTelemetryCharts
                 kmSplits={kmSplits}
                 telemetrySamples={telemetrySamples}
-                avgPace={currentPace}
+                avgPace={averagePace}
                 avgCadence={currentCadence > 0 ? currentCadence : undefined}
                 calories={currentCalories}
                 elevationGainMeters={elevationGainMeters}
@@ -3112,7 +3176,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                           <span>{paceCompliance.label}</span>
                         </div>
                         <span className="font-mono font-black text-amber-300 text-sm">
-                          {currentStep ? currentStepPace : currentPace} <span className="text-[10px] text-slate-400">/km</span>
+                          {currentPace} <span className="text-[10px] text-slate-400">/km</span>
                         </span>
                       </div>
 
@@ -3266,6 +3330,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
               {/* Grid de Números Gigantes das Métricas (6 cards completos) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="col-span-2 sm:col-span-3 p-3 bg-slate-900/90 border border-emerald-500/30 rounded-2xl text-center">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Pace Atual · ritmo recente</span>
+                  <div className="text-3xl font-black font-mono text-white">{currentPace} <span className="text-xs text-slate-400">/km</span></div>
+                </div>
                 <div className="p-2 sm:p-3 bg-slate-900/90 border border-emerald-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
                   <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-emerald-400 block">Distância</span>
                   <div className="text-lg sm:text-2xl font-black font-mono tracking-tighter text-emerald-400">
@@ -3276,7 +3344,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 <div className="p-2 sm:p-3 bg-slate-900/90 border border-amber-500/30 rounded-2xl text-center flex flex-col items-center justify-center">
                   <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-amber-400 block">Pace Geral</span>
                   <div className="text-lg sm:text-2xl font-black font-mono tracking-tighter text-amber-400">
-                    {currentPace}
+                    {averagePace}
                   </div>
                 </div>
 
@@ -3296,7 +3364,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     {currentCadence > 0 ? currentCadence : '--'} <span className="text-[8px] sm:text-xs text-slate-400">SPM</span>
                   </div>
                   <span className="text-[7px] font-bold text-slate-400">
-                    {isCadenceSensorActive ? '📱 Sensor acelerômetro' : 'Cinemática'}
+                    {isCadenceSensorActive ? 'Estimativa pelo acelerômetro' : 'Não disponível'}
                   </span>
                 </div>
 

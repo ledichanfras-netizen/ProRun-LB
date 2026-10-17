@@ -26,8 +26,6 @@ import {
   Crop,
   Globe,
   Map as MapIcon,
-  ZoomIn,
-  ZoomOut,
   LocateFixed
 } from 'lucide-react';
 import { applyMapGesture, MapGesture } from '../utils/mapGestures';
@@ -436,9 +434,6 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
   const [mapView, setMapView] = useState<MapViewAdjustment>({ zoomOffset: 0, panX: 0, panY: 0, bearing: 0 });
   const gestureMap = (gesture: MapGesture) => setMapView(previous => applyMapGesture(previous, gesture));
-  const changeZoom = (delta: number) => setMapView(previous => applyMapGesture(previous, {
-    from: {x: .5, y: .5}, to: {x: .5, y: .5}, zoomDelta: Math.max(3 - tileLayout.zoom, Math.min(19 - tileLayout.zoom, delta)), rotationDelta: 0, width: 450, height: 800
-  }));
 
   // Generate SVG Route
   const svgRoute: SvgRouteResult = React.useMemo(() => {
@@ -1791,9 +1786,6 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-2 border-t border-white/10 pt-3">
-                <button type="button" aria-label="Diminuir zoom do mapa" disabled={mapDisplayMode === 'transparent' || mapView.zoomOffset <= -3 || tileLayout.zoom <= 3} onClick={() => changeZoom(-1)} className="p-2.5 rounded-xl bg-white/10 text-white disabled:opacity-30"><ZoomOut className="w-4 h-4" /></button>
-                <span className="text-[10px] font-black uppercase italic tracking-wider text-slate-300">Zoom</span>
-                <button type="button" aria-label="Aumentar zoom do mapa" disabled={mapDisplayMode === 'transparent' || mapView.zoomOffset >= 4 || tileLayout.zoom >= 19} onClick={() => changeZoom(1)} className="p-2.5 rounded-xl bg-emerald-700 text-white disabled:opacity-30"><ZoomIn className="w-4 h-4" /></button>
                 <button type="button" onClick={() => setMapView({ zoomOffset: 0, panX: 0, panY: 0, bearing: 0 })} className="px-3 py-2.5 rounded-xl bg-white/10 text-white text-[9px] font-black uppercase italic tracking-wider inline-flex items-center gap-1.5"><LocateFixed className="w-3.5 h-3.5" /> Enquadrar percurso</button>
               </div>
               <p className="text-[10px] text-slate-400 text-center">{mapDisplayMode === 'transparent' ? 'Escolha Ruas ou Satélite para aproximar os detalhes do local.' : 'Use dois dedos para aproximar e girar. Arraste com um dedo para mover. O enquadramento será usado na imagem da postagem.'}</p>

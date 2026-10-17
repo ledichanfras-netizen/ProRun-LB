@@ -1,3 +1,4 @@
+import {MenstrualReadinessSummary} from '../components/MenstrualReadiness';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../contexts/AppContext';
@@ -908,17 +909,7 @@ export default function Dashboard() {
               {/* Informações Complementares (Mulher Atleta / PSE Pré-Treino) */}
               {(activeAthlete.lastReadiness.menstrualPhase || activeAthlete.lastReadiness.pse !== undefined) && (
                 <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200/60 text-xs">
-                  {activeAthlete.lastReadiness.menstrualPhase && activeAthlete.lastReadiness.menstrualPhase !== 'none' && (
-                    <span className="px-3 py-1 rounded-xl bg-purple-100 text-purple-900 font-bold flex items-center gap-1.5">
-                      <span>🌸</span>
-                      <span>Ciclo Menstrual: <strong>
-                        {activeAthlete.lastReadiness.menstrualPhase === 'follicular' && 'Fase Folicular (⚡ Estrogênio alto - Força e Energia)'}
-                        {activeAthlete.lastReadiness.menstrualPhase === 'ovulatory' && 'Fase Ovulatória (🔥 Pico de Potência)'}
-                        {activeAthlete.lastReadiness.menstrualPhase === 'luteal' && 'Fase Lútea (🧘 Menor tolerância a calor/fadiga)'}
-                        {activeAthlete.lastReadiness.menstrualPhase === 'menstrual' && 'Fase Menstrual (🩸 Priorizar recuperação)'}
-                      </strong></span>
-                    </span>
-                  )}
+                  {activeAthlete.gender==='female'&&<MenstrualReadinessSummary value={activeAthlete.lastReadiness}/>}
                   {activeAthlete.lastReadiness.pse !== undefined && (
                     <span className="px-3 py-1 rounded-xl bg-emerald-100 text-emerald-900 font-bold flex items-center gap-1.5">
                       <span>⚡</span>

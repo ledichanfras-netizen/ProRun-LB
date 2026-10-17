@@ -1,3 +1,4 @@
+import type {MenstrualPhase} from '../utils/menstrualReadiness';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { FreeRun, Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal, Exercise } from '../types';
@@ -60,7 +61,7 @@ interface AppContextType {
     stressScore?: number,
     sorenessScore?: number,
     moodScore?: number,
-    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
+    menstrualPhase?: MenstrualPhase,
     readinessScore?: number,
     gpsRoute?: any,
     structuredSteps?: any[],
@@ -591,9 +592,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const athlete = updatedAthletes.find(a => a.id === id);
     if (athlete) {
       try {
-        await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
+        const {error}=await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
+        if(error)throw error;
       } catch (err) {
         console.warn("Could not sync updated athlete to cloud (stored locally):", err);
+        if(Object.prototype.hasOwnProperty.call(data,'readinessHistory'))throw err;
       }
     }
   };
@@ -942,7 +945,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     stressScore?: number,
     sorenessScore?: number,
     moodScore?: number,
-    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
+    menstrualPhase?: MenstrualPhase,
     readinessScore?: number,
     gpsRoute?: any,
     structuredSteps?: any[],
@@ -1084,7 +1087,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           stressScore: stressScore !== undefined ? stressScore : 2,
           sorenessScore: sorenessScore !== undefined ? sorenessScore : 2,
           moodScore: moodScore !== undefined ? moodScore : 8,
-          menstrualPhase: menstrualPhase || 'none',
+          menstrualPhase: existingIdx>=0 ? existingHistory[existingIdx].menstrualPhase : menstrualPhase || 'none',
           readinessScore: clampedScore,
           energyLevel: clampedScore
         };

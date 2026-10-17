@@ -1,3 +1,4 @@
+import {withoutMenstrualData} from '../utils/menstrualReadiness';
 
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Athlete, AthletePlan } from "../types";
@@ -22,6 +23,7 @@ export const generateTrainingPlan = async (
   longRunDayOfWeek?: number
 ): Promise<AthletePlan> => {
   
+  athlete = withoutMenstrualData(athlete);
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const modelName = 'gemini-3-flash-preview';
 

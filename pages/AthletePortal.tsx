@@ -1,3 +1,5 @@
+import {MenstrualReadinessFields,MenstrualReadinessSummary} from '../components/MenstrualReadiness';
+import {normalizeMenstrualReadiness,type MenstrualReadiness as CycleRecord,type MenstrualPhase} from '../utils/menstrualReadiness';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -259,7 +261,7 @@ const AthletePortal: React.FC = () => {
   const [stressValue, setStressValue] = useState<number>(2);
   const [sorenessValue, setSorenessValue] = useState<number>(2);
   const [moodValue, setMoodValue] = useState<number>(4);
-  const [menstrualPhaseValue, setMenstrualPhaseValue] = useState<'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none'>('none');
+  const [menstrualPhaseValue, setMenstrualPhaseValue] = useState<MenstrualPhase>('none');
 
   // Standalone Daily Readiness Panel States (Pre-Workout Evaluation)
   const [portalSleepHours, setPortalSleepHours] = useState<number>(7.5); // Horas de Sono
@@ -272,8 +274,10 @@ const AthletePortal: React.FC = () => {
   const [portalHydration, setPortalHydration] = useState<number>(8); // Nível de Hidratação (0 a 10)
   const [portalRestingHR, setPortalRestingHR] = useState<string>(''); // FC Repouso matinal (bpm)
   const [portalMood, setPortalMood] = useState<number>(8); // Humor para Treino (0 a 10)
-  const [portalMenstrual, setPortalMenstrual] = useState<'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none'>('none');
+  const [portalMenstrual, setPortalMenstrual] = useState<MenstrualPhase>('none');
+  const [portalCycle,setPortalCycle]=useState<CycleRecord>({});
   const [portalIsSubmitting, setPortalIsSubmitting] = useState(false);
+  const [portalSaveError,setPortalSaveError]=useState('');
   const [showPortalForm, setShowPortalForm] = useState(false);
   const [showHistoryInModal, setShowHistoryInModal] = useState(false);
   const [portalDate, setPortalDate] = useState<string>(getTodayDateString());
@@ -426,6 +430,7 @@ const AthletePortal: React.FC = () => {
       setPortalRestingHR(existing.restingHeartRate ? String(existing.restingHeartRate) : '');
       setPortalMood(existing.moodScore !== undefined ? existing.moodScore : 8);
       setPortalMenstrual(existing.menstrualPhase || 'none');
+      setPortalCycle(normalizeMenstrualReadiness(existing));
     } else {
       // If no entry exists for this specific date, use defaults or last registered readiness
       const isToday = portalDate === getTodayDateString();
@@ -442,12 +447,14 @@ const AthletePortal: React.FC = () => {
       setPortalHydration(lastR?.hydrationScore !== undefined ? lastR.hydrationScore : 8);
       setPortalRestingHR(lastR?.restingHeartRate ? String(lastR.restingHeartRate) : '');
       setPortalMood(lastR?.moodScore !== undefined ? lastR.moodScore : 8);
-      setPortalMenstrual(lastR?.menstrualPhase || 'none');
+      setPortalMenstrual('none');
+      setPortalCycle({});
     }
   }, [portalDate, activeAthlete?.id]);
 
   const handleSavePortalReadiness = async () => {
     if (!activeAthlete) return;
+    setPortalSaveError('');
     setPortalIsSubmitting(true);
     try {
       // Calculate advanced readiness score across the 0-10 pillars + Sleep Duration
@@ -471,6 +478,7 @@ const AthletePortal: React.FC = () => {
       const history = activeAthlete.readinessHistory ? [...activeAthlete.readinessHistory] : [];
       const existingIndex = history.findIndex(entry => entry.date === portalDate);
       const newEntry = {
+        ...(existingIndex>=0?history[existingIndex]:{}),
         id: existingIndex >= 0 ? history[existingIndex].id : Math.random().toString(36).substring(2, 9),
         date: portalDate,
         sleepHours: portalSleepHours,
@@ -483,7 +491,7 @@ const AthletePortal: React.FC = () => {
         hydrationScore: portalHydration,
         restingHeartRate: validRestingHR,
         moodScore: portalMood,
-        menstrualPhase: portalMenstrual,
+        ...(activeAthlete.gender==='female'?normalizeMenstrualReadiness({...portalCycle,menstrualPhase:portalMenstrual}):{}),
         readinessScore: calculatedScore,
         energyLevel: calculatedScore
       };
@@ -502,23 +510,7 @@ const AthletePortal: React.FC = () => {
 
       const updatePayload = {
         readinessHistory: history,
-        lastReadiness: latestEntry ? {
-          date: latestEntry.date,
-          pse: latestEntry.pse,
-          sleepHours: latestEntry.sleepHours,
-          bedTime: latestEntry.bedTime,
-          wakeTime: latestEntry.wakeTime,
-          sleepScore: latestEntry.sleepScore,
-          stressScore: latestEntry.stressScore,
-          sorenessScore: latestEntry.sorenessScore,
-          sorenessLocation: latestEntry.sorenessLocation,
-          hydrationScore: latestEntry.hydrationScore,
-          restingHeartRate: latestEntry.restingHeartRate,
-          moodScore: latestEntry.moodScore,
-          menstrualPhase: latestEntry.menstrualPhase,
-          readinessScore: latestEntry.readinessScore,
-          energyLevel: latestEntry.energyLevel
-        } : undefined,
+        lastReadiness: latestEntry ? {...latestEntry} : undefined,
         readiness: latestEntry ? (
           latestEntry.readinessScore >= 70 ? 'ready' as const :
           latestEntry.readinessScore >= 40 ? 'recovering' as const : 'fatigued' as const
@@ -538,6 +530,7 @@ const AthletePortal: React.FC = () => {
       setShowPortalForm(false);
     } catch (e) {
       console.error("Erro ao salvar prontidão no portal:", e);
+      setPortalSaveError('Não foi possível confirmar o salvamento. Confira a conexão e tente novamente.');
     } finally {
       setPortalIsSubmitting(false);
     }
@@ -557,19 +550,7 @@ const AthletePortal: React.FC = () => {
 
       const updatePayload = {
         readinessHistory: updatedHistory,
-        lastReadiness: latestEntry ? {
-          date: latestEntry.date,
-          pse: latestEntry.pse,
-          sleepHours: latestEntry.sleepHours,
-          bedTime: latestEntry.bedTime,
-          wakeTime: latestEntry.wakeTime,
-          sleepScore: latestEntry.sleepScore,
-          stressScore: latestEntry.stressScore,
-          sorenessScore: latestEntry.sorenessScore,
-          moodScore: latestEntry.moodScore,
-          menstrualPhase: latestEntry.menstrualPhase,
-          readinessScore: latestEntry.readinessScore
-        } : undefined,
+        lastReadiness: latestEntry ? {...latestEntry} : undefined,
         readiness: latestEntry ? (
           latestEntry.readinessScore >= 70 ? 'ready' as const :
           latestEntry.readinessScore >= 40 ? 'recovering' as const : 'fatigued' as const
@@ -2118,42 +2099,8 @@ const AthletePortal: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* FASE DO CICLO MENSTRUAL (Opcional) */}
-                  {activeAthlete?.gender === 'female' && (
-                    <div className={`space-y-2 p-4 rounded-2xl border ${
-                      isLight ? 'bg-purple-500/5 border-purple-200' : 'bg-slate-950/70 border-purple-500/20'
-                    }`}>
-                      <label className="text-xs font-black text-purple-600 dark:text-purple-300 uppercase tracking-wide flex items-center gap-1.5">
-                        🌸 Ciclo Menstrual (Mulher Atleta)
-                      </label>
-                      <p className={`text-[10.5px] font-medium leading-normal ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                        Fase atual do seu ciclo menstrual. Permite ao treinador entender flutuações hormonais naturais que impactam diretamente a força, tolerância à fadiga e termorregulação.
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                        {[
-                          { id: 'follicular', label: 'Folicular (⚡ Energia)' },
-                          { id: 'ovulatory', label: 'Ovulatória (🔥 Força)' },
-                          { id: 'luteal', label: 'Lútea (🧘 Fadiga/TPM)' },
-                          { id: 'menstrual', label: 'Menstrual (🩸 Regeneração)' }
-                        ].map((phase) => (
-                          <button
-                            key={phase.id}
-                            type="button"
-                            onClick={() => setPortalMenstrual(phase.id as any)}
-                            className={`p-2 rounded-xl text-[10px] font-bold border text-center transition-all ${
-                              portalMenstrual === phase.id
-                                ? 'bg-purple-600 text-white border-purple-400 font-black'
-                                : isLight
-                                  ? 'bg-white border-slate-200 text-slate-500 hover:text-slate-800'
-                                  : 'bg-slate-900 border-white/10 text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            {phase.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {portalSaveError&&<p role="alert" className="text-sm text-red-700 dark:text-red-300">{portalSaveError}</p>}
+                  {activeAthlete?.gender==='female' && <MenstrualReadinessFields value={{...portalCycle,menstrualPhase:portalMenstrual}} onChange={value=>{setPortalCycle(value);setPortalMenstrual(value.menstrualPhase||'none');}}/>}
 
                   {/* PREVIEW DO SCORE CALCULADO */}
                   {(() => {
@@ -2341,9 +2288,9 @@ const AthletePortal: React.FC = () => {
                               return (
                                 <div 
                                   key={entry.id} 
-                                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-white/5 hover:border-emerald-500/30 transition-all"
+                                  className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-950/70 border border-white/5 hover:border-emerald-500/30 transition-all"
                                 >
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-start gap-2 min-w-0 flex-1 basis-56">
                                     <div className={`text-[10px] font-black px-2 py-1 rounded-lg border flex items-center justify-center ${scoreColor}`}>
                                       {entry.readinessScore}%
                                     </div>
@@ -2352,6 +2299,7 @@ const AthletePortal: React.FC = () => {
                                       <p className="text-[9px] text-slate-400 font-medium">
                                         Sono: {entry.sleepHours !== undefined ? `${entry.sleepHours}h` : 'N/A'}{entry.bedTime && entry.wakeTime ? ` (${entry.bedTime}➔${entry.wakeTime})` : ''} • Qualidade: {entry.sleepScore ?? 'N/A'}/10 • Dor: {entry.sorenessScore ?? 'N/A'}/10 • Estresse: {entry.stressScore ?? 'N/A'}/10 • Humor: {entry.moodScore ?? 'N/A'}/10
                                       </p>
+                                      {activeAthlete?.gender==='female'&&<MenstrualReadinessSummary value={entry}/>}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1.5">

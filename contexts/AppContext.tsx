@@ -1,3 +1,5 @@
+import {withoutMenstrualData} from '../utils/menstrualReadiness';
+import type {MenstrualPhase} from '../utils/menstrualReadiness';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { FreeRun, Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal, Exercise } from '../types';
@@ -60,7 +62,7 @@ interface AppContextType {
     stressScore?: number,
     sorenessScore?: number,
     moodScore?: number,
-    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
+    menstrualPhase?: MenstrualPhase,
     readinessScore?: number,
     gpsRoute?: any,
     structuredSteps?: any[],
@@ -114,7 +116,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const [athletes, setAthletes] = useState<Athlete[]>(() => {
     const cached = localStorage.getItem('proRun_cached_athletes');
-    return cached ? JSON.parse(cached) : [];
+    return cached ? withoutMenstrualData(JSON.parse(cached)) : [];
   });
   const [workouts, setWorkouts] = useState<Workout[]>(() => {
     const cached = localStorage.getItem('proRun_cached_workouts');
@@ -361,7 +363,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const cachedPlans = localStorage.getItem('proRun_cached_athletePlans');
 
     if (cachedAthletes) {
-      try { setAthletes(JSON.parse(cachedAthletes)); } catch (e) {}
+      try { setAthletes(withoutMenstrualData(JSON.parse(cachedAthletes))); } catch (e) {}
     }
     if (cachedWorkouts) {
       try { setWorkouts(JSON.parse(cachedWorkouts)); } catch (e) {}
@@ -408,7 +410,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (athletesRes.data && athletesRes.data.length > 0) {
         console.log(`[Sync] ${athletesRes.data.length} atletas sincronizados.`);
-        const fetchedAthletes = athletesRes.data.map((row: any) => row.data);
+        const fetchedAthletes = athletesRes.data.map((row: any) => withoutMenstrualData(row.data));
         setAthletes(fetchedAthletes);
         localStorage.setItem('proRun_cached_athletes', JSON.stringify(fetchedAthletes));
       }
@@ -530,7 +532,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     if (athletes && athletes.length > 0) {
-      localStorage.setItem('proRun_cached_athletes', JSON.stringify(athletes));
+      localStorage.setItem('proRun_cached_athletes', JSON.stringify(withoutMenstrualData(athletes)));
     }
   }, [athletes]);
 
@@ -579,7 +581,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addAthlete = async (athlete: Athlete) => {
     setAthletes(prev => [athlete, ...prev]);
     try {
-      await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
+      await supabase.from('athletes').upsert({ id: athlete.id, data: withoutMenstrualData(athlete) });
     } catch (err) {
       console.warn("Could not sync added athlete to cloud (stored locally):", err);
     }
@@ -591,9 +593,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const athlete = updatedAthletes.find(a => a.id === id);
     if (athlete) {
       try {
-        await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
+        const {error}=await supabase.from('athletes').upsert({ id: athlete.id, data: withoutMenstrualData(athlete) });
+        if(error)throw error;
       } catch (err) {
         console.warn("Could not sync updated athlete to cloud (stored locally):", err);
+        if(Object.prototype.hasOwnProperty.call(data,'readinessHistory'))throw err;
       }
     }
   };
@@ -650,7 +654,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await supabase.from('athletes').upsert({ id: updatePayload.id, data: withoutMenstrualData(updatePayload) });
     } catch (err) {
       console.warn("Could not sync assessment to cloud (stored locally):", err);
     }
@@ -674,7 +678,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await supabase.from('athletes').upsert({ id: updatePayload.id, data: withoutMenstrualData(updatePayload) });
     } catch (err) {
       console.warn("Could not sync assessment update to cloud (stored locally):", err);
     }
@@ -689,7 +693,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await supabase.from('athletes').upsert({ id: updatePayload.id, data: withoutMenstrualData(updatePayload) });
     } catch (err) {
       console.warn("Could not sync assessment deletion to cloud (removed locally):", err);
     }
@@ -942,7 +946,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     stressScore?: number,
     sorenessScore?: number,
     moodScore?: number,
-    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none',
+    menstrualPhase?: MenstrualPhase,
     readinessScore?: number,
     gpsRoute?: any,
     structuredSteps?: any[],
@@ -1084,7 +1088,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           stressScore: stressScore !== undefined ? stressScore : 2,
           sorenessScore: sorenessScore !== undefined ? sorenessScore : 2,
           moodScore: moodScore !== undefined ? moodScore : 8,
-          menstrualPhase: menstrualPhase || 'none',
+          menstrualPhase: existingIdx>=0 ? existingHistory[existingIdx].menstrualPhase : menstrualPhase || 'none',
           readinessScore: clampedScore,
           energyLevel: clampedScore
         };

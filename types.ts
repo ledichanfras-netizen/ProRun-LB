@@ -1,3 +1,4 @@
+import type { MenstrualPhase } from './utils/menstrualReadiness';
 
 export type ExperienceLevel = 'Iniciante' | 'Intermediário' | 'Avançado' | 'Elite';
 export type UserRole = 'coach' | 'athlete' | null;
@@ -93,7 +94,10 @@ export interface Athlete {
     restingHeartRate?: number;
     hrvMs?: number;
     moodScore: number;
-    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
+    menstrualPhase?: MenstrualPhase;
+    menstrualSymptoms?: string[];
+    menstrualIntensity?: 'mild' | 'moderate' | 'severe' | '';
+    menstrualNotes?: string;
     readinessScore: number;
     energyLevel?: number;
     notes?: string;
@@ -113,7 +117,10 @@ export interface Athlete {
     restingHeartRate?: number;
     hrvMs?: number;
     moodScore: number;
-    menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
+    menstrualPhase?: MenstrualPhase;
+    menstrualSymptoms?: string[];
+    menstrualIntensity?: 'mild' | 'moderate' | 'severe' | '';
+    menstrualNotes?: string;
     readinessScore: number;
     energyLevel?: number;
     notes?: string;
@@ -215,7 +222,10 @@ export interface TrainingWeek {
       stressScore?: number;
       sorenessScore?: number;
       moodScore?: number;
-      menstrualPhase?: 'follicular' | 'ovulatory' | 'luteal' | 'menstrual' | 'none';
+      menstrualPhase?: MenstrualPhase;
+    menstrualSymptoms?: string[];
+    menstrualIntensity?: 'mild' | 'moderate' | 'severe' | '';
+    menstrualNotes?: string;
       readinessScore?: number;
       route?: TrainingWeek["workouts"][number]["gpsRoute"];
       gpsRoute?: {

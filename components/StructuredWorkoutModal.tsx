@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Timer, 
   Sparkles, 
@@ -286,7 +287,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
   const getStepColor = (type: StepType) => {
     switch (type) {
       case 'warmup':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
       case 'interval':
         return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
       case 'recovery':
@@ -308,26 +309,29 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[230] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="structured-workout-title"
+        className="structured-workout-modal bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
         {/* Header */}
         <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center shadow-inner">
+            <div className="w-10 h-10 shrink-0 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-inner">
               <Timer className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-black text-white uppercase italic tracking-tight">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 id="structured-workout-title" className="text-base font-black text-white uppercase italic tracking-tight">
                   Estruturação Detalhada de Treino
                 </h3>
-                <span className="text-[9px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-400/20">
+                <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/20">
                   DETALHADA
                 </span>
               </div>
@@ -339,20 +343,21 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl bg-white/5 transition-colors cursor-pointer"
+            aria-label="Fechar prescrição detalhada"
+            className="p-2 shrink-0 text-slate-400 hover:text-white rounded-xl bg-white/5 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Selector */}
-        <div className="flex px-6 pt-4 pb-2 border-b border-white/5 gap-2 bg-slate-950/40">
+        <div className="flex flex-wrap px-4 sm:px-6 pt-4 pb-2 border-b border-white/5 gap-2 bg-slate-950/40">
           <button
             type="button"
             onClick={() => setActiveTab('quick_text')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            className={`flex-1 min-w-0 justify-center px-3 py-2 rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'quick_text'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
                 : 'text-slate-400 hover:text-white bg-white/5'
             }`}
           >
@@ -366,9 +371,9 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                 generateFromBuilder();
               }
             }}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            className={`flex-1 min-w-0 justify-center px-3 py-2 rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'builder'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
                 : 'text-slate-400 hover:text-white bg-white/5'
             }`}
           >
@@ -377,7 +382,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+        <div className="p-4 sm:p-6 min-h-0 overflow-y-auto custom-scrollbar flex-1 space-y-6">
           {/* TAB 1: QUICK TEXT */}
           {activeTab === 'quick_text' && (
             <div className="space-y-4">
@@ -385,7 +390,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                 <label className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                   Digite a Notação do Treino
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={quickTextInput}
@@ -397,12 +402,12 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                       }
                     }}
                     placeholder="Ex: 5x1000m rec 2min ou 2km aq + 6x400m r:90s + 1km des"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm font-semibold outline-none focus:border-blue-500 transition-all font-mono"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm font-semibold outline-none focus:border-emerald-500 transition-all font-mono"
                   />
                   <button
                     type="button"
                     onClick={handleParseQuickText}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase italic tracking-wider shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase italic tracking-wider shadow-lg shadow-emerald-600/20 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
                   >
                     <ArrowRight className="w-4 h-4" /> Converter
                   </button>
@@ -440,8 +445,8 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                       onClick={() => applyPreset(preset)}
                       className={`px-3 py-1.5 text-[11px] rounded-xl font-mono font-bold transition-all cursor-pointer border ${
                         quickTextInput === preset
-                          ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
-                          : 'bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/40 text-slate-300 hover:text-white border-white/5'
+                          ? 'bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-600/20'
+                          : 'bg-white/5 hover:bg-emerald-600/20 hover:border-emerald-500/40 text-slate-300 hover:text-white border-white/5'
                       }`}
                     >
                       {preset}
@@ -452,28 +457,28 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
 
               {/* Card de Ação Rápida e Transição para o Construtor Visual */}
               {previewWorkout && previewWorkout.steps.length > 0 && (
-                <div className="p-4 bg-gradient-to-r from-blue-950/60 via-slate-900 to-slate-900 border border-blue-500/30 rounded-2xl space-y-3">
+                <div data-structured-success className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
+                      <div className="w-7 h-7 shrink-0 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
                         ✓
                       </div>
                       <div>
-                        <span className="text-xs font-black text-white uppercase italic block">
+                        <span className="text-xs font-black text-slate-900 dark:text-emerald-100 uppercase italic block">
                           Treino Reconhecido com Sucesso ({previewWorkout.steps.length} etapas)
                         </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
+                        <span className="text-[10px] text-slate-600 dark:text-slate-300 font-mono">
                           Distância estimada: ~{previewWorkout.totalDistanceEstimatedKm || 0}km
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-white/5">
+                  <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-emerald-200 dark:border-emerald-500/20">
                     <button
                       type="button"
                       onClick={() => setActiveTab('builder')}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-blue-600/20 cursor-pointer"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase italic tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
                     >
                       <Layers className="w-3.5 h-3.5" /> Levar para o Construtor Visual (Ajustar Detalhes)
                     </button>
@@ -497,7 +502,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
               <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black text-white uppercase italic flex items-center gap-1.5">
-                    <Flame className="w-4 h-4 text-blue-400" /> 1. Aquecimento
+                    <Flame className="w-4 h-4 text-emerald-400" /> 1. Aquecimento
                   </span>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -507,7 +512,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                         setHasWarmup(e.target.checked);
                         setTimeout(() => generateFromBuilder(), 50);
                       }}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white/10 border-white/20"
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-0 bg-white/10 border-white/20"
                     />
                     <span className="text-xs text-slate-300 font-bold">Incluir Aquecimento</span>
                   </label>
@@ -523,7 +528,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                             generateFromBuilder({ wType: 'distance' });
                           }}
                           className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all ${
-                            warmupType === 'distance' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                            warmupType === 'distance' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                           }`}
                         >
                           Distância (Km / Metros)
@@ -535,7 +540,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                             generateFromBuilder({ wType: 'time' });
                           }}
                           className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all ${
-                            warmupType === 'time' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                            warmupType === 'time' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                           }`}
                         >
                           Tempo (Minutos)
@@ -622,7 +627,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                               }}
                               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
                                 warmupDistMeters === m
-                                  ? 'bg-blue-600 text-white shadow-md'
+                                  ? 'bg-emerald-600 text-white shadow-md'
                                   : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
                               }`}
                             >
@@ -690,7 +695,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                               }}
                               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all ${
                                 warmupMinutes === mins
-                                  ? 'bg-blue-600 text-white shadow-md'
+                                  ? 'bg-emerald-600 text-white shadow-md'
                                   : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
                               }`}
                             >
@@ -1224,7 +1229,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                         setHasCooldown(e.target.checked);
                         setTimeout(() => generateFromBuilder(), 50);
                       }}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white/10 border-white/20"
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-0 bg-white/10 border-white/20"
                     />
                     <span className="text-xs text-slate-300 font-bold">Incluir Desaquecimento</span>
                   </label>
@@ -1491,10 +1496,10 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
                 {previewWorkout.steps.map((step, idx) => (
                   <div
                     key={step.id || idx}
-                    className="flex items-center justify-between bg-slate-950/60 p-3 rounded-2xl border border-white/5 hover:border-white/10 transition-all text-xs"
+                    className="flex items-center justify-between gap-2 bg-slate-950/60 p-3 rounded-2xl border border-white/5 hover:border-white/10 transition-all text-xs"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="w-6 text-[10px] font-black text-slate-500 font-mono">
+                    <div className="flex flex-wrap items-center gap-3 min-w-0">
+                      <span className="w-6 shrink-0 text-[10px] font-black text-slate-500 font-mono">
                         {(idx + 1).toString().padStart(2, '0')}
                       </span>
                       <span className={`px-2.5 py-1 rounded-lg font-black uppercase italic text-[10px] border ${getStepColor(step.type)}`}>
@@ -1527,7 +1532,7 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-white/5 flex justify-end gap-3 bg-white/5">
+        <div className="p-4 sm:p-6 border-t border-white/5 flex flex-wrap justify-end gap-3 bg-white/5 shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -1538,12 +1543,13 @@ export const StructuredWorkoutModal: React.FC<StructuredWorkoutModalProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="px-6 py-3 rounded-xl text-xs font-black uppercase italic tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer flex items-center gap-2"
+            className="flex-1 sm:flex-none min-w-0 justify-center px-4 sm:px-6 py-3 rounded-xl text-xs font-black uppercase italic tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition-all active:scale-[0.98] cursor-pointer flex items-center gap-2"
           >
             <Check className="w-4 h-4" /> Salvar Prescrição Detalhada
           </button>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -1687,7 +1687,7 @@ const Periodization: React.FC = () => {
                                 <div className="flex flex-wrap gap-2">
                                   <button 
                                     onClick={() => setEditingStructuredWorkout({ wIdx: weekIndex, dIdx: dayIndex })}
-                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center gap-1.5"
+                                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center gap-1.5"
                                     title="Estruturar Tiros / Intervalos (Prescrição Detalhada)"
                                   >
                                     <Timer className="w-3.5 h-3.5" />
@@ -1906,7 +1906,7 @@ const Periodization: React.FC = () => {
                                     className="flex items-center gap-1.5 mt-1.5 hover:opacity-80 transition-opacity cursor-pointer text-left"
                                     title="Clique para ver ou editar a prescrição detalhada deste treino"
                                   >
-                                    <span className="text-[9px] font-black px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-md uppercase italic border border-blue-400/20 flex items-center gap-1">
+                                    <span className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-md uppercase italic border border-emerald-400/20 flex items-center gap-1">
                                       <Timer className="w-2.5 h-2.5" />
                                       <span>{formatStructuredWorkoutSummary(workout.structuredWorkout)}</span>
                                     </span>
@@ -2206,7 +2206,7 @@ const Periodization: React.FC = () => {
                   </div>
                   <div>
                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Altimetria</span>
-                    <span className="text-base font-black text-blue-400 font-mono">
+                    <span className="text-base font-black text-emerald-400 font-mono">
                       +{viewingWorkoutRoute.elevationGainMeters || 0}m
                     </span>
                   </div>

@@ -1,5 +1,5 @@
-import {MenstrualReadinessFields,MenstrualReadinessSummary} from '../components/MenstrualReadiness';
-import {normalizeMenstrualReadiness,type MenstrualReadiness as CycleRecord,type MenstrualPhase} from '../utils/menstrualReadiness';
+import {ProtectedMenstrualReadiness} from '../components/ProtectedMenstrualReadiness';
+import {withoutMenstrualData,type MenstrualPhase} from '../utils/menstrualReadiness';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -274,8 +274,6 @@ const AthletePortal: React.FC = () => {
   const [portalHydration, setPortalHydration] = useState<number>(8); // Nível de Hidratação (0 a 10)
   const [portalRestingHR, setPortalRestingHR] = useState<string>(''); // FC Repouso matinal (bpm)
   const [portalMood, setPortalMood] = useState<number>(8); // Humor para Treino (0 a 10)
-  const [portalMenstrual, setPortalMenstrual] = useState<MenstrualPhase>('none');
-  const [portalCycle,setPortalCycle]=useState<CycleRecord>({});
   const [portalIsSubmitting, setPortalIsSubmitting] = useState(false);
   const [portalSaveError,setPortalSaveError]=useState('');
   const [showPortalForm, setShowPortalForm] = useState(false);
@@ -429,8 +427,6 @@ const AthletePortal: React.FC = () => {
       setPortalHydration(existing.hydrationScore !== undefined ? existing.hydrationScore : 8);
       setPortalRestingHR(existing.restingHeartRate ? String(existing.restingHeartRate) : '');
       setPortalMood(existing.moodScore !== undefined ? existing.moodScore : 8);
-      setPortalMenstrual(existing.menstrualPhase || 'none');
-      setPortalCycle(normalizeMenstrualReadiness(existing));
     } else {
       // If no entry exists for this specific date, use defaults or last registered readiness
       const isToday = portalDate === getTodayDateString();
@@ -447,8 +443,6 @@ const AthletePortal: React.FC = () => {
       setPortalHydration(lastR?.hydrationScore !== undefined ? lastR.hydrationScore : 8);
       setPortalRestingHR(lastR?.restingHeartRate ? String(lastR.restingHeartRate) : '');
       setPortalMood(lastR?.moodScore !== undefined ? lastR.moodScore : 8);
-      setPortalMenstrual('none');
-      setPortalCycle({});
     }
   }, [portalDate, activeAthlete?.id]);
 
@@ -478,7 +472,7 @@ const AthletePortal: React.FC = () => {
       const history = activeAthlete.readinessHistory ? [...activeAthlete.readinessHistory] : [];
       const existingIndex = history.findIndex(entry => entry.date === portalDate);
       const newEntry = {
-        ...(existingIndex>=0?history[existingIndex]:{}),
+        ...(existingIndex>=0?withoutMenstrualData(history[existingIndex]):{}),
         id: existingIndex >= 0 ? history[existingIndex].id : Math.random().toString(36).substring(2, 9),
         date: portalDate,
         sleepHours: portalSleepHours,
@@ -491,7 +485,6 @@ const AthletePortal: React.FC = () => {
         hydrationScore: portalHydration,
         restingHeartRate: validRestingHR,
         moodScore: portalMood,
-        ...(activeAthlete.gender==='female'?normalizeMenstrualReadiness({...portalCycle,menstrualPhase:portalMenstrual}):{}),
         readinessScore: calculatedScore,
         energyLevel: calculatedScore
       };
@@ -2100,7 +2093,7 @@ const AthletePortal: React.FC = () => {
                   </div>
 
                   {portalSaveError&&<p role="alert" className="text-sm text-red-700 dark:text-red-300">{portalSaveError}</p>}
-                  {activeAthlete?.gender==='female' && <MenstrualReadinessFields value={{...portalCycle,menstrualPhase:portalMenstrual}} onChange={value=>{setPortalCycle(value);setPortalMenstrual(value.menstrualPhase||'none');}}/>}
+                  {activeAthlete?.gender==='female' && <ProtectedMenstrualReadiness key={`${activeAthlete.id}-${portalDate}`} athleteId={activeAthlete.id} date={portalDate} studentEmail={activeAthlete.email||''}/>}
 
                   {/* PREVIEW DO SCORE CALCULADO */}
                   {(() => {
@@ -2299,7 +2292,7 @@ const AthletePortal: React.FC = () => {
                                       <p className="text-[9px] text-slate-400 font-medium">
                                         Sono: {entry.sleepHours !== undefined ? `${entry.sleepHours}h` : 'N/A'}{entry.bedTime && entry.wakeTime ? ` (${entry.bedTime}➔${entry.wakeTime})` : ''} • Qualidade: {entry.sleepScore ?? 'N/A'}/10 • Dor: {entry.sorenessScore ?? 'N/A'}/10 • Estresse: {entry.stressScore ?? 'N/A'}/10 • Humor: {entry.moodScore ?? 'N/A'}/10
                                       </p>
-                                      {activeAthlete?.gender==='female'&&<MenstrualReadinessSummary value={entry}/>}
+                                      {activeAthlete?.gender==='female'&&<details><summary className="text-xs py-2 text-emerald-700 dark:text-emerald-300">Consultar ciclo deste dia</summary><ProtectedMenstrualReadiness athleteId={activeAthlete.id} date={entry.date} readOnly/></details>}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1.5">

@@ -77,7 +77,7 @@ type TextTheme = 'white' | 'black';
 type BackgroundType = 'transparent' | 'photo' | 'dark' | 'light' | 'emerald';
 type AspectRatio = 'story' | 'square' | 'portrait';
 type LogoStyle = 'original' | 'transparent' | 'white' | 'black' | 'emerald';
-type CardLayout = 'strava' | 'classic';
+type CardLayout = 'strava' | 'classic' | 'map';
 type StravaRouteColor = 'orange' | 'emerald' | 'white' | 'black';
 
 // Default stylized circuit SVG path when previewing a workout that didn't record GPS coordinates
@@ -130,6 +130,7 @@ interface SocialWorkoutMapRendererProps {
   strokeMainColor: string;
   mapView: MapViewAdjustment;
   onPan: (dx: number, dy: number) => void;
+  fullBleed?: boolean;
 }
 
 /**
@@ -145,7 +146,8 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
   isDarkText,
   strokeMainColor,
   mapView,
-  onPan
+  onPan,
+  fullBleed = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: number; x: number; y: number } | null>(null);
@@ -173,8 +175,8 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
   }, [aspectRatio]);
 
   const tileLayout = React.useMemo(() => {
-    return generateMapTileLayout(points, dims.width, dims.height, mapMode, 22, undefined, mapView);
-  }, [points, dims.width, dims.height, mapMode, mapView]);
+    return generateMapTileLayout(points, fullBleed ? 450 : dims.width, fullBleed ? (aspectRatio === 'story' ? 800 : aspectRatio === 'portrait' ? 562.5 : 450) : dims.height, mapMode, 22, undefined, mapView);
+  }, [points, dims.width, dims.height, mapMode, mapView, fullBleed, aspectRatio]);
 
   return (
     <div
@@ -198,7 +200,7 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
       onPointerUp={() => { dragRef.current = null; }}
       onPointerCancel={() => { dragRef.current = null; }}
       onLostPointerCapture={() => { dragRef.current = null; }}
-      className={`relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
+      className={fullBleed ? 'absolute inset-0 w-full h-full overflow-hidden' : `relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
         aspectRatio === 'square'
           ? 'h-[82px] sm:h-[98px]'
           : aspectRatio === 'portrait'
@@ -212,6 +214,7 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
         backgroundColor: mapMode === 'satellite' ? '#090d16' : '#f8fafc'
       }}
     >
+      <div style={fullBleed ? { position: 'absolute', left: 0, top: 0, width: tileLayout.width, height: tileLayout.height, transform: `scale(${dims.width / tileLayout.width})`, transformOrigin: 'top left' } : { position: 'absolute', inset: 0 }}>
       {/* 1. Camada de Tiles do Mapa com Esri ArcGIS Oficial */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {tileLayout.tiles.map((tile) => (
@@ -318,8 +321,9 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
         )}
       </svg>
 
+      </div>
       {/* 3. Badge do Modo do Mapa */}
-      <div className="absolute bottom-1 right-1.5 z-20 pointer-events-none">
+      <div className={`${fullBleed ? 'hidden' : ''} absolute bottom-1 right-1.5 z-20 pointer-events-none`}>
         <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-sm text-white border border-white/10 flex items-center gap-1 shadow-sm">
           <span>{mapMode === 'satellite' ? '🛰️ Satélite Real' : '🗺️ Ruas Reais'}</span>
           <span className="text-emerald-400 font-bold">
@@ -337,7 +341,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const [backgroundType, setBackgroundType] = useState<BackgroundType>(data.initialBackgroundType || 'transparent');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('story');
   const [logoStyle, setLogoStyle] = useState<LogoStyle>('original');
-  const [cardLayout, setCardLayout] = useState<CardLayout>('strava');
+  const [cardLayout, setCardLayout] = useState<CardLayout>(normalizeGpsPoints(data.route).length >= 2 ? 'map' : 'strava');
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [stravaRouteColor, setStravaRouteColor] = useState<StravaRouteColor>('orange');
   const [stravaStatsAlign, setStravaStatsAlign] = useState<'vertical' | 'horizontal'>('vertical');
   const [activePhraseTab, setActivePhraseTab] = useState<number>(0);
@@ -512,7 +517,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
       }
       await new Promise(r => setTimeout(r, 120));
 
-      const isTransparent = backgroundType === 'transparent';
+      const isTransparent = cardLayout !== 'map' && backgroundType === 'transparent';
       const cleanTitle = (data.title || 'Treino').replace(/\s+/g, '_');
       const filename = isStrength
         ? `ProRun_${cleanTitle}_${strengthDurationMin}min`
@@ -562,7 +567,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
       }
       await new Promise(r => setTimeout(r, 120));
 
-      const isTransparent = backgroundType === 'transparent';
+      const isTransparent = cardLayout !== 'map' && backgroundType === 'transparent';
       const cleanTitle = (data.title || 'Treino').replace(/\s+/g, '_');
       const filename = isStrength
         ? `ProRun_${cleanTitle}_${strengthDurationMin}min`
@@ -615,8 +620,18 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-2 sm:p-4 overflow-y-auto" onClick={onClose}>
-      <div className="share-studio-modal bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-2xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto pointer-events-auto relative" onClick={e => e.stopPropagation()}>
+      <div style={isMapFullscreen ? { position: 'fixed', inset: 0, width: '100%', maxWidth: 'none', height: '100dvh', maxHeight: '100dvh', borderRadius: 0, margin: 0 } : undefined} className={`share-studio-modal ${isMapFullscreen ? 'map-fullscreen' : ''} bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-2xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto pointer-events-auto relative`} onClick={e => e.stopPropagation()}>
         
+        {isMapFullscreen && <style>{`
+          .map-fullscreen > div:nth-of-type(1) {padding: 8px 12px;}
+          .map-fullscreen > div:nth-of-type(1) p, .map-fullscreen > div:nth-of-type(1) h2 span, .map-fullscreen > div:nth-of-type(2) {display: none;}
+          .map-fullscreen .share-editor-body {padding: 0 8px 8px; gap: 0;}
+          .map-fullscreen .share-editor-body > :not([data-map-workspace]) {display: none;}
+          .map-fullscreen [data-map-workspace] > :not(.share-card-stage):not(section) {display: none;}
+          .map-fullscreen .share-card-stage {padding: 0; border: 0; border-radius: 0;}
+          .map-fullscreen [aria-label="Estilo e zoom do mapa"] {margin-top: 4px; padding: 6px;}
+          .map-fullscreen [aria-label="Estilo e zoom do mapa"] p {display: none;}
+        `}</style>}
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-slate-950 shrink-0 relative z-30">
           <div className="flex items-center gap-3">
@@ -633,7 +648,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => isMapFullscreen ? setIsMapFullscreen(false) : onClose()}
+            aria-label={isMapFullscreen ? 'Concluir edição do mapa' : 'Fechar visualização'}
             className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
             title="Fechar Visualização"
           >
@@ -667,10 +683,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
         </div>
 
         {/* Content Body: Foto em Primeiro Plano no Topo e Botões de Edição na Parte de Baixo */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col items-center gap-5">
+        <div className="share-editor-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col items-center gap-5">
           
           {/* FOTO EM PRIMEIRO PLANO: Card Live Preview Stage */}
-          <div className="w-full flex flex-col items-center justify-center shrink-0">
+          <div data-map-workspace className="w-full flex flex-col items-center justify-center shrink-0">
             <div 
               className="share-card-stage p-2 sm:p-3 bg-slate-950/90 rounded-[2.2rem] border border-white/10 shadow-2xl relative flex flex-col items-center max-w-full overflow-visible transition-all"
             >
@@ -690,8 +706,9 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
               <div 
                 id={cardElementId}
                 data-export-card="true"
-                className={`relative overflow-hidden flex flex-col justify-between ${aspectRatio === 'square' ? 'p-3.5 sm:p-5' : 'p-5 sm:p-7'} transition-all duration-300 rounded-[2rem] select-none ${getAspectRatioClasses()}`}
+                className={`relative overflow-hidden flex flex-col justify-between ${aspectRatio === 'square' ? 'p-3.5 sm:p-5' : 'p-5 sm:p-7'} transition-all duration-300 rounded-[2rem] select-none ${isMapFullscreen ? '' : getAspectRatioClasses()}`}
                 style={{
+                  ...(isMapFullscreen ? { width: `min(calc(100vw - 16px), calc((100dvh - 280px) * ${aspectRatio === 'story' ? 9/16 : aspectRatio === 'portrait' ? 4/5 : 1}))`, aspectRatio: aspectRatio === 'story' ? '9 / 16' : aspectRatio === 'portrait' ? '4 / 5' : '1', borderRadius: 0, padding: 0 } : {}),
                   backgroundColor: backgroundType === 'transparent' 
                     ? 'transparent' 
                     : backgroundType === 'dark' 
@@ -758,7 +775,25 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   <div className="absolute inset-0 bg-gradient-to-b from-emerald-950 via-slate-950 to-emerald-950/90 pointer-events-none" />
                 )}
 
-              {cardLayout === 'strava' ? (
+              {cardLayout === 'map' && !isStrength ? (
+                <>
+                  <SocialWorkoutMapRenderer fullBleed points={points} mapMode={mapDisplayMode === 'transparent' ? 'standard' : mapDisplayMode} aspectRatio={aspectRatio} routeColor={stravaRouteColor} isDarkText={false} strokeMainColor={strokeMainColor} mapView={mapView} onPan={panMap} />
+                  <div className="absolute inset-0 pointer-events-none" style={{background: 'linear-gradient(to bottom, rgba(0,0,0,.15), transparent 28%, rgba(0,0,0,.12) 43%, rgba(0,0,0,.85) 100%)'}} />
+                  <div className="absolute inset-x-0 bottom-0 p-5 pointer-events-none text-white" style={{color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,.7)'}}>
+                    {showLogo && <img src={processedLogoUrl} alt="ProRun LB" className="w-24 h-12 object-contain object-left mb-2" />}
+                    <h3 className="font-black italic text-lg leading-tight mb-3 break-words">{customTitle}</h3>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div><p className="text-[10px] opacity-90">Distância</p><p className="text-xl font-black italic">{data.distanceKm.toFixed(2).replace('.', ',')} <span className="text-xs">km</span></p></div>
+                      <div><p className="text-[10px] opacity-90">Pace geral</p><p className="text-xl font-black italic">{data.avgPace} <span className="text-xs">/km</span></p></div>
+                      <div><p className="text-[10px] opacity-90">Tempo</p><p className="text-lg font-black italic">{formatDuration(data.durationSeconds)}</p></div>
+                      {showHeartRate && !!data.avgHeartRate && <div><p className="text-[10px] opacity-90">FC média</p><p className="text-lg font-black italic">{data.avgHeartRate} <span className="text-xs">bpm</span></p></div>}
+                      {showElevation && data.elevationGainMeters != null && <div><p className="text-[10px] opacity-90">Elevação</p><p className="text-lg font-black italic">{Math.round(data.elevationGainMeters)} m</p></div>}
+                    </div>
+                    {data.athleteName && <p className="mt-3 text-[9px] font-bold uppercase tracking-wide">{data.athleteName}</p>}
+                    <p className="mt-2 text-[7px] opacity-70">Mapa: Esri · OpenStreetMap contributors</p>
+                  </div>
+                </>
+              ) : cardLayout === 'strava' ? (
                 /* ============================================================================
                  * FORMATO ESTILO STRAVA (CENTRALIZADO):
                  * 1. Logo Centralizada no Topo
@@ -1685,6 +1720,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
           </div>
 
             {!isStrength && <section aria-label="Estilo e zoom do mapa" className="w-full mt-3 space-y-3 bg-slate-950/60 p-3 rounded-2xl border border-white/10">
+              <button type="button" onClick={() => {setCardLayout('map'); if (mapDisplayMode === 'transparent') setMapDisplayMode('standard'); setIsMapFullscreen(!isMapFullscreen);}} className="w-full py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase italic">{isMapFullscreen ? 'Concluir edição do mapa' : 'Editar mapa em tela cheia'}</button>
               {/* Seletor de Modo do Mapa (Padrão / Satélite / Transparente) */}
               <div className="space-y-1.5 pt-1">
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
@@ -1729,6 +1765,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     type="button"
                     onClick={() => {
                       setMapDisplayMode('transparent');
+                      if (cardLayout === 'map') setCardLayout('strava');
                       setShowRoute(true);
                     }}
                     className={`p-2.5 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
@@ -1755,6 +1792,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
             {/* Preview Status Pill & Quick Action Bar (Logo abaixo da Foto em Primeiro Plano) */}
             <div className="mt-3 flex flex-col items-center gap-2.5 w-full">
+              {!isStrength && <button type="button" onClick={() => {setCardLayout('map'); if (mapDisplayMode === 'transparent') setMapDisplayMode('standard');}} className={`w-full max-w-md py-3 rounded-xl text-xs font-black uppercase italic ${cardLayout === 'map' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Mapa completo + logo e métricas</button>}
               {/* SELETOR RÁPIDO DE LAYOUT DO CARD: LOGO CENTRAL vs CLÁSSICO PRORUN */}
               <div className="grid grid-cols-2 gap-2 w-full max-w-md bg-slate-950 p-1.5 rounded-2xl border border-white/10 shadow-lg">
                 <button

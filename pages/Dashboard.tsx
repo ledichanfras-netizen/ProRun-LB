@@ -1,4 +1,4 @@
-import {ProtectedMenstrualReadiness} from '../components/ProtectedMenstrualReadiness';
+import {MenstrualReadinessSummary} from '../components/MenstrualReadiness';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../contexts/AppContext';
@@ -909,7 +909,7 @@ export default function Dashboard() {
               {/* Informações Complementares (Mulher Atleta / PSE Pré-Treino) */}
               {(activeAthlete.gender==='female' || activeAthlete.lastReadiness.pse !== undefined) && (
                 <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200/60 text-xs">
-                  {activeAthlete.gender==='female'&&<ProtectedMenstrualReadiness athleteId={activeAthlete.id} date={activeAthlete.lastReadiness.date} studentEmail={activeAthlete.email||''} readOnly/>}
+                  {activeAthlete.gender==='female'&&<MenstrualReadinessSummary value={activeAthlete.lastReadiness}/>}
                   {activeAthlete.lastReadiness.pse !== undefined && (
                     <span className="px-3 py-1 rounded-xl bg-emerald-100 text-emerald-900 font-bold flex items-center gap-1.5">
                       <span>⚡</span>

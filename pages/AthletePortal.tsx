@@ -1,5 +1,5 @@
-import {ProtectedMenstrualReadiness} from '../components/ProtectedMenstrualReadiness';
-import {withoutMenstrualData,type MenstrualPhase} from '../utils/menstrualReadiness';
+import {MenstrualReadinessFields,MenstrualReadinessSummary} from '../components/MenstrualReadiness';
+import {normalizeMenstrualReadiness,type MenstrualReadiness,type MenstrualPhase} from '../utils/menstrualReadiness';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -276,6 +276,7 @@ const AthletePortal: React.FC = () => {
   const [portalMood, setPortalMood] = useState<number>(8); // Humor para Treino (0 a 10)
   const [portalIsSubmitting, setPortalIsSubmitting] = useState(false);
   const [portalSaveError,setPortalSaveError]=useState('');
+  const [portalCycle,setPortalCycle]=useState<MenstrualReadiness>({});
   const [showPortalForm, setShowPortalForm] = useState(false);
   const [showHistoryInModal, setShowHistoryInModal] = useState(false);
   const [portalDate, setPortalDate] = useState<string>(getTodayDateString());
@@ -414,6 +415,7 @@ const AthletePortal: React.FC = () => {
     if (!activeAthlete) return;
     const history = activeAthlete.readinessHistory || [];
     const existing = history.find(entry => entry.date === portalDate);
+    setPortalCycle(existing ? normalizeMenstrualReadiness(existing) : {});
     if (existing) {
       const bed = existing.bedTime || '22:30';
       const wake = existing.wakeTime || '06:30';
@@ -472,7 +474,8 @@ const AthletePortal: React.FC = () => {
       const history = activeAthlete.readinessHistory ? [...activeAthlete.readinessHistory] : [];
       const existingIndex = history.findIndex(entry => entry.date === portalDate);
       const newEntry = {
-        ...(existingIndex>=0?withoutMenstrualData(history[existingIndex]):{}),
+        ...(existingIndex>=0?history[existingIndex]:{}),
+        ...(activeAthlete.gender==='female'?normalizeMenstrualReadiness(portalCycle):{}),
         id: existingIndex >= 0 ? history[existingIndex].id : Math.random().toString(36).substring(2, 9),
         date: portalDate,
         sleepHours: portalSleepHours,
@@ -2093,7 +2096,7 @@ const AthletePortal: React.FC = () => {
                   </div>
 
                   {portalSaveError&&<p role="alert" className="text-sm text-red-700 dark:text-red-300">{portalSaveError}</p>}
-                  {activeAthlete?.gender==='female' && <ProtectedMenstrualReadiness key={`${activeAthlete.id}-${portalDate}`} athleteId={activeAthlete.id} date={portalDate} studentEmail={activeAthlete.email||''}/>}
+                  {activeAthlete?.gender==='female' && <MenstrualReadinessFields value={portalCycle} onChange={setPortalCycle}/>}
 
                   {/* PREVIEW DO SCORE CALCULADO */}
                   {(() => {
@@ -2292,7 +2295,7 @@ const AthletePortal: React.FC = () => {
                                       <p className="text-[9px] text-slate-400 font-medium">
                                         Sono: {entry.sleepHours !== undefined ? `${entry.sleepHours}h` : 'N/A'}{entry.bedTime && entry.wakeTime ? ` (${entry.bedTime}➔${entry.wakeTime})` : ''} • Qualidade: {entry.sleepScore ?? 'N/A'}/10 • Dor: {entry.sorenessScore ?? 'N/A'}/10 • Estresse: {entry.stressScore ?? 'N/A'}/10 • Humor: {entry.moodScore ?? 'N/A'}/10
                                       </p>
-                                      {activeAthlete?.gender==='female'&&<details><summary className="text-xs py-2 text-emerald-700 dark:text-emerald-300">Consultar ciclo deste dia</summary><ProtectedMenstrualReadiness athleteId={activeAthlete.id} date={entry.date} readOnly/></details>}
+                                      {activeAthlete?.gender==='female'&&<MenstrualReadinessSummary value={entry}/>}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1.5">

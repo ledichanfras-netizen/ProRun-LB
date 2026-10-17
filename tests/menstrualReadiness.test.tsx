@@ -23,8 +23,10 @@ test('cycle details persist as JSON and appear in coach/student summaries',()=>{
  const protectedRow={athlete_id:'test',date:'2026-10-17',report:record};
  const reloaded=JSON.parse(JSON.stringify(protectedRow));
  const html=renderToStaticMarkup(<MenstrualReadinessSummary value={reloaded.report}/>);
- const service=readFileSync('services/cycleService.ts','utf8');
- assert.match(service,/from\('cycle_reports'\)/);assert.doesNotMatch(service,/from\('athletes'\)|localStorage/);
+ const portal=readFileSync('pages/AthletePortal.tsx','utf8');
+ assert.match(portal,/normalizeMenstrualReadiness\(portalCycle\)/);
+ assert.doesNotMatch(portal,/ProtectedMenstrualReadiness|Criar acesso protegido/);
+ assert.match(portal,/setPortalCycle\(existing \? normalizeMenstrualReadiness\(existing\) : \{\}\)/);
  assert.match(html,/Lútea/);assert.match(html,/Cólica, Cansaço/);assert.match(html,/Moderada/);assert.match(html,/Observação pessoal/);
 });
 test('AI sanitizer strips menstrual data at every nested level without changing readiness or source records',()=>{

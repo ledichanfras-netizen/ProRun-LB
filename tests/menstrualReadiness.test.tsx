@@ -8,7 +8,8 @@ import {MenstrualReadinessFields,MenstrualReadinessSummary} from '../components/
 
 test('optional phase choices and symptoms render without phase-based prescriptions',()=>{
  const html=renderToStaticMarkup(<MenstrualReadinessFields value={{menstrualPhase:'unknown',menstrualSymptoms:['Cólica'],menstrualIntensity:'moderate'}} onChange={()=>{}}/>);
- for(const label of Object.values(MENSTRUAL_PHASES))assert.ok(html.includes(label));
+ for(const label of Object.entries(MENSTRUAL_PHASES).filter(([id])=>id!=='none').map(([,label])=>label))assert.ok(html.includes(label));
+ assert.match(html,/aria-pressed/);assert.match(html,/pink-600/);assert.doesNotMatch(html,/<select|type="checkbox"/);
  assert.match(html,/Sintomas sentidos hoje/);assert.match(html,/Observação do ciclo/);assert.doesNotMatch(html,/Pico de Potência|Priorizar recuperação|Estrogênio alto/);
 });
 test('none is explicit, symptoms mutually exclusive, declining clears private details',()=>{
@@ -27,7 +28,7 @@ test('cycle details persist as JSON and appear in coach/student summaries',()=>{
  assert.match(portal,/normalizeMenstrualReadiness\(portalCycle\)/);
  assert.doesNotMatch(portal,/ProtectedMenstrualReadiness|Criar acesso protegido/);
  assert.match(portal,/setPortalCycle\(existing \? normalizeMenstrualReadiness\(existing\) : \{\}\)/);
- assert.match(html,/Lútea/);assert.match(html,/Cólica, Cansaço/);assert.match(html,/Moderada/);assert.match(html,/Observação pessoal/);
+ assert.match(html,/Lútea/);assert.match(html,/Cólica, Cansaço/);assert.match(html,/Monitoramento Hormonal/);assert.match(html,/Moderada/);assert.match(html,/Observação pessoal/);
 });
 test('AI sanitizer strips menstrual data at every nested level without changing readiness or source records',()=>{
  const original={gender:'female',trackMenstrual:true,lastReadiness:{readinessScore:82,menstrualPhase:'menstrual',menstrualSymptoms:['Cólica'],menstrualIntensity:'severe',menstrualNotes:'Privado'},readinessHistory:[{readinessScore:82,menstrualNotes:'Privado'}],weeks:[{workouts:[{menstrualPhase:'luteal',distance:5}]}]};

@@ -907,9 +907,8 @@ export default function Dashboard() {
               </div>
 
               {/* Informações Complementares (Mulher Atleta / PSE Pré-Treino) */}
-              {(activeAthlete.gender==='female' || activeAthlete.lastReadiness.pse !== undefined) && (
+              {activeAthlete.lastReadiness.pse !== undefined && (
                 <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200/60 text-xs">
-                  {activeAthlete.gender==='female'&&<MenstrualReadinessSummary value={activeAthlete.lastReadiness}/>}
                   {activeAthlete.lastReadiness.pse !== undefined && (
                     <span className="px-3 py-1 rounded-xl bg-emerald-100 text-emerald-900 font-bold flex items-center gap-1.5">
                       <span>⚡</span>
@@ -920,6 +919,8 @@ export default function Dashboard() {
               )}
             </div>
           )}
+
+          {activeAthlete.gender==='female'&&<MenstrualReadinessSummary value={activeAthlete.lastReadiness||{}} date={activeAthlete.lastReadiness?.date} showEmpty/>}
 
           {/* Confronto de Coerência: Fisiologia vs Percepção do Atleta */}
           {readinessConfrontation && (

@@ -1,9 +1,9 @@
 export const MENSTRUAL_PHASES = {
   none: 'Não informado', menstrual: 'Menstruação', follicular: 'Folicular',
-  ovulatory: 'Ovulatória', luteal: 'Lútea', unknown: 'Não sei', 'prefer-not': 'Prefiro não informar',
+  ovulatory: 'Ovulatória', luteal: 'Lútea', irregular: 'Não regular', unknown: 'Não sei', 'prefer-not': 'Prefiro não informar',
 } as const;
 export type MenstrualPhase = keyof typeof MENSTRUAL_PHASES;
-export const MENSTRUAL_SYMPTOMS = ['Cólica', 'Dor de cabeça', 'Inchaço', 'Dor lombar', 'Sensibilidade nas mamas', 'Alteração de humor', 'Cansaço', 'Nenhum'] as const;
+export const MENSTRUAL_SYMPTOMS = ['Cólica', 'Dor de cabeça', 'Inchaço', 'Dor lombar', 'Sensibilidade nas mamas', 'Alteração de humor', 'Cansaço', 'Fadiga muscular', 'Falta de energia', 'Nenhum'] as const;
 export interface MenstrualReadiness {
   menstrualPhase?: MenstrualPhase;
   menstrualSymptoms?: string[];

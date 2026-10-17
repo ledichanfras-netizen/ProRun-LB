@@ -3179,6 +3179,8 @@ const AthletePortal: React.FC = () => {
         </p>
       </div>
 
+      {activeAthlete?.gender==='female'&&<MenstrualReadinessSummary value={activeAthlete.lastReadiness||{}} date={activeAthlete.lastReadiness?.date} showEmpty/>}
+
       {/* SEÇÃO: CONTROLE DE PRONTIDÃO, QUALIDADE DE SONO, DOR E FADIGA (OPÇÃO 2) */}
       {(() => {
         const todayDateStr = getTodayDateString();

@@ -333,6 +333,7 @@ function latLngToWorldPixel(lat: number, lng: number, zoom: number): { wx: numbe
  * Mostra o local exato da corrida do atleta em alta definição, sem marca d'água de API.
  */
 export interface MapViewAdjustment {
+  bearing?: number;
   zoomOffset: number;
   panX: number;
   panY: number;
@@ -391,7 +392,7 @@ export function generateMapTileLayout(
     bestZoom = 15;
   }
 
-  bestZoom = Math.max(3, Math.min(19, bestZoom + Math.round(view?.zoomOffset || 0)));
+  bestZoom = Math.max(3, Math.min(19, bestZoom + (view?.zoomOffset || 0)));
 
   // Coordenadas mundiais dos pontos no bestZoom
   let minWx = Infinity, maxWx = -Infinity, minWy = Infinity, maxWy = -Infinity;
@@ -423,42 +424,47 @@ export function generateMapTileLayout(
   }
 
   const tiles: MapTileInfo[] = [];
+  const tileZoom = Math.floor(bestZoom);
+  const tileSize = 256 * 2 ** (bestZoom - tileZoom);
+  const angle = (view?.bearing || 0) * Math.PI / 180;
+  const coverageWidth = Math.abs(Math.cos(angle)) * safeWidth + Math.abs(Math.sin(angle)) * safeHeight;
+  const coverageHeight = Math.abs(Math.sin(angle)) * safeWidth + Math.abs(Math.cos(angle)) * safeHeight;
 
   if (mapMode === 'standard' || mapMode === 'satellite') {
-    const minTileX = Math.floor((centerWx - safeWidth / 2) / 256);
-    const maxTileX = Math.floor((centerWx + safeWidth / 2) / 256);
-    const minTileY = Math.floor((centerWy - safeHeight / 2) / 256);
-    const maxTileY = Math.floor((centerWy + safeHeight / 2) / 256);
-    const numTilesX = 1 << bestZoom;
+    const minTileX = Math.floor((centerWx - coverageWidth / 2) / tileSize);
+    const maxTileX = Math.floor((centerWx + coverageWidth / 2) / tileSize);
+    const minTileY = Math.floor((centerWy - coverageHeight / 2) / tileSize);
+    const maxTileY = Math.floor((centerWy + coverageHeight / 2) / tileSize);
+    const numTilesX = 1 << tileZoom;
 
     for (let tx = minTileX; tx <= maxTileX; tx++) {
       for (let ty = minTileY; ty <= maxTileY; ty++) {
-        if (ty < 0 || ty >= (1 << bestZoom)) continue;
+        if (ty < 0 || ty >= (1 << tileZoom)) continue;
         const normalizedTx = ((tx % numTilesX) + numTilesX) % numTilesX;
 
-        const tileScreenX = safeWidth / 2 + (tx * 256 - centerWx);
-        const tileScreenY = safeHeight / 2 + (ty * 256 - centerWy);
+        const tileScreenX = safeWidth / 2 + (tx * tileSize - centerWx);
+        const tileScreenY = safeHeight / 2 + (ty * tileSize - centerWy);
 
         // Servidores Oficiais Esri ArcGIS:
         // Modo Satélite: World_Imagery (Foto aérea e satélite real em altíssima resolução)
         // Modo Padrão: World_Street_Map (Ruas, avenidas, nomes e relevo com dados geográficos reais e livres de marcas d'água de API)
         // Ambos possuem CORS total (Access-Control-Allow-Origin: *), garantindo exportação transparente sem falha no canvas
         const url = mapMode === 'satellite'
-          ? `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${bestZoom}/${ty}/${normalizedTx}`
-          : `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${bestZoom}/${ty}/${normalizedTx}`;
+          ? `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${tileZoom}/${ty}/${normalizedTx}`
+          : `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${tileZoom}/${ty}/${normalizedTx}`;
 
         const fallbackUrl = mapMode === 'satellite'
-          ? `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/${bestZoom}/${ty}/${normalizedTx}`
-          : `https://tile.openstreetmap.org/${bestZoom}/${normalizedTx}/${ty}.png`;
+          ? `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/${tileZoom}/${ty}/${normalizedTx}`
+          : `https://tile.openstreetmap.org/${tileZoom}/${normalizedTx}/${ty}.png`;
 
         tiles.push({
           url,
           fallbackUrl,
-          x: Math.round(tileScreenX),
-          y: Math.round(tileScreenY),
-          width: 256,
-          height: 256,
-          key: `${bestZoom}-${normalizedTx}-${ty}`
+          x: tileScreenX,
+          y: tileScreenY,
+          width: tileSize + 0.5,
+          height: tileSize + 0.5,
+          key: `${tileZoom}-${normalizedTx}-${ty}`
         });
       }
     }

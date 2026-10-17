@@ -30,6 +30,7 @@ import {
   ZoomOut,
   LocateFixed
 } from 'lucide-react';
+import { applyMapGesture, MapGesture } from '../utils/mapGestures';
 import { RouteData } from '../utils/gpsUtils';
 import { exportElementAsImage } from '../utils/exporter';
 import { 
@@ -129,7 +130,7 @@ interface SocialWorkoutMapRendererProps {
   isDarkText: boolean;
   strokeMainColor: string;
   mapView: MapViewAdjustment;
-  onPan: (dx: number, dy: number) => void;
+  onGesture: (gesture: MapGesture) => void;
   fullBleed?: boolean;
 }
 
@@ -146,11 +147,11 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
   isDarkText,
   strokeMainColor,
   mapView,
-  onPan,
+  onGesture,
   fullBleed = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
   const [dims, setDims] = useState<{ width: number; height: number }>({
     width: 250,
     height: aspectRatio === 'square' ? 98 : aspectRatio === 'portrait' ? 145 : 190
@@ -183,23 +184,32 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
       ref={containerRef}
       data-social-map="true"
       data-map-zoom={tileLayout.zoom}
-      aria-label="Mapa da postagem; arraste para ajustar o enquadramento"
+      aria-label="Mapa da postagem; arraste para mover, pince com dois dedos para ampliar e gire para orientar"
+      data-map-bearing={mapView.bearing || 0}
       onPointerDown={event => {
         if (event.pointerType === 'mouse' && event.button !== 0) return;
         event.preventDefault();
-        dragRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        if (pointers.current.size < 2) pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={event => {
-        const drag = dragRef.current;
-        if (!drag || drag.id !== event.pointerId) return;
+        if (!pointers.current.has(event.pointerId)) return;
+        event.preventDefault();
+        const before = [...pointers.current.values()];
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        const after = [...pointers.current.values()];
         const bounds = event.currentTarget.getBoundingClientRect();
-        if (bounds.width > 0 && bounds.height > 0) onPan((event.clientX - drag.x) / bounds.width, (event.clientY - drag.y) / bounds.height);
-        drag.x = event.clientX; drag.y = event.clientY;
+        if (!bounds.width || !bounds.height) return;
+        const center = (points: {x:number;y:number}[]) => ({x: (points.reduce((sum, p) => sum + p.x, 0) / points.length - bounds.left) / bounds.width, y: (points.reduce((sum, p) => sum + p.y, 0) / points.length - bounds.top) / bounds.height});
+        const distance = (points: {x:number;y:number}[]) => Math.hypot(points[1].x-points[0].x, points[1].y-points[0].y);
+        const angle = (points: {x:number;y:number}[]) => Math.atan2(points[1].y-points[0].y, points[1].x-points[0].x) * 180 / Math.PI;
+        const pinch = before.length === 2 && distance(before) > 8 && distance(after) > 8;
+        const zoomDelta = pinch ? Math.max(3 - tileLayout.zoom, Math.min(19 - tileLayout.zoom, Math.log2(distance(after) / distance(before)))) : 0;
+        onGesture({ from: center(before), to: center(after), zoomDelta, rotationDelta: pinch ? ((angle(after) - angle(before) + 540) % 360 - 180) : 0, width: tileLayout.width, height: tileLayout.height });
       }}
-      onPointerUp={() => { dragRef.current = null; }}
-      onPointerCancel={() => { dragRef.current = null; }}
-      onLostPointerCapture={() => { dragRef.current = null; }}
+      onPointerUp={event => { pointers.current.delete(event.pointerId); }}
+      onPointerCancel={event => { pointers.current.delete(event.pointerId); }}
+      onLostPointerCapture={event => { pointers.current.delete(event.pointerId); }}
       className={fullBleed ? 'absolute inset-0 w-full h-full overflow-hidden' : `relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
         aspectRatio === 'square'
           ? 'h-[82px] sm:h-[98px]'
@@ -215,8 +225,9 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
       }}
     >
       <div style={fullBleed ? { position: 'absolute', left: 0, top: 0, width: tileLayout.width, height: tileLayout.height, transform: `scale(${dims.width / tileLayout.width})`, transformOrigin: 'top left' } : { position: 'absolute', inset: 0 }}>
+      <div style={{position: 'absolute', inset: 0, transform: `rotate(${mapView.bearing || 0}deg)`, transformOrigin: 'center'}}>
       {/* 1. Camada de Tiles do Mapa com Esri ArcGIS Oficial */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none">
         {tileLayout.tiles.map((tile) => (
           <img
             key={tile.key}
@@ -252,7 +263,7 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
       {/* 2. Traçado Vetorial com Coordenadas 1:1 Travadas no Mapa */}
       <svg
         viewBox={`0 0 ${tileLayout.width} ${tileLayout.height}`}
-        className="absolute inset-0 w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.75)]"
+        className="absolute inset-0 w-full h-full overflow-visible filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.75)]"
       >
         {tileLayout.pathData ? (
           <>
@@ -321,6 +332,7 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
         )}
       </svg>
 
+      </div>
       </div>
       {/* 3. Badge do Modo do Mapa */}
       <div className={`${fullBleed ? 'hidden' : ''} absolute bottom-1 right-1.5 z-20 pointer-events-none`}>
@@ -422,13 +434,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
     data.initialBackgroundType === 'photo' ? 'transparent' : (points.length >= 2 ? 'standard' : 'transparent')
   );
 
-  const [mapView, setMapView] = useState<MapViewAdjustment>({ zoomOffset: 0, panX: 0, panY: 0 });
-  const panMap = (dx: number, dy: number) => setMapView(previous => ({
-    ...previous, panX: previous.panX - dx, panY: previous.panY - dy
-  }));
-  const changeZoom = (delta: number) => setMapView(previous => ({
-    zoomOffset: Math.max(-3, Math.min(4, previous.zoomOffset + delta)),
-    panX: previous.panX * Math.pow(2, delta), panY: previous.panY * Math.pow(2, delta)
+  const [mapView, setMapView] = useState<MapViewAdjustment>({ zoomOffset: 0, panX: 0, panY: 0, bearing: 0 });
+  const gestureMap = (gesture: MapGesture) => setMapView(previous => applyMapGesture(previous, gesture));
+  const changeZoom = (delta: number) => setMapView(previous => applyMapGesture(previous, {
+    from: {x: .5, y: .5}, to: {x: .5, y: .5}, zoomDelta: Math.max(3 - tileLayout.zoom, Math.min(19 - tileLayout.zoom, delta)), rotationDelta: 0, width: 450, height: 800
   }));
 
   // Generate SVG Route
@@ -777,7 +786,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
               {cardLayout === 'map' && !isStrength ? (
                 <>
-                  <SocialWorkoutMapRenderer fullBleed points={points} mapMode={mapDisplayMode === 'transparent' ? 'standard' : mapDisplayMode} aspectRatio={aspectRatio} routeColor={stravaRouteColor} isDarkText={false} strokeMainColor={strokeMainColor} mapView={mapView} onPan={panMap} />
+                  <SocialWorkoutMapRenderer fullBleed points={points} mapMode={mapDisplayMode === 'transparent' ? 'standard' : mapDisplayMode} aspectRatio={aspectRatio} routeColor={stravaRouteColor} isDarkText={false} strokeMainColor={strokeMainColor} mapView={mapView} onGesture={gestureMap} />
                   <div className="absolute inset-0 pointer-events-none" style={{background: 'linear-gradient(to bottom, rgba(0,0,0,.15), transparent 28%, rgba(0,0,0,.12) 43%, rgba(0,0,0,.85) 100%)'}} />
                   <div className="absolute inset-x-0 bottom-0 p-5 pointer-events-none text-white" style={{color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,.7)'}}>
                     {showLogo && <img src={processedLogoUrl} alt="ProRun LB" className="w-24 h-12 object-contain object-left mb-2" />}
@@ -949,7 +958,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                             points={points}
                             mapMode={mapDisplayMode}
                             mapView={mapView}
-                            onPan={panMap}
+                            onGesture={gestureMap}
                             aspectRatio={aspectRatio}
                             routeColor={stravaRouteColor}
                             isDarkText={isDarkText}
@@ -1417,7 +1426,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                       points={points}
                       mapMode={mapDisplayMode}
                       mapView={mapView}
-                      onPan={panMap}
+                      onGesture={gestureMap}
                       aspectRatio={aspectRatio}
                       routeColor={stravaRouteColor}
                       isDarkText={isDarkText}
@@ -1785,9 +1794,9 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 <button type="button" aria-label="Diminuir zoom do mapa" disabled={mapDisplayMode === 'transparent' || mapView.zoomOffset <= -3 || tileLayout.zoom <= 3} onClick={() => changeZoom(-1)} className="p-2.5 rounded-xl bg-white/10 text-white disabled:opacity-30"><ZoomOut className="w-4 h-4" /></button>
                 <span className="text-[10px] font-black uppercase italic tracking-wider text-slate-300">Zoom</span>
                 <button type="button" aria-label="Aumentar zoom do mapa" disabled={mapDisplayMode === 'transparent' || mapView.zoomOffset >= 4 || tileLayout.zoom >= 19} onClick={() => changeZoom(1)} className="p-2.5 rounded-xl bg-emerald-700 text-white disabled:opacity-30"><ZoomIn className="w-4 h-4" /></button>
-                <button type="button" onClick={() => setMapView({ zoomOffset: 0, panX: 0, panY: 0 })} className="px-3 py-2.5 rounded-xl bg-white/10 text-white text-[9px] font-black uppercase italic tracking-wider inline-flex items-center gap-1.5"><LocateFixed className="w-3.5 h-3.5" /> Enquadrar percurso</button>
+                <button type="button" onClick={() => setMapView({ zoomOffset: 0, panX: 0, panY: 0, bearing: 0 })} className="px-3 py-2.5 rounded-xl bg-white/10 text-white text-[9px] font-black uppercase italic tracking-wider inline-flex items-center gap-1.5"><LocateFixed className="w-3.5 h-3.5" /> Enquadrar percurso</button>
               </div>
-              <p className="text-[10px] text-slate-400 text-center">{mapDisplayMode === 'transparent' ? 'Escolha Ruas ou Satélite para aproximar os detalhes do local.' : 'Use + e − para aproximar. Arraste o mapa para escolher o local. O enquadramento será usado na imagem da postagem.'}</p>
+              <p className="text-[10px] text-slate-400 text-center">{mapDisplayMode === 'transparent' ? 'Escolha Ruas ou Satélite para aproximar os detalhes do local.' : 'Use dois dedos para aproximar e girar. Arraste com um dedo para mover. O enquadramento será usado na imagem da postagem.'}</p>
             </section>}
 
             {/* Preview Status Pill & Quick Action Bar (Logo abaixo da Foto em Primeiro Plano) */}

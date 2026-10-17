@@ -1491,8 +1491,8 @@ const Periodization: React.FC = () => {
           <div className="xl:col-span-3 space-y-8">
             {fullPlan?.weeks && fullPlan.weeks.length > 0 ? (
               fullPlan.weeks.map((week, weekIndex) => (
-                <div key={weekIndex} className={`bg-slate-900/50 rounded-3xl shadow-sm border-2 ${week.isVisible === false ? 'opacity-40 border-white/5' : 'border-white/10'} overflow-hidden transition-all`}>
-                  <div className="bg-white/5 px-4 md:px-6 py-4 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div key={weekIndex} data-training-week={weekIndex} className={`bg-slate-900/50 rounded-3xl shadow-sm border-2 ${week.isVisible === false ? 'border-dashed border-slate-500' : 'border-white/10'} overflow-hidden transition-all`}>
+                  <div className="bg-white/5 px-4 md:px-6 py-4 border-b border-white/5 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-1">
                         <span className="font-black text-emerald-400 text-[9px] md:text-[10px] uppercase tracking-widest border border-emerald-500/20 px-2 md:px-3 py-1 rounded-lg italic whitespace-nowrap">SEMANA {week.weekNumber}</span>
@@ -1548,16 +1548,9 @@ const Periodization: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+                    <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
                       {isEditing ? (
                         <>
-                          <button 
-                             onClick={handleSave}
-                             className="flex-shrink-0 px-2.5 md:px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all italic flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 border border-emerald-500/20"
-                             title="Publicar Edição desta Planilha para o Atleta"
-                          >
-                             <CheckCircle className="w-3.5 h-3.5" /> <span>Publicar</span>
-                          </button>
                           <button 
                              onClick={() => setIsEditing(false)}
                              className="flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[8px] md:text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-all italic flex items-center gap-1.5"
@@ -1589,14 +1582,6 @@ const Periodization: React.FC = () => {
                       >
                          <Save className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Salvar</span>
                       </button>
-                      <button 
-                         onClick={() => handleDownloadSingleWeek(weekIndex)}
-                         disabled={exportLoading}
-                         className="flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl border border-emerald-500/20 text-[8px] md:text-[9px] font-black uppercase text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all italic flex items-center gap-1.5 disabled:opacity-40"
-                         title="Baixar Semana"
-                      >
-                         {exportLoading && exportingWeekIdx === weekIndex ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} <span className="hidden xs:inline">Baixar</span>
-                      </button>
                       <button onClick={() => {
                           const newPlan = safeDeepClone(fullPlan);
                           newPlan.weeks[weekIndex].isVisible = !newPlan.weeks[weekIndex].isVisible;
@@ -1625,12 +1610,12 @@ const Periodization: React.FC = () => {
                   </div>
                   <div className="divide-y divide-white/5">
                     {week.workouts.map((workout, dayIndex) => (
-                      <div key={dayIndex} className={`p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center border-l-8 hover:bg-white/5 transition-colors ${
+                      <div key={dayIndex} className={`p-4 min-w-0 flex flex-col xl:flex-row gap-4 items-start xl:items-center border-l-8 hover:bg-white/5 transition-colors ${
                         workout.type === 'Prova' 
                           ? 'border-amber-500 bg-amber-500/10' 
                           : 'border-white/5'
                       }`}>
-                        <div className="w-full sm:w-40 flex flex-row sm:flex-col justify-between items-center sm:items-start gap-2">
+                        <div className="w-full xl:w-40 flex flex-row xl:flex-col justify-between items-center xl:items-start gap-2">
                            <div className="flex items-center gap-2">
                              {isEditing && (
                                <div className="flex items-center gap-0.5">
@@ -1664,7 +1649,7 @@ const Periodization: React.FC = () => {
                              </div>
                            </div>
                            {isEditing ? (
-                              <div className="relative w-32 sm:w-full">
+                              <div className="relative w-32 xl:w-full">
                                 <select 
                                   className="w-full bg-white/5 border border-white/10 text-white rounded-lg p-1 text-[9px] font-black uppercase italic outline-none appearance-none pr-6"
                                   value={workout.type}
@@ -1688,7 +1673,7 @@ const Periodization: React.FC = () => {
                               }`}>{workout.type}</p>
                            )}
                         </div>
-                        <div className="flex-1 w-full relative group">
+                        <div className="flex-1 min-w-0 w-full relative group">
                            {isEditing ? (
                               <div className="flex flex-col gap-2">
                                 <div className="relative">
@@ -1956,10 +1941,10 @@ const Periodization: React.FC = () => {
                               </div>
                            )}
                         </div>
-                        <div className="w-full sm:w-auto flex justify-end items-center border-t sm:border-none border-white/5 pt-2 sm:pt-0 mt-1 sm:mt-0">
+                        <div className="w-full xl:w-auto flex justify-end items-center border-t xl:border-none border-white/5 pt-2 xl:pt-0 mt-1 xl:mt-0">
                            {isEditing ? (
                               <div className="flex items-center gap-2">
-                                <span className="text-[8px] font-black text-slate-500 uppercase sm:hidden">KM:</span>
+                                <span className="text-[8px] font-black text-slate-500 uppercase xl:hidden">KM:</span>
                                 <input 
                                   type="number" 
                                   className="w-16 bg-white/5 border border-white/10 text-white rounded-lg p-1 text-center font-black text-sm outline-none focus:ring-1 focus:ring-emerald-500" 
@@ -1983,6 +1968,14 @@ const Periodization: React.FC = () => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div data-week-actions className="px-4 md:px-6 py-4 border-t border-white/10 bg-white/5 flex flex-wrap items-center justify-end gap-3">
+                    <button type="button" onClick={handleSave} className="flex-1 sm:flex-none min-w-0 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2">
+                      <CheckCircle className="w-4 h-4 shrink-0" /> Publicar
+                    </button>
+                    <button type="button" onClick={() => handleDownloadSingleWeek(weekIndex)} disabled={exportLoading} className="flex-1 sm:flex-none min-w-0 px-5 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2 disabled:opacity-50">
+                      {exportLoading && exportingWeekIdx === weekIndex ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <Download className="w-4 h-4 shrink-0" />} {exportLoading && exportingWeekIdx === weekIndex ? 'Gerando...' : 'Baixar'}
+                    </button>
                   </div>
                 </div>
               ))

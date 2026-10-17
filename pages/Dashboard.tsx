@@ -703,7 +703,7 @@ export default function Dashboard() {
             {/* Medidor de Bateria Corporal do Atleta */}
             <div className={`w-full lg:w-auto p-3.5 px-5 rounded-2xl border flex items-center justify-between lg:justify-end gap-4 ${energyLevelData.bgColor}`}>
               <div className="flex items-center gap-3">
-                <div className="relative flex items-center justify-center">
+                <div className="relative flex items-center justify-center w-10 h-8 shrink-0">
                   <Battery className="w-7 h-7 text-slate-700" />
                   <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-900">
                     {energyLevelData.score}%

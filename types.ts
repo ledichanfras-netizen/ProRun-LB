@@ -280,7 +280,7 @@ export interface TrainingWeek {
     }[];
 }
 
-export type FreeRun = TrainingWeek["workouts"][number] & { id: string };
+export type FreeRun = TrainingWeek["workouts"][number] & { id: string; startTime?: string; createdAt?: string; updatedAt?: string };
 
 export interface AthletePlan {
   freeRuns?: FreeRun[];

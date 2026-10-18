@@ -1,3 +1,4 @@
+import { RunRouteDetails } from '../components/RunRouteDetails';
 import { activityDistance, freeRunsInWeek, getActivityWeeks, getTrainingActivities, weekStart } from '../utils/trainingActivities';
 import {MenstrualReadinessFields,MenstrualReadinessSummary} from '../components/MenstrualReadiness';
 import {normalizeMenstrualReadiness,type MenstrualReadiness,type MenstrualPhase} from '../utils/menstrualReadiness';
@@ -4833,12 +4834,6 @@ const AthletePortal: React.FC = () => {
                         const activeRoute = currentGpsRoute || selectedWorkout.data.gpsRoute;
                         const routeCadence = activeRoute?.avgCadence;
                         const routeCalories = activeRoute?.calories;
-                        const routeSplits = activeRoute?.kmSplits || [];
-                        const routePoints = (activeRoute?.points && activeRoute.points.length > 0)
-                          ? activeRoute.points 
-                          : (activeRoute?.polyline || (activeRoute as any)?.encodedPolyline 
-                              ? decodePolyline(activeRoute.polyline || (activeRoute as any).encodedPolyline) 
-                              : []);
 
                         return (
                           <div className="space-y-4">
@@ -4904,78 +4899,7 @@ const AthletePortal: React.FC = () => {
                               </div>
                             </div>
 
-                            {/* Se houver rota GPS gravada: Mini Mapa + Parciais + Gráficos de Telemetria */}
-                            {activeRoute && (
-                              <div className="space-y-4 pt-2">
-                                {/* Mapa da Rota Gravada */}
-                                {routePoints.length > 1 && (
-                                  <div className="rounded-2xl overflow-hidden border border-white/10 h-44 relative shadow-md">
-                                    <WorkoutMap
-                                      points={routePoints}
-                                      height="100%"
-                                      interactive={false}
-                                    />
-                                    <div className="absolute top-2 left-2 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-[9px] font-mono text-emerald-400 font-bold border border-emerald-500/30">
-                                      🗺️ Rota Percorrida • {activeRoute.totalDistanceKm || activeRoute.distanceKm || actualDistanceValue} km
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Tabela de Parciais por Quilômetro (Splits) */}
-                                {routeSplits.length > 0 && (
-                                  <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
-                                    isLight ? 'bg-slate-100/70 border-slate-200' : 'bg-slate-950/50 border-white/10'
-                                  }`}>
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
-                                        <Timer className="w-3.5 h-3.5" /> Parciais por Quilômetro
-                                      </span>
-                                      <span className="text-[9px] font-mono text-slate-400 font-bold">
-                                        {routeSplits.length} {routeSplits.length === 1 ? 'KM registrado' : 'KMs registrados'}
-                                      </span>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                      {routeSplits.map((split: any) => (
-                                        <div 
-                                          key={split.km} 
-                                          className={`p-2 rounded-xl border text-center ${
-                                            isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-white/5'
-                                          }`}
-                                        >
-                                          <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 mb-0.5">
-                                            <span>KM {split.km}</span>
-                                            {split.avgCadence && (
-                                              <span className="text-purple-400 font-mono text-[8px]">{split.avgCadence} spm</span>
-                                            )}
-                                          </div>
-                                          <div className="text-xs font-mono font-black text-amber-400">
-                                            {split.pace}/km
-                                          </div>
-                                          <div className="text-[8px] font-mono text-slate-400">
-                                            Total: {split.splitTime}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Gráficos Esportivos de Telemetria (Pace, Elevação, Cadência) */}
-                                <div className="space-y-1">
-                                  <WorkoutTelemetryCharts
-                                    telemetrySamples={activeRoute.telemetry || activeRoute.telemetrySamples}
-                                    kmSplits={activeRoute.kmSplits}
-                                    avgCadence={activeRoute.avgCadence}
-                                    calories={activeRoute.calories}
-                                    elevationGainMeters={activeRoute.elevationGainMeters}
-                                    totalDistanceKm={activeRoute.totalDistanceKm || activeRoute.distanceKm || (actualDistanceValue ? Number(actualDistanceValue) : undefined)}
-                                    totalDurationSeconds={activeRoute.totalDurationSeconds}
-                                    isLight={isLight}
-                                  />
-                                </div>
-                              </div>
-                            )}
+                            {activeRoute && <RunRouteDetails route={activeRoute} isLight={isLight} />}
                           </div>
                         );
                       })()}

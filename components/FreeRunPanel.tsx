@@ -8,6 +8,8 @@ import { WorkoutShareModal, WorkoutShareData } from './WorkoutShareModal';
 import { RouteData, formatPace } from '../utils/gpsUtils';
 import { WorkoutMap } from './WorkoutMap';
 import { normalizeGpsPoints } from '../utils/socialCardUtils';
+import { activityDistance, getTrainingActivities, weekStart } from '../utils/trainingActivities';
+import { calculateWorkoutTRIMP } from '../utils/stressModel';
 import { getAppNow, getTodayDateString } from '../utils/time';
 import { clearActiveWorkoutBackup, clearUnsavedRouteBackup, getActiveWorkoutBackup, getUnsavedRouteBackup } from '../utils/gpsUtils';
 
@@ -27,7 +29,17 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   const [resume, setResume] = useState(false);
   const runId = useRef('');
   const saveLock = useRef(false);
-  const runs = athletePlans[athlete.id]?.freeRuns || [];
+  const plan = athletePlans[athlete.id];
+  const runs = plan?.freeRuns || [];
+  const today = getTodayDateString();
+  const activities = getTrainingActivities(plan).filter(run => run.completed && run.type !== 'Descanso');
+  const dailyActivities = activities.filter(run => run.date === today);
+  const weeklyActivities = activities.filter(run => weekStart(run.date) === weekStart(today));
+  const hasWeeklyFreeRun = weeklyActivities.some(run => run.isFreeRun);
+  const freeToday = dailyActivities.some(run => run.isFreeRun);
+  const dailyKm = dailyActivities.reduce((sum, run) => sum + activityDistance(run), 0);
+  const weeklyKm = weeklyActivities.reduce((sum, run) => sum + activityDistance(run), 0);
+  const dailyLoad = dailyActivities.reduce((sum, run) => sum + calculateWorkoutTRIMP(run, athlete.metrics.vdot), 0);
   const activeBackup = getActiveWorkoutBackup();
   const unsavedBackup = getUnsavedRouteBackup();
   const recoverable = activeBackup?.weekIndex === -1 || unsavedBackup?.workoutContext?.weekIndex === -1;
@@ -81,7 +93,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   const saveCapturedWorkout = async (captured: RouteData) => {
     if (!captured.completion) { capture(captured); return; }
     const { rpe: effort, observations: notes } = captured.completion;
-    const seconds = captured.totalDurationSeconds;
+    const seconds = Math.round(captured.totalDurationSeconds);
     const duration = `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`;
     await saveFreeRun(athlete.id, {
       id: runId.current || (runId.current = crypto.randomUUID()),
@@ -128,7 +140,13 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
       </div>
       {recoverable && <button className="text-amber-400 text-sm font-bold" onClick={recover}>Recuperar corrida livre pendente</button>}
       </>}
-      {success && <p role="status" className="text-emerald-400 text-sm">Corrida salva no histórico.</p>}
+      {hasWeeklyFreeRun && <div data-free-run-summary className="w-full rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/20 text-slate-200 space-y-2">
+        <p className="text-xs font-black uppercase italic text-emerald-400">{freeToday ? 'Corrida livre concluída hoje' : 'Corrida livre contabilizada na semana'}</p>
+        <p className="text-sm font-bold">Hoje: {dailyActivities.length} treino(s) · {dailyKm.toFixed(2).replace('.', ',')} km</p>
+        <p className="text-xs">Semana: {weeklyKm.toFixed(2).replace('.', ',')} km · Carga de hoje: {dailyLoad} UA</p>
+        <p className="text-[10px] text-slate-400">Totais incluem os treinos prescritos e as corridas livres.</p>
+      </div>}
+      {success && <p role="status" className="text-emerald-400 text-sm">Corrida salva e contabilizada nos treinos e métricas.</p>}
       {!mode && error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
       {!compact && history}
       {mode && createPortal(<div className="fixed inset-0 z-[10001] bg-slate-950 overflow-y-auto p-4">

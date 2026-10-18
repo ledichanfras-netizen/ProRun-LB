@@ -3,6 +3,7 @@ import type {MenstrualPhase} from '../utils/menstrualReadiness';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { FreeRun, Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal, Exercise } from '../types';
 import { getHrRangeString } from '../utils/calculations';
+import { getActivityWeeks, activityDistance } from '../utils/trainingActivities';
 import { safeDeepClone } from '../utils/helpers';
 import { analyzeAthletePerformance } from '../services/performanceService';
 import { updateGamificationData, countCompletedWorkouts, calculateAthleteGamification } from '../services/gamificationService';
@@ -845,6 +846,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, { onConflict: 'athlete_id' });
     if (error) throw error;
     setAthletePlans(prev => ({ ...prev, [athleteId]: nextPlan }));
+    const athlete = athletes.find(item => item.id === athleteId);
+    if (athlete) {
+      const { updatedData } = calculateAthleteGamification({...athletePlans, [athleteId]: nextPlan}, athleteId, athlete.gamification, athlete.archivedPlans);
+      await updateAthlete(athleteId, {gamification: updatedData});
+    }
   };
 
   const clearAthletePlan = async (athleteId: string) => {
@@ -1139,7 +1145,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const getAthleteMetrics = useCallback((athleteId: string) => {
     const plan = athletePlans[athleteId];
-    const allWeeks = plan?.weeks || [];
+    const allWeeks = getActivityWeeks(plan, true);
     const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
     let totalWorkouts = 0;
     let completedWorkouts = 0;
@@ -1153,7 +1159,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           weekPlanned += w.distance;
         }
         if (w.completed) {
-          weekCompleted += w.actualDistance !== undefined ? w.actualDistance : (w.distance || 0);
+          weekCompleted += activityDistance(w);
         }
         if (w.type !== 'Descanso') {
           totalWorkouts++;

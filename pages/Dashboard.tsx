@@ -1,3 +1,5 @@
+import { getTrainingActivities } from '../utils/trainingActivities';
+import { getTodayDateString } from '../utils/time';
 import {MenstrualReadinessSummary} from '../components/MenstrualReadiness';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -95,15 +97,15 @@ export default function Dashboard() {
       const aPlan = athletePlans[athlete.id];
       if (!aPlan || !aPlan.weeks) return [];
       
-      return aPlan.weeks.flatMap(week => (week.workouts || []).filter(w => w.completed).map(w => ({
+      return getTrainingActivities(aPlan).filter(w => w.completed).map(w => ({
         athleteId: athlete.id,
         athleteName: athlete.name,
         day: w.day,
         type: w.type,
         feedback: w.feedback,
         rpe: w.rpe || 0,
-        timestamp: getAppNow()
-      })));
+        timestamp: new Date(w.date + 'T12:00:00')
+      }));
     });
   }, [athletes, athletePlans, selectedAthleteId]);
 
@@ -155,7 +157,7 @@ export default function Dashboard() {
     const totalAthletes = athletes.length;
     const activeAthletes = athletes.filter(a => {
       const plan = athletePlans[a.id];
-      const lastWorkout = plan?.weeks?.flatMap(w => w.workouts).filter(w => w.completed).pop();
+      const lastWorkout = getTrainingActivities(plan).filter(w => w.completed).pop();
       return !!lastWorkout;
     }).length;
 
@@ -171,26 +173,15 @@ export default function Dashboard() {
   const stressTimeline = useMemo(() => {
     if (!activeAthlete || !athletePlan || !athletePlan.weeks) return [];
     const vdot = activeAthlete.metrics.vdot || 45;
-    return calculateATL_CTL_TSB(athletePlan.weeks, vdot, athletePlan.startDate);
+    return calculateATL_CTL_TSB(athletePlan.weeks, vdot, athletePlan.startDate, athletePlan.freeRuns);
   }, [activeAthlete, athletePlan]);
 
   const currentStress = useMemo(() => {
     if (stressTimeline.length === 0) return { ctl: 0, atl: 0, tsb: 0 };
     
-    // Se tiver data de início, vamos achar o dia de "hoje" na timeline
-    if (athletePlan?.startDate) {
-      const start = new Date(athletePlan.startDate);
-      const today = new Date();
-      
-      // Diferença em dias
-      const diffTime = today.getTime() - start.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays >= 0 && diffDays < stressTimeline.length) {
-        return stressTimeline[diffDays];
-      }
-    }
-    
+    const todayMetrics = stressTimeline.find(day => day.date === getTodayDateString());
+    if (todayMetrics) return todayMetrics;
+
     // Fallback: usar o último dia que tem algum treino concluído
     const lastCompletedIdx = [...stressTimeline].reverse().findIndex(d => d.trimp > 0);
     if (lastCompletedIdx !== -1) {

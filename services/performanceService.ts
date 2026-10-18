@@ -1,3 +1,4 @@
+import { getTrainingActivities } from '../utils/trainingActivities';
 import {withoutMenstrualData} from '../utils/menstrualReadiness';
 
 import { GoogleGenAI, Type } from "@google/genai";
@@ -8,7 +9,7 @@ export async function analyzeAthletePerformance(athlete: Athlete, plan: AthleteP
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const model = "gemini-3-flash-preview";
   
-  const recentWorkouts = plan?.weeks.flatMap((w: TrainingWeek) => w.workouts.filter((work: any) => work.completed)) || [];
+  const recentWorkouts = getTrainingActivities(plan).filter(work => work.completed);
   const recentRPEs = recentWorkouts.map((w: any) => w.rpe || 0);
   const avgRPE = recentRPEs.length > 0 ? recentRPEs.reduce((a: number, b: number) => a + b, 0) / recentRPEs.length : 0;
   

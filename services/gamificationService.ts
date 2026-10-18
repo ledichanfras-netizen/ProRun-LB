@@ -1,4 +1,5 @@
 import { Athlete, GamificationData, UserAchievement, UserGoal, TrainingWeek } from "../types";
+import { getActivityWeeks } from '../utils/trainingActivities';
 import { getAppNow } from "../utils/time";
 
 const XP_PER_WORKOUT = 100;
@@ -20,7 +21,8 @@ export const countCompletedWorkouts = (
   extraArchivedPlans?: any[]
 ): number => {
   let count = 0;
-  const plan = allPlans[athleteId];
+  const sourcePlan = allPlans[athleteId];
+  const plan = sourcePlan ? {...sourcePlan, weeks: getActivityWeeks(sourcePlan)} : undefined;
   if (plan?.weeks && Array.isArray(plan.weeks)) {
     plan.weeks.forEach((w: any) => {
       (w.workouts || []).forEach((tw: any) => {
@@ -31,7 +33,8 @@ export const countCompletedWorkouts = (
     });
   }
   if (extraArchivedPlans && Array.isArray(extraArchivedPlans)) {
-    extraArchivedPlans.forEach((ap: any) => {
+    extraArchivedPlans.forEach((source: any) => {
+      const ap = {...source, weeks: getActivityWeeks(source)};
       (ap.weeks || []).forEach((w: any) => {
         (w.workouts || []).forEach((tw: any) => {
           if (tw.completed && tw.type !== 'Descanso') {
@@ -76,7 +79,10 @@ export const calculateAthleteGamification = (
     goals: [...(initialData.goals || [])]
   };
 
-  const plan = allPlans[athleteId];
+  const sourcePlan = allPlans[athleteId];
+  const plan = sourcePlan ? {...sourcePlan, weeks: getActivityWeeks(sourcePlan)} : undefined;
+
+  archivedPlans = archivedPlans?.map(source => ({...source, weeks: getActivityWeeks(source)}));
 
   // 1. Gather all non-rest scheduled workouts in chronological order
   const orderedWorkouts: {

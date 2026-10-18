@@ -1,3 +1,4 @@
+import { activityDistance, freeRunsInWeek, getActivityWeeks, getTrainingActivities, weekStart } from '../utils/trainingActivities';
 import {MenstrualReadinessFields,MenstrualReadinessSummary} from '../components/MenstrualReadiness';
 import {normalizeMenstrualReadiness,type MenstrualReadiness,type MenstrualPhase} from '../utils/menstrualReadiness';
 
@@ -582,6 +583,8 @@ const AthletePortal: React.FC = () => {
 
   const athletePlan = athletePlans[activeAthlete.id];
   const allWeeks = athletePlan?.weeks || [];
+  const activityWeeks = getActivityWeeks(athletePlan, true);
+  const activities = getTrainingActivities(athletePlan);
   const visibleWeeks = allWeeks
     .filter(w => w.isVisible === true)
     .sort((a, b) => a.weekNumber - b.weekNumber);
@@ -712,12 +715,13 @@ const AthletePortal: React.FC = () => {
     };
   }, [visibleWeeks, allWeeks, athletePlans, activeAthlete.id]);
 
-  const weeklyProgress = useMemo(() => {
-    if (!currentWeek) return { completed: 0, total: 0 };
-    const total = currentWeek.workouts.filter((w: any) => w.type !== 'Descanso').length;
-    const completed = currentWeek.workouts.filter((w: any) => w.completed && w.type !== 'Descanso').length;
-    return { completed, total };
-  }, [currentWeek]);
+  const progressWeekDate = currentWeek && athletePlan?.startDate
+    ? getWorkoutDateString(athletePlan.startDate, allWeeks.indexOf(currentWeek), 0) : getTodayDateString();
+  const weeklyFreeRuns = freeRunsInWeek(athletePlan, progressWeekDate);
+  const weeklyProgress = {
+    completed: (currentWeek?.workouts.filter((w: any) => w.completed && w.type !== 'Descanso').length || 0) + weeklyFreeRuns.length,
+    total: (currentWeek?.workouts.filter((w: any) => w.type !== 'Descanso').length || 0) + weeklyFreeRuns.length
+  };
 
   // Lógica de notificação automática de treino perdido
   useEffect(() => {
@@ -735,7 +739,7 @@ const AthletePortal: React.FC = () => {
         const yesterdayWorkout = activeW?.workouts[yesterdayIndex];
         
         // Se o treino de ontem era planejado, não era descanso e não foi concluído
-        if (yesterdayWorkout && yesterdayWorkout.type !== 'Descanso' && !yesterdayWorkout.completed) {
+        if (yesterdayWorkout && yesterdayWorkout.type !== 'Descanso' && !yesterdayWorkout.completed && !activities.some(run => run.completed && run.isFreeRun && run.date === getLocalDateString(new Date(getAppNow().getFullYear(), getAppNow().getMonth(), getAppNow().getDate()-1)))) {
           const lastNotifKey = `notif_missed_${activeAthlete.id}_${yesterdayIndex}_${getAppNow().toDateString()}`;
           const alreadyNotified = localStorage.getItem(lastNotifKey);
           
@@ -2817,10 +2821,14 @@ const AthletePortal: React.FC = () => {
             const today = getAppNow();
             const currentDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
             const isToday = i === currentDayIndex;
-            const workout = currentWeek?.workouts[i];
+            const dayDate = getWorkoutDateString(progressWeekDate, 0, i);
+            const freeToday = weeklyFreeRuns.filter(run => run.date === dayDate);
+            const prescribed = currentWeek?.workouts[i];
+            const workout = freeToday.length && (!prescribed || prescribed.type === 'Descanso') ? freeToday[0] : prescribed;
+            const displayedKm = freeToday.reduce((sum, run) => sum + activityDistance(run), 0) + (prescribed?.completed ? activityDistance(prescribed) : (freeToday.length ? 0 : prescribed?.distance || 0));
             const theme = getWorkoutTypeTheme(workout?.type);
-            const isCompleted = Boolean(workout?.completed);
-            const isRest = workout?.type === 'Descanso' || !workout?.type;
+            const isCompleted = Boolean(workout?.completed) || freeToday.length > 0;
+            const isRest = (workout?.type === 'Descanso' || !workout?.type) && !freeToday.length;
             const originalWeekIndex = allWeeks.findIndex(p => p.weekNumber === currentWeek?.weekNumber);
             const weekdaysFull = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
 
@@ -2829,7 +2837,7 @@ const AthletePortal: React.FC = () => {
                 key={i}
                 type="button"
                 onClick={() => {
-                  if (workout && originalWeekIndex >= 0) {
+                  if (prescribed && workout === prescribed && originalWeekIndex >= 0) {
                     setSelectedDayPerWeek(prev => ({ ...prev, [currentWeek.weekNumber]: i }));
                     openWorkoutModal(originalWeekIndex, i, workout);
                   }
@@ -2839,7 +2847,7 @@ const AthletePortal: React.FC = () => {
                     ? 'ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-900 scale-[1.03] z-10' 
                     : 'hover:scale-[1.02]'
                 }`}
-                title={`${weekdaysFull[i]}: ${workout?.type || 'Descanso'} ${workout?.distance ? `(${workout.distance} KM)` : ''}`}
+                title={`${weekdaysFull[i]}: ${freeToday.length ? 'Corrida livre concluída · ' : ''}${workout?.type || 'Descanso'} ${displayedKm ? `(${displayedKm} KM)` : ''}`}
               >
                 {/* Caixinha do Dia estilizada com a cor do treino proposto */}
                 <div 
@@ -2860,9 +2868,9 @@ const AthletePortal: React.FC = () => {
                     <span className="text-[7px] sm:text-[8px] font-black tracking-tighter uppercase italic opacity-95 truncate max-w-full">
                       {theme.code}
                     </span>
-                    {workout?.distance && workout.distance > 0 && !isRest ? (
+                    {displayedKm > 0 && !isRest ? (
                       <span className="text-[6px] font-extrabold opacity-80 hidden sm:inline">
-                        {workout.distance}k
+                        {displayedKm}k
                       </span>
                     ) : null}
                   </div>
@@ -2925,7 +2933,8 @@ const AthletePortal: React.FC = () => {
                const d = Number(curr.distance) || 0;
                return acc + (isNaN(d) ? 0 : d);
              }, 0);
-             const weekRealKm = (week.workouts || []).reduce((acc: number, curr: any) => {
+             const weekActivities = activityWeeks.find(item => item.weekStart === weekStart(getWorkoutDateString(athletePlan?.startDate || getTodayDateString(), originalWeekIndex, 0)))?.workouts || week.workouts;
+             const weekRealKm = (weekActivities || []).reduce((acc: number, curr: any) => {
                if (curr.completed) {
                  const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
                    ? Number(String(curr.actualDistance).replace(',', '.'))
@@ -3103,7 +3112,7 @@ const AthletePortal: React.FC = () => {
         <div className="min-h-[260px] w-full" style={{ height: 260, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart 
-              data={visibleWeeks.slice().sort((a, b) => a.weekNumber - b.weekNumber).map(w => {
+              data={activityWeeks.map(w => {
                 const planned = (w.workouts || []).reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
                 const real = (w.workouts || []).reduce((acc: number, curr: any) => {
                   if (curr.completed) {
@@ -3269,12 +3278,10 @@ const AthletePortal: React.FC = () => {
           const entry = historyList.find(e => e.date === dateString);
 
           let dayKm = 0;
-          athletePlan?.weeks?.forEach((w: any) => {
-            w.workouts?.forEach((work: any) => {
+          activities.forEach((work: any) => {
               if (work.date === dateString && work.completed && work.type !== 'Descanso') {
-                dayKm += Number(work.actualDistance || work.distance || 0);
+                dayKm += activityDistance(work);
               }
-            });
           });
 
           const sleepN = entry?.sleepScore !== undefined ? entry.sleepScore : null;

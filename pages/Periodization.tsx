@@ -1,3 +1,4 @@
+import { activityDistance, freeRunsInWeek } from '../utils/trainingActivities';
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -1527,7 +1528,8 @@ const Periodization: React.FC = () => {
                           return acc;
                         }, 0);
                         const fPlanned = Math.round(plannedKm * 10) / 10;
-                        const fReal = Math.round(realKm * 10) / 10;
+                        const freeKm = freeRunsInWeek(fullPlan, getWorkoutDateString(fullPlan.startDate || getTodayDateString(), weekIndex, 0)).reduce((sum, run) => sum + activityDistance(run), 0);
+                        const fReal = Math.round((realKm + freeKm) * 10) / 10;
                         return (
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1" title="Volume Planejado">

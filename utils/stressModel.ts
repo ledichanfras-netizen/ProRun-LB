@@ -1,4 +1,7 @@
-import { TrainingWeek } from '../types';
+import { FreeRun, TrainingWeek } from '../types';
+
+import { getTrainingActivities } from './trainingActivities';
+import { getAppNow, getLocalDateString, getWorkoutDateString, parseDateString } from './time';
 
 // Função para obter o RPE padrão se não estiver preenchido
 export function getDefaultRpeForType(type: string): number {
@@ -85,13 +88,14 @@ export function calculateWorkoutTRIMP(workout: {
   actualDuration?: string;
   rpe?: number;
   completed?: boolean;
+  gpsRoute?: { totalDurationSeconds?: number };
 }, vdot?: number): number {
   if (!workout.completed || workout.type === 'Descanso') return 0;
 
   const dist = workout.actualDistance ?? workout.distance ?? 0;
-  const rpe = (workout.rpe && workout.rpe > 0) ? workout.rpe : getDefaultRpeForType(workout.type);
+  const rpe = typeof workout.rpe === 'number' && Number.isFinite(workout.rpe) && workout.rpe >= 0 && workout.rpe <= 10 ? workout.rpe : getDefaultRpeForType(workout.type);
 
-  const explicitDurationMin = parseWorkoutDurationToMinutes(workout.actualDuration) || (workout.durationMinutes && workout.durationMinutes > 0 ? workout.durationMinutes : 0);
+  const explicitDurationMin = parseWorkoutDurationToMinutes(workout.actualDuration) || ((workout.gpsRoute?.totalDurationSeconds || 0) / 60) || (workout.durationMinutes && workout.durationMinutes > 0 ? workout.durationMinutes : 0);
 
   let durationMin = 0;
   const isStrength = Boolean(workout.type && (workout.type.toLowerCase().includes('fortalecimento') || workout.type.toLowerCase().includes('força') || workout.type.toLowerCase().includes('mobilidade')));
@@ -113,6 +117,7 @@ export function calculateWorkoutTRIMP(workout: {
 
 export interface DailyStressMetrics {
   dayIndex: number;
+  date: string;
   dateStr: string;
   weekNumber: number;
   workoutType?: string;
@@ -123,64 +128,30 @@ export interface DailyStressMetrics {
 }
 
 export function calculateATL_CTL_TSB(
-  weeks: TrainingWeek[],
-  vdot: number,
-  startDateStr?: string
+  weeks: TrainingWeek[], vdot: number, startDateStr?: string, freeRuns: FreeRun[] = [], now = getAppNow()
 ): DailyStressMetrics[] {
-  const dailyWorkouts: {
-    weekNumber: number;
-    dayName: string;
-    dayIndexInWeek: number;
-    workout: any;
-  }[] = [];
-
-  const sortedWeeks = [...weeks].sort((a, b) => a.weekNumber - b.weekNumber);
-
-  sortedWeeks.forEach((week) => {
-    week.workouts.forEach((workout, idx) => {
-      dailyWorkouts.push({
-        weekNumber: week.weekNumber,
-        dayName: workout.day,
-        dayIndexInWeek: idx,
-        workout,
-      });
-    });
-  });
-
+  const activities = getTrainingActivities({weeks, startDate: startDateStr, freeRuns});
+  if (!activities.length) return [];
+  const buckets = new Map<string, typeof activities>();
+  for (const activity of activities) buckets.set(activity.date, [...(buckets.get(activity.date) || []), activity]);
+  const dates = [...buckets.keys()].sort();
+  const start = parseDateString(dates[0]);
+  const today = getLocalDateString(now);
+  const end = dates[dates.length-1] > today ? dates[dates.length-1] : today;
   const timeline: DailyStressMetrics[] = [];
-  let prevCTL = 0;
-  let prevATL = 0;
-
-  const startDate = startDateStr ? new Date(startDateStr) : new Date();
-
-  dailyWorkouts.forEach((day, index) => {
-    const trimp = calculateWorkoutTRIMP(day.workout, vdot);
-
-    // Fórmulas exponenciais clássicas (EWMA):
-    // CTL (42 dias): CTL_t = CTL_t-1 + (TRIMP_t - CTL_t-1) / 42
-    // ATL (7 dias): ATL_t = ATL_t-1 + (TRIMP_t - ATL_t-1) / 7
-    const currentCTL = prevCTL + (trimp - prevCTL) / 42;
-    const currentATL = prevATL + (trimp - prevATL) / 7;
-    const currentTSB = currentCTL - currentATL;
-
-    const dateObj = new Date(startDate);
-    dateObj.setDate(startDate.getDate() + index);
-    const dateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-
-    timeline.push({
-      dayIndex: index,
-      dateStr,
-      weekNumber: day.weekNumber,
-      workoutType: day.workout.completed ? day.workout.type : undefined,
-      trimp,
-      ctl: Math.round(currentCTL * 10) / 10,
-      atl: Math.round(currentATL * 10) / 10,
-      tsb: Math.round(currentTSB * 10) / 10,
-    });
-
-    prevCTL = currentCTL;
-    prevATL = currentATL;
-  });
-
+  let prevCTL = 0, prevATL = 0;
+  const anchor = startDateStr || dates[0];
+  for (let day = new Date(start), index = 0; getLocalDateString(day) <= end; day.setDate(day.getDate()+1), index++) {
+    const date = getLocalDateString(day);
+    const workouts = buckets.get(date) || [];
+    const trimp = workouts.reduce((sum, workout)=>sum+calculateWorkoutTRIMP(workout, vdot), 0);
+    const ctl = prevCTL + (trimp-prevCTL)/42;
+    const atl = prevATL + (trimp-prevATL)/7;
+    const weekNumber = Math.floor((parseDateString(date).getTime()-parseDateString(getWorkoutDateString(anchor,0,0)).getTime())/604800000)+1;
+    timeline.push({dayIndex:index, date, dateStr: day.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}), weekNumber,
+      workoutType: workouts.filter(w=>w.completed && w.type !== 'Descanso').map(w=>w.isFreeRun ? 'Corrida livre' : w.type).join(' + ') || undefined,
+      trimp, ctl:Math.round(ctl*10)/10, atl:Math.round(atl*10)/10, tsb:Math.round((ctl-atl)*10)/10});
+    prevCTL=ctl;prevATL=atl;
+  }
   return timeline;
 }

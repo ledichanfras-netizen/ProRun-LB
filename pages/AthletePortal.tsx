@@ -1508,7 +1508,7 @@ const AthletePortal: React.FC = () => {
                   setPortalDate(todayDateStr);
                   setShowPortalForm(true);
                 }}
-                className={`relative overflow-hidden rounded-[2.5rem] p-6 sm:p-8 border flex flex-col items-center justify-center text-center transition-all space-y-6 shadow-md cursor-pointer group hover:scale-[1.01] ${
+                data-prorun-readiness className={`prorun-portal-readiness relative overflow-hidden rounded-[2.5rem] p-6 sm:p-8 border flex flex-col items-center justify-center text-center transition-all space-y-6 shadow-md cursor-pointer group hover:scale-[1.01] ${
                   isLight 
                     ? 'bg-[#eefcf7] border-[#ccf2e5] text-slate-800' 
                     : 'bg-slate-950/40 border-emerald-500/20 text-white'
@@ -2336,13 +2336,13 @@ const AthletePortal: React.FC = () => {
           )}
 
       {/* Card Destaque: Treino de Hoje */}
-      <div className="relative group">
-        <div className={`absolute -inset-1.5 rounded-[2.5rem] blur-md opacity-50 group-hover:opacity-75 transition duration-1000 animate-pulse ${
+      <div className="relative group prorun-today-wrap">
+        <div className={`prorun-today-glow absolute -inset-1.5 rounded-[2.5rem] blur-md opacity-50 group-hover:opacity-75 transition duration-1000 animate-pulse ${
           todayWorkout?.workout.type === 'Prova' 
             ? 'bg-gradient-to-r from-amber-500 via-orange-600 to-red-600' 
             : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600'
         }`}></div>
-        <div className={`relative rounded-[2.2rem] p-8 shadow-2xl overflow-hidden border transition-all duration-500 ${
+        <div data-prorun-today className={`prorun-today-card relative rounded-[2.2rem] p-5 sm:p-8 shadow-2xl overflow-hidden border transition-all duration-500 ${
           isLight
             ? todayWorkout?.workout.type === 'Prova'
               ? 'bg-gradient-to-br from-amber-50 via-white to-amber-50 border-amber-300 shadow-[0_15px_30px_rgba(245,158,11,0.15)] text-slate-800'

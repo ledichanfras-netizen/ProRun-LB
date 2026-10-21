@@ -546,3 +546,64 @@ html :is(button, a, span, div)[class~="bg-orange-500"]:not(:where(.share-card-st
 
 @keyframes rpe-feedback-pop { from { transform: scale(.96); opacity: .5; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: no-preference) { .rpe-feedback { animation: rpe-feedback-pop 180ms ease-out; } }
+
+/* ProRun card system: scoped to live dashboards, never share/print exports. */
+[data-prorun-cards] {
+  --pr-surface:#fff; --pr-inset:#f4f8f6; --pr-border:#dce9e3;
+  --pr-accent:#047857; --pr-ink:#102e25; --pr-muted:#52675f; --pr-track:#dcece5;
+  color:var(--pr-ink);
+}
+html.dark [data-prorun-cards] {
+  --pr-surface:#101e24; --pr-inset:#0c181f; --pr-border:#263d40;
+  --pr-accent:#5ce3b5; --pr-ink:#effaf5; --pr-muted:#b0c8bf; --pr-track:#23443d;
+}
+html [data-prorun-cards] .prorun-stat,
+html [data-prorun-cards] .prorun-panel,
+html [data-prorun-cards] .prorun-athlete-card {
+  background:var(--pr-surface)!important; border-color:var(--pr-border)!important;
+  color:var(--pr-ink)!important; box-shadow:0 8px 26px #052e1610;
+}
+.prorun-stat { position:relative; overflow:hidden; padding-top:4rem!important; transition:transform .18s,box-shadow .18s; }
+.prorun-stat:after {content:'';position:absolute;inset:auto 0 0;height:3px;background:linear-gradient(90deg,#059669,#6ee7b7);}
+.prorun-stat-icon {position:absolute;top:16px;left:16px;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:var(--pr-inset);color:var(--pr-accent);border:1px solid var(--pr-border);}
+html [data-prorun-cards] .prorun-stat-value {color:var(--pr-accent)!important;font-size:clamp(1.9rem,4vw,2.7rem);line-height:1.15;letter-spacing:-.06em;font-variant-numeric:tabular-nums;}
+.prorun-search {position:relative;}
+.prorun-search>svg {position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--pr-accent);pointer-events:none;}
+.prorun-search>input {padding-left:44px!important;min-height:48px;}
+.prorun-athlete-card {border-top:3px solid var(--pr-accent)!important;}
+html [data-prorun-cards] .prorun-athlete-card[data-state=attention] {border-top-color:#d99a30!important;}
+html [data-prorun-cards] .prorun-athlete-card[data-state=missing] {border-top-color:#829a91!important;}
+.prorun-athlete-identity {display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 190px;}
+.prorun-athlete-identity h4 {font-size:15px;line-height:1.35;letter-spacing:-.025em;}
+.prorun-avatar {width:42px;height:42px;flex-shrink:0;display:grid;place-items:center;border-radius:14px;background:linear-gradient(145deg,#065f46,#059669);color:#fff;font-size:13px;font-weight:900;letter-spacing:.04em;box-shadow:inset 0 1px #ffffff30;}
+html [data-prorun-cards] .prorun-readiness {display:flex;align-items:center;gap:16px;background:var(--pr-inset)!important;border-color:var(--pr-border)!important;}
+.prorun-score-ring {width:80px;height:80px;flex:0 0 80px;border-radius:50%;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;background:conic-gradient(var(--pr-accent) var(--score-angle),var(--pr-track) 0);isolation:isolate;font-variant-numeric:tabular-nums;}
+.prorun-score-ring:before {content:'';position:absolute;inset:6px;background:var(--pr-surface);border-radius:50%;z-index:-1;}
+html [data-prorun-cards] .prorun-score-ring strong {font-size:28px;line-height:1;color:var(--pr-ink)!important;letter-spacing:-.06em;}
+.prorun-score-ring>span {font-size:9px;font-weight:800;color:var(--pr-muted);margin-top:3px;}
+.prorun-eyebrow {display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.09em;color:var(--pr-muted);}
+.prorun-score-caption {font-size:14px;font-weight:800;line-height:1.3;margin-top:5px;}
+.prorun-metric-board {display:grid;gap:10px;}
+.prorun-metric-board>div {padding:13px 14px;border:1px solid var(--pr-border);border-radius:16px;background:var(--pr-inset);min-width:0;overflow-wrap:anywhere;}
+.prorun-metric-board dt {font-size:9px;letter-spacing:.075em;line-height:1.5;}
+.prorun-metric-board dd {line-height:1.6;}
+.prorun-metric-board dd strong {font-size:17px;letter-spacing:-.025em;font-variant-numeric:tabular-nums;}
+.prorun-volume-track {height:5px;border-radius:10px;background:var(--pr-track);overflow:hidden;margin:10px 0;}
+.prorun-volume-track>span {display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#047857,#34d399);}
+html [data-prorun-cards] .prorun-alert {background:var(--pr-inset)!important;border-color:var(--pr-border)!important;border-left:3px solid #d99a30!important;}
+html [data-prorun-cards] .prorun-alert[data-severity=urgent] {border-left-color:#e05b6e!important;}
+.prorun-primary {display:flex;align-items:center;justify-content:center;gap:10px;min-height:48px;box-shadow:0 5px 14px #04785726;}
+html [data-prorun-cards] :is(button,a,input):focus-visible {outline:3px solid var(--pr-accent);outline-offset:3px;}
+html [data-prorun-today],html [data-prorun-readiness] {box-shadow:0 12px 36px #052e1618!important;}
+.prorun-today-glow {opacity:.13!important;animation:none!important;}
+html.dark [data-prorun-today] {background:linear-gradient(145deg,#082d25,#0b1720 65%)!important;border-color:#2a6852!important;}
+html.light-mode [data-prorun-today] {background:linear-gradient(145deg,#e2f8ee,#fff 70%)!important;border-color:#9edac1!important;}
+html.dark [data-prorun-readiness] {background:linear-gradient(155deg,#0b2824,#0c1820)!important;border-color:#294b42!important;}
+html.light-mode [data-prorun-readiness] {background:linear-gradient(155deg,#e6f8ef,#fafffc)!important;border-color:#b5dec9!important;}
+html .prorun-run-metric {background:linear-gradient(140deg,#0d2924,#101d26)!important;border-color:#2a4941!important;box-shadow:inset 0 1px #ffffff06;}
+html.light-mode .prorun-run-metric {background:linear-gradient(140deg,#effbf5,#fff)!important;border-color:#c9e5d6!important;}
+.prorun-run-metric strong {font-size:16px;font-variant-numeric:tabular-nums;letter-spacing:-.025em;}
+@media(min-width:540px){.prorun-metric-board{grid-template-columns:1fr 1fr;}.prorun-metric-board>div:nth-child(-n+3){grid-column:1/-1;}}
+@media(prefers-reduced-motion:no-preference){.prorun-stat:hover{transform:translateY(-2px);box-shadow:0 12px 28px #052e1620;}.prorun-primary{transition:transform .18s,box-shadow .18s;}.prorun-primary:hover{transform:translateY(-1px);}}
+.prorun-athlete-card[data-state=attention] .prorun-score-ring {background:conic-gradient(#d99a30 var(--score-angle),var(--pr-track) 0);}
+.prorun-athlete-card[data-state=missing] .prorun-score-ring {background:var(--pr-track);}

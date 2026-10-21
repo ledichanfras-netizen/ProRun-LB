@@ -16,7 +16,7 @@ export function RunMetricsGrid({route, distanceKm, durationSeconds, avgHeartRate
     ['Calorias estimadas',value(route?.calories,'kcal')],['Ganho de elevação',value(route?.elevationGainMeters,'m')],
     ['Perda de elevação',value(route?.elevationLossMeters,'m')],['Velocidade máxima GPS',value(route?.maxSpeedKmh,'km/h',1)]
   ];
-  return <div className="grid grid-cols-2 gap-3">{metrics.map(([label,metric])=><div key={label} className="rounded-2xl bg-white/5 border border-white/10 p-3 min-w-0">
+  return <div className="grid grid-cols-2 gap-3">{metrics.map(([label,metric])=><div key={label} className="prorun-run-metric rounded-2xl bg-white/5 border border-white/10 p-3 min-w-0">
     <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">{label}</span>
     <strong className="block break-words text-sm font-black text-white">{metric}</strong>
   </div>)}</div>;

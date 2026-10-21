@@ -1,3 +1,4 @@
+import { RpeSelector } from './RpeSelector';
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RouteData, formatDuration, formatPace } from '../utils/gpsUtils';
@@ -37,7 +38,7 @@ export function WorkoutCompletionReview({ route, onConfirm, onBack }: {
       {!(route.totalDurationSeconds > 0) && <label className="block text-xs font-bold text-slate-300">Tempo real (minutos:segundos)<input aria-label="Tempo real (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={time} onChange={e => setTime(e.target.value)} /></label>}
       {!!route.points?.length && <WorkoutMap points={route.points} height="180px" />}
       {!!route.kmSplits?.length && <details><summary className="pro-label cursor-pointer">Parciais da corrida</summary><div className="space-y-2">{route.kmSplits.map((split, index) => <p key={index} className="text-xs text-slate-300">Parcial {index + 1} · {split.pace}/km · {formatDuration(split.durationSeconds)}</p>)}</div></details>}
-      <label className="block text-xs font-black uppercase italic tracking-wide text-slate-300">PSE (0–10)<input aria-label="PSE (0–10)" type="number" min="0" max="10" step="1" inputMode="numeric" required value={rpe} onChange={e => { setRpe(e.target.value); setError(''); }} className="pro-input block w-full mt-2" placeholder="Como foi o esforço?" /></label>
+      <RpeSelector value={rpe} disabled={saving} onChange={value => { setRpe(value); setError(''); }} />
       <label className="block text-xs font-black uppercase italic tracking-wide text-slate-300">Observações<textarea aria-label="Observações" value={observations} onChange={e => { setObservations(e.target.value); setError(''); }} className="pro-input block w-full mt-2 min-h-24" placeholder="Como você se sentiu? Dor, cansaço, clima ou outros detalhes." maxLength={3000} /></label>
       {error && <p role="alert" className="text-red-400 text-sm font-semibold">{error}</p>}
       <button type="button" disabled={saving} onClick={submit} className="w-full rounded-2xl bg-emerald-700 text-white px-5 py-4 text-xs font-black uppercase italic tracking-widest disabled:opacity-50">{saving ? 'Salvando…' : 'Postar treino'}</button>

@@ -5,7 +5,7 @@ import { RouteData, formatDuration, formatPace } from '../utils/gpsUtils';
 export function RunMetricsGrid({route, distanceKm, durationSeconds, avgHeartRate}: {
   route?: Partial<RouteData> | null; distanceKm: number; durationSeconds: number; avgHeartRate?: number;
 }) {
-  const value = (number: number | undefined, unit: string, decimals = 0) => number !== undefined && Number.isFinite(number) ? `${number.toFixed(decimals)} ${unit}` : 'Não informado';
+  const value = (number: number | undefined, unit: string, decimals = 0) => number !== undefined && Number.isFinite(number) ? `${number.toLocaleString('pt-BR', {minimumFractionDigits: decimals, maximumFractionDigits: decimals})} ${unit}` : 'Não informado';
   const metrics: [string,string][] = [
     ['Distância',value(distanceKm>0?distanceKm:undefined,'km',2)],
     [route?.source === 'gpx_file' ? 'Tempo registrado (GPX)' : 'Tempo ativo',durationSeconds>0?formatDuration(durationSeconds):'Não informado'],

@@ -1,3 +1,4 @@
+import { RpeSelector } from './RpeSelector';
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Play } from 'lucide-react';
@@ -180,7 +181,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
             <label className="block text-slate-300">Distância (km)<input aria-label="Distância (km)" className="pro-input block w-full mt-2" inputMode="decimal" value={distance} onChange={e => setDistance(e.target.value)} /></label>
             <label className="block text-slate-300">Tempo (minutos:segundos)<input aria-label="Tempo (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={duration} onChange={e => setDuration(e.target.value)} /></label>
             <label className="block text-slate-300">FC média (bpm)<input aria-label="FC média (bpm)" className="pro-input block w-full mt-2" type="number" min="1" max="300" value={heartRate} onChange={e=>setHeartRate(e.target.value)}/></label>
-            <label className="block text-slate-300">PSE (0–10)<input aria-label="PSE" className="pro-input block w-full mt-2" type="number" min="0" max="10" value={rpe} onChange={e => setRpe(e.target.value)} /></label>
+            <RpeSelector value={rpe} onChange={setRpe} />
             <label className="block text-slate-300">Observações<textarea aria-label="Observações" className="pro-input block w-full mt-2" value={observations} onChange={e => setObservations(e.target.value)} maxLength={3000} /></label>
             {error && <p role="alert" className="text-red-400">{error}</p>}
             {editingRun?.gpsRoute && <p className="text-[10px] text-slate-400">Corrigir os totais não altera o percurso e as parciais registrados pelo GPS.</p>}

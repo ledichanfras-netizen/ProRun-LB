@@ -1,3 +1,4 @@
+import { formatDistance } from '../utils/formatDistance';
 import { RunRouteDetails } from '../components/RunRouteDetails';
 import { activityDistance, freeRunsInWeek, getActivityWeeks, getTrainingActivities, weekStart } from '../utils/trainingActivities';
 import {MenstrualReadinessFields,MenstrualReadinessSummary} from '../components/MenstrualReadiness';
@@ -2355,7 +2356,7 @@ const AthletePortal: React.FC = () => {
           </div>
           
           <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex flex-wrap items-center gap-2 mb-4">
               <div className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg italic tracking-tighter flex items-center gap-1.5 flex-wrap ${
                 todayWorkout?.workout.type === 'Prova'
                   ? isLight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-amber-500 text-slate-950'
@@ -2379,7 +2380,7 @@ const AthletePortal: React.FC = () => {
                     ? 'text-emerald-800 bg-emerald-50 border-emerald-300/40' 
                     : 'text-emerald-300 bg-emerald-500/20 border-emerald-400/30'
                 }`}>
-                  <Navigation className="w-2.5 h-2.5" /> Rota GPS Gravada ({todayWorkout.workout.gpsRoute.totalDistanceKm}k)
+                  <Navigation className="w-2.5 h-2.5" /> Rota GPS Gravada ({formatDistance(todayWorkout.workout.gpsRoute.totalDistanceKm)} km)
                 </div>
               )}
             </div>
@@ -2416,7 +2417,7 @@ const AthletePortal: React.FC = () => {
                 isLight ? 'bg-white/80 border-emerald-200/80 shadow-xs' : 'bg-white/5 border-white/10'
               }`}>
                 {isStrengthWorkoutType(todayWorkout.workout.type) ? (
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-3 gap-2 text-center [&>div]:min-w-0 [&>div>span]:break-words">
                     <div>
                       <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Tempo</span>
                       <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
@@ -2443,13 +2444,13 @@ const AthletePortal: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-3 gap-2 text-center [&>div]:min-w-0 [&>div>span]:break-words">
                     <div>
                       <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Distância</span>
                       <span className={`text-sm sm:text-base font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
                         {todayWorkout.workout.actualDistance !== undefined 
-                          ? `${todayWorkout.workout.actualDistance} km` 
-                          : (todayWorkout.workout.distance ? `${todayWorkout.workout.distance} km` : '--')}
+                          ? `${formatDistance(todayWorkout.workout.actualDistance)} km`
+                          : (todayWorkout.workout.distance ? `${formatDistance(todayWorkout.workout.distance)} km` : '--')}
                       </span>
                     </div>
                     <div>
@@ -2596,13 +2597,13 @@ const AthletePortal: React.FC = () => {
               <div className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl text-[9px] font-black uppercase italic border ${
                 isLight ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
               }`}>
-                <Navigation className="w-3 h-3" /> Rota GPS ({yesterdayWorkout.workout.gpsRoute.totalDistanceKm}k)
+                <Navigation className="w-3 h-3" /> Rota GPS ({formatDistance(yesterdayWorkout.workout.gpsRoute.totalDistanceKm)} km)
               </div>
             )}
           </div>
 
           {(yesterdayWorkout.workout.actualDistance || yesterdayWorkout.workout.distance || yesterdayWorkout.workout.completed) && (
-            <div className={`mb-3 p-3 rounded-2xl border grid grid-cols-3 gap-2 text-center ${
+            <div className={`mb-3 p-3 rounded-2xl border grid grid-cols-3 gap-2 text-center [&>div]:min-w-0 [&>div>span]:break-words ${
               isLight ? 'bg-white border-slate-200/70 shadow-xs' : 'bg-black/20 border-white/5'
             }`}>
               {isStrengthWorkoutType(yesterdayWorkout.workout.type) ? (
@@ -2638,8 +2639,8 @@ const AthletePortal: React.FC = () => {
                     <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Distância</span>
                     <span className={`text-xs sm:text-sm font-black italic ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
                       {yesterdayWorkout.workout.actualDistance !== undefined 
-                        ? `${yesterdayWorkout.workout.actualDistance} km` 
-                        : (yesterdayWorkout.workout.distance ? `${yesterdayWorkout.workout.distance} km` : '--')}
+                        ? `${formatDistance(yesterdayWorkout.workout.actualDistance)} km`
+                        : (yesterdayWorkout.workout.distance ? `${formatDistance(yesterdayWorkout.workout.distance)} km` : '--')}
                     </span>
                   </div>
                   <div>
@@ -2848,7 +2849,7 @@ const AthletePortal: React.FC = () => {
                     ? 'ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-900 scale-[1.03] z-10' 
                     : 'hover:scale-[1.02]'
                 }`}
-                title={`${weekdaysFull[i]}: ${freeToday.length ? 'Corrida livre concluída · ' : ''}${workout?.type || 'Descanso'} ${displayedKm ? `(${displayedKm} KM)` : ''}`}
+                title={`${weekdaysFull[i]}: ${freeToday.length ? 'Corrida livre concluída · ' : ''}${workout?.type || 'Descanso'} ${displayedKm ? `(${formatDistance(displayedKm)} KM)` : ''}`}
               >
                 {/* Caixinha do Dia estilizada com a cor do treino proposto */}
                 <div 
@@ -2871,7 +2872,7 @@ const AthletePortal: React.FC = () => {
                     </span>
                     {displayedKm > 0 && !isRest ? (
                       <span className="text-[6px] font-extrabold opacity-80 hidden sm:inline">
-                        {displayedKm}k
+                        {formatDistance(displayedKm)}k
                       </span>
                     ) : null}
                   </div>
@@ -3057,7 +3058,7 @@ const AthletePortal: React.FC = () => {
                                   {wk.completed && wk.actualDistance !== undefined ? (
                                     <>
                                       <span className="line-through text-slate-400 font-medium mr-1">{wk.distance || 0} KM</span>
-                                      <span>{wk.actualDistance} KM Real</span>
+                                      <span>{formatDistance(wk.actualDistance)} KM Real</span>
                                     </>
                                   ) : (
                                     <span>{wk.distance || '--'} KM</span>
@@ -4048,7 +4049,7 @@ const AthletePortal: React.FC = () => {
                                   )}
                                   <div className={`flex items-center gap-3 text-[9px] font-bold pt-1 border-t ${isLight ? 'border-slate-200 text-slate-500' : 'border-white/5 text-slate-500'}`}>
                                     {workout.distance > 0 && <span>Meta: {workout.distance} KM</span>}
-                                    {workout.actualDistance > 0 && <span className={isLight ? 'text-emerald-700 font-extrabold' : 'text-emerald-400'}>Dist: {workout.actualDistance} KM</span>}
+                                    {workout.actualDistance > 0 && <span className={isLight ? 'text-emerald-700 font-extrabold' : 'text-emerald-400'}>Dist: {formatDistance(workout.actualDistance)} KM</span>}
                                     {workout.rpe && <span className={isLight ? 'text-amber-700 font-extrabold' : 'text-amber-400'}>RPE: {workout.rpe}/10</span>}
                                   </div>
                                 </div>

@@ -543,3 +543,6 @@ html :is(button, a, span, div)[class~="bg-purple-500"]:not(:where(.share-card-st
 html :is(button, a, span, div)[class~="bg-indigo-500"]:not(:where(.share-card-stage, .share-card-stage *, [data-export-card], [data-export-card] *, #print-layout-root, #print-layout-root *, .logo-box, .logo-box *, [data-logo-box], [data-logo-box] *)) { background-color: #4338ca !important; color: #ffffff !important; }
 html :is(button, a, span, div)[class~="bg-rose-500"]:not(:where(.share-card-stage, .share-card-stage *, [data-export-card], [data-export-card] *, #print-layout-root, #print-layout-root *, .logo-box, .logo-box *, [data-logo-box], [data-logo-box] *)) { background-color: #be123c !important; color: #ffffff !important; }
 html :is(button, a, span, div)[class~="bg-orange-500"]:not(:where(.share-card-stage, .share-card-stage *, [data-export-card], [data-export-card] *, #print-layout-root, #print-layout-root *, .logo-box, .logo-box *, [data-logo-box], [data-logo-box] *)) { background-color: #9a3412 !important; color: #ffffff !important; }
+
+@keyframes rpe-feedback-pop { from { transform: scale(.96); opacity: .5; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) { .rpe-feedback { animation: rpe-feedback-pop 180ms ease-out; } }

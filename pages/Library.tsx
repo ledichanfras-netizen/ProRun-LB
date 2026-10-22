@@ -16,7 +16,7 @@ import {
   Search, 
   Dumbbell, 
   ListOrdered, 
-  Sparkles, 
+  LibraryBig,
   RotateCcw, 
   Check, 
   Target,
@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 const Library: React.FC = () => {
-  const { workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout, seedDefaultWorkouts } = useApp();
+  const { workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout } = useApp();
   
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -38,8 +38,6 @@ const Library: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<string>('TODOS');
   const [selectedDistance, setSelectedDistance] = useState<string>('TODAS');
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
   const [formWorkout, setFormWorkout] = useState<Partial<Workout>>({
     title: '', type: 'Regenerativo', description: '', durationMinutes: 30, distanceKm: 5, rpe: 3, exercises: []
@@ -68,21 +66,6 @@ const Library: React.FC = () => {
 
     return matchesSearch && matchesType && matchesDistance;
   });
-
-  const handleSyncDefaults = async () => {
-    setIsSyncing(true);
-    try {
-      await seedDefaultWorkouts();
-      setSyncFeedback('30 Treinos de Elite Sincronizados com Sucesso! ⚡');
-      setTimeout(() => setSyncFeedback(null), 3500);
-    } catch (e) {
-      console.error(e);
-      setSyncFeedback('Erro ao sincronizar treinos.');
-      setTimeout(() => setSyncFeedback(null), 3500);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,26 +202,15 @@ const Library: React.FC = () => {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-emerald-500/20 p-2.5 rounded-xl border border-emerald-500/30">
-              <Sparkles className="w-6 h-6 text-emerald-400" />
+              <LibraryBig className="w-6 h-6 text-emerald-400" aria-hidden="true" />
             </div>
             <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter">Biblioteca de Treinos ProRun</h1>
           </div>
-          <p className="text-slate-400 font-medium italic text-sm">
-            Acervo científico de sessões padronizadas (5 para cada tipo e distância) baseado na metodologia Jack Daniels e Joe Friel.
-          </p>
+
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          <button 
-            type="button"
-            onClick={handleSyncDefaults}
-            disabled={isSyncing}
-            className="flex-1 lg:flex-initial bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic tracking-wider shadow-lg transition-all hover:scale-102 cursor-pointer"
-            title="Recarrega os 30 treinos de elite para todas as modalidades e distâncias"
-          >
-            <RotateCcw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Sincronizando...' : 'Restaurar 30 Treinos Padrão'}
-          </button>
+
 
           <button 
             type="button"
@@ -254,13 +226,6 @@ const Library: React.FC = () => {
         </div>
       </div>
 
-      {syncFeedback && (
-        <div className="p-4 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-300 font-bold text-xs uppercase italic flex items-center gap-2 animate-fade-in">
-          <Check className="w-4 h-4 text-emerald-400" />
-          {syncFeedback}
-        </div>
-      )}
-
       {/* CATEGORY METRIC COUNTERS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {workoutTypesList.slice(1, 8).map(t => {
@@ -268,9 +233,11 @@ const Library: React.FC = () => {
           return (
             <button
               key={t.key}
+              data-workout-type={t.key}
+              aria-pressed={isSelected}
               type="button"
               onClick={() => setSelectedType(isSelected ? 'TODOS' : t.key)}
-              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+              className={`prorun-library-category p-4 rounded-2xl border text-left transition-all cursor-pointer ${
                 isSelected 
                   ? 'bg-emerald-500/20 border-emerald-500 shadow-md ring-2 ring-emerald-500/30' 
                   : 'bg-white dark:bg-slate-900/60 border-slate-100 dark:border-white/5 hover:border-emerald-500/40'
@@ -536,7 +503,7 @@ const Library: React.FC = () => {
       {/* WORKOUTS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredWorkouts.length > 0 ? filteredWorkouts.map(w => (
-          <div key={w.id} className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-100 dark:border-white/5 hover:border-emerald-500/30 hover:shadow-xl transition-all group relative flex flex-col overflow-hidden">
+          <div key={w.id} data-workout-type={w.type} className="prorun-library-session bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-100 dark:border-white/5 hover:border-emerald-500/30 hover:shadow-xl transition-all group relative flex flex-col overflow-hidden">
             
             {/* Indicator Bar */}
             <div className={`h-2 w-full ${
@@ -554,7 +521,7 @@ const Library: React.FC = () => {
               <div>
                 <div className="flex justify-between items-start mb-3 gap-2">
                   <span className={`
-                    px-3 py-1 text-[10px] font-black uppercase italic tracking-widest rounded-lg border
+                    prorun-library-badge px-3 py-1 text-[10px] font-black uppercase italic tracking-widest rounded-lg border
                     ${w.type === 'Regenerativo' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30' : 
                       w.type === 'Limiar' ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30' :
                       w.type === 'Intervalado' ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/30' :
@@ -631,13 +598,7 @@ const Library: React.FC = () => {
              <p className="text-slate-400 font-black uppercase tracking-widest italic text-xs mb-3">
                Nenhum treino encontrado com os filtros selecionados.
              </p>
-             <button
-               type="button"
-               onClick={handleSyncDefaults}
-               className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
-             >
-               Restaurar 30 Treinos da Biblioteca
-             </button>
+
           </div>
         )}
       </div>

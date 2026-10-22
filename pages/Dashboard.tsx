@@ -1,3 +1,4 @@
+import { formatDistance } from '../utils/formatDistance';
 import { CoachOverview } from '../components/CoachOverview';
 import { getTrainingActivities } from '../utils/trainingActivities';
 import { getTodayDateString } from '../utils/time';
@@ -1174,7 +1175,7 @@ export default function Dashboard() {
                       tickLine={false} 
                       tick={{fill: isLight ? '#334155' : '#e2e8f0', fontSize: 10, fontWeight: 800}} 
                     />
-                    <Tooltip 
+                    <Tooltip formatter={value => `${formatDistance(Number(value))} km`} itemStyle={{color:isLight ? '#1e293b' : '#e2e8f0'}}
                       cursor={{fill: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.06)'}} 
                       contentStyle={{
                         backgroundColor: isLight ? '#ffffff' : '#0f172a',
@@ -1187,10 +1188,10 @@ export default function Dashboard() {
                       labelStyle={{ color: isLight ? '#0f172a' : '#ffffff', fontWeight: 900 }}
                     />
                     <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]} fill={isLight ? '#cbd5e1' : '#334155'}>
-                       <LabelList dataKey="planned" position="top" style={{ fill: isLight ? '#334155' : '#cbd5e1', fontSize: '10px', fontWeight: '900' }} offset={8} />
+                       <LabelList formatter={value => formatDistance(String(value))} dataKey="planned" position="top" style={{ fill: isLight ? '#334155' : '#cbd5e1', fontSize: '10px', fontWeight: '900' }} offset={8} />
                     </Bar>
                     <Bar dataKey="completed" name="Executado" radius={[6, 6, 0, 0]} fill="#10b981">
-                       <LabelList dataKey="completed" position="top" style={{ fill: isLight ? '#047857' : '#34d399', fontSize: '10px', fontWeight: '900' }} offset={8} />
+                       <LabelList formatter={value => formatDistance(String(value))} dataKey="completed" position="top" style={{ fill: isLight ? '#047857' : '#34d399', fontSize: '10px', fontWeight: '900' }} offset={8} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

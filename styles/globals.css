@@ -607,3 +607,23 @@ html.light-mode .prorun-run-metric {background:linear-gradient(140deg,#effbf5,#f
 @media(prefers-reduced-motion:no-preference){.prorun-stat:hover{transform:translateY(-2px);box-shadow:0 12px 28px #052e1620;}.prorun-primary{transition:transform .18s,box-shadow .18s;}.prorun-primary:hover{transform:translateY(-1px);}}
 .prorun-athlete-card[data-state=attention] .prorun-score-ring {background:conic-gradient(#d99a30 var(--score-angle),var(--pr-track) 0);}
 .prorun-athlete-card[data-state=missing] .prorun-score-ring {background:var(--pr-track);}
+
+/* Library category colors: restrained tints, persistent labels and selected state. */
+[data-workout-type] {--lib-accent:#047857;--lib-tint:#eaf9f1;--lib-night:#0d2924;--lib-ink:#065f46;--lib-bright:#79dfb5;}
+[data-workout-type="Maratona"] {--lib-accent:#0f766e;--lib-tint:#e6f7f5;--lib-night:#10292b;--lib-ink:#115e59;--lib-bright:#77dace;}
+[data-workout-type="Intervalado"] {--lib-accent:#be3752;--lib-tint:#fff0f2;--lib-night:#301b26;--lib-ink:#9f2341;--lib-bright:#fca5b4;}
+[data-workout-type="Limiar"] {--lib-accent:#a26312;--lib-tint:#fff7e6;--lib-night:#2b2518;--lib-ink:#854d0e;--lib-bright:#f7cf7b;}
+[data-workout-type="Velocidade"] {--lib-accent:#8c3da4;--lib-tint:#faf0ff;--lib-night:#281e34;--lib-ink:#78328c;--lib-bright:#dfb4f3;}
+[data-workout-type="Longão"] {--lib-accent:#3f752b;--lib-tint:#f0f8e9;--lib-night:#1d2b1b;--lib-ink:#365e27;--lib-bright:#b3d99a;}
+[data-workout-type="Fortalecimento"] {--lib-accent:#4c6677;--lib-tint:#eef4f8;--lib-night:#1b2832;--lib-ink:#3d5565;--lib-bright:#b7ccdc;}
+[data-workout-type="Prova"] {--lib-accent:#a26312;--lib-tint:#fff6e5;--lib-night:#302617;--lib-ink:#854d0e;--lib-bright:#f7cf7b;}
+html .prorun-library-category,html .prorun-library-session {background:linear-gradient(140deg,var(--lib-tint),#fff)!important;border-color:color-mix(in srgb,var(--lib-accent) 28%,transparent)!important;}
+html.dark .prorun-library-category,html.dark .prorun-library-session {background:linear-gradient(140deg,var(--lib-night),#0f172a)!important;}
+html .prorun-library-category {border-top:3px solid var(--lib-accent)!important;min-height:104px;}
+html .prorun-library-category :is(p,span),html .prorun-library-badge {color:var(--lib-ink)!important;}
+html.dark .prorun-library-category :is(p,span),html.dark .prorun-library-badge {color:var(--lib-bright)!important;}
+html .prorun-library-category[aria-pressed=true] {outline:2px solid var(--lib-accent);outline-offset:2px;box-shadow:0 5px 16px color-mix(in srgb,var(--lib-accent) 18%,transparent)!important;}
+html .prorun-library-category:focus-visible {outline:3px solid var(--lib-accent);outline-offset:3px;}
+html .prorun-library-session>div:first-child {background:var(--lib-accent)!important;}
+html .prorun-library-badge {background:var(--lib-tint)!important;border-color:color-mix(in srgb,var(--lib-accent) 35%,transparent)!important;}
+html.dark .prorun-library-badge {background:var(--lib-night)!important;}

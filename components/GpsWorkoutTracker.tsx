@@ -1,3 +1,4 @@
+import { compactWorkoutTelemetry, appendTimedTelemetry } from '../utils/runningMetrics';
 import { freshTelemetryHeartRate } from '../utils/telemetryChart';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
@@ -62,8 +63,7 @@ import {
   calculateRunningCalories, 
   announceKmSplit, 
   KmSplit, 
-  TelemetryPoint, 
-  downsampleTelemetry 
+  TelemetryPoint
 } from '../utils/runningMetrics';
 import { WorkoutTelemetryCharts } from './WorkoutTelemetryCharts';
 import { StructuredWorkout, WorkoutStep, StepType, StepTargetType, TrainingPace, WorkoutType } from '../types';
@@ -242,6 +242,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
   const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const cardiacRecordingRef = useRef(false);
   const latestHeartRateRef = useRef<HeartRateMeasurement | null>(null);
   const [heartRateBpm, setHeartRateBpm] = useState<number | null>(null);
   const [heartRateLastUpdatedAt, setHeartRateLastUpdatedAt] = useState<number | null>(null);
@@ -513,6 +514,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     }
     if (backup.telemetrySamples && backup.telemetrySamples.length > 0) {
       telemetrySamplesRef.current = backup.telemetrySamples;
+      cardiacRecordingRef.current = backup.telemetrySamples.some(point=>!!point.heartRate);
       setTelemetrySamples(backup.telemetrySamples);
     }
     if (backup.activeStructured) {
@@ -666,6 +668,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setHeartRateAverage(null);
     setHeartRateMax(null);
     setHeartRateSamples([]);
+    cardiacRecordingRef.current = false;
 
     // Pre-start 5 second countdown with speech
     let remaining = 5;
@@ -720,6 +723,23 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   };
 
   // Actual GPS Watch Initialization
+  const recordCardiacTelemetry = (seconds:number, cadence:number | null, force=false) => {
+    const heartRate = freshTelemetryHeartRate(latestHeartRateRef.current, Date.now());
+    if(!cardiacRecordingRef.current && heartRate === undefined) return;
+    cardiacRecordingRef.current = true;
+    const gpsFresh = Date.now()-lastGpsFixRef.current<=8000;
+    const pace = gpsFresh && currentSpeedRef.current>=1 ? rollingPace(paceWindowRef.current) : '--:--';
+    const parts=pace.split(':').map(Number);
+    const paceSeconds=parts.length===2 && parts.every(Number.isFinite) ? parts[0]*60+parts[1] : 0;
+    const changed=appendTimedTelemetry(telemetrySamplesRef.current, {
+      durationSeconds:seconds,distanceKm:distanceRef.current,heartRate,
+      paceSeconds,paceFormatted:pace,cadenceSpm:cadence && cadence>0?cadence:null,
+      altitudeMeters:gpsFresh && lastAltitudeRef.current!==null?lastAltitudeRef.current:undefined,
+      calories:calculateRunningCalories(athleteWeight,distanceRef.current)
+    },force);
+    if(changed)setTelemetrySamples([...telemetrySamplesRef.current]);
+  };
+
   const startTrackingInternal = () => {
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     activeBaseSecondsRef.current = Math.max(activeBaseSecondsRef.current, trackingRef.current.durationSeconds);
@@ -753,6 +773,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       if (staleGps) { setCurrentPace('--:--'); setCurrentSpeedKmh(0); currentSpeedRef.current = 0; }
       const { spm, isSensorActive } = cadenceTrackerRef.current.sampleCadence();
       setCurrentCadence(spm);
+      recordCardiacTelemetry(elapsed,spm);
       if (spm > 0) setMaxCadence(old => Math.max(old, spm));
       setIsCadenceSensorActive(isSensorActive);
 
@@ -888,7 +909,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 const lastSampleDist = telemetrySamplesRef.current.length > 0 
                   ? telemetrySamplesRef.current[telemetrySamplesRef.current.length - 1].distanceKm 
                   : 0;
-                if (newDist - lastSampleDist >= 0.075 || kmSplitsRef.current.length === 0) {
+                if (!cardiacRecordingRef.current && (newDist - lastSampleDist >= 0.075 || kmSplitsRef.current.length === 0)) {
                   const paceSec = newDist > 0 ? Math.round(curDuration / newDist) : 0;
                   telemetrySamplesRef.current.push({
                     distanceKm: newDist,
@@ -1022,6 +1043,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setStopHoldSecondsLeft(3);
     const finalDuration = Math.floor(elapsedNow());
     const finalDistance = distanceRef.current;
+    recordCardiacTelemetry(finalDuration,currentCadence,true);
     pauseTracking();
     setIsTracking(false);
     setIsFocusMode(false);
@@ -1086,6 +1108,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       maxSpeedKmh: maxSpeedRef.current || undefined,
       maxHeartRate: heartRateMax || undefined,
         calories: finalCalories,
+        telemetrySamples: compactWorkoutTelemetry(telemetrySamplesRef.current),
+        kmSplits: kmSplitsRef.current.length ? kmSplitsRef.current : undefined,
         source: 'manual_or_indoor',
         recordedAt: new Date().toISOString(),
         avgHeartRate: heartRateAverage || undefined,
@@ -1130,7 +1154,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       maxCadence: maxCadence > 0 ? maxCadence : undefined,
       calories: finalCalories,
       kmSplits: kmSplitsRef.current.length > 0 ? kmSplitsRef.current : undefined,
-      telemetrySamples: downsampleTelemetry(telemetrySamplesRef.current, 75),
+      telemetrySamples: compactWorkoutTelemetry(telemetrySamplesRef.current),
       source: 'live_gps',
       recordedAt: new Date().toISOString(),
       avgHeartRate: heartRateAverage || undefined,

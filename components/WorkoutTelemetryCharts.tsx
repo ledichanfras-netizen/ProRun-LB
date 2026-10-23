@@ -52,10 +52,12 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
   const [activeTab, setActiveTab] = useState<'splits' | 'pace' | 'cadence' | 'elevation' | 'heartRate'>('splits');
 
   const [overlay, setOverlay] = useState<TelemetryMetric | ''>('');
-  const [horizontalAxis,setHorizontalAxis] = useState<'distanceKm' | 'durationSeconds'>('distanceKm');
+  const [horizontalAxis,setHorizontalAxis] = useState<'distanceKm' | 'durationSeconds'>('durationSeconds');
   const chartData = telemetryChartData(telemetrySamples);
   const count = (metric:TelemetryMetric) => chartData.filter(point=>point[metric]!==null).length;
   const primary:TelemetryMetric = activeTab==='heartRate'?'heartRate':activeTab==='cadence'?'cadenceSpm':activeTab==='elevation'?'altitudeMeters':'paceSeconds';
+  const cardiacValues = chartData.flatMap(point=>point.heartRate===null?[]:[point.heartRate]);
+  const flatHeartRate = cardiacValues.length>=2 && Math.max(...cardiacValues)===Math.min(...cardiacValues);
   const secondary = overlay && overlay!==primary && count(overlay)>=2 ? overlay : '';
   const units:Record<TelemetryMetric,string> = {paceSeconds:'min/km',heartRate:'bpm',cadenceSpm:'passadas/min',altitudeMeters:'m'};
   const colors:Record<TelemetryMetric,string> = {paceSeconds:isLight?'#047857':'#34d399',heartRate:isLight?'#be123c':'#fb7185',cadenceSpm:isLight?'#7e22ce':'#c084fc',altitudeMeters:isLight?'#a16207':'#facc15'};
@@ -336,6 +338,7 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
             </label>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold" aria-label="Legenda das métricas">{[primary,...(secondary?[secondary]:[])].map(metric=><span key={metric} className={isLight?'text-slate-700':'text-slate-200'}><span aria-hidden="true" style={{display:'inline-block',width:18,height:3,background:colors[metric as TelemetryMetric],marginRight:6,verticalAlign:'middle'}}/>{telemetryMetricNames[metric as TelemetryMetric]} · {units[metric as TelemetryMetric]} · {metric===primary?'eixo esquerdo':'eixo direito'}</span>)}</div>
+          {(primary==='heartRate'||secondary==='heartRate')&&flatHeartRate&&<p role="status" className="rounded-xl border border-amber-500/30 p-3 text-xs text-slate-400">O arquivo salvo contém {cardiacValues.length} amostras de FC com o mesmo valor ({cardiacValues[0]} bpm). Por isso a curva está reta. As oscilações ausentes não podem ser reconstruídas pela FC média.</p>}
           {count(primary)>=2 ? <div className="h-64 sm:h-72 w-full min-w-0" data-telemetry-chart>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{top:12,right:0,left:0,bottom:12}}>

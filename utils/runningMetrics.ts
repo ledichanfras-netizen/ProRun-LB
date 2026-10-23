@@ -296,3 +296,34 @@ export function downsampleTelemetry(
 
   return result;
 }
+
+/** Retain actual cardiac extrema and signal gaps instead of a uniform 75-point trace. */
+export function compactWorkoutTelemetry(samples: TelemetryPoint[], maxCardiacPoints = 1200): TelemetryPoint[] {
+  if (!samples.some(point=>Number.isFinite(point.heartRate)&&point.heartRate!>0)) return downsampleTelemetry(samples,75);
+  if(samples.length<=maxCardiacPoints) return samples;
+  const count=Math.max(2,Math.floor(maxCardiacPoints));
+  if(count<5)return downsampleTelemetry(samples,count);
+  const indexes=new Set<number>([0,samples.length-1]);
+  const buckets=Math.max(1,Math.floor((count-2)/3));
+  for(let bucket=0;bucket<buckets;bucket++) {
+    const start=1+Math.floor(bucket*(samples.length-2)/buckets),end=1+Math.floor((bucket+1)*(samples.length-2)/buckets);
+    let low=-1,high=-1,gap=-1;
+    for(let index=start;index<end;index++) {
+      const bpm=samples[index].heartRate;
+      if(!Number.isFinite(bpm)||!(bpm!>0)){if(gap<0)gap=index;continue;}
+      if(low<0||bpm!<samples[low].heartRate!)low=index;
+      if(high<0||bpm!>samples[high].heartRate!)high=index;
+    }
+    for(const index of [low,high,gap])if(index>=0)indexes.add(index);
+  }
+  return [...indexes].sort((a,b)=>a-b).map(index=>samples[index]);
+}
+
+/** Time-based sampling works through GPS dropouts and stationary recoveries. */
+export function appendTimedTelemetry(samples: TelemetryPoint[], point: TelemetryPoint, force=false): boolean {
+  const last=samples[samples.length-1];
+  if(last && point.durationSeconds<last.durationSeconds)return false;
+  if(last && point.durationSeconds===last.durationSeconds){samples[samples.length-1]=point;return true;}
+  if(!force&&last&&point.durationSeconds-last.durationSeconds<2)return false;
+  samples.push(point);return true;
+}

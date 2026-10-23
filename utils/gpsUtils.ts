@@ -6,7 +6,7 @@
  */
 
 import { paceFromTotals, crossingSeconds } from './runCalculations';
-import { KmSplit, TelemetryPoint, calculateRunningCalories, downsampleTelemetry } from './runningMetrics';
+import { KmSplit, TelemetryPoint, calculateRunningCalories, compactWorkoutTelemetry } from './runningMetrics';
 
 export interface GpsPoint {
   lat: number;
@@ -307,7 +307,7 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70): RouteData {
     maxHeartRate: heartRates.length ? Math.max(...heartRates) : undefined,
     avgHeartRate: heartRates.length ? Math.round(heartRates.reduce((a, b) => a + b, 0) / heartRates.length) : undefined,
     calories: totalCalories, kmSplits: kmSplits.length ? kmSplits : undefined,
-    telemetrySamples: downsampleTelemetry(telemetrySamples, 75),
+    telemetrySamples: compactWorkoutTelemetry(telemetrySamples),
     elevationGainMeters: hasElevation ? Math.round(totalElevationGain) : undefined,
     elevationLossMeters: hasElevation ? Math.round(totalElevationLoss) : undefined,
     source: 'gpx_file',
@@ -421,7 +421,7 @@ export function convertBackupToRouteData(backup: ActiveWorkoutBackup): RouteData
     maxCadence: backup.maxCadence > 0 ? backup.maxCadence : undefined,
     calories: finalCalories,
     kmSplits: backup.kmSplits && backup.kmSplits.length > 0 ? backup.kmSplits : undefined,
-    telemetrySamples: backup.telemetrySamples && backup.telemetrySamples.length > 0 ? downsampleTelemetry(backup.telemetrySamples, 75) : undefined,
+    telemetrySamples: backup.telemetrySamples && backup.telemetrySamples.length > 0 ? compactWorkoutTelemetry(backup.telemetrySamples) : undefined,
     source: hasGps ? 'live_gps' : 'manual_or_indoor',
     recordedAt: backup.savedAt || new Date().toISOString(),
     avgHeartRate: backup.heartRateAverage || undefined,

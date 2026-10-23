@@ -4069,8 +4069,8 @@ const AthletePortal: React.FC = () => {
 
       {/* Modal de Detalhes do Treino (Renderizado via Portal para nunca ser encoberto pelo menu) */}
       {selectedWorkout && createPortal(
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-2 sm:p-6 bg-slate-950/80 backdrop-blur-md no-print overflow-y-auto pt-4 sm:pt-6" onClick={() => !isSaving && setSelectedWorkout(null)}>
-          <div className={`rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in-up flex flex-col max-h-[92vh] border relative my-auto transition-colors ${
+        <div role="dialog" aria-modal="true" aria-label="Ver e editar treino" data-workout-editor className={`fixed inset-0 z-[9998] no-print overflow-y-auto overscroll-contain custom-scrollbar sm:p-4 ${isLight ? 'bg-slate-100' : 'bg-slate-950'}`} onClick={() => !isSaving && setSelectedWorkout(null)}>
+          <div className={`w-full max-w-5xl mx-auto min-h-[100dvh] sm:min-h-[calc(100dvh-2rem)] sm:rounded-3xl shadow-sm border relative transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/10 text-white'
           }`} onClick={e => e.stopPropagation()}>
             <div className={`p-4 sm:p-6 border-b flex-shrink-0 space-y-3 ${
@@ -4226,7 +4226,7 @@ const AthletePortal: React.FC = () => {
               </div>
             </div>
             
-            <div className={`p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 ${
+            <div className={`p-4 sm:p-6 md:p-8 space-y-8 ${
               isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
             }`}>
               <div className="space-y-4">
@@ -4333,7 +4333,7 @@ const AthletePortal: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                      <div className="space-y-2.5">
                         {localExercises.map((ex, idx) => (
                           <div
                             key={ex.id || idx}
@@ -4597,7 +4597,7 @@ const AthletePortal: React.FC = () => {
                       </div>
 
                       {/* Steps List Editor */}
-                      <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                      <div className="space-y-2">
                         {localSteps.map((step: any, sIdx: number) => (
                           <div key={step.id || sIdx} className={`p-3 rounded-2xl border space-y-2 relative transition-all ${
                             isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-black/30 border-white/5'
@@ -4957,7 +4957,7 @@ const AthletePortal: React.FC = () => {
             </div>
 
             {!selectedWorkout.data.completed ? (
-              <div className={`p-4 sm:p-6 border-t flex-shrink-0 font-sans ${
+              <div className={`p-4 sm:p-6 border-t font-sans pb-[max(1.5rem,env(safe-area-inset-bottom))] ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-white/5'
               }`}>
                 {isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type) ? (
@@ -5064,7 +5064,7 @@ const AthletePortal: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className={`p-6 md:p-8 border-t flex-shrink-0 font-sans ${
+              <div className={`p-6 md:p-8 border-t font-sans pb-[max(1.5rem,env(safe-area-inset-bottom))] ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-white/5'
               }`}>
                 <div className="space-y-3">

@@ -285,6 +285,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   // New UI & Audio States (Contagem Regressiva, Tela Grande Focus HUD, Confirmação ao Sair)
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(true);
+  useEffect(() => {
+    if (!isFocusMode || !isTracking) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [isFocusMode, isTracking]);
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
   const countdownIntervalRef = useRef<any>(null);
 
@@ -3062,9 +3068,9 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
       {/* 3. TELA GRANDE INTUITIVA DE EXECUÇÃO DO TREINO (MODO FOCO / FULLSCREEN) */}
       {isFocusMode && isTracking && (
-        <div className="fixed inset-0 z-[9999] bg-slate-950 text-white flex flex-col p-3 sm:p-5 overflow-y-auto custom-scrollbar no-print animate-fade-in">
+        <div data-running-focus className="fixed inset-0 z-[9999] bg-slate-950 text-white flex flex-col p-3 sm:p-5 overflow-hidden overscroll-none no-print">
           {/* Barra Superior do Modo Foco */}
-          <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2 shrink-0">
+          <div data-running-header className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
                 <Navigation className="w-5 h-5 text-emerald-400" />
@@ -3105,6 +3111,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 }`}
                 title="Sons e bipes do treino"
               >
+                <Volume2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
                 <span className="text-[10px] font-bold hidden sm:inline">{soundEnabled ? 'Sons On' : 'Sons Off'}</span>
               </button>
 
@@ -3147,9 +3154,9 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           </div>
 
           {/* Conteúdo Principal do Modo Foco */}
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 py-3 min-h-0">
+          <div data-running-main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 py-3 min-h-0">
             {/* Coluna do Mapa Grande */}
-            <div className="lg:col-span-7 flex flex-col space-y-3 min-h-[160px] sm:min-h-[260px]">
+            <div data-running-map className="lg:col-span-7 flex flex-col space-y-3 min-h-[160px] sm:min-h-[260px]">
               <div className="relative flex-1 rounded-3xl overflow-hidden border border-white/10 shadow-2xl h-44 sm:h-auto sm:min-h-[240px]">
                 <WorkoutMap
                   points={gpsPoints}
@@ -3165,10 +3172,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             </div>
 
             {/* Coluna das Métricas do Treino & Dados da Etapa */}
-            <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+            <div data-running-side className="lg:col-span-5 flex flex-col justify-between space-y-3">
               {/* Card da Etapa Atual (Treino Estruturado) */}
               {currentStep && !isWorkoutCompleted ? (
-                <div className={`p-4 rounded-3xl border ${theme.headerBg} space-y-3 shadow-xl relative overflow-hidden`}>
+                <div data-running-step className={`p-4 rounded-3xl border ${theme.headerBg} space-y-3 shadow-xl relative overflow-hidden`}>
                   <div className="flex items-center justify-between">
                     <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${theme.bg}`}>
                       {theme.label}
@@ -3192,7 +3199,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
                   {/* Medidor e Status de Ritmo em Tempo Real no Modo Foco */}
                   {activeTargetPaces.minPace && (
-                    <div className="p-3 bg-black/40 rounded-2xl border border-white/10 space-y-2">
+                    <div data-running-gauge className="p-3 bg-black/40 rounded-2xl border border-white/10 space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <div className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${
                           paceCompliance.status === 'in_range'
@@ -3257,7 +3264,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   )}
                 </div>
               ) : (!currentStep || !activeStructured) && !isWorkoutCompleted && activeTargetPaces.minPace ? (
-                <div className="p-4 rounded-3xl border bg-slate-900/90 border-emerald-500/30 space-y-3 shadow-xl relative overflow-hidden">
+                <div data-running-step className="p-4 rounded-3xl border bg-slate-900/90 border-emerald-500/30 space-y-3 shadow-xl relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
                       🎯 RITMO PROPOSTO • {workoutType}
@@ -3283,7 +3290,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                   </div>
 
                   {/* Medidor e Status de Ritmo em Tempo Real */}
-                  <div className="p-3 bg-black/40 rounded-2xl border border-white/10 space-y-2">
+                  <div data-running-gauge className="p-3 bg-black/40 rounded-2xl border border-white/10 space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <div className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${
                         paceCompliance.status === 'in_range'
@@ -3337,7 +3344,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
               {/* Banner de Quilômetro Concluído com Feedback Visual no Modo Foco */}
               {kmBannerNotice && (
-                <div className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white rounded-2xl shadow-2xl border border-emerald-400/50 flex items-center justify-between gap-3 animate-bounce">
+                <div data-running-km-notice className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white rounded-2xl shadow-2xl border border-emerald-400/50 flex items-center justify-between gap-3 animate-bounce">
                   <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center font-black text-sm">
                       {kmBannerNotice.km}k
@@ -3360,7 +3367,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               )}
 
               {/* Grid de Números Gigantes das Métricas (6 cards completos) */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div data-running-metrics className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <div className="col-span-2 sm:col-span-3 p-3 bg-slate-900/90 border border-emerald-500/30 rounded-2xl text-center">
                   <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Pace Atual · ritmo recente</span>
                   <div className="text-3xl font-black font-mono text-white">{currentPace} <span className="text-xs text-slate-400">/km</span></div>
@@ -3437,9 +3444,9 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               </div>
 
               {/* Controles de Ação do Modo Foco (Com Proteção de Tela Trancada / Modo Bolso) */}
-              <div className="space-y-2 pt-1">
+              <div data-running-actions className="space-y-2 pt-1">
                 {backButtonBlockedNotice && (
-                  <div className="p-3 rounded-2xl bg-amber-500 text-slate-950 font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-xl animate-bounce">
+                  <div data-running-back-notice className="p-3 rounded-2xl bg-amber-500 text-slate-950 font-black text-xs uppercase italic tracking-wider flex items-center justify-center gap-2 shadow-xl animate-bounce">
                     <ShieldCheck className="w-4 h-4 shrink-0" />
                     <span>🛡️ Botão Voltar Bloqueado! Corrida Protegida.</span>
                   </div>
@@ -3478,7 +3485,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
                     {/* Indicador Visual do Timer de 3 Segundos no Modo Foco */}
                     {isHoldingStop && (
-                      <div className="w-full bg-red-950/95 border border-red-500/50 rounded-2xl p-3 px-4 flex items-center justify-between gap-3 shadow-2xl animate-fade-in">
+                      <div data-running-stop-notice className="w-full bg-red-950/95 border border-red-500/50 rounded-2xl p-3 px-4 flex items-center justify-between gap-3 shadow-2xl animate-fade-in">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-red-500 text-white font-black font-mono text-base flex items-center justify-center">
                             {stopHoldSecondsLeft}s

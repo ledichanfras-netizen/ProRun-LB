@@ -22,6 +22,6 @@ export function RunRouteDetails({route,isLight=false}:{route:Partial<RouteData>;
         {split.avgCadence != null && <p className="text-[9px] text-slate-300">{split.avgCadence} passadas/min</p>}
       </div>)}</div>
     </section>}
-    <WorkoutTelemetryCharts telemetrySamples={route.telemetrySamples || (route as any).telemetry} kmSplits={route.kmSplits} avgPace={route.avgPace} avgCadence={route.avgCadence} maxCadence={route.maxCadence} calories={route.calories} elevationGainMeters={route.elevationGainMeters} totalDistanceKm={distance} totalDurationSeconds={route.totalDurationSeconds} isLight={isLight}/>
+    <WorkoutTelemetryCharts telemetrySamples={route.telemetrySamples || (route as any).telemetry} kmSplits={route.kmSplits} avgHeartRate={route.avgHeartRate} maxHeartRate={route.maxHeartRate} avgPace={route.avgPace} avgCadence={route.avgCadence} maxCadence={route.maxCadence} calories={route.calories} elevationGainMeters={route.elevationGainMeters} totalDistanceKm={distance} totalDurationSeconds={route.totalDurationSeconds} isLight={isLight}/>
   </div>;
 }

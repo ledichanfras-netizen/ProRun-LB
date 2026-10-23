@@ -1,3 +1,4 @@
+import { freshTelemetryHeartRate } from '../utils/telemetryChart';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Play, 
@@ -241,6 +242,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
   const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const latestHeartRateRef = useRef<HeartRateMeasurement | null>(null);
   const [heartRateBpm, setHeartRateBpm] = useState<number | null>(null);
   const [heartRateLastUpdatedAt, setHeartRateLastUpdatedAt] = useState<number | null>(null);
   const [heartRateAgeSeconds, setHeartRateAgeSeconds] = useState<number | null>(null);
@@ -563,6 +565,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   };
 
   const handleHeartRateMeasurement = (measurement: HeartRateMeasurement) => {
+    latestHeartRateRef.current = measurement;
     setHeartRateBpm(measurement.bpm);
     setHeartRateLastUpdatedAt(measurement.timestamp);
     setHeartRateSamples(prev => {
@@ -587,7 +590,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       const device = await monitor.connect(handleHeartRateMeasurement, () => {
         setHeartRateStatus('idle');
         setHeartRateDeviceName(null);
-        setHeartRateBpm(null);
+        setHeartRateBpm(null); latestHeartRateRef.current = null;
         setHeartRateLastUpdatedAt(null);
       });
       setHeartRateDeviceName(device.name);
@@ -602,7 +605,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     await heartRateMonitorRef.current.disconnect();
     setHeartRateStatus('idle');
     setHeartRateDeviceName(null);
-    setHeartRateBpm(null);
+    setHeartRateBpm(null); latestHeartRateRef.current = null;
     setHeartRateLastUpdatedAt(null);
   };
 
@@ -658,7 +661,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
     workoutAudio.init();
     setGpsError(null);
-    setHeartRateBpm(null);
+    setHeartRateBpm(null); latestHeartRateRef.current = null;
     setHeartRateLastUpdatedAt(null);
     setHeartRateAverage(null);
     setHeartRateMax(null);
@@ -895,7 +898,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     cadenceSpm: activeSpm ?? null,
                     altitudeMeters: altitude ? Math.round(altitude) : undefined,
                     calories: kcal,
-                    heartRate: heartRateBpm || undefined
+                    heartRate: freshTelemetryHeartRate(latestHeartRateRef.current, Date.now())
                   });
                   setTelemetrySamples([...telemetrySamplesRef.current]);
                 }
@@ -2484,6 +2487,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               <WorkoutTelemetryCharts
                 kmSplits={kmSplits}
                 telemetrySamples={telemetrySamples}
+                avgHeartRate={heartRateAverage ?? undefined}
+                maxHeartRate={heartRateMax ?? undefined}
                 avgPace={averagePace}
                 avgCadence={currentCadence > 0 ? currentCadence : undefined}
                 calories={currentCalories}
@@ -2604,6 +2609,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               <WorkoutTelemetryCharts
                 kmSplits={gpxParsedRoute.kmSplits}
                 telemetrySamples={gpxParsedRoute.telemetrySamples}
+                avgHeartRate={gpxParsedRoute.avgHeartRate}
+                maxHeartRate={gpxParsedRoute.maxHeartRate}
                 avgPace={gpxParsedRoute.avgPace}
                 avgCadence={gpxParsedRoute.avgCadence}
                 calories={gpxParsedRoute.calories}

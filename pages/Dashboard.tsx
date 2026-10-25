@@ -27,6 +27,7 @@ import {
   BatteryCharging,
   Droplets,
   Heart,
+  BellRing,
   ShieldCheck,
   Flame,
   Moon,
@@ -450,11 +451,11 @@ export default function Dashboard() {
   </div>;
 
   return (
-    <div className="space-y-8 animate-fade-in pb-10">
+    <div data-athlete-dashboard className="space-y-8 animate-fade-in pb-10 min-w-0 [&>*]:min-w-0">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black text-white uppercase italic tracking-tighter flex items-center gap-3 drop-shadow-sm">
-            Olá, <span className="text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-2xl border border-emerald-400/20">{userRole === 'coach' ? 'Coach Leandro' : (activeAthlete?.name.split(' ')[0] || 'Atleta')}</span>! 👋
+          <h1 className="text-3xl md:text-4xl font-black text-white uppercase italic tracking-tighter flex flex-wrap items-center gap-2 min-w-0 drop-shadow-sm">
+            Olá, <span className="text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-2xl min-w-0 max-w-full break-words border border-emerald-400/20">{userRole === 'coach' ? 'Coach Leandro' : (activeAthlete?.name.split(' ')[0] || 'Atleta')}</span>! 👋
             {userRole === 'coach' && activeAthlete?.readiness && (
               <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/10 text-xl shadow-sm" title={`Prontidão: ${activeAthlete.readiness}`}>
                 {activeAthlete.readiness === 'fatigued' ? '😴' : activeAthlete.readiness === 'recovering' ? '🧘' : '⚡'}
@@ -521,13 +522,13 @@ export default function Dashboard() {
 
       {userRole === 'athlete' && (
         <div className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in shadow-sm no-print">
-          <div className="flex items-center gap-4">
-            <div className="bg-emerald-500 p-3 rounded-2xl shadow-lg shadow-emerald-500/20">
-              <Info className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-4 min-w-0 w-full">
+            <div className="bg-emerald-500 w-12 h-12 shrink-0 grid place-items-center rounded-2xl shadow-lg shadow-emerald-500/20">
+              <BellRing className="w-6 h-6 shrink-0 text-white" aria-hidden="true" />
             </div>
             <div>
-              <p className="font-black text-slate-900 uppercase italic tracking-tighter">Lembrete de Registro</p>
-              <p className="text-xs text-slate-500 font-medium italic">Não esqueça de registrar seu PSE e feedback no Portal do Atleta após cada treino para que o treinador acompanhe sua evolução.</p>
+              <p className="font-black text-slate-900 uppercase italic tracking-tighter">Lembrete de Prontidão</p>
+              <p className="text-xs text-slate-500 font-medium italic">Preencha sua prontidão antes do treino. Ao finalizar, registre sua PSE e feedback para o treinador acompanhar sua evolução.</p>
             </div>
           </div>
           <Link to="/athlete-portal" className="w-full md:w-auto bg-emerald-950 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase italic tracking-widest hover:bg-black transition-all text-center">
@@ -855,7 +856,7 @@ export default function Dashboard() {
                   </span>
                   <div className="group relative cursor-help">
                     <Info className="w-3.5 h-3.5 text-slate-400" />
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900 text-white text-[9.5px] font-bold p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl leading-relaxed">
+                    <div className="absolute bottom-full right-0 mb-2 w-56 max-w-[calc(100vw-3rem)] bg-slate-900 text-white text-[9.5px] font-bold p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl leading-relaxed">
                       Cruza os dados matemáticos do modelo de estresse de Banister (CTL/ATL/TSB) com a autopercepção subjetiva de prontidão do atleta.
                     </div>
                   </div>

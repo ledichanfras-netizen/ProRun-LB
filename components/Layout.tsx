@@ -231,7 +231,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto overscroll-y-contain h-[calc(100vh-64px)] md:h-full bg-[#020617] scroll-smooth">
+      <main className="flex-1 min-w-0 max-w-full overflow-y-auto overscroll-y-contain h-[calc(100vh-64px)] md:h-full bg-[#020617] scroll-smooth">
         <div className="max-w-7xl mx-auto p-4 md:p-10 space-y-8 pb-32">
           {children}
         </div>

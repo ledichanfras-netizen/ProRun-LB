@@ -41,14 +41,14 @@ export const AIPerformanceHub: React.FC<AIPerformanceHubProps> = ({
   }, [athlete]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-white/5 relative overflow-hidden group">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0 [&>*]:min-w-0">
+      <div className="lg:col-span-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-5 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-white/5 relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-12 opacity-5 dark:opacity-10 group-hover:opacity-15 transition-opacity text-slate-900 dark:text-white pointer-events-none">
           <ActivityIcon className="w-64 h-64" />
         </div>
         
         <div className="relative z-10">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em] italic">AI Performance Hub</span>
               <div className="h-px w-24 bg-slate-200 dark:bg-slate-800"></div>
@@ -65,7 +65,7 @@ export const AIPerformanceHub: React.FC<AIPerformanceHubProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 mb-8">
             <div className="space-y-1">
               <p className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Performance</p>
               <div className="flex items-end gap-1">
@@ -110,14 +110,14 @@ export const AIPerformanceHub: React.FC<AIPerformanceHubProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-white/5 flex flex-col items-center justify-center">
+      <div data-capacity-radar className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-4 sm:p-6 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-white/5 flex flex-col items-center justify-center">
         <h3 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] italic mb-4">Radar de Capacidades</h3>
         <div style={{ height: 260, width: '100%', minWidth: 0 }}>
           {radarData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+              <RadarChart cx="50%" cy="50%" outerRadius="58%" data={radarData} margin={{top:12,right:8,bottom:12,left:8}}>
                 <PolarGrid stroke="#94a3b8" strokeOpacity={0.4} />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: 'currentColor', fontSize: 11, fontWeight: 800 }} className="text-slate-700 dark:text-slate-300" />
+                <PolarAngleAxis dataKey="subject" tick={(props:any)=><text x={props.x} y={props.y} textAnchor="middle" dominantBaseline="middle" fill="currentColor" fontSize={11} fontWeight={800}>{props.payload.value}</text>} className="text-slate-700 dark:text-slate-300" />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                 <Radar
                   name="Atleta"

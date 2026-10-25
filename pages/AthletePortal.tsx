@@ -1450,9 +1450,8 @@ const AthletePortal: React.FC = () => {
                   scoreText: '--',
                   subLabel: 'PREENCHA PARA ANALISAR',
                   advice: 'Por favor, preencha a sua prontidão diária para obtermos o cálculo preciso do seu estado físico e mental, gerando as orientações e o aconselhamento para o seu treino de hoje.',
-                  colorClass: 'text-amber-500 dark:text-amber-400',
+                  colorClass: 'text-emerald-700 dark:text-emerald-300',
                   pillBgClass: isLight ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-slate-900 border-slate-800 text-white',
-                  icon: <Zap className="w-5 h-5 animate-pulse text-amber-500" />
                 };
               }
 
@@ -1465,7 +1464,6 @@ const AthletePortal: React.FC = () => {
                   advice: 'Condição física e cognitiva excelentes. O treino planejado pode ser seguido integralmente com intensidade máxima se desejar. Atleta pronto para treinar forte!',
                   colorClass: 'text-emerald-500 dark:text-emerald-400',
                   pillBgClass: isLight ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-slate-900 border-slate-800 text-white',
-                  icon: <Check className="w-5 h-5 text-emerald-600" />
                 };
               } else if (score >= 70) {
                 return {
@@ -1475,7 +1473,6 @@ const AthletePortal: React.FC = () => {
                   advice: 'Condição física e tônus muscular adequados. O treino planejado pode ser seguido integralmente sem alterações estruturais. Monitorar apenas caso o atleta aponte desconforto muscular localizado durante o aquecimento.',
                   colorClass: 'text-[#0fa374] dark:text-emerald-400',
                   pillBgClass: isLight ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-slate-900 border-slate-800 text-white',
-                  icon: <Check className="w-5 h-5 text-[#0fa374]" />
                 };
               } else if (score >= 40) {
                 return {
@@ -1483,9 +1480,8 @@ const AthletePortal: React.FC = () => {
                   scoreText: `${score}`,
                   subLabel: 'TREINAR COM CAUTELA',
                   advice: 'Sinais moderados de cansaço, sono parcial ou dores localizadas. O treino planejado pode ser realizado, mas evite desgastes extremos. Ajuste o ritmo se as pernas parecerem excessivamente pesadas.',
-                  colorClass: 'text-amber-500 dark:text-amber-400',
+                  colorClass: 'text-emerald-700 dark:text-emerald-300',
                   pillBgClass: isLight ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-slate-900 border-slate-800 text-white',
-                  icon: <Check className="w-5 h-5 text-amber-500" />
                 };
               } else {
                 return {
@@ -1495,7 +1491,6 @@ const AthletePortal: React.FC = () => {
                   advice: 'Fadiga crítica detectada (sono insuficiente, dor muscular severa ou cansaço acumulado). Fortemente recomendado adaptar o treino para rodagem regenerativa muito leve ou descanso ativo/total, visando a prevenção de lesões.',
                   colorClass: 'text-rose-500 dark:text-rose-400',
                   pillBgClass: isLight ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-slate-900 border-slate-800 text-white',
-                  icon: <Check className="w-5 h-5 text-rose-500" />
                 };
               }
             };
@@ -1524,7 +1519,7 @@ const AthletePortal: React.FC = () => {
                       ? 'bg-[#ccf2e5] border-emerald-300/40 text-emerald-600' 
                       : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
                   }`}>
-                    {config.icon}
+                    <HeartPulse className={`w-7 h-7 ${isLight ? 'text-emerald-700' : 'text-emerald-300'}`} aria-hidden="true" />
                   </div>
                 </div>
 

@@ -1,14 +1,5 @@
-import { telemetryChartData, telemetryMetricNames, type TelemetryMetric } from '../utils/telemetryChart';
+import { TelemetryExplorer } from './TelemetryExplorer';
 import React, { useState } from 'react';
-import {
-  ComposedChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts';
 import {
   HeartPulse,
   Activity,
@@ -50,17 +41,6 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
   isLight = false
 }) => {
   const [activeTab, setActiveTab] = useState<'splits' | 'pace' | 'cadence' | 'elevation' | 'heartRate'>('splits');
-
-  const [overlay, setOverlay] = useState<TelemetryMetric | ''>('');
-  const [horizontalAxis,setHorizontalAxis] = useState<'distanceKm' | 'durationSeconds'>('durationSeconds');
-  const chartData = telemetryChartData(telemetrySamples);
-  const count = (metric:TelemetryMetric) => chartData.filter(point=>point[metric]!==null).length;
-  const primary:TelemetryMetric = activeTab==='heartRate'?'heartRate':activeTab==='cadence'?'cadenceSpm':activeTab==='elevation'?'altitudeMeters':'paceSeconds';
-  const cardiacValues = chartData.flatMap(point=>point.heartRate===null?[]:[point.heartRate]);
-  const flatHeartRate = cardiacValues.length>=2 && Math.max(...cardiacValues)===Math.min(...cardiacValues);
-  const secondary = overlay && overlay!==primary && count(overlay)>=2 ? overlay : '';
-  const units:Record<TelemetryMetric,string> = {paceSeconds:'min/km',heartRate:'bpm',cadenceSpm:'passadas/min',altitudeMeters:'m'};
-  const colors:Record<TelemetryMetric,string> = {paceSeconds:isLight?'#047857':'#34d399',heartRate:isLight?'#be123c':'#fb7185',cadenceSpm:isLight?'#7e22ce':'#c084fc',altitudeMeters:isLight?'#a16207':'#facc15'};
 
   // Find best (fastest) split
   const bestSplitIndex = kmSplits.reduce((bestIdx, split, idx, arr) => {
@@ -326,38 +306,7 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
           </div>
         )}
 
-        {activeTab !== 'splits' && <div className="space-y-4" data-telemetry-comparison>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="text-[10px] font-black uppercase text-slate-400">Sobrepor métrica
-              <select aria-label="Sobrepor métrica" value={secondary} onChange={event=>setOverlay(event.target.value as TelemetryMetric | '')} className={`block w-full mt-2 p-3 rounded-xl border text-xs ${isLight?'bg-white text-slate-900 border-slate-300':'bg-slate-950 text-slate-100 border-slate-600'}`}>
-                <option value="">Sem sobreposição</option>{(Object.keys(telemetryMetricNames) as TelemetryMetric[]).filter(metric=>metric!==primary).map(metric=><option key={metric} value={metric} disabled={count(metric)<2}>{telemetryMetricNames[metric]}{count(metric)<2?' · sem série suficiente':''}</option>)}
-              </select>
-            </label>
-            <label className="text-[10px] font-black uppercase text-slate-400">Eixo horizontal
-              <select aria-label="Eixo horizontal" value={horizontalAxis} onChange={event=>setHorizontalAxis(event.target.value as typeof horizontalAxis)} className={`block w-full mt-2 p-3 rounded-xl border text-xs ${isLight?'bg-white text-slate-900 border-slate-300':'bg-slate-950 text-slate-100 border-slate-600'}`}><option value="distanceKm">Distância (km)</option><option value="durationSeconds">Tempo de treino</option></select>
-            </label>
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold" aria-label="Legenda das métricas">{[primary,...(secondary?[secondary]:[])].map(metric=><span key={metric} className={isLight?'text-slate-700':'text-slate-200'}><span aria-hidden="true" style={{display:'inline-block',width:18,height:3,background:colors[metric as TelemetryMetric],marginRight:6,verticalAlign:'middle'}}/>{telemetryMetricNames[metric as TelemetryMetric]} · {units[metric as TelemetryMetric]} · {metric===primary?'eixo esquerdo':'eixo direito'}</span>)}</div>
-          {(primary==='heartRate'||secondary==='heartRate')&&flatHeartRate&&<p role="status" className="rounded-xl border border-amber-500/30 p-3 text-xs text-slate-400">O arquivo salvo contém {cardiacValues.length} amostras de FC com o mesmo valor ({cardiacValues[0]} bpm). Por isso a curva está reta. As oscilações ausentes não podem ser reconstruídas pela FC média.</p>}
-          {count(primary)>=2 ? <div className="h-64 sm:h-72 w-full min-w-0" data-telemetry-chart>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{top:12,right:0,left:0,bottom:12}}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isLight?'#e2e8f0':'#ffffff15'}/>
-                <XAxis type="number" dataKey={horizontalAxis} domain={['dataMin','dataMax']} tickFormatter={value=>horizontalAxis==='distanceKm'?`${Number(value).toLocaleString('pt-BR',{maximumFractionDigits:2})}k`:formatSecToMinSec(Number(value))} tick={{fill:isLight?'#475569':'#cbd5e1',fontSize:10}} minTickGap={24}/>
-                <YAxis yAxisId="primary" width={48} dataKey={primary} reversed={primary==='paceSeconds'} domain={['auto','auto']} tickFormatter={value=>primary==='paceSeconds'?paceTickFormatter(Number(value)):Math.round(Number(value)).toLocaleString('pt-BR')} tick={{fill:colors[primary],fontSize:10}}/>
-                {secondary&&<YAxis yAxisId="secondary" width={48} orientation="right" dataKey={secondary} reversed={secondary==='paceSeconds'} domain={['auto','auto']} tickFormatter={value=>secondary==='paceSeconds'?paceTickFormatter(Number(value)):Math.round(Number(value)).toLocaleString('pt-BR')} tick={{fill:colors[secondary],fontSize:10}}/>}
-                <Tooltip content={({active,payload})=>{
-                  if(!active||!payload?.length)return null;
-                  const point=payload[0].payload as ReturnType<typeof telemetryChartData>[number];
-                  return <div className={`max-w-[230px] p-3 rounded-xl border shadow-lg text-xs ${isLight?'bg-white border-slate-200 text-slate-900':'bg-slate-900 border-slate-600 text-white'}`}><p className="font-bold mb-2">{point.distanceKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} km · {formatSecToMinSec(point.durationSeconds)}</p>{[primary,...(secondary?[secondary]:[])].map(metric=>{const key=metric as TelemetryMetric;const value=point[key];return <p key={key} className="mt-1">{telemetryMetricNames[key]}: <strong>{value===null?'Sem leitura':key==='paceSeconds'?formatSecToMinSec(value):Math.round(value).toLocaleString('pt-BR')}{value!==null?` ${units[key]}`:''}</strong></p>})}</div>;
-                }}/>
-                <Line yAxisId="primary" type="linear" dataKey={primary} name={telemetryMetricNames[primary]} stroke={colors[primary]} strokeWidth={2.5} dot={false} connectNulls={false} isAnimationActive={false}/>
-                {secondary&&<Line yAxisId="secondary" type="linear" dataKey={secondary} name={telemetryMetricNames[secondary]} stroke={colors[secondary]} strokeWidth={2} strokeDasharray="5 3" dot={false} connectNulls={false} isAnimationActive={false}/>}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div> : <div className={`rounded-xl border p-5 text-xs leading-relaxed ${isLight?'bg-slate-50 border-slate-200 text-slate-600':'bg-slate-950/40 border-slate-700 text-slate-300'}`} role="status">{primary==='heartRate'?'Sem série de frequência cardíaca suficiente para desenhar o gráfico. É necessário registrar leituras com um sensor conectado ou importar um GPX com FC. Uma FC média preenchida manualmente aparece no resumo, mas não gera uma curva.':`Sem amostras suficientes de ${telemetryMetricNames[primary].toLowerCase()} neste treino.`}</div>}
-          <p className="text-[10px] leading-relaxed text-slate-400">As linhas usam as mesmas amostras de distância ou tempo. Intervalos sem leitura ficam sem linha. {secondary?'Cada métrica mantém sua escala e unidade; a linha tracejada usa o eixo direito. ':''}No ritmo, valores menores ficam no alto do gráfico.</p>
-        </div>}
+        {activeTab !== 'splits' && <TelemetryExplorer samples={telemetrySamples} metric={activeTab==='heartRate'?'heartRate':activeTab==='cadence'?'cadenceSpm':activeTab==='elevation'?'altitudeMeters':'paceSeconds'} isLight={isLight} totalDistanceKm={totalDistanceKm} totalDurationSeconds={totalDurationSeconds}/>}
       </div>
     </div>
   );

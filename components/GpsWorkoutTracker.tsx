@@ -596,10 +596,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setHeartRateError(null);
     try {
       const device = await monitor.connect(handleHeartRateMeasurement, () => {
-        setHeartRateStatus('idle');
-        setHeartRateDeviceName(null);
+        setHeartRateStatus('connecting');
+        setHeartRateError('Sinal de FC interrompido. Tentando reconectar o sensor já autorizado.');
         setHeartRateBpm(null); latestHeartRateRef.current = null;
         setHeartRateLastUpdatedAt(null);
+      }, reconnected => {
+        setHeartRateDeviceName(reconnected.name);
+        setHeartRateStatus('connected');
+        setHeartRateError(null);
       });
       setHeartRateDeviceName(device.name);
       setHeartRateStatus('connected');
@@ -2288,7 +2292,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 </div>
               </div>
 
-              {heartRateStatus === 'connected' ? (
+              {(heartRateStatus === 'connected' || (heartRateStatus === 'connecting' && !!heartRateDeviceName)) ? (
                 <button
                   type="button"
                   onClick={disconnectHeartRate}
@@ -3435,7 +3439,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3 ? 'text-emerald-300' : 'text-amber-300'
                   }`}>
                     {heartRateAgeSeconds === null
-                      ? 'Aguardando sensor'
+                      ? (heartRateStatus === 'connecting' ? 'Reconectando sensor' : 'Aguardando sensor')
                       : heartRateAgeSeconds <= 3
                       ? 'AO VIVO'
                       : `há ${heartRateAgeSeconds}s`}

@@ -1,3 +1,4 @@
+import {AthletePhoto} from '../components/AthletePhoto';
 import { activityDistance, freeRunsInWeek } from '../utils/trainingActivities';
 
 import React, { useState, useEffect } from 'react';
@@ -1111,9 +1112,9 @@ const Periodization: React.FC = () => {
       {activeAthlete && (
         <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-5 md:p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
-            <div className="relative">
+            <div className="relative shrink-0">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-800 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-emerald-500/20 italic">
-                {activeAthlete.name.charAt(0).toUpperCase()}
+                <AthletePhoto name={activeAthlete.name} src={activeAthlete.profilePhoto}/>
               </div>
               <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center text-white shadow" title="Atleta Ativo">
                 <CheckCircle className="w-3 h-3" />
@@ -1201,7 +1202,7 @@ const Periodization: React.FC = () => {
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-9 h-9 rounded-xl bg-white/10 group-hover:bg-emerald-500 group-hover:text-white flex items-center justify-center font-black italic text-xs transition-colors shrink-0">
-                            {athlete.name.charAt(0).toUpperCase()}
+                            <AthletePhoto name={athlete.name} src={athlete.profilePhoto} className="w-full h-full"/>
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-black text-xs uppercase italic tracking-tight text-white group-hover:text-emerald-300 truncate">

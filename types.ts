@@ -48,6 +48,7 @@ export interface TrainingPace {
 }
 
 export interface Athlete {
+  profilePhoto?: string;
   id: string;
   name: string;
   age: number;

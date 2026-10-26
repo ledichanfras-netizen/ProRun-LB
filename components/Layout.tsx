@@ -53,6 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ]
     : [
         { to: '/', icon: LayoutDashboard, label: 'Meu Painel' },
+        { to: '/profile', icon: UserCheck, label: 'Meu Perfil' },
         { to: '/athlete-portal', icon: UserCheck, label: 'Meu Treino' },
         { to: '/assessments', icon: Activity, label: 'Minhas Zonas' },
         { to: '/subscriptions', icon: CreditCard, label: 'Assinatura' },

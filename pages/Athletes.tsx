@@ -1,4 +1,5 @@
 
+import {AthletePhotoEditor,AthletePhoto} from '../components/AthletePhoto';
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
@@ -51,7 +52,7 @@ const Athletes: React.FC = () => {
     return matchesSearch;
   }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Calculate age from birthDate if provided
@@ -70,7 +71,7 @@ const Athletes: React.FC = () => {
     const dataToSave = { ...formData, age: calculatedAge };
 
     if (editingId) {
-      updateAthlete(editingId, dataToSave);
+      try { await updateAthlete(editingId, dataToSave); } catch { alert("Não foi possível sincronizar o perfil. Tente salvar novamente."); return; }
     } else {
       if (dataToSave.name) {
         addAthlete({
@@ -206,7 +207,7 @@ const Athletes: React.FC = () => {
                   className="w-full text-left p-3 hover:bg-emerald-500/10 rounded-xl transition-colors flex items-center gap-3 group"
                 >
                   <div className="w-8 h-8 bg-slate-100 dark:bg-white/5 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-600 dark:text-slate-400 group-hover:bg-emerald-500/20 group-hover:text-emerald-500 transition-colors">
-                    {athlete.name.charAt(0)}
+                    <AthletePhoto name={athlete.name} src={athlete.profilePhoto} className="w-full h-full"/>
                   </div>
                   <div>
                     <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">{athlete.name}</p>
@@ -256,6 +257,7 @@ const Athletes: React.FC = () => {
           </div>
           
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="md:col-span-3"><AthletePhotoEditor name={formData.name || "Aluno"} value={formData.profilePhoto} onChange={profilePhoto=>setFormData({...formData,profilePhoto})}/></div>
             <div className="md:col-span-2">
               <label className="pro-label">Nome Completo</label>
               <input 
@@ -421,7 +423,7 @@ const Athletes: React.FC = () => {
                   <td className="p-6">
                     <div className="flex items-center gap-4">
                        <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black italic text-sm shadow-md shadow-emerald-500/20">
-                          {athlete.name.charAt(0)}
+                          <AthletePhoto name={athlete.name} src={athlete.profilePhoto} className="w-full h-full"/>
                        </div>
                        <div>
                           <div className="font-black text-slate-900 dark:text-white uppercase italic tracking-tighter flex flex-wrap items-center gap-2">

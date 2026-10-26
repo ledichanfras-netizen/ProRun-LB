@@ -1,3 +1,4 @@
+import {AthletePhoto} from './AthletePhoto';
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../contexts/AppContext';
@@ -205,7 +206,7 @@ export const AthleteSelectorModal: React.FC<AthleteSelectorModalProps> = ({
                           ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
                           : 'bg-white/10 text-slate-300 group-hover:bg-emerald-500 group-hover:text-white'
                       }`}>
-                        {athlete.name.charAt(0).toUpperCase()}
+                        <AthletePhoto name={athlete.name} src={athlete.profilePhoto} className="w-full h-full"/>
                       </div>
 
                       {/* Info */}

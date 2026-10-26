@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import Offline from './pages/Offline';
 
 // Lazy loading secondary pages
+const AthleteProfile = lazy(() => import('./pages/AthleteProfile'));
 const Athletes = lazy(() => import('./pages/Athletes'));
 const Assessments = lazy(() => import('./pages/Assessments'));
 const Library = lazy(() => import('./pages/Library'));
@@ -307,6 +308,7 @@ function AppContent() {
           <Layout>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/profile" element={<AthleteProfile />} />
               <Route path="/athletes" element={<Athletes />} />
               <Route path="/assessments" element={<Assessments />} />
               <Route path="/library" element={<Library />} />

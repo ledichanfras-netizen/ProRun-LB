@@ -3,12 +3,12 @@ import {createPortal} from 'react-dom';
 import {ComposedChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,Brush} from 'recharts';
 import {Maximize2,RotateCw,Plus,Minus,RotateCcw,X} from 'lucide-react';
 import {TelemetryPoint} from '../utils/runningMetrics';
-import {telemetryChartData,telemetryMetricNames,cardiacTelemetryCoverage,zoomTelemetryRange,panTelemetryRange,type TelemetryMetric,type SampleRange} from '../utils/telemetryChart';
+import {telemetryChartData,telemetryMetricNames,zoomTelemetryRange,panTelemetryRange,type TelemetryMetric,type SampleRange} from '../utils/telemetryChart';
 
 const time=(seconds:number)=>`${Math.floor(seconds/60).toString().padStart(2,'0')}:${Math.floor(seconds%60).toString().padStart(2,'0')}`;
 const km=(distance:number)=>distance.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const units:Record<TelemetryMetric,string>={paceSeconds:'min/km',heartRate:'bpm',cadenceSpm:'passadas/min',altitudeMeters:'m'};
-export function TelemetryExplorer({samples,metric,isLight,totalDistanceKm=0,totalDurationSeconds=0}:{samples:TelemetryPoint[];metric:TelemetryMetric;isLight:boolean;totalDistanceKm?:number;totalDurationSeconds?:number}) {
+export function TelemetryExplorer({samples,metric,isLight}:{samples:TelemetryPoint[];metric:TelemetryMetric;isLight:boolean;totalDistanceKm?:number;totalDurationSeconds?:number}) {
   const data=useMemo(()=>telemetryChartData(samples),[samples]);
   const [primary,setPrimary]=useState(metric),[overlay,setOverlay]=useState<TelemetryMetric|''>('');
   const [axis,setAxis]=useState<'distanceKm'|'durationSeconds'>('durationSeconds');
@@ -17,7 +17,6 @@ export function TelemetryExplorer({samples,metric,isLight,totalDistanceKm=0,tota
   const range=selected ? {start:Math.min(selected.start,Math.max(0,data.length-2)),end:Math.min(selected.end,data.length-1)} : {start:0,end:Math.max(0,data.length-1)};
   const count=(key:TelemetryMetric)=>data.filter(p=>p[key]!==null).length;
   const secondary=overlay&&overlay!==primary&&count(overlay)>=2?overlay:'';
-  const coverage=useMemo(()=>cardiacTelemetryCoverage(samples),[samples]);
   const cardiac=data.flatMap(p=>p.heartRate===null?[]:[p.heartRate]);
   const flat=cardiac.length>=2&&cardiac.every(value=>value===cardiac[0]);
   const colors:Record<TelemetryMetric,string>={paceSeconds:isLight?'#047857':'#34d399',heartRate:isLight?'#be123c':'#fb7185',cadenceSpm:isLight?'#7e22ce':'#c084fc',altitudeMeters:isLight?'#a16207':'#facc15'};
@@ -50,7 +49,6 @@ export function TelemetryExplorer({samples,metric,isLight,totalDistanceKm=0,tota
       <label className="text-[10px] font-black uppercase text-slate-400">Sobrepor métrica<select className={field} aria-label="Sobrepor métrica" value={secondary} onChange={e=>setOverlay(e.target.value as TelemetryMetric|'')}><option value="">Sem sobreposição</option>{(Object.keys(telemetryMetricNames) as TelemetryMetric[]).filter(key=>key!==primary).map(key=><option key={key} value={key} disabled={count(key)<2}>{telemetryMetricNames[key]}{count(key)<2?' · sem série suficiente':''}</option>)}</select></label>
       <label className="text-[10px] font-black uppercase text-slate-400">Eixo horizontal<select className={field} aria-label="Eixo horizontal" value={axis} onChange={e=>{setAxis(e.target.value as typeof axis);}}><option value="durationSeconds">Tempo de treino</option><option value="distanceKm">Distância (km)</option></select></label>
     </div>
-    {(primary==='heartRate'||secondary==='heartRate')&&coverage.endsEarly&&coverage.last&&<p role="status" className={`text-xs rounded-xl border border-amber-500/30 px-3 py-2 mb-2 ${isLight?'text-slate-700':'text-slate-200'}`}>{expanded?'FC até ':'FC registrada até '}<strong>{km(coverage.last.distanceKm)} km · {time(coverage.last.durationSeconds)}</strong>. Treino: {km(totalDistanceKm||coverage.final?.distanceKm||0)} km · {time(totalDurationSeconds||coverage.final?.durationSeconds||0)}.{!expanded&&' Depois desse ponto não há novas leituras de FC no registro.'}</p>}
     {(primary==='heartRate'||secondary==='heartRate')&&flat&&<p role="status" className="text-xs text-slate-400 mb-2">O arquivo salvo contém {cardiac.length} amostras de FC com o mesmo valor ({cardiac[0]} bpm). As oscilações ausentes não podem ser reconstruídas pela média.</p>}
     <div className="flex flex-wrap gap-3 text-[10px] font-bold mb-2" aria-label="Legenda das métricas">{[primary,...(secondary?[secondary]:[])].map((key,index)=><span key={key} className={isLight?'text-slate-700':'text-slate-200'}><span style={{display:'inline-block',height:3,width:18,background:colors[key as TelemetryMetric],marginRight:5}}/>{telemetryMetricNames[key as TelemetryMetric]} · {units[key as TelemetryMetric]} · {index?'direita, tracejada':'esquerda'}</span>)}</div>
     <div className="flex flex-wrap items-center gap-2 mb-2"><button className={button} type="button" aria-label="Aumentar zoom" disabled={data.length<2} onClick={()=>setSelected(zoomTelemetryRange(range,.5,data.length))}><Plus size={15}/></button><button className={button} type="button" aria-label="Diminuir zoom" onClick={()=>setSelected(zoomTelemetryRange(range,2,data.length))}><Minus size={15}/></button><button className={button} type="button" onClick={()=>setSelected(null)}><RotateCcw size={14}/>Treino completo</button><span data-telemetry-range className="text-[10px] text-slate-400">{data[range.start]&&data[range.end]?`${label(data[range.start][axis])} – ${label(data[range.end][axis])}`:'Sem amostras'}</span></div>

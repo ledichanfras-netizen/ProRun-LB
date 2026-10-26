@@ -100,20 +100,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-30 w-72 bg-[#050810] text-white transform transition-transform duration-300 cubic-bezier(0.4, 0, 0.2, 1)
+        fixed inset-y-0 left-0 z-30 w-72 max-w-[calc(100vw-16px)] bg-[#050810] text-white transform transition-transform duration-300 cubic-bezier(0.4, 0, 0.2, 1)
         md:relative md:translate-x-0 flex flex-col border-r border-white/5 no-print
         ${isSidebarOpen ? 'translate-x-0 shadow-[20px_0_50px_rgba(0,0,0,0.5)]' : '-translate-x-full'}
       `}>
-        <div className="p-8 flex items-center justify-between border-b border-white/5">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 logo-box bg-[#020617] p-0 rounded-2xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.15)] flex items-center justify-center overflow-hidden">
+        <div data-sidebar-header className="p-5 flex flex-wrap items-center justify-between gap-3 border-b border-white/5">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 shrink-0 logo-box bg-[#020617] p-0 rounded-2xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.15)] flex items-center justify-center overflow-hidden">
               <img src="/logo.png?v=11" alt="Logo" className="w-full h-full object-cover rounded-[0.95rem]" referrerPolicy="no-referrer" />
             </div>
-            <div className="flex-1">
-              <h1 className="font-black text-2xl tracking-tighter italic uppercase leading-none">ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500">LB</span></h1>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-[10px] text-emerald-300/80 uppercase font-black tracking-[0.2em] leading-none">
-                  {userRole === 'coach' ? 'Coach' : 'Athlete'}
+            <div className="min-w-0">
+              <h1 className="font-black text-xl tracking-tighter italic uppercase leading-none whitespace-nowrap">ProRun <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-500">LB</span></h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                <p className="text-[10px] text-emerald-300/80 uppercase font-black tracking-wider leading-none whitespace-nowrap">
+                  {userRole === 'coach' ? 'Treinador' : 'Aluno'}
                 </p>
                 {isCloudConnected ? (
                   <div className="flex items-center gap-1">
@@ -146,7 +146,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        <nav className="flex-1 p-6 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 min-h-0 p-4 space-y-2 overflow-y-auto custom-scrollbar">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -159,8 +159,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   : 'text-slate-400 hover:bg-white/5 hover:text-white'}
               `}
             >
-              <item.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${location.pathname === item.to ? 'text-white' : 'text-emerald-500/80'}`} />
-              <span className="font-black text-xs uppercase italic tracking-widest">{item.label}</span>
+              <item.icon className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${location.pathname === item.to ? 'text-white' : 'text-emerald-500/80'}`} />
+              <span className="font-black text-xs uppercase italic tracking-wider">{item.label}</span>
             </NavLink>
           ))}
         </nav>
@@ -223,9 +223,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-3 px-6 py-4 text-slate-500 hover:text-red-400 hover:bg-red-400/5 rounded-2xl transition-all font-black text-xs uppercase italic tracking-[0.2em]"
+            className="w-full flex items-center justify-center gap-3 px-6 py-4 text-slate-500 hover:text-red-400 hover:bg-red-400/5 rounded-2xl transition-all font-black text-xs uppercase italic tracking-wider"
           >
-            <LogOut className="w-4 h-4" /> Finalizar Sessão
+            <LogOut className="w-4 h-4 shrink-0" /><span>Finalizar Sessão</span>
           </button>
         </div>
       </aside>

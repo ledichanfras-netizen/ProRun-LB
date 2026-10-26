@@ -49,7 +49,6 @@ const SplashScreen: React.FC = () => {
                 src="/logo.png?v=11"
                 alt="ProRun LB Logo" 
                 className="w-full h-full object-cover rounded-[1.7rem]"
-                referrerPolicy="no-referrer"
               />
               
               {/* Pulse Ring */}

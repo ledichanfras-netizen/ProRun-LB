@@ -48,6 +48,7 @@ export interface TrainingPace {
 }
 
 export interface Athlete {
+  raceResults?: import('./utils/raceResults').RaceResult[];
   profilePhoto?: string;
   id: string;
   name: string;

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
+  Trophy,
   LayoutDashboard, 
   Users, 
   Activity, 
@@ -49,6 +50,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { to: '/library', icon: LibraryBig, label: 'Biblioteca' },
         { to: '/periodization', icon: CalendarDays, label: 'Prescrição' },
         { to: '/athlete-portal', icon: UserCheck, label: 'Visualizar Treino' },
+        { to: '/achievements', icon: Trophy, label: 'Conquistas e Provas' },
         { to: '/subscriptions', icon: CreditCard, label: 'Assinatura' },
       ]
     : [
@@ -56,6 +58,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { to: '/profile', icon: UserCheck, label: 'Meu Perfil' },
         { to: '/athlete-portal', icon: UserCheck, label: 'Meu Treino' },
         { to: '/assessments', icon: Activity, label: 'Minhas Zonas' },
+        { to: '/achievements', icon: Trophy, label: 'Minhas Conquistas' },
         { to: '/subscriptions', icon: CreditCard, label: 'Assinatura' },
       ];
 

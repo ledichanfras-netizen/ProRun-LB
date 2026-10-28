@@ -597,7 +597,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if(error)throw error;
       } catch (err) {
         console.warn("Could not sync updated athlete to cloud (stored locally):", err);
-        if(Object.prototype.hasOwnProperty.call(data,'readinessHistory') || Object.prototype.hasOwnProperty.call(data,'profilePhoto'))throw err;
+        if(Object.prototype.hasOwnProperty.call(data,'readinessHistory') || Object.prototype.hasOwnProperty.call(data,'profilePhoto') || Object.prototype.hasOwnProperty.call(data,'raceResults'))throw err;
       }
     }
   };

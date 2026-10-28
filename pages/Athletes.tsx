@@ -476,6 +476,7 @@ const Athletes: React.FC = () => {
                   </td>
                   <td className="p-6">
                     <div className="flex justify-center gap-3">
+                      <a href="#/achievements" onClick={()=>setSelectedAthleteId(athlete.id)} className="p-3 text-emerald-600 dark:text-emerald-400 font-bold text-xs" title="Conquistas e Provas">🏅 Conquistas</a>
                       <button onClick={() => handleEditClick(athlete)} className="p-3 text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-white/5 bg-slate-100 dark:bg-white/5 rounded-xl transition" title="Editar Perfil">
                         <Edit2 className="w-5 h-5" />
                       </button>

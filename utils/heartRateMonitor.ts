@@ -7,12 +7,13 @@ interface BluetoothCharacteristicLike {
   removeEventListener(type:string,listener:(event:Event)=>void):void;
 }
 interface BluetoothDeviceLike {
+  id?:string;
   name?:string;
   gatt?:{connected:boolean;connect():Promise<{getPrimaryService(uuid:string):Promise<{getCharacteristic(uuid:string):Promise<BluetoothCharacteristicLike>}>}>;disconnect?():void;};
   addEventListener(type:string,listener:(event:Event)=>void):void;
   removeEventListener?(type:string,listener:(event:Event)=>void):void;
 }
-interface BluetoothNavigator extends Navigator {bluetooth?:{requestDevice(options:{filters:{services:string[]}[];optionalServices?:string[]}):Promise<BluetoothDeviceLike>};}
+interface BluetoothNavigator extends Navigator {bluetooth?:{getDevices?:()=>Promise<BluetoothDeviceLike[]>;requestDevice(options:{filters:{services:string[]}[];optionalServices?:string[]}):Promise<BluetoothDeviceLike>};}
 export class HeartRateMonitor {
   private device:BluetoothDeviceLike|null=null;
   private characteristic:BluetoothCharacteristicLike|null=null;
@@ -24,12 +25,13 @@ export class HeartRateMonitor {
   private active=false;
   constructor(private timing={pollMs:1000,staleMs:15000,retryMs:3000}){}
   get isSupported(){return typeof navigator!=='undefined'&&Boolean((navigator as BluetoothNavigator).bluetooth);}
-  async connect(onMeasurement:(measurement:HeartRateMeasurement)=>void,onDisconnect:()=>void,onReconnect?:(device:{name:string})=>void){
+  async connect(onMeasurement:(measurement:HeartRateMeasurement)=>void,onDisconnect:()=>void,onReconnect?:(device:{name:string;id?:string})=>void,restoreDeviceId?:string){
     const bluetooth=(navigator as BluetoothNavigator).bluetooth;
     if(!bluetooth)throw new Error('Bluetooth Low Energy não é suportado neste navegador.');
     await this.disconnect();
     const generation=this.generation;
-    const device=await bluetooth.requestDevice({filters:[{services:['heart_rate']}]});
+    const device=restoreDeviceId?(await bluetooth.getDevices?.()||[]).find(device=>device.id===restoreDeviceId):await bluetooth.requestDevice({filters:[{services:['heart_rate']}]});
+    if(!device)throw new Error('Toque em Conectar sensor para autorizar novamente o Bluetooth.');
     if(generation!==this.generation)throw new Error('Conexão cancelada.');
     if(!device.gatt)throw new Error('Este sensor não oferece conexão GATT.');
     this.device=device;this.active=true;
@@ -43,7 +45,7 @@ export class HeartRateMonitor {
       const bpm=is16Bit?value.getUint16(1,true):value.getUint8(1);
       if(bpm<=0||bpm>=260)return;
       lastReceived=Date.now();
-      if(outage){outage=false;onReconnect?.({name:device.name||'Sensor cardíaco'});}
+      if(outage){outage=false;onReconnect?.({name:device.name||'Sensor cardíaco',id:device.id});}
       onMeasurement({bpm,timestamp:lastReceived});
     };
     const bind=async()=>{
@@ -85,7 +87,7 @@ export class HeartRateMonitor {
     this.pollingInterval=setInterval(()=>{void poll();},this.timing.pollMs);
     this.visibilityHandler=()=>{if(document.visibilityState==='visible')void poll();};
     if(typeof document!=='undefined')document.addEventListener('visibilitychange',this.visibilityHandler);
-    return {name:device.name||'Sensor cardíaco'};
+    return {name:device.name||'Sensor cardíaco',id:device.id};
   }
   async disconnect(){
     this.active=false;this.generation++;

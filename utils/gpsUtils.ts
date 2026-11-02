@@ -342,6 +342,9 @@ export interface ActiveWorkoutBackup {
   maxCadence: number;
   cadenceSummary?: { sum: number; count: number };
   maxSpeedKmh?: number;
+  heartRateDeviceId?: string;
+  heartRateExpected?: boolean;
+  heartRateSummary?: {sum:number;count:number;max:number};
   heartRateAverage: number | null;
   heartRateMax: number | null;
   kmSplits: KmSplit[];

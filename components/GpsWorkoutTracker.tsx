@@ -1,3 +1,4 @@
+import {appendRecoveryFix,restoredHeartRateSummary} from '../utils/workoutRecovery';
 import { compactWorkoutTelemetry, appendTimedTelemetry } from '../utils/runningMetrics';
 import { freshTelemetryHeartRate } from '../utils/telemetryChart';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -249,10 +250,14 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [heartRateAgeSeconds, setHeartRateAgeSeconds] = useState<number | null>(null);
   const [heartRateAverage, setHeartRateAverage] = useState<number | null>(null);
   const [heartRateMax, setHeartRateMax] = useState<number | null>(null);
-  const [heartRateSamples, setHeartRateSamples] = useState<number[]>([]);
   const [heartRateStatus, setHeartRateStatus] = useState<'idle' | 'connecting' | 'connected' | 'unsupported' | 'error'>('idle');
   const [heartRateDeviceName, setHeartRateDeviceName] = useState<string | null>(null);
   const [heartRateError, setHeartRateError] = useState<string | null>(null);
+  const heartRateDeviceIdRef=useRef<string|undefined>();
+  const heartRateSummaryRef=useRef({sum:0,count:0,max:0});
+  const checkpointEnabledRef=useRef(false);
+  const checkpointRef=useRef<()=>void>(()=>{});
+  const foregroundRecoveryRef=useRef<()=>void>(()=>{});
   const heartRateMonitorRef = useRef(new HeartRateMonitor());
 
   // Running Biometrics & Telemetry States (Cadência, Calorias, Altimetria e Parciais por KM)
@@ -424,53 +429,18 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     };
   }, [isTracking, isPaused, isScreenLocked]);
 
-  // 2. AUTO-SAVE CONTÍNUO EM TEMPO REAL NO DISPOSITIVO (Recuperação contra fechamento/queda)
-  useEffect(() => {
-    if (!isTracking && !isPaused) return;
-    if (durationSeconds < 2 && distanceKm <= 0) return;
-
-    saveActiveWorkoutBackup({
-      workoutType,
-      workoutDescription,
-      plannedDistanceKm,
-      athleteWeight,
-      weekIndex: workoutContext?.weekIndex,
-      dayIndex: workoutContext?.dayIndex,
-      distanceKm,
-      durationSeconds,
-      currentPace,
-      gpsPoints,
-      currentPosition,
-      elevationGainMeters,
-      currentCalories,
-      currentCadence,
-      maxCadence,
-      cadenceSummary: cadenceTrackerRef.current.getSummary(),
-      maxSpeedKmh: maxSpeedRef.current,
-      heartRateAverage,
-      heartRateMax,
-      kmSplits: kmSplitsRef.current,
-      telemetrySamples: telemetrySamplesRef.current,
-      activeStepIndex,
-      stepDistanceMeters,
-      stepDurationSeconds,
-      completedSteps,
-      activeStructured,
-      savedAt: new Date().toISOString()
-    });
-
-    setLastAutoSavedTime(
-      new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    );
-  }, [
-    isTracking,
-    isPaused,
-    durationSeconds,
-    distanceKm,
-    gpsPoints.length,
-    activeStepIndex,
-    completedSteps.length
-  ]);
+  // Checkpoints use refs for the latest GPS/timer and run on lifecycle transitions too.
+  checkpointRef.current=()=>{
+    if(!checkpointEnabledRef.current)return;
+    const seconds=Math.floor(elapsedNow());if(seconds<2&&distanceRef.current<=0)return;
+    saveActiveWorkoutBackup({workoutType,workoutDescription,plannedDistanceKm,athleteWeight,weekIndex:workoutContext?.weekIndex,dayIndex:workoutContext?.dayIndex,
+      distanceKm:distanceRef.current,durationSeconds:seconds,currentPace,gpsPoints:[...gpsPointsRef.current],currentPosition,
+      elevationGainMeters,currentCalories,currentCadence,maxCadence,cadenceSummary:cadenceTrackerRef.current.getSummary(),maxSpeedKmh:maxSpeedRef.current,
+      heartRateDeviceId:heartRateDeviceIdRef.current,heartRateExpected:!!heartRateDeviceIdRef.current,heartRateSummary:{...heartRateSummaryRef.current},heartRateAverage,heartRateMax,
+      kmSplits:kmSplitsRef.current,telemetrySamples:telemetrySamplesRef.current,activeStepIndex,stepDistanceMeters,stepDurationSeconds,completedSteps,activeStructured,savedAt:new Date().toISOString()});
+  };
+  useEffect(()=>{if(!isTracking&&!isPaused)return;checkpointRef.current();setLastAutoSavedTime(new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));},[isTracking,isPaused,durationSeconds,distanceKm,gpsPoints.length,activeStepIndex,completedSteps.length]);
+  useEffect(()=>{const save=()=>checkpointRef.current();const foreground=()=>{save();if(document.visibilityState==='visible')foregroundRecoveryRef.current();};window.addEventListener('pagehide',save);window.addEventListener('pageshow',foreground);document.addEventListener('visibilitychange',foreground);return()=>{save();window.removeEventListener('pagehide',save);window.removeEventListener('pageshow',foreground);document.removeEventListener('visibilitychange',foreground);};},[]);
 
   // 3. VERIFICAR SE EXISTE UMA CORRIDA INTERROMPIDA PARA RECUPERAR IMEDIATAMENTE
   useEffect(() => {
@@ -530,8 +500,17 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setStepDistanceMeters(backup.stepDistanceMeters || 0);
     setStepDurationSeconds(backup.stepDurationSeconds || 0);
     setCompletedSteps(backup.completedSteps || []);
+    checkpointEnabledRef.current=true;
+    const summary=restoredHeartRateSummary(backup);heartRateSummaryRef.current=summary;
+    if(summary.count)setHeartRateAverage(Math.round(summary.sum/summary.count));
+    setHeartRateMax(summary.max||null);
+    heartRateDeviceIdRef.current=backup.heartRateDeviceId;
+    if(backup.heartRateExpected||backup.heartRateAverage){
+      if(backup.heartRateDeviceId)void connectHeartRate(backup.heartRateDeviceId);
+      else{setHeartRateStatus('error');setHeartRateError('Corrida recuperada. Toque em Conectar sensor para retomar as leituras de FC.');}
+    }
     setRecoverableBackup(null);
-    showNotification('🛡️ Corrida recuperada com sucesso de onde você parou!');
+    showNotification('Corrida recuperada. Percurso e métricas registrados foram preservados; confira o sinal GPS e o sensor de FC.');
     if (autoStart) {
       workoutAudio.init();
       workoutAudio.speakText('Corrida recuperada! Retomando rastreamento.', true);
@@ -576,15 +555,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     latestHeartRateRef.current = measurement;
     setHeartRateBpm(measurement.bpm);
     setHeartRateLastUpdatedAt(measurement.timestamp);
-    setHeartRateSamples(prev => {
-      const next = [...prev, measurement.bpm].slice(-600);
-      setHeartRateAverage(Math.round(next.reduce((sum, value) => sum + value, 0) / next.length));
-      setHeartRateMax(Math.max(...next));
-      return next;
-    });
+    if(!checkpointEnabledRef.current||activeStartRef.current===null)return;
+    const summary=heartRateSummaryRef.current;summary.sum+=measurement.bpm;summary.count++;summary.max=Math.max(summary.max,measurement.bpm);
+    setHeartRateAverage(Math.round(summary.sum/summary.count));setHeartRateMax(summary.max);
   };
 
-  const connectHeartRate = async () => {
+  const connectHeartRate = async (restoreDeviceId?:string) => {
     const monitor = heartRateMonitorRef.current;
     if (!monitor.isSupported) {
       setHeartRateStatus('unsupported');
@@ -593,6 +569,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     }
 
     setHeartRateStatus('connecting');
+    if(restoreDeviceId)setHeartRateDeviceName('Sensor já autorizado');
     setHeartRateError(null);
     try {
       const device = await monitor.connect(handleHeartRateMeasurement, () => {
@@ -604,7 +581,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         setHeartRateDeviceName(reconnected.name);
         setHeartRateStatus('connected');
         setHeartRateError(null);
-      });
+      },restoreDeviceId);
+      heartRateDeviceIdRef.current=device.id;
       setHeartRateDeviceName(device.name);
       setHeartRateStatus('connected');
     } catch (error: any) {
@@ -615,6 +593,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   const disconnectHeartRate = async () => {
     await heartRateMonitorRef.current.disconnect();
+    heartRateDeviceIdRef.current=undefined;
     setHeartRateStatus('idle');
     setHeartRateDeviceName(null);
     setHeartRateBpm(null); latestHeartRateRef.current = null;
@@ -677,7 +656,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setHeartRateLastUpdatedAt(null);
     setHeartRateAverage(null);
     setHeartRateMax(null);
-    setHeartRateSamples([]);
+    heartRateSummaryRef.current={sum:0,count:0,max:0};
     cardiacRecordingRef.current = false;
 
     // Pre-start 5 second countdown with speech
@@ -751,6 +730,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   };
 
   const startTrackingInternal = () => {
+    checkpointEnabledRef.current=true;
+    if(watchIdRef.current!==null){navigator.geolocation.clearWatch(watchIdRef.current);watchIdRef.current=null;}
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     activeBaseSecondsRef.current = Math.max(activeBaseSecondsRef.current, trackingRef.current.durationSeconds);
     activeStartRef.current = performance.now();
@@ -970,8 +951,9 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           } else {
             // First fix
             lastPositionRef.current = { lat: latitude, lng: longitude, time: now };
-            setGpsPoints([[latitude, longitude]]);
-            gpsPointsRef.current = [[latitude, longitude]];
+            // Keep the restored route. No distance is inferred over a suspended interval.
+            const preserved=appendRecoveryFix(gpsPointsRef.current,[latitude,longitude]);
+            gpsPointsRef.current=preserved;setGpsPoints(preserved);
             try {
               localStorage.setItem('prorun_last_gps_position', JSON.stringify([latitude, longitude]));
             } catch {}
@@ -998,6 +980,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     }
   };
 
+  foregroundRecoveryRef.current=()=>{
+    if(!checkpointEnabledRef.current||!isTracking||isPaused||Date.now()-lastGpsFixRef.current<=15000)return;
+    activeBaseSecondsRef.current=elapsedNow();activeStartRef.current=null;
+    startTrackingInternal();
+  };
+
   // Exit Confirmation Handlers
   const handleRequestExit = () => {
     if (isTracking || isPaused) {
@@ -1008,6 +996,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   };
 
   const handleConfirmDiscardExit = () => {
+    checkpointEnabledRef.current=false;
     clearActiveWorkoutBackup();
     pauseTracking();
     setIsTracking(false);
@@ -1051,6 +1040,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setIsHoldingStop(false);
     setStopHoldProgress(0);
     setStopHoldSecondsLeft(3);
+    checkpointRef.current();
+    checkpointEnabledRef.current=false;
     const finalDuration = Math.floor(elapsedNow());
     const finalDistance = distanceRef.current;
     recordCardiacTelemetry(finalDuration,currentCadence,true);
@@ -2303,7 +2294,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
               ) : (
                 <button
                   type="button"
-                  onClick={connectHeartRate}
+                  onClick={()=>void connectHeartRate()}
                   disabled={heartRateStatus === 'connecting'}
                   className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white text-[9px] font-black uppercase tracking-wide cursor-pointer transition-colors"
                 >
@@ -3424,7 +3415,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 </div>
 
                 {/* Frequência Cardíaca */}
-                <div className={`p-2 sm:p-3 bg-slate-900/90 rounded-2xl text-center flex flex-col items-center justify-center ${
+                <button type="button" aria-label="Reconectar sensor cardíaco" onClick={()=>void connectHeartRate()} disabled={isScreenLocked||heartRateStatus==='connecting'||(heartRateStatus==='connected'&&heartRateAgeSeconds!==null&&heartRateAgeSeconds<=15)} className={`p-2 sm:p-3 bg-slate-900/90 rounded-2xl text-center flex flex-col items-center justify-center ${
                   heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3
                     ? 'border border-rose-500/50'
                     : 'border border-white/10'
@@ -3439,12 +3430,12 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                     heartRateAgeSeconds !== null && heartRateAgeSeconds <= 3 ? 'text-emerald-300' : 'text-amber-300'
                   }`}>
                     {heartRateAgeSeconds === null
-                      ? (heartRateStatus === 'connecting' ? 'Reconectando sensor' : 'Aguardando sensor')
+                      ? (heartRateStatus === 'connecting' ? 'Reconectando sensor' : 'Toque para conectar')
                       : heartRateAgeSeconds <= 3
                       ? 'AO VIVO'
                       : `há ${heartRateAgeSeconds}s`}
                   </span>
-                </div>
+                </button>
               </div>
 
               {/* Controles de Ação do Modo Foco (Com Proteção de Tela Trancada / Modo Bolso) */}

@@ -1,4 +1,4 @@
-import { formatDistance } from '../utils/formatDistance';
+import {WeeklyVolumeChart} from '../components/WeeklyVolumeChart';
 import { CoachOverview } from '../components/CoachOverview';
 import { getTrainingActivities } from '../utils/trainingActivities';
 import { getTodayDateString } from '../utils/time';
@@ -42,14 +42,11 @@ import { Link } from 'react-router-dom';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
 import { getAppNow } from '../utils/time';
 import { 
-  BarChart, 
-  Bar, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip,
   ResponsiveContainer,
-  LabelList,
   AreaChart,
   Area,
   Line,
@@ -1159,51 +1156,7 @@ export default function Dashboard() {
             }`}>
               <TrendingUp className="text-emerald-500 w-5 h-5" /> Distribuição de Volume Semanal
             </h2>
-            <div style={{ height: 300, width: '100%', minWidth: 0 }}>
-              {metrics.history.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={metrics.history} margin={{ top: 24, right: 10, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isLight ? '#e2e8f0' : '#1e293b'} />
-                    <XAxis 
-                      dataKey="label" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fill: isLight ? '#1e293b' : '#ffffff', fontSize: 11, fontWeight: 900}} 
-                      dy={10} 
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fill: isLight ? '#334155' : '#e2e8f0', fontSize: 10, fontWeight: 800}} 
-                    />
-                    <Tooltip formatter={value => `${formatDistance(Number(value))} km`} itemStyle={{color:isLight ? '#1e293b' : '#e2e8f0'}}
-                      cursor={{fill: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.06)'}} 
-                      contentStyle={{
-                        backgroundColor: isLight ? '#ffffff' : '#0f172a',
-                        borderRadius: '16px',
-                        border: isLight ? '1px solid #e2e8f0' : '1px solid #334155',
-                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.25)',
-                        color: isLight ? '#0f172a' : '#f8fafc',
-                        fontWeight: 700
-                      }}
-                      labelStyle={{ color: isLight ? '#0f172a' : '#ffffff', fontWeight: 900 }}
-                    />
-                    <Bar dataKey="planned" name="Previsto" radius={[6, 6, 0, 0]} fill={isLight ? '#cbd5e1' : '#334155'}>
-                       <LabelList formatter={value => formatDistance(String(value))} dataKey="planned" position="top" style={{ fill: isLight ? '#334155' : '#cbd5e1', fontSize: '10px', fontWeight: '900' }} offset={8} />
-                    </Bar>
-                    <Bar dataKey="completed" name="Executado" radius={[6, 6, 0, 0]} fill="#10b981">
-                       <LabelList formatter={value => formatDistance(String(value))} dataKey="completed" position="top" style={{ fill: isLight ? '#047857' : '#34d399', fontSize: '10px', fontWeight: '900' }} offset={8} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className={`h-full flex flex-col items-center justify-center border-2 border-dashed rounded-[2rem] italic ${
-                  isLight ? 'text-slate-500 border-slate-200' : 'text-slate-300 border-slate-800'
-                }`}>
-                  Aguardando dados de periodização...
-                </div>
-              )}
-            </div>
+            <WeeklyVolumeChart history={metrics.history} isLight={isLight}/>
           </div>
         </div>
 

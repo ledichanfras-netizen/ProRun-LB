@@ -137,7 +137,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   return (
     <section className={compact ? 'flex flex-col items-center gap-2' : 'glass-card p-5 space-y-4'}>
       {compact ? (
-        <button type="button" onClick={() => recoverable ? recover() : open('gps')}
+        <button data-start-free-run type="button" onClick={() => recoverable ? recover() : open('gps')}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/30 font-black uppercase italic tracking-widest text-[10px] transition-all active:scale-[0.98]">
           <Play className="w-3.5 h-3.5" /> Iniciar Corrida Livre
         </button>

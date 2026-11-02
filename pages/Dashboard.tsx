@@ -56,7 +56,7 @@ import {
 import { calculateATL_CTL_TSB } from '../utils/stressModel';
 
 export default function Dashboard() {
-  const { userRole, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis, theme } = useApp();
+  const { userRole, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics, runAIAnalysis, theme, planLoadError } = useApp();
   const isLight = theme === 'light';
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeEvolutionChartTab, setActiveEvolutionChartTab] = useState<'stress' | 'readiness'>('stress');
@@ -444,7 +444,7 @@ export default function Dashboard() {
 
   if (userRole === 'coach' && !selectedAthleteId) return <div className="space-y-6 pb-10 min-w-0">
     <header><h1 className={`text-2xl sm:text-3xl font-black uppercase italic tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>Painel Geral ProRun LB</h1><p className={`text-sm mt-2 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>Prontidão, execução e acompanhamento do elenco.</p></header>
-    <CoachOverview athletes={athletes} plans={athletePlans} today={getTodayDateString()} isLight={isLight} onOpen={id => { setSelectedAthleteId(id); window.scrollTo({top:0,behavior:'auto'}); }} />
+    <CoachOverview syncFailed={planLoadError} athletes={athletes} plans={athletePlans} today={getTodayDateString()} isLight={isLight} onOpen={id => { setSelectedAthleteId(id); window.scrollTo({top:0,behavior:'auto'}); }} />
   </div>;
 
   return (

@@ -1,3 +1,7 @@
+import type {RouteData} from '../utils/gpsUtils';
+import type {TrainingWeek} from '../types';
+import {selectPortalSchedule} from '../utils/portalSchedule';
+import {PortalScheduleStatus} from '../components/PortalScheduleStatus';
 import { formatDistance } from '../utils/formatDistance';
 import { RunRouteDetails } from '../components/RunRouteDetails';
 import { activityDistance, freeRunsInWeek, getActivityWeeks, getTrainingActivities, weekStart } from '../utils/trainingActivities';
@@ -179,9 +183,13 @@ const parseDurationStringToSeconds = (durationStr: string): number => {
   return 0;
 };
 
+const shareScheduledRoute=(route?:TrainingWeek['workouts'][number]['gpsRoute']):RouteData|undefined=>route?{...route,polyline:route.polyline||'',points:route.points||[]} as RouteData:undefined;
+
 const AthletePortal: React.FC = () => {
-  const { athletes, selectedAthleteId, athletePlans, rescheduleWorkout, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete, addUserGoal, theme } = useApp();
+  const { athletes, selectedAthleteId, athletePlans, rescheduleWorkout, updateWorkoutStatus, addNotification, updateAthleteReadiness, updateAthlete, addUserGoal, theme, userRole, isLoading, planLoadError, refreshData } = useApp();
   const isLight = theme === 'light';
+  const [calendarToday,setCalendarToday]=useState(getTodayDateString);
+  useEffect(()=>{const update=()=>setCalendarToday(getTodayDateString());const timer=setInterval(update,60000);window.addEventListener('focus',update);document.addEventListener('visibilitychange',update);return()=>{clearInterval(timer);window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);};},[]);
   const navigate = useNavigate();
   const activeAthlete = athletes.find(a => a.id === selectedAthleteId);
   
@@ -577,8 +585,8 @@ const AthletePortal: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 animate-fade-in">
         <AlertCircle className="w-16 h-16 text-slate-200 mb-4" />
-        <h2 className="text-xl font-black text-slate-700 uppercase italic tracking-tighter">Acesso Restrito</h2>
-        <p className="max-w-md text-center mt-2 font-medium">Nenhum perfil carregado. Por favor, faça login.</p>
+        <h2 className="text-xl font-black text-slate-700 uppercase italic tracking-tighter">{planLoadError?'Não foi possível carregar o perfil':userRole==='coach'?'Selecione um aluno':'Perfil não carregado'}</h2>
+        <p className="max-w-md text-center mt-2 font-medium">{userRole==='coach'?'Escolha um aluno para consultar a programação.':'Atualize os dados ou entre novamente para carregar seu perfil.'}</p><button type="button" className="mt-4 rounded-xl bg-emerald-600 text-white font-bold px-4 py-3" onClick={()=>planLoadError?void refreshData():navigate(userRole==='coach'?'/athletes':'/login')}>{planLoadError?'Tentar novamente':userRole==='coach'?'Selecionar aluno':'Entrar novamente'}</button>
       </div>
     );
   }
@@ -611,111 +619,7 @@ const AthletePortal: React.FC = () => {
     return labels[val] || "Selecione";
   };
 
-  const { todayWorkout, tomorrowWorkout, yesterdayWorkout, currentWeek } = useMemo(() => {
-    if (!visibleWeeks.length) return { todayWorkout: null, tomorrowWorkout: null, yesterdayWorkout: null, currentWeek: null };
-    
-    const today = getAppNow();
-    const dayOfWeek = today.getDay(); // 0 is Sunday
-    const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const tomorrowIndex = (todayIndex + 1) % 7;
-    
-    // 1. Tentar encontrar a semana por data (startDate)
-    let activeWeek: any = null;
-    const plan = athletePlans[activeAthlete.id];
-
-    if (plan?.startDate) {
-      // Forçar interpretação como local
-      const start = new Date(plan.startDate + 'T00:00:00');
-      // Ajustar para o início daquela semana (segunda-feira)
-      const startDay = start.getDay() === 0 ? 6 : start.getDay() - 1;
-      const firstMonday = new Date(start);
-      firstMonday.setDate(start.getDate() - startDay);
-      firstMonday.setHours(0, 0, 0, 0);
-      
-      const todayCopy = new Date(today);
-      todayCopy.setHours(0, 0, 0, 0);
-
-      const diffMs = todayCopy.getTime() - firstMonday.getTime();
-      const weekIdx = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
-      
-      if (weekIdx >= 0 && weekIdx < allWeeks.length) {
-        activeWeek = allWeeks[weekIdx];
-      }
-    }
-
-    // 2. Heurística de progresso: Se não achou por data ou semana não está visível, 
-    // pega a primeira semana visível que tenha treinos não concluídos
-    if (!activeWeek || !activeWeek.isVisible) {
-      const firstIncompleteWeek = visibleWeeks.find(w => 
-        w.workouts.some(wo => !wo.completed && wo.type !== 'Descanso')
-      );
-      
-      if (firstIncompleteWeek) {
-        const firstIncompleteIdx = visibleWeeks.indexOf(firstIncompleteWeek);
-        // Se a semana incompleta não for a primeira visível, e a semana anterior estiver 100% concluída,
-        // mas hoje NÃO for segunda-feira (ou seja, ainda estamos na semana que acabou de ser concluída, como no domingo),
-        // devemos manter a semana anterior ativa para que o treino de hoje continue mostrando o treino concluído.
-        if (firstIncompleteIdx > 0 && todayIndex !== 0) {
-          const prevWeek = visibleWeeks[firstIncompleteIdx - 1];
-          const prevFinished = prevWeek.workouts.every(wo => wo.completed || wo.type === 'Descanso');
-          const currentHasNoProgress = !firstIncompleteWeek.workouts.some(wo => wo.completed);
-          
-          if (prevFinished && currentHasNoProgress) {
-            activeWeek = prevWeek;
-          } else {
-            activeWeek = firstIncompleteWeek;
-          }
-        } else {
-          activeWeek = firstIncompleteWeek;
-        }
-      } else {
-        // Fallback para a última visível se tudo estiver pronto
-        activeWeek = visibleWeeks[visibleWeeks.length - 1];
-      }
-    }
-    
-    if (!activeWeek || !activeWeek.workouts) return { todayWorkout: null, tomorrowWorkout: null, yesterdayWorkout: null, currentWeek: activeWeek };
-    
-    let activeWeekIdx = allWeeks.findIndex(w => w.weekNumber === activeWeek.weekNumber);
-    if (activeWeekIdx === -1) activeWeekIdx = allWeeks.indexOf(activeWeek);
-    if (activeWeekIdx === -1) activeWeekIdx = 0;
-
-    const todayW = activeWeek.workouts[todayIndex];
-    
-    // Lógica para o treino de amanhã: pode ser na mesma semana ou na próxima
-    let tomorrowW = activeWeek.workouts[tomorrowIndex];
-    let tomorrowWeekIdx = activeWeekIdx;
-
-    // Se hoje for domingo, amanhã é segunda da próxima semana
-    if (todayIndex === 6) {
-      const nextWeek = allWeeks[tomorrowWeekIdx + 1];
-      if (nextWeek && nextWeek.workouts) {
-        tomorrowW = nextWeek.workouts[0];
-        tomorrowWeekIdx = tomorrowWeekIdx + 1;
-      }
-    }
-
-    // Lógica para o treino de ontem: se hoje for segunda, ontem foi domingo da semana anterior
-    const yesterdayIndex = todayIndex === 0 ? 6 : todayIndex - 1;
-    let yesterdayWeekIdx = activeWeekIdx;
-    let yesterdayW = null;
-
-    if (todayIndex === 0) {
-      if (activeWeekIdx > 0 && allWeeks[activeWeekIdx - 1]?.workouts) {
-        yesterdayW = allWeeks[activeWeekIdx - 1].workouts[6];
-        yesterdayWeekIdx = activeWeekIdx - 1;
-      }
-    } else {
-      yesterdayW = activeWeek.workouts[yesterdayIndex];
-    }
-    
-    return { 
-      todayWorkout: todayW ? { workout: todayW, weekIndex: activeWeekIdx, dayIndex: todayIndex, isDescanso: todayW.type === 'Descanso' } : null,
-      tomorrowWorkout: tomorrowW ? { workout: tomorrowW, weekIndex: tomorrowWeekIdx, dayIndex: tomorrowIndex, isDescanso: tomorrowW.type === 'Descanso' } : null,
-      yesterdayWorkout: yesterdayW ? { workout: yesterdayW, weekIndex: yesterdayWeekIdx, dayIndex: yesterdayIndex, isDescanso: yesterdayW.type === 'Descanso' } : null,
-      currentWeek: activeWeek
-    };
-  }, [visibleWeeks, allWeeks, athletePlans, activeAthlete.id]);
+  const {todayWorkout,tomorrowWorkout,yesterdayWorkout,currentWeek,latestCompleted,state:scheduleState}=useMemo(()=>selectPortalSchedule(athletePlan,calendarToday),[athletePlan,calendarToday]);
 
   const progressWeekDate = currentWeek && athletePlan?.startDate
     ? getWorkoutDateString(athletePlan.startDate, allWeeks.indexOf(currentWeek), 0) : getTodayDateString();
@@ -725,42 +629,15 @@ const AthletePortal: React.FC = () => {
     total: (currentWeek?.workouts.filter((w: any) => w.type !== 'Descanso').length || 0) + weeklyFreeRuns.length
   };
 
-  // Lógica de notificação automática de treino perdido
-  useEffect(() => {
-    if (!activeAthlete || !visibleWeeks.length) return;
-    
-    const checkMissedTraining = async () => {
-      const today = getAppNow();
-      const dayOfWeek = today.getDay(); 
-      const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      
-      // Se hoje não for segunda-feira, verificamos o dia de ontem
-      if (todayIndex > 0) {
-        const yesterdayIndex = todayIndex - 1;
-        const activeW = currentWeek;
-        const yesterdayWorkout = activeW?.workouts[yesterdayIndex];
-        
-        // Se o treino de ontem era planejado, não era descanso e não foi concluído
-        if (yesterdayWorkout && yesterdayWorkout.type !== 'Descanso' && !yesterdayWorkout.completed && !activities.some(run => run.completed && run.isFreeRun && run.date === getLocalDateString(new Date(getAppNow().getFullYear(), getAppNow().getMonth(), getAppNow().getDate()-1)))) {
-          const lastNotifKey = `notif_missed_${activeAthlete.id}_${yesterdayIndex}_${getAppNow().toDateString()}`;
-          const alreadyNotified = localStorage.getItem(lastNotifKey);
-          
-          if (!alreadyNotified) {
-            addNotification({
-              title: 'Treino Não Realizado!',
-              message: `${activeAthlete.name} não concluiu o treino de ontem (${yesterdayWorkout.type}). Verifique se está tudo bem!`,
-              type: 'warning',
-              category: 'workout',
-              link: '/dashboard'
-            });
-            localStorage.setItem(lastNotifKey, 'true');
-          }
-        }
-      }
-    };
-
-    checkMissedTraining();
-  }, [activeAthlete, visibleWeeks, addNotification]);
+  // Only a dated, published yesterday can produce a missing-record notice.
+  useEffect(()=>{
+    if(isLoading||planLoadError||!yesterdayWorkout||yesterdayWorkout.isDescanso||yesterdayWorkout.workout.completed)return;
+    if(activities.some(run=>run.completed&&run.isFreeRun&&run.date===yesterdayWorkout.date))return;
+    const key=`notif_missed_${activeAthlete.id}_${yesterdayWorkout.date}`;
+    if(localStorage.getItem(key))return;
+    localStorage.setItem(key,'true');
+    addNotification({title:'Treino de ontem sem conclusão registrada',message:`Não há conclusão registrada para ${activeAthlete.name} (${yesterdayWorkout.workout.type}, ${yesterdayWorkout.date.split('-').reverse().join('/')}). Confira o registro com o atleta.`,type:'warning',category:'workout',link:'/'});
+  },[activeAthlete.id,yesterdayWorkout,calendarToday,isLoading,planLoadError,addNotification]);
 
   const readinessLevels = [
     { id: 'ready', label: 'Pronto', color: 'text-emerald-500', icon: '⚡' },
@@ -1276,11 +1153,6 @@ const AthletePortal: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-24 animate-fade-in no-print">
-      {visibleWeeks.length === 0 && (
-        <div className="glass-card p-5 text-sm text-slate-300">
-          Sua planilha ainda não foi publicada. Você já pode registrar uma corrida livre.
-        </div>
-      )}
       {/* Header com Status Físico */}
       <div className="flex flex-col gap-4 px-2">
         {/* Banner Global de Recuperação de Corrida Interrompida (Botão Voltar / Queda de App) */}
@@ -2331,7 +2203,11 @@ const AthletePortal: React.FC = () => {
           )}
 
       {/* Card Destaque: Treino de Hoje */}
+      <PortalScheduleStatus state={scheduleState} coach={userRole==='coach'} isLight={isLight} loading={isLoading} failed={planLoadError} onRefresh={()=>void refreshData()} onCalendar={()=>document.getElementById('portal-training-calendar')?.scrollIntoView({behavior:'smooth'})} onPrescription={()=>navigate('/periodization')} onFreeRun={()=>document.querySelector<HTMLButtonElement>('[data-start-free-run]')?.click()}/>
+      {!todayWorkout&&latestCompleted&&<section className={`mx-2 p-5 rounded-3xl border space-y-3 ${isLight?'bg-white border-slate-200 text-slate-800':'bg-slate-900 border-slate-700 text-slate-100'}`}><h2 className="font-black uppercase italic text-sm">Último treino realizado · {latestCompleted.date.split('-').reverse().join('/')}</h2><p className="font-bold">{latestCompleted.workout.type}</p><p className="text-sm">{latestCompleted.workout.customDescription}</p><button type="button" className="px-4 py-3 rounded-xl border border-emerald-500/40 font-bold text-xs uppercase" onClick={()=>openWorkoutModal(latestCompleted.weekIndex,latestCompleted.dayIndex,latestCompleted.workout)}>Ver / editar detalhes</button></section>}
+      {todayWorkout&&!isLoading&&(
       <div className="relative group prorun-today-wrap">
+        {planLoadError&&<p className="relative z-10 p-3 text-xs font-bold text-emerald-600 dark:text-emerald-300">Programação salva no aparelho · atualização pendente</p>}
         <div className={`prorun-today-glow absolute -inset-1.5 rounded-[2.5rem] blur-md opacity-50 group-hover:opacity-75 transition duration-1000 animate-pulse ${
           todayWorkout?.workout.type === 'Prova' 
             ? 'bg-gradient-to-r from-amber-500 via-orange-600 to-red-600' 
@@ -2358,9 +2234,9 @@ const AthletePortal: React.FC = () => {
                   : isLight ? 'bg-emerald-100 text-emerald-950 border border-emerald-300 font-black' : 'bg-emerald-500 text-emerald-950 font-black'
               }`}>
                 <span>{todayWorkout?.workout.type.toUpperCase().includes('PROVA') ? 'Dia de Prova 🏁' : (todayWorkout?.isDescanso ? 'Recuperação' : 'Treino de Hoje')}</span>
-                {athletePlan?.startDate && todayWorkout && (
+                {todayWorkout && (
                   <span className="opacity-70 font-black">
-                    ({formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, todayWorkout.weekIndex, todayWorkout.dayIndex))})
+                    ({formatWorkoutDateShort(parseDateString(todayWorkout.date))})
                   </span>
                 )}
               </div>
@@ -2488,7 +2364,7 @@ const AthletePortal: React.FC = () => {
                         avgPace: pace,
                         elevationGainMeters: todayWorkout.workout.gpsRoute?.elevationGainMeters || todayWorkout.workout.route?.elevationGainMeters,
                         avgHeartRate: todayWorkout.workout.avgHeartRate || todayWorkout.workout.gpsRoute?.avgHeartRate || todayWorkout.workout.route?.avgHeartRate,
-                        route: isStrength ? undefined : (todayWorkout.workout.gpsRoute || todayWorkout.workout.route),
+                        route: isStrength ? undefined : shareScheduledRoute(todayWorkout.workout.gpsRoute || todayWorkout.workout.route),
                         workoutType: todayWorkout.workout.type,
                         initialBackgroundType: 'transparent',
                         initialPhotoUrl: (todayWorkout.workout as any).photoUrl || (todayWorkout.workout as any).imageUrl || undefined,
@@ -2550,6 +2426,8 @@ const AthletePortal: React.FC = () => {
         </div>
       </div>
 
+      )}
+
       {/* Treino de Ontem (Acesso Rápido para Visualizar, Editar e Postar) */}
       {yesterdayWorkout && (
         <div className={`mx-2 p-5 rounded-[2rem] border transition-all ${
@@ -2566,7 +2444,7 @@ const AthletePortal: React.FC = () => {
               </span>
               {athletePlan?.startDate && (
                 <span className="text-[10px] font-extrabold text-slate-500">
-                  ({formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, yesterdayWorkout.weekIndex, yesterdayWorkout.dayIndex))})
+                  ({formatWorkoutDateShort(parseDateString(yesterdayWorkout.date))})
                 </span>
               )}
             </div>
@@ -2676,7 +2554,7 @@ const AthletePortal: React.FC = () => {
                   avgPace: pace,
                   elevationGainMeters: yesterdayWorkout.workout.gpsRoute?.elevationGainMeters || yesterdayWorkout.workout.route?.elevationGainMeters,
                   avgHeartRate: yesterdayWorkout.workout.avgHeartRate || yesterdayWorkout.workout.gpsRoute?.avgHeartRate || yesterdayWorkout.workout.route?.avgHeartRate,
-                  route: isStrength ? undefined : (yesterdayWorkout.workout.gpsRoute || yesterdayWorkout.workout.route),
+                  route: isStrength ? undefined : shareScheduledRoute(yesterdayWorkout.workout.gpsRoute || yesterdayWorkout.workout.route),
                   workoutType: yesterdayWorkout.workout.type,
                   initialBackgroundType: 'transparent',
                   initialPhotoUrl: (yesterdayWorkout.workout as any).photoUrl || (yesterdayWorkout.workout as any).imageUrl || undefined,
@@ -2718,7 +2596,7 @@ const AthletePortal: React.FC = () => {
                 <span>Amanhã {tomorrowWorkout.weekIndex !== todayWorkout?.weekIndex ? `• Semana ${allWeeks[tomorrowWorkout.weekIndex]?.weekNumber}` : ''}</span>
                 {athletePlan?.startDate && (
                   <span className="text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded text-[8px] font-extrabold whitespace-nowrap">
-                    ({formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, tomorrowWorkout.weekIndex, tomorrowWorkout.dayIndex))})
+                    ({formatWorkoutDateShort(parseDateString(tomorrowWorkout.date))})
                   </span>
                 )}
               </p>
@@ -2920,7 +2798,7 @@ const AthletePortal: React.FC = () => {
       </div>
 
       {/* Navegação de Semanas Moderna */}
-      <div className="pt-4 px-2">
+      <div id="portal-training-calendar" className="pt-4 px-2 scroll-mt-4">
         <h3 className="font-black text-slate-400 text-[10px] uppercase tracking-[0.2em] mb-6 italic">Cronograma Completo</h3>
         <div className="space-y-6">
           {visibleWeeks.slice().reverse().map((week, wIdx) => {

@@ -82,6 +82,8 @@ interface AppContextType {
   runAIAnalysis: (athleteId: string) => Promise<void>;
   isLoading: boolean;
   isCloudConnected: boolean;
+  planLoadError: boolean;
+  refreshData: () => Promise<void>;
   isFirebaseConfigured: boolean;
   
   subscription: Subscription | null;
@@ -137,6 +139,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return cached ? JSON.parse(cached) : {};
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [planLoadError,setPlanLoadError]=useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [templates, setTemplates] = useState<TrainingTemplate[]>(() => {
@@ -407,6 +410,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const hasError = !!(athletesRes.error || workoutsRes.error || plansRes.error);
       setIsCloudConnected(!hasError);
+      setPlanLoadError(!!(plansRes.error||athletesRes.error));
 
       if (athletesRes.data && athletesRes.data.length > 0) {
         console.log(`[Sync] ${athletesRes.data.length} atletas sincronizados.`);
@@ -422,7 +426,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem('proRun_cached_workouts', JSON.stringify(fetchedWorkouts));
       }
       
-      if (plansRes.data && plansRes.data.length > 0) {
+      if (!plansRes.error && Array.isArray(plansRes.data)) {
         console.log(`[Sync] ${plansRes.data.length} planos sincronizados.`);
         const plans: Record<string, any> = {};
         plansRes.data.forEach((row: any) => {
@@ -444,6 +448,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               }
 
               plans[athleteId] = {
+                ...pd,
                 freeRuns: pd.freeRuns || [],
                 weeks: weeks,
                 raceStrategy: pd.raceStrategy || pd.race_strategy || null,
@@ -504,6 +509,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (err: any) {
       console.warn("[Sync] Operando em modo offline/local:", err?.message || err);
       setIsCloudConnected(false);
+      setPlanLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -1182,7 +1188,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout, seedDefaultWorkouts,
       selectedAthleteId, setSelectedAthleteId,
       athletePlans, saveAthletePlan, saveFreeRun, clearAthletePlan, rescheduleWorkout, updateWorkoutStatus,
-      getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected,
+      getAthleteMetrics, runAIAnalysis, isLoading, isCloudConnected, planLoadError, refreshData:fetchData,
       isFirebaseConfigured: true, 
       subscription, hasActiveSubscription, refreshSubscription,
       templates, saveTemplate, deleteTemplate,

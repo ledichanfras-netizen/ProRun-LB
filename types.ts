@@ -217,6 +217,7 @@ export interface TrainingWeek {
       distance?: number;
       actualDistance?: number;
       actualDuration?: string;
+      durationMinutes?: number;
       avgHeartRate?: number;
       completed?: boolean;
       feedback?: string; 
@@ -238,6 +239,7 @@ export interface TrainingWeek {
         points?: [number, number][]; // [lat, lng] array
         totalDistanceKm: number;
         totalDurationSeconds: number;
+        durationSeconds?: number;
         avgPace: string; // "05:15" min/km
         maxSpeedKmh?: number;
         elevationGainMeters?: number;

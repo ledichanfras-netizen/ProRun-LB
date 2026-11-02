@@ -206,6 +206,9 @@ export interface TrainingWeek {
   isVisible?: boolean; 
   coachNotes?: string; 
     workouts: {
+      objective?: string;
+      capacity?: string;
+      method?: string;
       day: string; 
       workoutId?: string;
       date?: string;
@@ -285,6 +288,7 @@ export interface TrainingWeek {
 export type FreeRun = TrainingWeek["workouts"][number] & { id: string; startTime?: string; createdAt?: string; updatedAt?: string };
 
 export interface AthletePlan {
+  prescriptionReview?: import('./utils/prescriptionIntelligence').PrescriptionReview;
   freeRuns?: FreeRun[];
   weeks: TrainingWeek[];
   raceStrategy?: string;

@@ -1,7 +1,9 @@
+import {PrescriptionReview} from '../components/PrescriptionReview';
+import {inspectPrescription} from '../utils/prescriptionIntelligence';
 import {AthletePhoto} from '../components/AthletePhoto';
 import { activityDistance, freeRunsInWeek } from '../utils/trainingActivities';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
@@ -58,7 +60,7 @@ import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareM
 import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 
 const Periodization: React.FC = () => {
-  const { athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
+  const { athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan: persistAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [showAthleteSelector, setShowAthleteSelector] = useState(false);
   const [raceDate, setRaceDate] = useState('');
@@ -76,6 +78,9 @@ const Periodization: React.FC = () => {
   const [trainingDays, setTrainingDays] = useState<number[]>([0, 1, 2, 3, 4, 6]); // All selected days
   const [loading, setLoading] = useState(false);
   const [fullPlan, setFullPlan] = useState<AthletePlan | null>(null);
+  const aiProposalAthlete=useRef<string|null>(null);
+  const [prescriptionAccepted,setPrescriptionAccepted]=useState(false);
+  useEffect(()=>setPrescriptionAccepted(false),[fullPlan]);
   const [isEditing, setIsEditing] = useState(false);
   const [showLibraryModal, setShowLibraryModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
@@ -90,6 +95,12 @@ const Periodization: React.FC = () => {
   const [rescheduleTargetDate, setRescheduleTargetDate] = useState<string>('');
   const [rescheduleTargetWeek, setRescheduleTargetWeek] = useState<number>(0);
   const [rescheduleTargetDay, setRescheduleTargetDay] = useState<number>(0);
+
+  // AI proposals use an explicit review/publish path; incidental editor saves stay local.
+  const saveAthletePlan = async (id:string,plan:AthletePlan) => {
+    if(plan.prescriptionReview){setIsEditing(true);return;}
+    await persistAthletePlan(id,plan);
+  };
 
   const handleOpenRescheduleModal = (wIdx: number, dIdx: number) => {
     setReschedulingWorkout({ weekIndex: wIdx, dayIndex: dIdx });
@@ -240,6 +251,8 @@ const Periodization: React.FC = () => {
   ];
 
   useEffect(() => {
+    if(aiProposalAthlete.current===activeAthlete?.id&&fullPlan?.prescriptionReview)return;
+    aiProposalAthlete.current=null;
     if (activeAthlete && athletePlans[activeAthlete.id]) {
       const plan = athletePlans[activeAthlete.id];
       setFullPlan(plan);
@@ -285,8 +298,9 @@ const Periodization: React.FC = () => {
       race.setHours(0, 0, 0, 0);
       
       if (race > start) {
-        const diffMs = race.getTime() - start.getTime();
-        const diffWeeks = Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 7));
+        const monday=getWorkoutDateString(startDate,0,0);
+        const diffMs=Date.parse(`${raceDate}T00:00:00Z`)-Date.parse(`${monday}T00:00:00Z`);
+        const diffWeeks=Math.floor(diffMs/(1000*60*60*24*7))+1;
         // Limitamos entre 1 e 24 semanas para manter a qualidade da prescrição
         setWeeks(Math.min(24, Math.max(1, diffWeeks)));
       }
@@ -318,7 +332,8 @@ const Periodization: React.FC = () => {
         combinedDays,
         runningDaysOfWeek,
         gymDaysOfWeek,
-        longRunDayOfWeek
+        longRunDayOfWeek,
+        athletePlans[activeAthlete.id]
       );
       
       const normalizedWeeks = (generated.weeks || []).map(w => {
@@ -359,8 +374,9 @@ const Periodization: React.FC = () => {
         runningDaysCount: runningDaysOfWeek.length,
         gymDaysCount: gymDaysOfWeek.length
       };
+      aiProposalAthlete.current=activeAthlete.id;
       setFullPlan(newPlan);
-      saveAthletePlan(activeAthlete.id, newPlan);
+      // Generated proposals remain in the editor until the coach reviews and publishes.
       setIsEditing(true);
     } catch (e: any) {
       alert("Erro na IA: " + e.message);
@@ -384,9 +400,24 @@ const Periodization: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (activeAthlete && fullPlan) {
-      saveAthletePlan(activeAthlete.id, fullPlan);
+      if(fullPlan.prescriptionReview){
+        const meta=fullPlan.prescriptionReview;
+        const report=inspectPrescription(fullPlan,{...meta.constraints,startDate:fullPlan.startDate||meta.constraints.startDate},meta.context);
+        if(report.errors.length){alert('Corrija a revisão da periodização antes de publicar: '+report.errors.slice(0,3).join(' '));return;}
+        if(!prescriptionAccepted){alert('Confira a revisão da periodização e marque a confirmação antes de publicar.');return;}
+      }
+      try {
+        const previous=athletePlans[activeAthlete.id];
+        if(fullPlan.prescriptionReview&&previous&&previous.prescriptionReview?.generatedAt!==fullPlan.prescriptionReview.generatedAt&&previous.weeks.some(w=>w.workouts.some(s=>s.completed))){
+          const archiveId=`before-ai-${fullPlan.prescriptionReview.generatedAt}`;
+          if(!activeAthlete.archivedPlans?.some(p=>p.id===archiveId))await updateAthlete(activeAthlete.id,{archivedPlans:[{id:archiveId,name:`Ciclo anterior · ${previous.specificGoal||'Treinos realizados'}`,startDate:previous.startDate||'',endDate:previous.endDate||'',specificGoal:previous.specificGoal||'',weeks:previous.weeks,archivedAt:new Date().toISOString()},...(activeAthlete.archivedPlans||[])]});
+        }
+        const toPublish=fullPlan.prescriptionReview&&!fullPlan.weeks.some(w=>w.isVisible)?{...fullPlan,weeks:fullPlan.weeks.map(w=>({...w,isVisible:true}))}:fullPlan;
+        aiProposalAthlete.current=null;
+        await persistAthletePlan(activeAthlete.id,toPublish);
+      }catch{alert('Não foi possível salvar o ciclo. Tente publicar novamente.');return;}
       
       // Notificar Atleta sobre nova planilha
       addNotification({
@@ -1107,6 +1138,8 @@ const Periodization: React.FC = () => {
            )}
         </div>
       </header>
+      {activeAthlete&&fullPlan?.prescriptionReview&&<PrescriptionReview plan={fullPlan} accepted={prescriptionAccepted} onAccept={setPrescriptionAccepted}/>}
+      {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<button type="button" className="text-sm text-emerald-500 font-bold p-3 rounded-xl border border-emerald-500/30" onClick={()=>{aiProposalAthlete.current=null;setFullPlan(athletePlans[activeAthlete.id]||null);setIsEditing(false);}}>Descartar proposta e voltar ao ciclo atual</button>}
 
       {/* CARD DO ATLETA EM FOCO */}
       {activeAthlete && (

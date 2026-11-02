@@ -1,3 +1,4 @@
+import {buildPrescriptionContext,inspectPrescription,prescriptionPrinciples,prescriptionDays,type PrescriptionConstraints} from '../utils/prescriptionIntelligence';
 import {withoutMenstrualData} from '../utils/menstrualReadiness';
 
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
@@ -5,7 +6,7 @@ import { Athlete, AthletePlan } from "../types";
 import { calculatePaces } from "../utils/calculations";
 import { withRetry } from "../utils/helpers";
 
-import { getAppNow } from "../utils/time";
+import { getAppNow, getLocalDateString, getWorkoutDateString } from "../utils/time";
 
 export const generateTrainingPlan = async (
   athlete: Athlete,
@@ -20,13 +21,21 @@ export const generateTrainingPlan = async (
   trainingDays?: number[],
   runningDaysOfWeek?: number[],
   gymDaysOfWeek?: number[],
-  longRunDayOfWeek?: number
+  longRunDayOfWeek?: number,
+  currentPlan?: AthletePlan | null
 ): Promise<AthletePlan> => {
   
   athlete = withoutMenstrualData(athlete);
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const modelName = 'gemini-3-flash-preview';
 
+  const asOf=getLocalDateString(getAppNow());
+  const context=buildPrescriptionContext(athlete,currentPlan,asOf);
+  const constraints:PrescriptionConstraints={weeks,startDate:startDate||asOf,raceDate,runningDays:runningDaysOfWeek||[],gymDays:gymDaysOfWeek||[],longRunDay:longRunDayOfWeek??6,multisport:/triat|duat|triath|duath/i.test(`${raceDistance} ${raceGoal||''} ${goalDescription}`)};
+  if(!Number.isInteger(weeks)||weeks<1)throw new Error('Informe uma duração válida para o ciclo.');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(constraints.startDate))throw new Error('Informe a data de início do ciclo.');
+  const expectedRaceWeek=Array.from({length:7},(_,i)=>getWorkoutDateString(constraints.startDate,weeks-1,i));
+  if(raceDate&&!expectedRaceWeek.includes(raceDate))throw new Error('A data da prova não está na última semana do ciclo. Ajuste a duração ou a data de início antes de gerar.');
   const paces = athlete.customZones || calculatePaces(athlete.metrics.vdot, athlete.metrics.fcThreshold, athlete.metrics.fcMax);
   const pacesContext = paces.map(p => {
     let sigla: string = p.zone;
@@ -64,6 +73,11 @@ export const generateTrainingPlan = async (
   const prompt = `
     Aja como um Treinador de Elite especializado em Corrida (Metodologia VDOT - Jack Daniels) e Multiesporte (Triathlon e Duathlon).
     
+    ${prescriptionPrinciples}
+    HISTÓRICO EXECUTADO E QUALIDADE DOS DADOS (não extrapolar lacunas):
+    ${JSON.stringify(context)}
+    CALENDÁRIO OBRIGATÓRIO: ${JSON.stringify(constraints)}.
+    As regras desta base de raciocínio prevalecem sobre exemplos genéricos abaixo.
     SUA BASE METODOLÓGICA:
     1. "A Bíblia do Treinamento para Triatletas/Ciclistas" (Joe Friel).
     2. "Fórmula de Daniels" (Jack Daniels).
@@ -91,7 +105,7 @@ export const generateTrainingPlan = async (
     - RITMOS ALVO: ${pacesContext}.
  
     REGRAS OBRIGATÓRIAS DE PRESCRIÇÃO E DISTRIBUIÇÃO DOS DIAS:
-    1. ALOCAÇÃO DO LONGÃO (REGRA ABSOLUTA): O treino de "Longão" (rodagem longa, construção aeróbica e maior volume da semana) DEVE ser prescrito OBRIGATORIAMENTE no dia ${longRunDayName}. Em todas as semanas ordinárias, marque ${longRunDayName} como tipo "Longão". Na semana ${weeks} (semana final da prova), caso a prova aconteça no dia ${raceWeekday}, ela terá o papel principal.
+    1. ALOCAÇÃO DO LONGÃO: O treino de "Longão" (rodagem longa, construção aeróbica e maior volume da semana) DEVE ser prescrito OBRIGATORIAMENTE no dia ${longRunDayName}. Nas semanas de desenvolvimento, respeitando recuperação e dias anteriores ao início do ciclo, marque ${longRunDayName} como tipo "Longão". Na semana ${weeks} (semana final da prova), caso a prova aconteça no dia ${raceWeekday}, ela terá o papel principal.
     2. ALOCAÇÃO DE OUTRAS CORRIDAS (DIAS EXATOS): Aloque os outros treinos de corrida (Regenerativo, Limiar, Intervalado, Maratona, Velocidade) ESTRITAMENTE nos outros dias de corrida selecionados (${runningDaysNames}), sem colocá-los nos dias de descanso.
     3. ALOCAÇÃO DE ACADEMIA / FORTALECIMENTO (DIAS EXATOS): Você DEVE prescrever os treinos de "Fortalecimento" (musculação/funcional/força) ESTRITAMENTE nos DIAS DE ACADEMIA SELECIONADOS: ${gymDaysNames}.
     4. DIAS DE DESCANSO: Qualquer dia que NÃO for dia de corrida nem de academia DEVE ser preenchido como tipo "Descanso", com distance: 0 e customDescription detalhando descanso/recuperação passiva.
@@ -100,7 +114,7 @@ export const generateTrainingPlan = async (
     7. A PROVA deve ser o treino principal do dia ${raceWeekday} na Semana ${weeks}.
     8. No caso de lesões reportadas, inclua notas específicas do Coach orientando o cuidado.
     9. Use a nomenclatura exata: "Regenerativo", "Longão", "Limiar", "Intervalado", "Maratona", "Descanso", "Fortalecimento", "Velocidade", "Natação", "Ciclismo", "Transição", "Prova".
-    10. INDIVIDUALIZAÇÃO: Se o atleta é "Elite", o volume deve ser condizente (ex: 70-120km/sem para maratona). Se é "Iniciante", comece com volumes condizentes e progressão segura.
+    10. INDIVIDUALIZAÇÃO: fundamente o volume na execução recente e qualidade dos dados. Nível, idade e peso contextualizam, mas não determinam uma dose ou faixa de quilômetros. Em caso de lacunas, explicite as hipóteses a confirmar com o treinador.
 
     PADRÃO OBRIGATÓRIO DE SINTAXE PARA O CONVERSOR DE TREINOS ESTRUTURADOS (GPS / PARSER):
     Para que o sistema e o GPS convertam automaticamente as sessões em etapas estruturadas de áudio e ritmo para o atleta, você DEVE formatar o campo "customDescription" seguindo rigorosamente os padrões abaixo:
@@ -138,7 +152,7 @@ export const generateTrainingPlan = async (
       model: modelName,
       contents: prompt,
       config: {
-        systemInstruction: "Você é o Treinador Leandro Barbosa. Especialista em Performance Humana, Triathlon e Duathlon. Suas planilhas são baseadas nas metodologias de Joe Friel (Training Bible), Jack Daniels (VDOT) e 80/20 Training. Suas prescrições são precisas e formatadas com sintaxe padronizada para reconhecimento automático pelo conversor de treinos estruturados GPS (ex: '2km aq + 6x 1000m rec 2min ritmo 04:15 + 1km des'). Você sempre termina a periodização no dia da prova.",
+        systemInstruction: prescriptionPrinciples + " Você é um assistente de planejamento do Treinador Leandro Barbosa. Especialista em Performance Humana, Triathlon e Duathlon. Suas planilhas são baseadas nas metodologias de Joe Friel (Training Bible), Jack Daniels (VDOT) e 80/20 Training. Suas prescrições são precisas e formatadas com sintaxe padronizada para reconhecimento automático pelo conversor de treinos estruturados GPS (ex: '2km aq + 6x 1000m rec 2min ritmo 04:15 + 1km des'). Você sempre termina a periodização no dia da prova.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
         responseSchema: {
@@ -151,25 +165,28 @@ export const generateTrainingPlan = async (
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  phase: { type: Type.STRING },
+                  phase: { type: Type.STRING, enum: ["Base","Construção","Pico","Polimento"] },
                   weekNumber: { type: Type.INTEGER },
-                  totalVolume: { type: Type.INTEGER },
+                  totalVolume: { type: Type.NUMBER },
                   coachNotes: { type: Type.STRING },
                   workouts: {
                     type: Type.ARRAY,
                     items: {
                       type: Type.OBJECT,
                       properties: {
-                        day: { type: Type.STRING },
+                        objective: { type: Type.STRING },
+                        capacity: { type: Type.STRING },
+                        method: { type: Type.STRING },
+                        day: { type: Type.STRING, enum: prescriptionDays },
                         type: { type: Type.STRING, enum: ["Regenerativo", "Longão", "Limiar", "Intervalado", "Maratona", "Fortalecimento", "Descanso", "Velocidade", "Natação", "Ciclismo", "Transição", "Prova"] },
                         customDescription: { type: Type.STRING },
                         distance: { type: Type.NUMBER }
                       },
-                      required: ["day", "type", "customDescription"]
+                      required: ["day", "type", "customDescription", "objective", "capacity", "method", "distance"]
                     }
                   }
                 },
-                required: ["phase", "weekNumber", "workouts"]
+                required: ["phase", "weekNumber", "workouts", "coachNotes"]
               }
             }
           },
@@ -179,9 +196,17 @@ export const generateTrainingPlan = async (
     }));
 
     const parsed = JSON.parse(response.text || "{}");
-    return parsed as AthletePlan;
+    if(!Array.isArray(parsed.weeks)||parsed.weeks.length!==weeks||parsed.weeks.some((w:any)=>!Array.isArray(w.workouts)))throw new Error('REVIEW: A resposta não contém as semanas e sessões solicitadas. Gere novamente.');
+    // Whitelist model output: generated sessions cannot arrive as completed or published.
+    const plan:AthletePlan={raceStrategy:String(parsed.raceStrategy||''),motivationalMessage:String(parsed.motivationalMessage||''),startDate:constraints.startDate,endDate:raceDate,weeks:parsed.weeks.map((w:any,i:number)=>({id:crypto.randomUUID(),phase:w.phase,weekNumber:i+1,isVisible:false,totalVolume:0,coachNotes:String(w.coachNotes||''),workouts:w.workouts.map((s:any)=>({day:s.day,type:s.type,distance:s.distance,customDescription:String(s.customDescription||''),objective:String(s.objective||''),capacity:String(s.capacity||''),method:String(s.method||'')}))}))};
+    const review=inspectPrescription(plan,constraints,context);
+    if(review.errors.length)throw new Error('REVIEW: '+review.errors.slice(0,5).join(' '));
+    plan.weeks=plan.weeks.map((week,i)=>({...week,totalVolume:review.totals[i].runningKm,workouts:prescriptionDays.map((day,di)=>({...week.workouts.find(w=>w.day===day)!,date:getWorkoutDateString(constraints.startDate,i,di)}))}));
+    plan.prescriptionReview={version:1,generatedAt:new Date().toISOString(),constraints,context};
+    return plan;
   } catch (error: any) {
     console.error("Erro Gemini:", error?.message || "Erro desconhecido");
+    if(error?.message?.startsWith('REVIEW:'))throw new Error('Revisão da prescrição: '+error.message.slice(7));
     let userMessage = "A IA falhou ao gerar o plano.";
     if (error?.message?.includes("503") || error?.message?.includes("UNAVAILABLE")) {
       userMessage = "O servidor da IA está sobrecarregado no momento. Por favor, tente novamente em alguns instantes.";

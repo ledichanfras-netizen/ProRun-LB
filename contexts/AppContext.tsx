@@ -603,7 +603,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if(error)throw error;
       } catch (err) {
         console.warn("Could not sync updated athlete to cloud (stored locally):", err);
-        if(Object.prototype.hasOwnProperty.call(data,'readinessHistory') || Object.prototype.hasOwnProperty.call(data,'profilePhoto') || Object.prototype.hasOwnProperty.call(data,'raceResults'))throw err;
+        if(Object.prototype.hasOwnProperty.call(data,'readinessHistory') || Object.prototype.hasOwnProperty.call(data,'profilePhoto') || Object.prototype.hasOwnProperty.call(data,'raceResults') || Object.prototype.hasOwnProperty.call(data,'archivedPlans'))throw err;
       }
     }
   };
@@ -795,44 +795,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       weeks: weeksWithMetadata
     };
 
-    setAthletePlans(prev => ({ ...prev, [athleteId]: planWithMetadata }));
-
-    // Reconcile athlete gamification (streaks, real volume, total workouts)
-    const athlete = athletes.find(a => a.id === athleteId);
-    if (athlete) {
-      const simulatedPlans = { ...athletePlans, [athleteId]: planWithMetadata };
-      const { updatedData } = calculateAthleteGamification(simulatedPlans, athleteId, athlete.gamification, athlete.archivedPlans);
-      await updateAthlete(athleteId, { gamification: updatedData });
-    }
-    try {
-      // Upsert using the primary schema (athlete_id and plan_data)
-      await supabase.from('athlete_plans').upsert({
-        athlete_id: athleteId,
-        plan_data: {
-          ...planWithMetadata,
-          weeks: weeksWithMetadata,
-          raceStrategy: plan.raceStrategy || null,
-          motivationalMessage: plan.motivationalMessage || null,
-          specificGoal: plan.specificGoal || null,
-          startDate: plan.startDate || null,
-          trainingDays: plan.trainingDays || null
-        }
-      });
-
-      // Fallback format for compatibility with alternate schemas
-      try {
-        await supabase.from('athlete_plans').upsert({
-          id: athleteId,
-          weeks: weeksWithMetadata,
-          race_strategy: plan.raceStrategy || null,
-          motivational_message: plan.motivationalMessage || null,
-          specific_goal: plan.specificGoal || null
-        });
-      } catch (innerErr) {
-        // Safe to ignore
-      }
-    } catch (err) {
-      console.warn("Could not sync plan to cloud (stored locally):", err);
+    // Publish only after the primary-schema write is acknowledged and returned.
+    const {data:saved,error}=await supabase.from('athlete_plans').upsert({
+      athlete_id:athleteId,plan_data:planWithMetadata
+    }).select('athlete_id').single();
+    if(error||!saved)throw error||new Error('O servidor não confirmou o salvamento do ciclo.');
+    setAthletePlans(prev=>({...prev,[athleteId]:planWithMetadata}));
+    const athlete=athletes.find(a=>a.id===athleteId);
+    if(athlete){
+      const {updatedData}=calculateAthleteGamification({...athletePlans,[athleteId]:planWithMetadata},athleteId,athlete.gamification,athlete.archivedPlans);
+      await updateAthlete(athleteId,{gamification:updatedData});
     }
   };
 
@@ -860,21 +832,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const clearAthletePlan = async (athleteId: string) => {
-    setAthletePlans(prev => {
-      const next = { ...prev };
-      delete next[athleteId];
-      return next;
-    });
-    try {
-      await supabase.from('athlete_plans').delete().eq('athlete_id', athleteId);
-      try {
-        await supabase.from('athlete_plans').delete().eq('id', athleteId);
-      } catch (innerErr) {
-        // Safe to ignore
-      }
-    } catch (err) {
-      console.warn("Could not sync plan clearing to cloud (removed locally):", err);
-    }
+    await saveAthletePlan(athleteId,{weeks:[],freeRuns:athletePlans[athleteId]?.freeRuns||[]});
   };
 
   const rescheduleWorkout = async (

@@ -1,3 +1,4 @@
+import {savePrescriptionDraft,readPrescriptionDraft,clearPrescriptionDraft} from '../utils/prescriptionDraft';
 import {PrescriptionReview} from '../components/PrescriptionReview';
 import {inspectPrescription} from '../utils/prescriptionIntelligence';
 import {AthletePhoto} from '../components/AthletePhoto';
@@ -79,6 +80,8 @@ const Periodization: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [fullPlan, setFullPlan] = useState<AthletePlan | null>(null);
   const aiProposalAthlete=useRef<string|null>(null);
+  const [draftSaveFailed,setDraftSaveFailed]=useState(false);
+  const [publishing,setPublishing]=useState(false);
   const [prescriptionAccepted,setPrescriptionAccepted]=useState(false);
   useEffect(()=>setPrescriptionAccepted(false),[fullPlan]);
   const [isEditing, setIsEditing] = useState(false);
@@ -96,7 +99,13 @@ const Periodization: React.FC = () => {
   const [rescheduleTargetWeek, setRescheduleTargetWeek] = useState<number>(0);
   const [rescheduleTargetDay, setRescheduleTargetDay] = useState<number>(0);
 
-  // AI proposals use an explicit review/publish path; incidental editor saves stay local.
+  useEffect(()=>{
+    if(aiProposalAthlete.current&&fullPlan?.prescriptionReview){
+      setDraftSaveFailed(!savePrescriptionDraft(aiProposalAthlete.current,fullPlan));
+    }
+  },[fullPlan]);
+
+  // AI proposals use an explicit review/publish path; edits are checkpointed locally.
   const saveAthletePlan = async (id:string,plan:AthletePlan) => {
     if(plan.prescriptionReview){setIsEditing(true);return;}
     await persistAthletePlan(id,plan);
@@ -253,6 +262,12 @@ const Periodization: React.FC = () => {
   useEffect(() => {
     if(aiProposalAthlete.current===activeAthlete?.id&&fullPlan?.prescriptionReview)return;
     aiProposalAthlete.current=null;
+    const draft=activeAthlete?readPrescriptionDraft(activeAthlete.id):null;
+    if(draft&&activeAthlete){
+      aiProposalAthlete.current=activeAthlete.id;
+      setFullPlan(draft);setIsEditing(true);setStartDate(draft.startDate||'');setRaceDate(draft.endDate||'');
+      return;
+    }
     if (activeAthlete && athletePlans[activeAthlete.id]) {
       const plan = athletePlans[activeAthlete.id];
       setFullPlan(plan);
@@ -375,6 +390,7 @@ const Periodization: React.FC = () => {
         gymDaysCount: gymDaysOfWeek.length
       };
       aiProposalAthlete.current=activeAthlete.id;
+      setDraftSaveFailed(!savePrescriptionDraft(activeAthlete.id,newPlan));
       setFullPlan(newPlan);
       // Generated proposals remain in the editor until the coach reviews and publishes.
       setIsEditing(true);
@@ -401,6 +417,7 @@ const Periodization: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if(publishing)return;
     if (activeAthlete && fullPlan) {
       if(fullPlan.prescriptionReview){
         const meta=fullPlan.prescriptionReview;
@@ -408,16 +425,20 @@ const Periodization: React.FC = () => {
         if(report.errors.length){alert('Corrija a revisão da periodização antes de publicar: '+report.errors.slice(0,3).join(' '));return;}
         if(!prescriptionAccepted){alert('Confira a revisão da periodização e marque a confirmação antes de publicar.');return;}
       }
+      if(fullPlan.prescriptionReview&&!fullPlan.weeks.some(w=>w.isVisible)){alert('Selecione pelo menos uma semana para liberar antes de publicar.');return;}
+      setPublishing(true);
       try {
         const previous=athletePlans[activeAthlete.id];
         if(fullPlan.prescriptionReview&&previous&&previous.prescriptionReview?.generatedAt!==fullPlan.prescriptionReview.generatedAt&&previous.weeks.some(w=>w.workouts.some(s=>s.completed))){
           const archiveId=`before-ai-${fullPlan.prescriptionReview.generatedAt}`;
           if(!activeAthlete.archivedPlans?.some(p=>p.id===archiveId))await updateAthlete(activeAthlete.id,{archivedPlans:[{id:archiveId,name:`Ciclo anterior · ${previous.specificGoal||'Treinos realizados'}`,startDate:previous.startDate||'',endDate:previous.endDate||'',specificGoal:previous.specificGoal||'',weeks:previous.weeks,archivedAt:new Date().toISOString()},...(activeAthlete.archivedPlans||[])]});
         }
-        const toPublish=fullPlan.prescriptionReview&&!fullPlan.weeks.some(w=>w.isVisible)?{...fullPlan,weeks:fullPlan.weeks.map(w=>({...w,isVisible:true}))}:fullPlan;
-        aiProposalAthlete.current=null;
+        const toPublish=fullPlan;
         await persistAthletePlan(activeAthlete.id,toPublish);
-      }catch{alert('Não foi possível salvar o ciclo. Tente publicar novamente.');return;}
+        clearPrescriptionDraft(activeAthlete.id);
+        aiProposalAthlete.current=null;
+        setFullPlan(toPublish);
+      }catch{alert('Não foi possível confirmar o salvamento. Seu rascunho foi mantido. Tente publicar novamente.');return;}finally{setPublishing(false);}
       
       // Notificar Atleta sobre nova planilha
       addNotification({
@@ -1116,9 +1137,9 @@ const Periodization: React.FC = () => {
            {fullPlan && (
              <>
                <button 
-                 onClick={handleArchiveCycle} 
+                 onClick={handleArchiveCycle} disabled={publishing||aiProposalAthlete.current===activeAthlete?.id}
                  className="bg-amber-600/20 hover:bg-amber-600 text-amber-400 hover:text-white border border-amber-500/30 hover:border-transparent px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition shadow-lg uppercase text-[10px] italic tracking-widest"
-                 title="Arquivar o ciclo atual de treinos no histórico do atleta"
+                 title={aiProposalAthlete.current===activeAthlete?.id?"Publique a nova proposta para preservar automaticamente o ciclo anterior":"Arquivar o ciclo atual de treinos no histórico do atleta"}
                >
                  <Archive className="w-4 h-4" /> Arquivar Ciclo
                </button>
@@ -1133,14 +1154,15 @@ const Periodization: React.FC = () => {
                <button onClick={() => setIsEditing(!isEditing)} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition border-2 ${isEditing ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200'}`}>
                  {isEditing ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />} {isEditing ? 'Travar' : 'Editar'}
                </button>
-               <button onClick={handleSave} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg uppercase text-xs italic tracking-widest"><Save className="w-4 h-4" /> Publicar</button>
+               <button onClick={handleSave} disabled={publishing} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg uppercase text-xs italic tracking-widest"><Save className="w-4 h-4" /> Publicar</button>
              </>
            )}
         </div>
       </header>
       {activeAthlete&&fullPlan?.prescriptionReview&&<PrescriptionReview plan={fullPlan} accepted={prescriptionAccepted} onAccept={setPrescriptionAccepted}/>}
-      {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<button type="button" className="text-sm text-emerald-500 font-bold p-3 rounded-xl border border-emerald-500/30" onClick={()=>{aiProposalAthlete.current=null;setFullPlan(athletePlans[activeAthlete.id]||null);setIsEditing(false);}}>Descartar proposta e voltar ao ciclo atual</button>}
+      {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<button type="button" className="text-sm text-emerald-500 font-bold p-3 rounded-xl border border-emerald-500/30" onClick={()=>{clearPrescriptionDraft(activeAthlete.id);aiProposalAthlete.current=null;setFullPlan(athletePlans[activeAthlete.id]||null);setIsEditing(false);}}>Descartar proposta e voltar ao ciclo atual</button>}
 
+      {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<div role="status" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200 p-4 text-sm font-bold">{draftSaveFailed?'Não foi possível salvar o rascunho neste dispositivo. Mantenha esta tela aberta até publicar.':'Rascunho salvo neste dispositivo. Selecione as semanas, confirme a revisão e toque em Publicar para salvar e liberar ao atleta.'}</div>}
       {/* CARD DO ATLETA EM FOCO */}
       {activeAthlete && (
         <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-5 md:p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
@@ -1621,12 +1643,13 @@ const Periodization: React.FC = () => {
                       <button onClick={() => {
                           const newPlan = safeDeepClone(fullPlan);
                           newPlan.weeks[weekIndex].isVisible = !newPlan.weeks[weekIndex].isVisible;
+                          setIsEditing(true);
                           setFullPlan(newPlan);
                       }} className={`flex-shrink-0 px-2 md:px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${week.isVisible === true ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-white/10 text-slate-400 bg-white/5'}`}>
                         {week.isVisible === true ? (
                           <>
                             <Eye className="w-3.5 h-3.5" />
-                            <span className="text-[8px] md:text-[9px] font-black uppercase italic hidden xs:inline">Publicado</span>
+                            <span className="text-[8px] md:text-[9px] font-black uppercase italic hidden xs:inline">{aiProposalAthlete.current===activeAthlete?.id||isEditing?'Liberar ao publicar':'Publicado'}</span>
                           </>
                         ) : (
                           <>
@@ -2006,7 +2029,7 @@ const Periodization: React.FC = () => {
                     ))}
                   </div>
                   <div data-week-actions className="px-4 md:px-6 py-4 border-t border-white/10 bg-white/5 flex flex-wrap items-center justify-end gap-3">
-                    <button type="button" onClick={handleSave} className="flex-1 sm:flex-none min-w-0 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2">
+                    <button type="button" onClick={handleSave} disabled={publishing} className="flex-1 sm:flex-none min-w-0 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2">
                       <CheckCircle className="w-4 h-4 shrink-0" /> Publicar
                     </button>
                     <button type="button" onClick={() => handleDownloadSingleWeek(weekIndex)} disabled={exportLoading} className="flex-1 sm:flex-none min-w-0 px-5 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2 disabled:opacity-50">

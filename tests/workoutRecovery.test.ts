@@ -42,7 +42,7 @@ test('storage quota retries without redundant copy and reports failure without d
   assert.equal(saveActiveWorkoutBackup({gpsPoints:[[1,2]],distanceKm:7,durationSeconds:2300} as ActiveWorkoutBackup),true);
   full=true;
   const warn=console.warn;console.warn=()=>{};
-  try{assert.equal(saveActiveWorkoutBackup({gpsPoints:[],distanceKm:8,durationSeconds:2600} as ActiveWorkoutBackup),false);}finally{console.warn=warn;}
+  try{assert.equal(saveActiveWorkoutBackup({gpsPoints:[],distanceKm:8,durationSeconds:2600} as unknown as ActiveWorkoutBackup),false);}finally{console.warn=warn;}
   assert.equal(getActiveWorkoutBackup()!.distanceKm,7);
  }finally{if(original)Object.defineProperty(globalThis,'localStorage',original);else Reflect.deleteProperty(globalThis,'localStorage');}
 });

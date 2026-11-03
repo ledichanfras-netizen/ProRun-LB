@@ -4,7 +4,7 @@ import {withoutMenstrualData} from '../utils/menstrualReadiness';
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Athlete, AthletePlan } from "../types";
 import { calculatePaces } from "../utils/calculations";
-import { withRetry } from "../utils/helpers";
+import { withPrescriptionModelFallback, modelFailureKind } from "../utils/prescriptionModels";
 
 import { getAppNow, getLocalDateString, getWorkoutDateString } from "../utils/time";
 
@@ -27,7 +27,6 @@ export const generateTrainingPlan = async (
   
   athlete = withoutMenstrualData(athlete);
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const modelName = 'gemini-3-flash-preview';
 
   const asOf=getLocalDateString(getAppNow());
   const context=buildPrescriptionContext(athlete,currentPlan,asOf);
@@ -148,7 +147,7 @@ export const generateTrainingPlan = async (
   `;
 
   try {
-    const response = await withRetry(() => ai.models.generateContent({
+    const response = await withPrescriptionModelFallback(modelName => ai.models.generateContent({
       model: modelName,
       contents: prompt,
       config: {
@@ -208,9 +207,11 @@ export const generateTrainingPlan = async (
     console.error("Erro Gemini:", error?.message || "Erro desconhecido");
     if(error?.message?.startsWith('REVIEW:'))throw new Error('Revisão da prescrição: '+error.message.slice(7));
     let userMessage = "A IA falhou ao gerar o plano.";
-    if (error?.message?.includes("503") || error?.message?.includes("UNAVAILABLE")) {
-      userMessage = "O servidor da IA está sobrecarregado no momento. Por favor, tente novamente em alguns instantes.";
+    if (['temporary', 'missing-model'].includes(modelFailureKind(error))) {
+      userMessage = "Os modelos de IA não responderam após as tentativas automáticas. Seus parâmetros foram mantidos. Tente novamente em alguns minutos.";
     }
+    if(modelFailureKind(error)==='quota') userMessage="O limite de uso da API de IA foi atingido. Confira a cota no Google AI Studio antes de tentar novamente.";
+    if(/API key|API_KEY|PERMISSION_DENIED|UNAUTHENTICATED|billing|payment|credits/i.test(String(error?.message||''))) userMessage="A API de IA precisa de verificação da chave, permissão ou faturamento. A assinatura do Gemini não substitui o acesso pela API.";
     throw new Error(userMessage);
   }
 };

@@ -1,4 +1,4 @@
-const VERSION = 'v65';
+const VERSION = 'v66';
 const CACHE_NAME = `prorun-lb-${VERSION}`;
 const STATIC_CACHE = `static-${VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${VERSION}`;

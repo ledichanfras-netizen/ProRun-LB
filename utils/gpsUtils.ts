@@ -357,51 +357,62 @@ export interface ActiveWorkoutBackup {
   savedAt: string; // ISO string
 }
 
-export function saveActiveWorkoutBackup(backup: ActiveWorkoutBackup): void {
+// Retain the previous committed snapshot if the latest write is damaged or fails.
+export const PREVIOUS_WORKOUT_BACKUP_KEY = `${ACTIVE_WORKOUT_BACKUP_KEY}_previous`;
+
+export function saveActiveWorkoutBackup(backup: ActiveWorkoutBackup): boolean {
+  const payload = {...backup, savedAt: new Date().toISOString()};
   try {
-    // Keep max 600 points in localStorage checkpoint for fast, lightweight writes
-    const maxPts = 600;
-    let pts = backup.gpsPoints;
-    if (pts.length > maxPts) {
-      const step = Math.ceil(pts.length / maxPts);
-      pts = pts.filter((_, idx) => idx % step === 0 || idx === pts.length - 1);
+    const serialized = JSON.stringify(payload);
+    const previous = localStorage.getItem(ACTIVE_WORKOUT_BACKUP_KEY);
+    // Rotation is best effort: lack of room must not prevent the latest checkpoint.
+    if (previous) {
+      try { localStorage.setItem(PREVIOUS_WORKOUT_BACKUP_KEY, previous); } catch {}
     }
-    const payload: ActiveWorkoutBackup = {
-      ...backup,
-      gpsPoints: pts,
-      savedAt: new Date().toISOString()
-    };
-    localStorage.setItem(ACTIVE_WORKOUT_BACKUP_KEY, JSON.stringify(payload));
+    try {
+      localStorage.setItem(ACTIVE_WORKOUT_BACKUP_KEY, serialized);
+    } catch {
+      // Free only our redundant copy; never delete other application data.
+      localStorage.removeItem(PREVIOUS_WORKOUT_BACKUP_KEY);
+      localStorage.setItem(ACTIVE_WORKOUT_BACKUP_KEY, serialized);
+    }
+    return true;
   } catch (err) {
     console.warn('Auto-save workout backup warning:', err);
+    return false;
   }
 }
 
 export function getActiveWorkoutBackup(): ActiveWorkoutBackup | null {
-  try {
-    const raw = localStorage.getItem(ACTIVE_WORKOUT_BACKUP_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as ActiveWorkoutBackup;
-    // Validate that backup has meaningful progress (at least 3 seconds or any distance)
-    if (!parsed || (parsed.durationSeconds < 3 && parsed.distanceKm <= 0)) {
-      return null;
-    }
-    // Discard backups older than 24 hours
-    const savedTime = new Date(parsed.savedAt).getTime();
-    if (isNaN(savedTime) || Date.now() - savedTime > 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(ACTIVE_WORKOUT_BACKUP_KEY);
-      return null;
-    }
-    return parsed;
-  } catch (err) {
-    return null;
+  const candidates: ActiveWorkoutBackup[] = [];
+  for (const key of [ACTIVE_WORKOUT_BACKUP_KEY, PREVIOUS_WORKOUT_BACKUP_KEY]) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as ActiveWorkoutBackup;
+      if (!parsed || !Number.isFinite(parsed.durationSeconds) || !Number.isFinite(parsed.distanceKm)
+        || (parsed.durationSeconds < 3 && parsed.distanceKm <= 0)
+        || !Array.isArray(parsed.gpsPoints) || !Number.isFinite(Date.parse(parsed.savedAt))) continue;
+      candidates.push(parsed);
+    } catch { /* A damaged copy must not prevent recovery from the other one. */ }
   }
+  // An unfinished run is retained until explicitly saved or discarded, even after 24h.
+  return candidates.sort((a,b)=>Date.parse(b.savedAt)-Date.parse(a.savedAt))[0] || null;
 }
 
 export function clearActiveWorkoutBackup(): void {
+  for (const key of [ACTIVE_WORKOUT_BACKUP_KEY, PREVIOUS_WORKOUT_BACKUP_KEY]) {
+    try { localStorage.removeItem(key); } catch {}
+  }
+}
+
+/** Request protection against automatic browser eviction when supported. */
+export async function requestWorkoutStoragePersistence(): Promise<boolean> {
   try {
-    localStorage.removeItem(ACTIVE_WORKOUT_BACKUP_KEY);
-  } catch (err) {}
+    if (typeof navigator === 'undefined' || !navigator.storage?.persist) return false;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch { return false; }
 }
 
 export function convertBackupToRouteData(backup: ActiveWorkoutBackup): RouteData {

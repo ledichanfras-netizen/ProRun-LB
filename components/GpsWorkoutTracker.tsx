@@ -53,6 +53,7 @@ import {
   parseGpxFile,
   ActiveWorkoutBackup,
   saveActiveWorkoutBackup,
+  requestWorkoutStoragePersistence,
   getActiveWorkoutBackup,
   clearActiveWorkoutBackup,
   convertBackupToRouteData,
@@ -303,6 +304,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [isScreenLocked, setIsScreenLocked] = useState(false);
   const [backButtonBlockedNotice, setBackButtonBlockedNotice] = useState(false);
   const [recoverableBackup, setRecoverableBackup] = useState<ActiveWorkoutBackup | null>(null);
+  const [checkpointFailed, setCheckpointFailed] = useState(false);
   const [lastAutoSavedTime, setLastAutoSavedTime] = useState<string | null>(null);
   const [showProtectionInfoModal, setShowProtectionInfoModal] = useState(false);
 
@@ -433,14 +435,16 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   checkpointRef.current=()=>{
     if(!checkpointEnabledRef.current)return;
     const seconds=Math.floor(elapsedNow());if(seconds<2&&distanceRef.current<=0)return;
-    saveActiveWorkoutBackup({workoutType,workoutDescription,plannedDistanceKm,athleteWeight,weekIndex:workoutContext?.weekIndex,dayIndex:workoutContext?.dayIndex,
+    const saved = saveActiveWorkoutBackup({workoutType,workoutDescription,plannedDistanceKm,athleteWeight,weekIndex:workoutContext?.weekIndex,dayIndex:workoutContext?.dayIndex,
       distanceKm:distanceRef.current,durationSeconds:seconds,currentPace,gpsPoints:[...gpsPointsRef.current],currentPosition,
       elevationGainMeters,currentCalories,currentCadence,maxCadence,cadenceSummary:cadenceTrackerRef.current.getSummary(),maxSpeedKmh:maxSpeedRef.current,
-      heartRateDeviceId:heartRateDeviceIdRef.current,heartRateExpected:!!heartRateDeviceIdRef.current,heartRateSummary:{...heartRateSummaryRef.current},heartRateAverage,heartRateMax,
+      heartRateDeviceId:heartRateDeviceIdRef.current,heartRateExpected:!!heartRateDeviceIdRef.current,heartRateSummary:{...heartRateSummaryRef.current},heartRateAverage:heartRateSummaryRef.current.count?Math.round(heartRateSummaryRef.current.sum/heartRateSummaryRef.current.count):heartRateAverage,heartRateMax:heartRateSummaryRef.current.max||heartRateMax,
       kmSplits:kmSplitsRef.current,telemetrySamples:telemetrySamplesRef.current,activeStepIndex,stepDistanceMeters,stepDurationSeconds,completedSteps,activeStructured,savedAt:new Date().toISOString()});
+    setCheckpointFailed(!saved);
+    if(saved)setLastAutoSavedTime(new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
   };
-  useEffect(()=>{if(!isTracking&&!isPaused)return;checkpointRef.current();setLastAutoSavedTime(new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));},[isTracking,isPaused,durationSeconds,distanceKm,gpsPoints.length,activeStepIndex,completedSteps.length]);
-  useEffect(()=>{const save=()=>checkpointRef.current();const foreground=()=>{save();if(document.visibilityState==='visible')foregroundRecoveryRef.current();};window.addEventListener('pagehide',save);window.addEventListener('pageshow',foreground);document.addEventListener('visibilitychange',foreground);return()=>{save();window.removeEventListener('pagehide',save);window.removeEventListener('pageshow',foreground);document.removeEventListener('visibilitychange',foreground);};},[]);
+  useEffect(()=>{if(!isTracking&&!isPaused)return;checkpointRef.current();},[isTracking,isPaused,durationSeconds,distanceKm,gpsPoints.length,telemetrySamples,activeStepIndex,completedSteps.length]);
+  useEffect(()=>{const save=()=>checkpointRef.current();const foreground=()=>{save();if(document.visibilityState==='visible'){foregroundRecoveryRef.current();if(checkpointEnabledRef.current&&activeStartRef.current!==null)void requestWakeLock();}};window.addEventListener('pagehide',save);window.addEventListener('pageshow',foreground);document.addEventListener('visibilitychange',foreground);return()=>{save();window.removeEventListener('pagehide',save);window.removeEventListener('pageshow',foreground);document.removeEventListener('visibilitychange',foreground);};},[]);
 
   // 3. VERIFICAR SE EXISTE UMA CORRIDA INTERROMPIDA PARA RECUPERAR IMEDIATAMENTE
   useEffect(() => {
@@ -531,24 +535,29 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     }
   };
 
-  // Wake Lock API: Keeps the screen awake during active running
+  // The browser releases screen wake locks while hidden. Reacquire on return.
+  const wakeLockPendingRef = useRef(false);
+  const wakeLockGenerationRef = useRef(0);
   const requestWakeLock = async () => {
+    if(document.visibilityState !== 'visible' || wakeLockPendingRef.current || wakeLockRef.current) return;
+    const generation = wakeLockGenerationRef.current;
+    wakeLockPendingRef.current = true;
     try {
       if ('wakeLock' in navigator && (navigator as any).wakeLock) {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        const lock = await (navigator as any).wakeLock.request('screen');
+        if(generation !== wakeLockGenerationRef.current || !checkpointEnabledRef.current || activeStartRef.current===null){await lock.release();return;}
+        wakeLockRef.current = lock;
+        lock.addEventListener('release',()=>{if(wakeLockRef.current===lock)wakeLockRef.current=null;});
       }
-    } catch (err) {
-      console.log('WakeLock error:', err);
-    }
+    } catch { /* The system can decline, for example in battery saving mode. */ }
+    finally {wakeLockPendingRef.current=false;}
   };
 
   const releaseWakeLock = () => {
-    try {
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release();
-        wakeLockRef.current = null;
-      }
-    } catch (err) {}
+    wakeLockGenerationRef.current++;
+    const lock = wakeLockRef.current;
+    wakeLockRef.current = null;
+    if(lock)void lock.release().catch(()=>{});
   };
 
   const handleHeartRateMeasurement = (measurement: HeartRateMeasurement) => {
@@ -741,7 +750,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setIsTracking(true);
     setIsPaused(false);
     setIsFocusMode(true); // Abre automaticamente a tela grande intuitiva de treino
-    requestWakeLock();
+    void requestWakeLock();
+    void requestWorkoutStoragePersistence();
 
     // Announce initial step if structured workout
     if (activeStructured && activeStructured.steps && activeStructured.steps[0]) {
@@ -1610,10 +1620,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
           <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
           <div className="text-[10px] leading-tight">
             <span className="font-black uppercase tracking-wider text-emerald-500">
-              Blindagem Anti-Perda Ativa:
+              {checkpointFailed ? 'Falha no salvamento local:' : 'Proteção de dados ativa:'}
             </span>{' '}
             <span className={isLight ? 'text-slate-600 font-medium' : 'text-slate-300 font-medium'}>
-              Botão Voltar bloqueado • Auto-Save a cada segundo{lastAutoSavedTime ? ` (${lastAutoSavedTime})` : ''}
+              {checkpointFailed ? 'Sem espaço ou armazenamento indisponível. Mantenha o aplicativo aberto e salve o treino.' : `Salvamento local a cada segundo${lastAutoSavedTime ? ` (${lastAutoSavedTime})` : ''}`}
             </span>
           </div>
         </div>

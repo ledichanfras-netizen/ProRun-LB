@@ -1,5 +1,5 @@
 import { Athlete, GamificationData, UserAchievement, UserGoal, TrainingWeek } from "../types";
-import { getActivityWeeks } from '../utils/trainingActivities';
+import { uniqueTrainingActivities } from '../utils/uniqueTrainingActivities';
 import { getAppNow } from "../utils/time";
 
 const XP_PER_WORKOUT = 100;
@@ -20,31 +20,7 @@ export const countCompletedWorkouts = (
   athleteId: string,
   extraArchivedPlans?: any[]
 ): number => {
-  let count = 0;
-  const sourcePlan = allPlans[athleteId];
-  const plan = sourcePlan ? {...sourcePlan, weeks: getActivityWeeks(sourcePlan)} : undefined;
-  if (plan?.weeks && Array.isArray(plan.weeks)) {
-    plan.weeks.forEach((w: any) => {
-      (w.workouts || []).forEach((tw: any) => {
-        if (tw.completed && tw.type !== 'Descanso') {
-          count++;
-        }
-      });
-    });
-  }
-  if (extraArchivedPlans && Array.isArray(extraArchivedPlans)) {
-    extraArchivedPlans.forEach((source: any) => {
-      const ap = {...source, weeks: getActivityWeeks(source)};
-      (ap.weeks || []).forEach((w: any) => {
-        (w.workouts || []).forEach((tw: any) => {
-          if (tw.completed && tw.type !== 'Descanso') {
-            count++;
-          }
-        });
-      });
-    });
-  }
-  return count;
+  return uniqueTrainingActivities(allPlans[athleteId],extraArchivedPlans).filter(w=>w.completed&&w.type!=='Descanso').length;
 };
 
 export interface GamificationOptions {
@@ -79,123 +55,20 @@ export const calculateAthleteGamification = (
     goals: [...(initialData.goals || [])]
   };
 
-  const sourcePlan = allPlans[athleteId];
-  const plan = sourcePlan ? {...sourcePlan, weeks: getActivityWeeks(sourcePlan)} : undefined;
-
-  archivedPlans = archivedPlans?.map(source => ({...source, weeks: getActivityWeeks(source)}));
-
-  // 1. Gather all non-rest scheduled workouts in chronological order
-  const orderedWorkouts: {
-    type: string;
-    completed: boolean;
-    distance: number;
-    actualDistance?: number;
-    date?: string;
-  }[] = [];
-
-  let totalRealKm = 0;
-  let totalWorkouts = 0;
-  let latestCompletedDate: string | undefined = undefined;
-
-  // Process current plan weeks
-  if (plan?.weeks && Array.isArray(plan.weeks)) {
-    plan.weeks.forEach((w: any) => {
-      (w.workouts || []).forEach((tw: any) => {
-        const isCompleted = Boolean(tw.completed);
-        const dist = tw.actualDistance !== undefined && tw.actualDistance !== null && tw.actualDistance !== ''
-          ? Number(String(tw.actualDistance).replace(',', '.'))
-          : (Number(tw.distance) || 0);
-
-        if (isCompleted) {
-          totalRealKm += isNaN(dist) ? 0 : dist;
-          if (tw.type !== 'Descanso') {
-            totalWorkouts++;
-            if (tw.date) latestCompletedDate = tw.date;
-          }
-        }
-
-        if (tw.type !== 'Descanso') {
-          orderedWorkouts.push({
-            type: tw.type,
-            completed: isCompleted,
-            distance: Number(tw.distance) || 0,
-            actualDistance: tw.actualDistance !== undefined ? Number(tw.actualDistance) : undefined,
-            date: tw.date
-          });
-        }
-      });
-    });
-  }
-
-  // Also include extra archived plans for true count and total volume
-  if (archivedPlans && Array.isArray(archivedPlans)) {
-    archivedPlans.forEach((ap: any) => {
-      (ap.weeks || []).forEach((w: any) => {
-        (w.workouts || []).forEach((tw: any) => {
-          if (tw.completed) {
-            const dist = tw.actualDistance !== undefined && tw.actualDistance !== null && tw.actualDistance !== ''
-              ? Number(String(tw.actualDistance).replace(',', '.'))
-              : (Number(tw.distance) || 0);
-            totalRealKm += isNaN(dist) ? 0 : dist;
-            if (tw.type !== 'Descanso') {
-              totalWorkouts++;
-            }
-          }
-        });
-      });
-    });
-  }
-
-  // 2. Calculate Active Streak (Treinos da Labareda)
-  // Find the index of the latest completed workout in chronological order
-  let lastCompletedIdx = -1;
-  for (let i = orderedWorkouts.length - 1; i >= 0; i--) {
-    if (orderedWorkouts[i].completed) {
-      lastCompletedIdx = i;
-      break;
-    }
-  }
-
-  let streak = 0;
-  if (lastCompletedIdx >= 0) {
-    // Count consecutive completed workouts backwards from the latest completed workout
-    for (let i = lastCompletedIdx; i >= 0; i--) {
-      if (orderedWorkouts[i].completed) {
-        streak++;
-      } else {
-        // Uncompleted scheduled workout breaks the consecutive sequence
-        break;
-      }
-    }
-
-    // If streak reached the start of the current plan, continue checking recent archived plans
-    if (lastCompletedIdx === streak - 1 && archivedPlans && archivedPlans.length > 0) {
-      for (let p = archivedPlans.length - 1; p >= 0; p--) {
-        const ap = archivedPlans[p];
-        let breakOuter = false;
-        if (ap?.weeks && Array.isArray(ap.weeks)) {
-          for (let w = ap.weeks.length - 1; w >= 0; w--) {
-            const wk = ap.weeks[w];
-            if (wk?.workouts && Array.isArray(wk.workouts)) {
-              for (let d = wk.workouts.length - 1; d >= 0; d--) {
-                const atw = wk.workouts[d];
-                if (atw.type !== 'Descanso') {
-                  if (atw.completed) {
-                    streak++;
-                  } else {
-                    breakOuter = true;
-                    break;
-                  }
-                }
-              }
-            }
-            if (breakOuter) break;
-          }
-        }
-        if (breakOuter) break;
-      }
-    }
-  }
+  const activities=uniqueTrainingActivities(allPlans[athleteId],archivedPlans);
+  const orderedWorkouts=activities.filter(w=>w.type!=='Descanso');
+  const completed=activities.filter(w=>w.completed);
+  const totalWorkouts=completed.filter(w=>w.type!=='Descanso').length;
+  const totalRealKm=completed.reduce((sum,w)=>{
+    const value=w.actualDistance!==undefined&&w.actualDistance!==null&&String(w.actualDistance)!==''?w.actualDistance:w.distance;
+    const distance=Number(String(value??0).replace(',','.'));
+    return sum+(Number.isFinite(distance)?Math.max(0,distance):0);
+  },0);
+  const latestCompletedDate=orderedWorkouts.filter(w=>w.completed).slice(-1)[0]?.date;
+  let lastCompletedIdx=-1;
+  for(let i=orderedWorkouts.length-1;i>=0;i--)if(orderedWorkouts[i].completed){lastCompletedIdx=i;break;}
+  let streak=0;
+  for(let i=lastCompletedIdx;i>=0&&orderedWorkouts[i].completed;i--)streak++;
 
   updatedData.streak = streak;
   updatedData.longestStreak = Math.max(streak, initialData.longestStreak || 0);
@@ -216,27 +89,7 @@ export const calculateAthleteGamification = (
     return XP_PER_WORKOUT;
   };
 
-  let totalXp = 0;
-  if (plan?.weeks && Array.isArray(plan.weeks)) {
-    plan.weeks.forEach((w: any) => {
-      (w.workouts || []).forEach((tw: any) => {
-        if (tw.completed) {
-          totalXp += getXpForWorkout(tw.type);
-        }
-      });
-    });
-  }
-  if (archivedPlans && Array.isArray(archivedPlans)) {
-    archivedPlans.forEach((ap: any) => {
-      (ap.weeks || []).forEach((w: any) => {
-        (w.workouts || []).forEach((tw: any) => {
-          if (tw.completed) {
-            totalXp += getXpForWorkout(tw.type);
-          }
-        });
-      });
-    });
-  }
+  let totalXp = completed.reduce((sum,w)=>sum+getXpForWorkout(w.type),0);
 
   // Add achievement bonuses
   totalXp += ((updatedData.achievements?.length || 0) * 50);
@@ -291,6 +144,11 @@ export const calculateAthleteGamification = (
     };
   });
 
+  updatedData.xp = completed.reduce((sum,w)=>sum+getXpForWorkout(w.type),0)+updatedData.achievements.length*50;
+  updatedData.level = calculateLevel(updatedData.xp);
+  if(updatedData.level>=5)checkAchievement('level_5','Veterano','Chegou ao nível 5!','🎖️');
+  updatedData.xp = completed.reduce((sum,w)=>sum+getXpForWorkout(w.type),0)+updatedData.achievements.length*50;
+  updatedData.level = calculateLevel(updatedData.xp);
   return { updatedData, newAchievements };
 };
 

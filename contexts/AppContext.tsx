@@ -1,6 +1,7 @@
+import {accessRequest,type AccessAccount} from '../lib/access';
 import type {MenstrualPhase} from '../utils/menstrualReadiness';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FreeRun, Athlete, Workout, HistoryEntry, TrainingWeek, UserRole, Assessment, AthletePlan, Subscription, TrainingTemplate, AppNotification, UserGoal, Exercise } from '../types';
 import { getHrRangeString } from '../utils/calculations';
 import { getActivityWeeks, activityDistance } from '../utils/trainingActivities';
@@ -15,6 +16,9 @@ import { DEFAULT_WORKOUTS } from '../data/defaultWorkouts';
 interface AppContextType {
 // ... existing types ...
   userRole: UserRole;
+  account:AccessAccount|null;
+  canPeriodizeAI:boolean;
+  refreshAccount:()=>Promise<void>;
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   
@@ -108,49 +112,19 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [userRole, setUserRole] = useState<UserRole>(() => {
-    return (localStorage.getItem('proRun_userRole') as UserRole) || null;
-  });
-  
-  const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(() => {
-    return localStorage.getItem('proRun_selectedAthleteId') || null;
-  });
-  
-  const [athletes, setAthletes] = useState<Athlete[]>(() => {
-    const cached = localStorage.getItem('proRun_cached_athletes');
-    return cached ? JSON.parse(cached) : [];
-  });
-  const [workouts, setWorkouts] = useState<Workout[]>(() => {
-    const cached = localStorage.getItem('proRun_cached_workouts');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch (e) {
-        console.error('Error parsing cached workouts', e);
-      }
-    }
-    return DEFAULT_WORKOUTS;
-  });
-  const [athletePlans, setAthletePlans] = useState<Record<string, AthletePlan>>(() => {
-    const cached = localStorage.getItem('proRun_cached_athletePlans');
-    return cached ? JSON.parse(cached) : {};
-  });
+  const [userRole,setUserRole]=useState<UserRole>(null);
+  const [account,setAccount]=useState<AccessAccount|null>(null);
+  const accountRef=useRef<AccessAccount|null>(null);accountRef.current=account;
+  const [selectedAthleteId,setSelectedAthleteId]=useState<string|null>(null);
+  const [athletes,setAthletes]=useState<Athlete[]>([]);
+  const [workouts,setWorkouts]=useState<Workout[]>(DEFAULT_WORKOUTS);
+  const [athletePlans,setAthletePlans]=useState<Record<string,AthletePlan>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [planLoadError,setPlanLoadError]=useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [templates, setTemplates] = useState<TrainingTemplate[]>(() => {
-    const saved = localStorage.getItem('proRun_templates');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem('proRun_notifications');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [templates,setTemplates]=useState<TrainingTemplate[]>([]);
+  const [notifications,setNotifications]=useState<AppNotification[]>([]);
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('proRun_theme');
     return (saved === 'light' || saved === 'dark') ? saved : 'dark';
@@ -179,13 +153,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [theme]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     // Guard: Only proceed if actually logged in to prevent infinite reload loops
     if (!localStorage.getItem('proRun_userRole') && !userRole) {
       return;
     }
-    setUserRole(null);
+    accountRef.current=null;setUserRole(null);setAccount(null);setAthletes([]);setAthletePlans({});
     setSelectedAthleteId(null);
+    try { await supabase.auth.signOut(); } catch {}
     try {
       localStorage.clear();
     } catch (e) {
@@ -206,25 +181,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, 100);
   }, [userRole]);
 
-  // Listen to Supabase Auth Changes for future expansion
-  useEffect(() => {
-    try {
-      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-        console.log(`Supabase Auth Event: ${event}`);
-        if (event === 'SIGNED_OUT') {
-          if (localStorage.getItem('proRun_userRole') || userRole) {
-            logout();
-          }
-        }
-      });
-
-      return () => {
-        authListener?.subscription?.unsubscribe?.();
-      };
-    } catch (e) {
-      console.warn("Supabase auth listener setup skipped:", e);
-    }
-  }, [logout, userRole]);
+  const refreshAccount=async()=>{
+    const {data}=await supabase.auth.getSession();
+    if(!data.session){accountRef.current=null;setAccount(null);setUserRole(null);setAthletes([]);setAthletePlans({});setIsLoading(false);return;}
+    try{
+      const {account:verified}=await accessRequest('profile');
+      const latest=(await supabase.auth.getSession()).data.session;
+      if(latest?.user.id!==verified.user_id)return;
+      accountRef.current=verified;
+      const owner=localStorage.getItem('proRun_cache_owner');
+      if(owner!==verified.user_id){
+        Object.keys(localStorage).filter(k=>k.startsWith('proRun_')||k.startsWith('prorun_')).forEach(k=>localStorage.removeItem(k));
+        setAthletes([]);setAthletePlans({});setWorkouts(DEFAULT_WORKOUTS);setTemplates([]);setNotifications([]);setSelectedAthleteId(null);
+      }
+      localStorage.setItem('proRun_cache_owner',verified.user_id);
+      setAccount(verified);setUserRole(verified.role);
+      if(verified.role==='athlete')setSelectedAthleteId(verified.athlete_id);
+    }catch{setAccount(null);setUserRole(null);setAthletes([]);setAthletePlans({});}
+    finally{setIsLoading(false);}
+  };
+  useEffect(()=>{
+    void refreshAccount();
+    const {data}=supabase.auth.onAuthStateChange(()=>{setTimeout(()=>void refreshAccount(),0);});
+    return()=>data.subscription.unsubscribe();
+  },[]);
 
   useEffect(() => {
     localStorage.setItem('proRun_notifications', JSON.stringify(notifications));
@@ -360,6 +340,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const fetchData = async () => {
+    if(!account||account.must_change_password){setIsLoading(false);return;}
+    const requestAccount=account.user_id;
     // Check cache first to avoid flickering
     const cachedAthletes = localStorage.getItem('proRun_cached_athletes');
     const cachedWorkouts = localStorage.getItem('proRun_cached_workouts');
@@ -389,12 +371,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
 
       const [athletesRes, workoutsRes, plansRes, notifsRes] = await Promise.all([
-        safeQuery(supabase.from('athletes').select('data')),
+        safeQuery(supabase.from('athletes').select('data,organization_id')),
         safeQuery(supabase.from('workouts_library').select('data')),
         safeQuery(supabase.from('athlete_plans').select('*')),
         safeQuery(supabase.from('app_notifications').select('*').order('timestamp', { ascending: false }).limit(20))
       ]);
 
+      if(accountRef.current?.user_id!==requestAccount)return;
       if (athletesRes.error) {
         console.warn("[Sync] Informação: Nuvem inacessível para atletas. Usando armazenamento local.", athletesRes.error?.message || athletesRes.error);
       }
@@ -412,14 +395,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsCloudConnected(!hasError);
       setPlanLoadError(!!(plansRes.error||athletesRes.error));
 
-      if (athletesRes.data && athletesRes.data.length > 0) {
+      if (athletesRes.data && !athletesRes.error) {
         console.log(`[Sync] ${athletesRes.data.length} atletas sincronizados.`);
-        const fetchedAthletes = athletesRes.data.map((row: any) => row.data);
+        const fetchedAthletes = athletesRes.data.map((row: any) => ({...row.data,organizationId:row.organization_id}));
         setAthletes(fetchedAthletes);
         localStorage.setItem('proRun_cached_athletes', JSON.stringify(fetchedAthletes));
       }
       
-      if (workoutsRes.data && workoutsRes.data.length > 0) {
+      if (workoutsRes.data && !workoutsRes.error) {
         console.log(`[Sync] ${workoutsRes.data.length} treinos sincronizados.`);
         const fetchedWorkouts = workoutsRes.data.map((row: any) => row.data);
         setWorkouts(fetchedWorkouts);
@@ -518,7 +501,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     fetchData();
     refreshSubscription();
-  }, []);
+  }, [account?.user_id,account?.must_change_password]);
 
   useEffect(() => {
     if (userRole) {
@@ -554,40 +537,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [athletePlans]);
 
-  const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
-    const sUsername = sanitizeInput(username);
-    const normalize = (str: string) => str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const normalizedUsername = normalize(sUsername);
-
-    // Hardcoded coach login (can be migrated to Supabase Auth tables later)
-    if (normalizedUsername === 'leandro' && password === '1234') {
-      setUserRole('coach');
-      setSelectedAthleteId(null);
-      return { success: true };
-    }
-
-    const athlete = athletes.find(a => normalize(a.name) === normalizedUsername);
-    if (athlete) {
-      const inputPass = password.replace(/\D/g, '');
-      let storedPass = '';
-      if (athlete.birthDate) {
-        const [year, month, day] = athlete.birthDate.split('-');
-        storedPass = `${day}${month}${year}`;
-      }
-      if (inputPass === storedPass || password === athlete.birthDate) {
-        setUserRole('athlete');
-        setSelectedAthleteId(athlete.id);
-        return { success: true };
-      }
-      return { success: false, message: 'Senha incorreta.' };
-    }
-    return { success: false, message: 'Usuário não encontrado.' };
+  const login=async(username:string,password:string):Promise<{success:boolean;message?:string}>=>{
+    try{
+      const response=await accessRequest('login',{username,password});
+      const {error}=await supabase.auth.setSession({access_token:response.session.access_token,refresh_token:response.session.refresh_token});
+      if(error)throw error;
+      await refreshAccount();return {success:true};
+    }catch(error:any){return {success:false,message:error.message||'Não foi possível entrar.'};}
   };
+  const organizationRow=(row:any)=>({...row,organization_id:row.data?.organizationId||account?.organization_id});
 
   const addAthlete = async (athlete: Athlete) => {
     setAthletes(prev => [athlete, ...prev]);
     try {
-      await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
+      await supabase.from('athletes').upsert(organizationRow({ id: athlete.id, data: athlete }));
     } catch (err) {
       console.warn("Could not sync added athlete to cloud (stored locally):", err);
     }
@@ -599,7 +562,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const athlete = updatedAthletes.find(a => a.id === id);
     if (athlete) {
       try {
-        const {error}=await supabase.from('athletes').upsert({ id: athlete.id, data: athlete });
+        const {error}=await supabase.from('athletes').upsert(organizationRow({ id: athlete.id, data: athlete }));
         if(error)throw error;
       } catch (err) {
         console.warn("Could not sync updated athlete to cloud (stored locally):", err);
@@ -660,7 +623,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await supabase.from('athletes').upsert(organizationRow({ id: updatePayload.id, data: updatePayload }));
     } catch (err) {
       console.warn("Could not sync assessment to cloud (stored locally):", err);
     }
@@ -684,7 +647,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await supabase.from('athletes').upsert(organizationRow({ id: updatePayload.id, data: updatePayload }));
     } catch (err) {
       console.warn("Could not sync assessment update to cloud (stored locally):", err);
     }
@@ -699,7 +662,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAthletes(prev => prev.map(a => a.id === athleteId ? updatePayload : a));
 
     try {
-      await supabase.from('athletes').upsert({ id: updatePayload.id, data: updatePayload });
+      await supabase.from('athletes').upsert(organizationRow({ id: updatePayload.id, data: updatePayload }));
     } catch (err) {
       console.warn("Could not sync assessment deletion to cloud (removed locally):", err);
     }
@@ -708,7 +671,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addWorkout = async (workout: Workout) => {
     setWorkouts(prev => [workout, ...prev]);
     try {
-      await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
+      await supabase.from('workouts_library').upsert(organizationRow({ id: workout.id, data: workout }));
     } catch (err) {
       console.warn("Could not sync workout to cloud (stored locally):", err);
     }
@@ -720,7 +683,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const workout = updatedWorkouts.find(w => w.id === id);
     if (workout) {
       try {
-        await supabase.from('workouts_library').upsert({ id: workout.id, data: workout });
+        await supabase.from('workouts_library').upsert(organizationRow({ id: workout.id, data: workout }));
       } catch (err) {
         console.warn("Could not sync workout update to cloud (stored locally):", err);
       }
@@ -748,7 +711,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     try {
       for (const w of DEFAULT_WORKOUTS) {
-        await supabase.from('workouts_library').upsert({ id: w.id, data: w });
+        await supabase.from('workouts_library').upsert(organizationRow({ id: w.id, data: w }));
       }
     } catch (err) {
       console.warn("Could not sync default workouts to cloud (stored locally):", err);
@@ -943,7 +906,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     workout.completed = completed;
     workout.feedback = sFeedback || "";
     workout.rpe = rpe !== undefined ? rpe : (workout.rpe || 0);
-    if (exercises) workout.exercises = exercises;
+    if (exercises&&userRole==='coach') workout.exercises = exercises;
     if (actualDistance !== undefined) {
       workout.actualDistance = actualDistance;
     }
@@ -953,20 +916,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (avgHeartRate !== undefined) {
       workout.avgHeartRate = avgHeartRate;
     }
-    if (workoutType !== undefined && workoutType.trim() !== "") {
+    if (userRole==='coach' && workoutType !== undefined && workoutType.trim() !== "") {
       workout.type = workoutType;
       if (workout.structuredWorkout) {
         workout.structuredWorkout.name = workoutType;
       }
     }
-    if (customDescription !== undefined) {
+    if (userRole==='coach' && customDescription !== undefined) {
       workout.customDescription = customDescription;
     }
-    if (workoutDate !== undefined) {
+    if (userRole==='coach' && workoutDate !== undefined) {
       workout.date = workoutDate;
     }
     
-    if (structuredSteps !== undefined) {
+    if (userRole==='coach' && structuredSteps !== undefined) {
       if (!workout.structuredWorkout) {
         workout.structuredWorkout = {
           id: Math.random().toString(36).substring(2, 11),
@@ -1140,7 +1103,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      userRole, login, logout,
+      userRole, account,canPeriodizeAI:account?.platform_admin===true,refreshAccount,login,logout,
       athletes, addAthlete, updateAthlete, updateAthleteReadiness, deleteAthlete, 
       addNewAssessment, updateAssessment, deleteAssessment,
       workouts, addWorkout, updateLibraryWorkout, deleteLibraryWorkout, seedDefaultWorkouts,

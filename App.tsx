@@ -1,3 +1,4 @@
+import {AccountPasswordGate} from './components/AccountPasswordGate';
 
 import React, { Component, ErrorInfo, ReactNode, Suspense, lazy, useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ import Login from './pages/Login';
 import Offline from './pages/Offline';
 
 // Lazy loading secondary pages
+const AccessManagement=lazy(()=>import('./pages/AccessManagement'));
 const RaceHistory = lazy(() => import('./pages/RaceHistory'));
 const AthleteProfile = lazy(() => import('./pages/AthleteProfile'));
 const Athletes = lazy(() => import('./pages/Athletes'));
@@ -310,11 +312,12 @@ function AppContent() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/achievements" element={<RaceHistory />} />
+              <Route path="/access" element={userRole==='coach'?<AccessManagement />:<Navigate to="/athlete-portal" replace />} />
               <Route path="/profile" element={<AthleteProfile />} />
-              <Route path="/athletes" element={<Athletes />} />
+              <Route path="/athletes" element={userRole==='coach'?<Athletes />:<Navigate to="/athlete-portal" replace />} />
               <Route path="/assessments" element={<Assessments />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/periodization" element={<Periodization />} />
+              <Route path="/library" element={userRole==='coach'?<Library />:<Navigate to="/athlete-portal" replace />} />
+              <Route path="/periodization" element={userRole==='coach'?<Periodization />:<Navigate to="/athlete-portal" replace />} />
               <Route path="/athlete-portal" element={<AthletePortal />} />
               <Route path="/subscriptions" element={<Subscriptions />} />
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -337,7 +340,7 @@ const App: React.FC = () => {
       <AppProvider>
         <SplashScreen />
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <AppContent />
+          <AccountPasswordGate><AppContent /></AccountPasswordGate>
         </Router>
       </AppProvider>
     </ErrorBoundary>

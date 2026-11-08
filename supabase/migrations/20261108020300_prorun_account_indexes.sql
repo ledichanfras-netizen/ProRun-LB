@@ -1,0 +1,11 @@
+create index if not exists prorun_invitation_org on public.prorun_invitations(organization_id);
+create index if not exists prorun_invitation_author on public.prorun_invitations(created_by);
+create index if not exists prorun_invitation_athlete on public.prorun_invitations(athlete_id);
+create index if not exists prorun_invitation_account on public.prorun_invitations(account_id);
+create index if not exists prorun_legacy_org on prorun_private.legacy_accounts(organization_id);
+alter table prorun_private.legacy_accounts enable row level security;
+alter table prorun_private.login_attempts enable row level security;
+create policy service_only_invites on public.prorun_invitations for all to authenticated using(false) with check(false);
+create policy service_only_legacy on prorun_private.legacy_accounts for all to authenticated using(false) with check(false);
+create policy service_only_attempts on prorun_private.login_attempts for all to authenticated using(false) with check(false);
+create index if not exists prorun_subscription_user on public.subscriptions(user_id);

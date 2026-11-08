@@ -61,7 +61,7 @@ import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareM
 import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 
 const Periodization: React.FC = () => {
-  const { athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan: persistAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
+  const { canPeriodizeAI, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan: persistAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [showAthleteSelector, setShowAthleteSelector] = useState(false);
   const [raceDate, setRaceDate] = useState('');
@@ -323,6 +323,7 @@ const Periodization: React.FC = () => {
   }, [raceDate, startDate]);
 
   const handleGenerate = async () => {
+    if(!canPeriodizeAI){alert('Periodização por IA exclusiva do administrador.');return;}
     if (!activeAthlete || !raceDate) {
       alert("Defina a data da prova para calcular o ciclo.");
       return;
@@ -1119,7 +1120,7 @@ const Periodization: React.FC = () => {
           <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter flex items-center gap-2">
             <Sparkles className="text-emerald-400 w-6 h-6" /> Ciclo de Performance
           </h1>
-          <p className="text-slate-300 font-medium italic text-sm">IA Treinador: Prescrição personalizada até o dia da prova.</p>
+          <p className="text-slate-300 font-medium italic text-sm">{canPeriodizeAI?'IA Treinador: Prescrição personalizada até o dia da prova.':'Prescrição manual e acompanhamento dos seus atletas.'}</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -1484,9 +1485,9 @@ const Periodization: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 mt-4">
-                  <button onClick={handleGenerate} disabled={loading || !raceDate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
+                  {canPeriodizeAI&&<button onClick={handleGenerate} disabled={loading || !raceDate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
                     {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} {loading ? 'GERANDO...' : 'Gerar com IA'}
-                  </button>
+                  </button>}
                   <button onClick={handleManualCreate} disabled={loading} className="w-full bg-slate-800 hover:bg-black text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
                     <CalendarDays className="w-5 h-5" /> Criar Manualmente
                   </button>

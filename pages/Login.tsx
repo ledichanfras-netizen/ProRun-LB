@@ -1,6 +1,7 @@
+import {accessRequest} from '../lib/access';
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate,useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { Lock, User, ArrowRight, AlertCircle, Eye, EyeOff, ShieldCheck, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -13,12 +14,16 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login, isCloudConnected } = useApp();
   const navigate = useNavigate();
+  const location=useLocation();
+  const invite=new URLSearchParams(location.search).get('invite');
+  const [accepted,setAccepted]=useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
+      if(invite&&!accepted){const result=await accessRequest('accept',{token:invite,password,email:username});setAccepted(true);setUsername(result.login||username);setPassword('');setError(result.message||'Acesso criado. Entre com seu login e a nova senha.');return;}
       const result = await login(username, password);
       if (result.success) {
         navigate('/');
@@ -105,6 +110,7 @@ export default function Login() {
           </motion.p>
         </div>
 
+        {invite&&!accepted&&<p className="rounded-2xl border border-emerald-500/30 p-4 text-sm mb-4">Ative seu convite: informe seu e-mail e escolha uma senha com pelo menos 12 caracteres. Depois entre com o login indicado.</p>}
         {/* Login Form Card Container */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -118,7 +124,7 @@ export default function Login() {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mb-6 bg-red-500/10 text-red-400 p-4 rounded-2xl flex items-center gap-3 text-xs font-bold border border-red-500/20 shadow-sm"
+              className={`mb-6 p-4 rounded-2xl flex items-center gap-3 text-xs font-bold border shadow-sm ${accepted?'bg-emerald-500/10 text-emerald-300 border-emerald-500/20':'bg-red-500/10 text-red-400 border-red-500/20'}`}
             >
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>

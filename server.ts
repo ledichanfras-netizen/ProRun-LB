@@ -1,3 +1,4 @@
+import {registerProrunAI} from './server/prorunAI.ts';
 
 import express from "express";
 import { createServer as createViteServer } from "vite";
@@ -17,9 +18,11 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(cors());
-  app.use(express.json({ limit: '50mb' }));
+  app.use(express.json({ limit: '256kb' }));
 
-  // API Routes (Legacy - now handled by Supabase on client)
+  registerProrunAI(app);
+
+  // Health check
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", database: "supabase" });
   });

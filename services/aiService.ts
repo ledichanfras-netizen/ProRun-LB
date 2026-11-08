@@ -1,5 +1,6 @@
+import {requestAI} from '../lib/access';
 
-import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
+import { Type, ThinkingLevel } from "@google/genai";
 import { withRetry } from "../utils/helpers";
 
 export interface WorkoutParams {
@@ -17,13 +18,10 @@ export interface WorkoutPlan {
 
 class AIService {
   async generateWorkout(params: WorkoutParams): Promise<WorkoutPlan> {
-    // Inicialização direta com process.env.GEMINI_API_KEY seguindo as diretrizes do SDK @google/genai
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const prompt = `Crie um plano de exercícios de fortalecimento funcional para o corredor ${params.studentName}. Nível: ${params.fitnessLevel}. Objetivo: ${params.primaryGoal}. Tempo disponível: ${params.sessionTime} minutos por sessão.`;
     
     try {
-      const response = await withRetry(() => ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+      const response = await requestAI('strength', {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -55,7 +53,7 @@ class AIService {
             }
           }
         }
-      }));
+      });
 
       const textOutput = response.text;
       if (!textOutput) throw new Error("Sem resposta da IA.");

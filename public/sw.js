@@ -1,4 +1,4 @@
-const VERSION = 'v70';
+const VERSION = 'v71';
 const CACHE_NAME = `prorun-lb-${VERSION}`;
 const STATIC_CACHE = `static-${VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${VERSION}`;
@@ -93,6 +93,7 @@ if (isDev) {
 
   // Estratégias de Fetch Diferenciadas
   self.addEventListener('fetch', (event) => {
+    if(event.request.url.includes('supabase.co')||new URL(event.request.url).pathname.startsWith('/api/'))return;
     const { request } = event;
     const url = new URL(request.url);
 

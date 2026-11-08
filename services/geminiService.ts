@@ -1,10 +1,11 @@
+import {requestAI} from '../lib/access';
 import {buildPrescriptionContext,inspectPrescription,prescriptionPrinciples,prescriptionDays,type PrescriptionConstraints} from '../utils/prescriptionIntelligence';
 import {withoutMenstrualData} from '../utils/menstrualReadiness';
 
-import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
+import { Type, ThinkingLevel } from "@google/genai";
 import { Athlete, AthletePlan } from "../types";
 import { calculatePaces } from "../utils/calculations";
-import { withPrescriptionModelFallback, modelFailureKind } from "../utils/prescriptionModels";
+import { modelFailureKind } from "../utils/prescriptionModels";
 
 import { getAppNow, getLocalDateString, getWorkoutDateString } from "../utils/time";
 
@@ -26,7 +27,6 @@ export const generateTrainingPlan = async (
 ): Promise<AthletePlan> => {
   
   athlete = withoutMenstrualData(athlete);
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const asOf=getLocalDateString(getAppNow());
   const context=buildPrescriptionContext(athlete,currentPlan,asOf);
@@ -147,8 +147,7 @@ export const generateTrainingPlan = async (
   `;
 
   try {
-    const response = await withPrescriptionModelFallback(modelName => ai.models.generateContent({
-      model: modelName,
+    const response = await requestAI('periodization', {
       contents: prompt,
       config: {
         systemInstruction: prescriptionPrinciples + " Você é um assistente de planejamento do Treinador Leandro Barbosa. Especialista em Performance Humana, Triathlon e Duathlon. Suas planilhas são baseadas nas metodologias de Joe Friel (Training Bible), Jack Daniels (VDOT) e 80/20 Training. Suas prescrições são precisas e formatadas com sintaxe padronizada para reconhecimento automático pelo conversor de treinos estruturados GPS (ex: '2km aq + 6x 1000m rec 2min ritmo 04:15 + 1km des'). Você sempre termina a periodização no dia da prova.",
@@ -192,7 +191,7 @@ export const generateTrainingPlan = async (
           required: ["weeks", "raceStrategy"]
         }
       },
-    }));
+    });
 
     const parsed = JSON.parse(response.text || "{}");
     if(!Array.isArray(parsed.weeks)||parsed.weeks.length!==weeks||parsed.weeks.some((w:any)=>!Array.isArray(w.workouts)))throw new Error('REVIEW: A resposta não contém as semanas e sessões solicitadas. Gere novamente.');

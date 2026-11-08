@@ -28,6 +28,8 @@ import {
   Map as MapIcon,
   LocateFixed
 } from 'lucide-react';
+import {shareMapMetrics} from '../utils/shareMapMetrics';
+import {projectShareMapPoint} from '../utils/socialCardUtils';
 import { applyMapGesture, MapGesture } from '../utils/mapGestures';
 import { RouteData } from '../utils/gpsUtils';
 import { exportElementAsImage } from '../utils/exporter';
@@ -130,6 +132,10 @@ interface SocialWorkoutMapRendererProps {
   mapView: MapViewAdjustment;
   onGesture: (gesture: MapGesture) => void;
   fullBleed?: boolean;
+  kmMetrics?: ReturnType<typeof shareMapMetrics>;
+  showKm?: boolean;
+  showKmPace?: boolean;
+  colorKmPace?: boolean;
 }
 
 /**
@@ -146,7 +152,7 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
   strokeMainColor,
   mapView,
   onGesture,
-  fullBleed = false
+  fullBleed = false, kmMetrics, showKm = true, showKmPace = false, colorKmPace = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -177,6 +183,15 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
     return generateMapTileLayout(points, fullBleed ? 450 : dims.width, fullBleed ? (aspectRatio === 'story' ? 800 : aspectRatio === 'portrait' ? 562.5 : 450) : dims.height, mapMode, 22, undefined, mapView);
   }, [points, dims.width, dims.height, mapMode, mapView, fullBleed, aspectRatio]);
 
+  const visibleKm = React.useMemo(() => {
+    const placed:{x:number;y:number}[]=[];
+    return (kmMetrics?.markers || []).map(marker=>({...marker,...projectShareMapPoint(tileLayout,marker.point,mapView.bearing||0)})).filter(marker=>{
+      const gapX=showKmPace?62:30,gapY=showKmPace?42:30;
+      if(marker.x<gapX/2||marker.x>tileLayout.width-gapX/2||marker.y<gapY/2||marker.y>tileLayout.height-gapY/2)return false;
+      if(placed.some(p=>Math.abs(p.x-marker.x)<gapX&&Math.abs(p.y-marker.y)<gapY))return false;
+      placed.push(marker);return true;
+    });
+  },[kmMetrics,tileLayout,mapView.bearing,showKmPace]);
   return (
     <div
       ref={containerRef}
@@ -283,6 +298,7 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
               strokeLinecap="round"
               strokeLinejoin="round"
             />
+            {colorKmPace && kmMetrics?.segments.filter(segment=>segment.color).map((segment,index)=><path key={`pace-${index}`} d={segment.points.map((point,i)=>{const p=projectShareMapPoint(tileLayout,point);return `${i?'L':'M'} ${p.x} ${p.y}`;}).join(' ')} fill="none" stroke={segment.color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>)}
             {/* Ponto de Início (Verde ProRun) */}
             {tileLayout.startPoint && (
               <circle
@@ -331,6 +347,12 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
       </svg>
 
       </div>
+      {showKm && <svg viewBox={`0 0 ${tileLayout.width} ${tileLayout.height}`} className="absolute inset-0 w-full h-full pointer-events-none" aria-label="Marcações de quilômetro e parciais">
+        {visibleKm.map(marker=><g key={marker.km} transform={`translate(${marker.x} ${marker.y})`}>
+          <title>{`${marker.km} km${marker.pace ? ` · ${marker.pace} min/km` : ''}`}</title>
+          {showKmPace && marker.pace ? <><rect x="-29" y="-18" width="58" height="36" rx="10" fill="#022c22" stroke="white" strokeWidth="1.8"/><text y="-3" textAnchor="middle" fill="#a7f3d0" fontSize="9" fontWeight="800">{marker.km} KM</text><text y="11" textAnchor="middle" fill="white" fontSize="12" fontWeight="900">{marker.pace}</text></> : <><circle r="12" fill="#064e3b" stroke="white" strokeWidth="2"/><text textAnchor="middle" dy="4" fill="white" fontSize="11" fontWeight="900">{marker.km}</text></>}
+        </g>)}
+      </svg>}
       </div>
       {/* 3. Badge do Modo do Mapa */}
       <div className={`${fullBleed ? 'hidden' : ''} absolute bottom-1 right-1.5 z-20 pointer-events-none`}>
@@ -426,6 +448,17 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
     const lastPos = athleteLiveLocation || getSavedAthleteGpsLocation();
     return lastPos ? [lastPos] : [];
   }, [data.route, (data as any).gpsRoute, (data as any).points, (data as any).coordinates, (data as any).rawRoute, (data as any).workout, athleteLiveLocation]);
+
+  const [showKm,setShowKm]=useState(true);
+  const [showKmPace,setShowKmPace]=useState(false);
+  const [colorKmPace,setColorKmPace]=useState(false);
+  const savedRoute = React.useMemo(()=>{
+    const raw=data.route || (data as any).gpsRoute || (data as any).workout?.gpsRoute || (data as any).workout?.route;
+    if(typeof raw==='string'){try{return JSON.parse(raw);}catch{return null;}}
+    return raw;
+  },[data]);
+  const kmMetrics=React.useMemo(()=>shareMapMetrics(points, savedRoute?.totalDistanceKm || data.distanceKm,Array.isArray(savedRoute?.kmSplits)?savedRoute.kmSplits:[]),[points,savedRoute,data.distanceKm]);
+  const hasKmPaces=kmMetrics.markers.some(marker=>!!marker.pace);
 
   // Se houver percurso real registrado e o fundo não for foto, inicializa no Modo Padrão (ruas reais)
   const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>(
@@ -781,7 +814,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
               {cardLayout === 'map' && !isStrength ? (
                 <>
-                  <SocialWorkoutMapRenderer fullBleed points={points} mapMode={mapDisplayMode === 'transparent' ? 'standard' : mapDisplayMode} aspectRatio={aspectRatio} routeColor={stravaRouteColor} isDarkText={false} strokeMainColor={strokeMainColor} mapView={mapView} onGesture={gestureMap} />
+                  <SocialWorkoutMapRenderer fullBleed points={points} mapMode={mapDisplayMode === 'transparent' ? 'standard' : mapDisplayMode} aspectRatio={aspectRatio} routeColor={stravaRouteColor} isDarkText={false} strokeMainColor={strokeMainColor} mapView={mapView} onGesture={gestureMap} kmMetrics={kmMetrics} showKm={showKm} showKmPace={showKmPace} colorKmPace={colorKmPace} />
                   <div className="absolute inset-0 pointer-events-none" style={{background: 'linear-gradient(to bottom, rgba(0,0,0,.15), transparent 28%, rgba(0,0,0,.12) 43%, rgba(0,0,0,.85) 100%)'}} />
                   <div className="absolute inset-x-0 bottom-0 p-5 pointer-events-none text-white" style={{color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,.7)'}}>
                     {showLogo && <img src={processedLogoUrl} alt="ProRun LB" className="w-24 h-12 object-contain object-left mb-2" />}
@@ -953,7 +986,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                             points={points}
                             mapMode={mapDisplayMode}
                             mapView={mapView}
-                            onGesture={gestureMap}
+                            onGesture={gestureMap} kmMetrics={kmMetrics} showKm={showKm} showKmPace={showKmPace} colorKmPace={colorKmPace}
                             aspectRatio={aspectRatio}
                             routeColor={stravaRouteColor}
                             isDarkText={isDarkText}
@@ -1421,7 +1454,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                       points={points}
                       mapMode={mapDisplayMode}
                       mapView={mapView}
-                      onGesture={gestureMap}
+                      onGesture={gestureMap} kmMetrics={kmMetrics} showKm={showKm} showKmPace={showKmPace} colorKmPace={colorKmPace}
                       aspectRatio={aspectRatio}
                       routeColor={stravaRouteColor}
                       isDarkText={isDarkText}
@@ -1725,6 +1758,15 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
             {!isStrength && <section aria-label="Estilo e zoom do mapa" className="w-full mt-3 space-y-3 bg-slate-950/60 p-3 rounded-2xl border border-white/10">
               <button type="button" onClick={() => {setCardLayout('map'); if (mapDisplayMode === 'transparent') setMapDisplayMode('standard'); setIsMapFullscreen(!isMapFullscreen);}} className="w-full py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase italic">{isMapFullscreen ? 'Concluir edição do mapa' : 'Editar mapa em tela cheia'}</button>
+              {points.length>1 && <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3 space-y-3">
+                <p className="text-xs font-black uppercase italic text-emerald-300">Quilômetros e parciais</p>
+                <label className="flex items-center gap-2 text-sm text-white"><input type="checkbox" checked={showKm} onChange={e=>setShowKm(e.target.checked)} className="accent-emerald-500"/>Marcar cada quilômetro</label>
+                <label className="flex items-center gap-2 text-sm text-white"><input type="checkbox" checked={showKmPace} disabled={!hasKmPaces||!showKm} onChange={e=>setShowKmPace(e.target.checked)} className="accent-emerald-500"/>Mostrar pace de cada km</label>
+                <label className="flex items-center gap-2 text-sm text-white"><input type="checkbox" checked={colorKmPace} disabled={!hasKmPaces} onChange={e=>setColorKmPace(e.target.checked)} className="accent-emerald-500"/>Colorir trechos pelo pace</label>
+                {colorKmPace&&hasKmPaces&&<p className="text-xs text-emerald-100">Verde escuro: mais rápido · Verde claro: mais lento</p>}
+                <p className="text-[10px] text-slate-300">{hasKmPaces?'Parciais dos quilômetros completos registrados.':'Este treino não possui parciais por km registradas.'} As posições dos quilômetros são aproximadas no traçado salvo. Amplie o mapa para separar marcações próximas.</p>
+                {mapDisplayMode==='transparent'&&<p className="text-xs text-emerald-200">Escolha Ruas ou Satélite para exibir as marcações.</p>}
+              </div>}
               {/* Seletor de Modo do Mapa (Padrão / Satélite / Transparente) */}
               <div className="space-y-1.5 pt-1">
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">

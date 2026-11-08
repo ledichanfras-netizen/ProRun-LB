@@ -111,6 +111,7 @@ export interface RenderedMapLayout {
   width: number;
   height: number;
   zoom: number;
+  projection?: {centerWx:number;centerWy:number};
 }
 
 // Default fallback coordinates if no GPS track exists anywhere
@@ -477,7 +478,8 @@ export function generateMapTileLayout(
     finishPoint: hasRealTrack && screenPoints.length > 1 ? screenPoints[screenPoints.length - 1] : null,
     width: safeWidth,
     height: safeHeight,
-    zoom: bestZoom
+    zoom: bestZoom,
+    projection: {centerWx,centerWy}
   };
 }
 
@@ -553,4 +555,12 @@ export function convertGpsPointsToSvgPath(
     finishPoint: svgCoords[svgCoords.length - 1],
     viewBox: `0 0 ${targetWidth} ${targetHeight}`
   };
+}
+
+/** Same Mercator projection and optional bearing used by the exported map. */
+export function projectShareMapPoint(layout:RenderedMapLayout,point:[number,number],bearing=0){
+ if(!layout.projection)return {x:0,y:0};
+ const {wx,wy}=latLngToWorldPixel(point[0],point[1],layout.zoom);
+ const dx=wx-layout.projection.centerWx,dy=wy-layout.projection.centerWy,a=bearing*Math.PI/180;
+ return {x:layout.width/2+dx*Math.cos(a)-dy*Math.sin(a),y:layout.height/2+dx*Math.sin(a)+dy*Math.cos(a)};
 }

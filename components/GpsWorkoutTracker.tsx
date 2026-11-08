@@ -2496,7 +2496,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
             <WorkoutMap
               points={gpsPoints}
               currentPosition={currentPosition}
-              height="220px"
+              live={isTracking}
+              height="260px"
               interactive={true}
             />
             {gpsPoints.length === 0 && !isTracking && (

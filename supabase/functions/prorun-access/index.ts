@@ -7,7 +7,7 @@ const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':
 const normalize=(s:string)=>s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const digest=async(s:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))).map(v=>v.toString(16).padStart(2,'0')).join('');
 const check=(r:any)=>{if(r.error)throw new Error(r.error.message);return r.data;};
-const strong=(p:any)=>typeof p==='string'&&p.length>=12&&p.length<=128;
+const strong=(p:any)=>typeof p==='string'&&p.length>=8&&p.length<=128;
 const legacyPassword=(p:string,role:string)=>role==='athlete'?p.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3$2$1').replace(/\D/g,''):p;
 async function profile(user:string){return check(await admin.from('prorun_accounts').select('*').eq('user_id',user).eq('active',true).single());}
 async function scopedAthlete(actor:any,id:string){const row=check(await admin.from('athletes').select('id,organization_id').eq('id',id).single());if(!actor.platform_admin&&row.organization_id!==actor.organization_id)throw new Error('Atleta fora da sua organização.');return row;}
@@ -40,7 +40,7 @@ Deno.serve(async(req:Request)=>{
    return respond({session:signed.data.session,account});
   }
   if(action==='accept'){
-   if(typeof body.token!=='string'||body.token.length<32||!strong(body.password))throw new Error('Informe o convite e uma senha de pelo menos 12 caracteres.');
+   if(typeof body.token!=='string'||body.token.length<32||!strong(body.password))throw new Error('Informe o convite e uma senha de pelo menos 8 caracteres.');
    const invitation=check(await admin.from('prorun_invitations').select('*').eq('token_hash',await digest(body.token)).is('accepted_at',null).gt('expires_at',new Date().toISOString()).single());
    const invitationEmail=invitation.platform_admin&&invitation.email==='admin-bootstrap@accounts.prorunlb.invalid'?body.email:invitation.email;
    if(typeof invitationEmail!=='string'||!/^\S+@\S+\.\S+$/.test(invitationEmail))throw new Error('Informe seu e-mail para ativar o acesso.');
@@ -61,7 +61,7 @@ Deno.serve(async(req:Request)=>{
   const actor=await profile(data.user.id);
   if(action==='profile')return respond({account:actor});
   if(action==='password'){
-   if(!strong(body.password))throw new Error('Use uma senha de pelo menos 12 caracteres.');
+   if(!strong(body.password))throw new Error('Use uma senha de pelo menos 8 caracteres.');
    check(await admin.auth.admin.updateUserById(data.user.id,{password:body.password}));
    check(await admin.from('prorun_accounts').update({must_change_password:false}).eq('user_id',actor.user_id));
    check(await admin.rpc('prorun_disable_legacy',{p_login:actor.login}));const auth=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});const signed=check(await auth.auth.signInWithPassword({email:data.user.email,password:body.password}));return respond({account:{...actor,must_change_password:false},session:signed.session});

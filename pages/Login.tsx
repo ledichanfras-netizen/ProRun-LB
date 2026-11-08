@@ -110,7 +110,7 @@ export default function Login() {
           </motion.p>
         </div>
 
-        {invite&&!accepted&&<p className="rounded-2xl border border-emerald-500/30 p-4 text-sm mb-4">Ative seu convite: informe seu e-mail e escolha uma senha com pelo menos 12 caracteres. Depois entre com o login indicado.</p>}
+        {invite&&!accepted&&<p className="rounded-2xl border border-emerald-500/30 p-4 text-sm mb-4">Ative seu convite: informe seu e-mail e escolha uma senha com pelo menos 8 caracteres. Depois entre com o login indicado.</p>}
         {/* Login Form Card Container */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}

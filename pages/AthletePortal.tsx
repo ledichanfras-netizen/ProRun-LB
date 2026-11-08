@@ -593,7 +593,7 @@ const AthletePortal: React.FC = () => {
 
   const athletePlan = athletePlans[activeAthlete.id];
   const allWeeks = athletePlan?.weeks || [];
-  const activityWeeks = getActivityWeeks(athletePlan, true);
+  const activityWeeks = getActivityWeeks(athletePlan, true, true);
   const activities = getTrainingActivities(athletePlan);
   const visibleWeeks = allWeeks
     .filter(w => w.isVisible === true)

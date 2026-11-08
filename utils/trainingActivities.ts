@@ -34,11 +34,16 @@ export function getTrainingActivities(plan?: AthletePlan | null): TrainingActivi
 }
 
 /** Calendar weeks for totals/charts only. Never use these indexes for editing the plan. */
-export function getActivityWeeks(plan?: AthletePlan | null, visibleOnly = false): (TrainingWeek & { weekStart: string })[] {
+export function getActivityWeeks(plan?: AthletePlan | null, visibleOnly = false, currentCycleOnly = false): (TrainingWeek & { weekStart: string })[] {
   const groups = new Map<string, TrainingWeek & { weekStart: string }>();
   const anchor = weekStart(plan?.startDate || getLocalDateString(getAppNow()));
+  // Free-run history survives a cycle replacement. Keep it for history/load, but
+  // only include dates belonging to the active cycle in its volume charts.
+  const cycleStart = currentCycleOnly && validDate(plan?.startDate) && plan?.weeks.length ? anchor : undefined;
+  const cycleEnd = cycleStart ? getWorkoutDateString(cycleStart, plan!.weeks.length, 0) : undefined;
   for (const activity of getTrainingActivities(plan)) {
     if (visibleOnly && !activity.visible) continue;
+    if (cycleStart && (activity.date < cycleStart || activity.date >= cycleEnd!)) continue;
     const date = weekStart(activity.date);
     if (!groups.has(date)) {
       const original = activity.weekIndex >= 0 ? plan?.weeks[activity.weekIndex] : undefined;

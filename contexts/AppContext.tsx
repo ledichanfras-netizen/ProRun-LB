@@ -1072,7 +1072,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const getAthleteMetrics = useCallback((athleteId: string) => {
     const plan = athletePlans[athleteId];
-    const allWeeks = getActivityWeeks(plan, true);
+    const allWeeks = getActivityWeeks(plan, true, true);
     const visibleWeeks = allWeeks.filter(w => w.isVisible === true);
     let totalWorkouts = 0;
     let completedWorkouts = 0;

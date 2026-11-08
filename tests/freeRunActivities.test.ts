@@ -53,3 +53,27 @@ test('legacy empty actual distance falls back to planned volume while true zero 
  assert.equal(activityDistance({type:'Rodagem',day:'Domingo',distance:5,actualDistance:'' as any}),5);
  assert.equal(activityDistance({type:'Rodagem',day:'Domingo',distance:5,actualDistance:0}),0);
 });
+
+test('new cycle volume excludes historical free runs and runs after the cycle, preserving history',()=>{
+ const plan:AthletePlan={startDate:'2026-11-02',weeks:[structuredClone(week)],freeRuns:[
+  run('old-2','2026-10-12',5.34),run('old-1','2026-10-19',1.03),
+  run('before','2026-11-01',4),run('first','2026-11-02',6),
+  run('last','2026-11-08',7),run('after','2026-11-09',8)
+ ]};
+ const before=JSON.stringify(plan);
+ const weeks=getActivityWeeks(plan,true,true);
+ assert.deepEqual(weeks.map(w=>w.weekNumber),[1]);
+ assert.equal(weeks[0].totalVolume,10);
+ assert.equal(weeks[0].workouts.filter(w=>w.completed).reduce((sum,w)=>sum+activityDistance(w),0),13);
+ assert.equal(getTrainingActivities(plan).filter(w=>w.completed).length,6);
+ assert.ok(getActivityWeeks(plan,true).some(w=>w.weekNumber<1));
+ assert.equal(JSON.stringify(plan),before);
+});
+
+test('cycle volume retains multiple sessions and excludes hidden prescriptions',()=>{
+ const plan:AthletePlan={startDate:'2026-11-02',weeks:[{...week,isVisible:false}],freeRuns:[run('a','2026-11-08',3),run('b','2026-11-08',4)]};
+ const weeks=getActivityWeeks(plan,true,true);
+ assert.equal(weeks.length,1);assert.equal(weeks[0].weekNumber,1);
+ assert.equal(weeks[0].totalVolume,0);assert.equal(weeks[0].workouts.length,2);
+ assert.equal(getActivityWeeks({weeks:[],freeRuns:[run('solo')]},true,true).length,1);
+});

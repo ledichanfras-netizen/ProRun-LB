@@ -1,0 +1,1 @@
+alter policy scoped_library_read on public.workouts_library using((select prorun_private.account_org()) is not null and (organization_id is null or organization_id=(select prorun_private.account_org()) or (select prorun_private.is_admin())));

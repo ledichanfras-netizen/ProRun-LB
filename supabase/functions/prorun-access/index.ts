@@ -8,6 +8,7 @@ const normalize=(s:string)=>s.trim().toLowerCase().normalize('NFD').replace(/[\u
 const digest=async(s:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))).map(v=>v.toString(16).padStart(2,'0')).join('');
 const check=(r:any)=>{if(r.error)throw new Error(r.error.message);return r.data;};
 const strong=(p:any)=>typeof p==='string'&&p.length>=12&&p.length<=128;
+const legacyPassword=(p:string,role:string)=>role==='athlete'?p.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3$2$1').replace(/\D/g,''):p;
 async function profile(user:string){return check(await admin.from('prorun_accounts').select('*').eq('user_id',user).eq('active',true).single());}
 async function scopedAthlete(actor:any,id:string){const row=check(await admin.from('athletes').select('id,organization_id').eq('id',id).single());if(!actor.platform_admin&&row.organization_id!==actor.organization_id)throw new Error('Atleta fora da sua organização.');return row;}
 Deno.serve(async(req:Request)=>{
@@ -22,9 +23,9 @@ Deno.serve(async(req:Request)=>{
    let email=body.username.trim().toLowerCase(),password=body.password;
    if(account){if(!account.active)return respond({error:'Acesso desativado. Consulte o administrador.'},401);const u=check(await admin.auth.admin.getUserById(account.user_id));email=u.user.email;}
    else{
-    const legacy=check(await admin.rpc('prorun_legacy_login',{p_login:login,p_password:body.password.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3$2$1')}));
+    const legacy=check(await admin.rpc('prorun_legacy_login',{p_login:login,p_password:body.password}));
     if(!legacy)return respond({error:'Credenciais inválidas. Utilize seu convite de acesso.'},401);
-    email=`${legacy.id}@accounts.prorunlb.invalid`;password=await digest('prorun:legacy:'+body.password.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3$2$1'));
+    email=`${legacy.id}@accounts.prorunlb.invalid`;password=await digest('prorun:legacy:'+legacyPassword(body.password,legacy.role));
     const created=check(await admin.auth.admin.createUser({email,password,email_confirm:true}));
     const inserted=await admin.from('prorun_accounts').insert({user_id:created.user.id,login:legacy.login,name:legacy.name,role:legacy.role,platform_admin:legacy.platform_admin,organization_id:legacy.organization_id,athlete_id:legacy.athlete_id,must_change_password:true}).select('*').single();
     if(inserted.error){await admin.auth.admin.deleteUser(created.user.id);throw new Error('Não foi possível migrar o acesso. Tente novamente.');}account=inserted.data;
@@ -32,8 +33,8 @@ Deno.serve(async(req:Request)=>{
    const auth=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
    let signed=await auth.auth.signInWithPassword({email,password});
    if(signed.error&&account.must_change_password){
-    const legacy=check(await admin.rpc('prorun_legacy_login',{p_login:login,p_password:body.password.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3$2$1')}));
-    if(legacy)signed=await auth.auth.signInWithPassword({email,password:await digest('prorun:legacy:'+body.password.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3$2$1'))});
+    const legacy=check(await admin.rpc('prorun_legacy_login',{p_login:login,p_password:body.password}));
+    if(legacy)signed=await auth.auth.signInWithPassword({email,password:await digest('prorun:legacy:'+legacyPassword(body.password,legacy.role))});
    }
    if(signed.error)return respond({error:'Credenciais inválidas.'},401);
    return respond({session:signed.data.session,account});

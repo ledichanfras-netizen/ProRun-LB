@@ -41,15 +41,19 @@ Deno.serve(async(req:Request)=>{
   }
   if(action==='accept'){
    if(typeof body.token!=='string'||body.token.length<32||!strong(body.password))throw new Error('Informe o convite e uma senha de pelo menos 8 caracteres.');
-   const invitation=check(await admin.from('prorun_invitations').select('*').eq('token_hash',await digest(body.token)).is('accepted_at',null).gt('expires_at',new Date().toISOString()).single());
+   const invitation=check(await admin.from('prorun_invitations').select('*').eq('token_hash',await digest(body.token)).is('accepted_at',null).gt('expires_at',new Date().toISOString()).maybeSingle());
+   if(!invitation)throw new Error('Convite inválido, expirado ou já utilizado. Solicite um novo link ao treinador.');
    const invitationEmail=invitation.platform_admin&&invitation.email==='admin-bootstrap@accounts.prorunlb.invalid'?body.email:invitation.email;
    if(typeof invitationEmail!=='string'||!/^\S+@\S+\.\S+$/.test(invitationEmail))throw new Error('Informe seu e-mail para ativar o acesso.');
+   if(!invitation.platform_admin&&(typeof body.email!=='string'||body.email.trim().toLowerCase()!==invitation.email.trim().toLowerCase()))throw new Error('Informe o mesmo e-mail que recebeu o convite.');
    const claimed=check(await admin.from('prorun_invitations').update({accepted_at:new Date().toISOString()}).eq('id',invitation.id).is('accepted_at',null).select('id').maybeSingle());if(!claimed)throw new Error('Convite já utilizado.');
    let createdId:string|null=null;
    try{
     if(invitation.account_id){check(await admin.auth.admin.updateUserById(invitation.account_id,{password:body.password}));check(await admin.from('prorun_accounts').update({must_change_password:false}).eq('user_id',invitation.account_id));}
     else{
-     const u=check(await admin.auth.admin.createUser({email:invitationEmail,password:body.password,email_confirm:true}));createdId=u.user.id;
+     const created=await admin.auth.admin.createUser({email:invitationEmail,password:body.password,email_confirm:true});
+     if(created.error){if(['email_exists','user_already_exists'].includes(created.error.code)||/already.*registered|already.*exists/i.test(created.error.message))throw new Error('Este e-mail já possui acesso. Entre com a conta existente. Para um perfil separado de aluno, peça um novo convite com outro e-mail.');throw created.error;}
+     const u=created.data;createdId=u.user.id;
      check(await admin.from('prorun_accounts').insert({user_id:createdId,login:invitation.platform_admin?'leandro':normalize(invitation.email),name:invitation.name,organization_id:invitation.organization_id,role:invitation.role,athlete_id:invitation.athlete_id,platform_admin:invitation.platform_admin===true}));
     }
    }catch(error){if(createdId)await admin.auth.admin.deleteUser(createdId);await admin.from('prorun_invitations').update({accepted_at:null}).eq('id',invitation.id);throw error;}
@@ -80,6 +84,10 @@ Deno.serve(async(req:Request)=>{
   if(action==='invite'){
    const role=body.role==='coach'?'coach':'athlete';if(role==='coach'&&!actor.platform_admin)return respond({error:'Somente o administrador pode convidar treinadores.'},403);
    if(typeof body.email!=='string'||!/^\S+@\S+\.\S+$/.test(body.email)||typeof body.name!=='string'||!body.name.trim())throw new Error('Informe nome e e-mail válidos.');
+   if(!body.resetUserId){
+    const existingLogin=check(await admin.from('prorun_accounts').select('user_id').eq('login',normalize(body.email)).maybeSingle());
+    if(existingLogin||normalize(body.email)===normalize(data.user.email||''))throw new Error('Este e-mail já possui acesso. Para um perfil separado de aluno, use outro e-mail. Para recuperar uma conta existente, use Redefinir acesso.');
+   }
    let organization=actor.organization_id,athleteId=null,accountId=null;
    if(body.resetUserId){
     const target=check(await admin.from('prorun_accounts').select('*').eq('user_id',body.resetUserId).single());

@@ -31,7 +31,7 @@ export default function Login() {
         setError(result.message || "Credenciais incorretas.");
       }
     } catch (err: any) {
-      setError("Ocorreu um erro ao tentar acessar.");
+      setError(err?.message || 'Não foi possível concluir. Tente novamente.');
       console.error("Erro no login:", err?.message || "Erro desconhecido");
     } finally {
       setLoading(false);
@@ -134,7 +134,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-[10px] font-black text-emerald-400/80 uppercase tracking-widest mb-2 ml-1">
-                Atleta / Treinador
+                {invite&&!accepted?'E-mail do convite':'Login / E-mail'}
               </label>
               <div className="relative group">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/40 w-5 h-5 group-focus-within:text-emerald-400 transition-colors" />
@@ -143,7 +143,7 @@ export default function Login() {
                   required
                   autoComplete="username"
                   className="w-full pl-12 pr-4 py-4 bg-slate-950/60 border border-white/10 rounded-2xl focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 focus:bg-slate-950/90 outline-none transition-all duration-300 text-white font-bold placeholder:text-slate-500/60 text-sm"
-                  placeholder="Nome de usuário"
+                  placeholder={invite&&!accepted?"E-mail do convite":"Login ou e-mail"}
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                 />
@@ -152,14 +152,15 @@ export default function Login() {
 
             <div>
               <label className="block text-[10px] font-black text-emerald-400/80 uppercase tracking-widest mb-2 ml-1">
-                Chave Biométrica
+                {invite&&!accepted?'Criar senha':'Senha'}
               </label>
               <div className="relative group">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/40 w-5 h-5 group-focus-within:text-emerald-400 transition-colors" />
                 <input 
                   type={showPassword ? "text" : "password"} 
                   required
-                  autoComplete="current-password"
+                  autoComplete={invite&&!accepted?"new-password":"current-password"}
+                  minLength={invite&&!accepted?8:undefined}
                   className="w-full pl-12 pr-12 py-4 bg-slate-950/60 border border-white/10 rounded-2xl focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 focus:bg-slate-950/90 outline-none transition-all duration-300 text-white font-bold placeholder:text-slate-500/60 text-sm"
                   placeholder="Senha de acesso"
                   value={password}
@@ -187,7 +188,7 @@ export default function Login() {
                 <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  Acessar Sistema <ArrowRight className="w-4 h-4" />
+                  {invite&&!accepted?'Ativar acesso':'Acessar sistema'} <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </motion.button>

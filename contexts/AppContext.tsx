@@ -562,7 +562,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const athlete = updatedAthletes.find(a => a.id === id);
     if (athlete) {
       try {
-        const {error}=await supabase.from('athletes').upsert(organizationRow({ id: athlete.id, data: athlete }));
+        const {error}=await supabase.from('athletes').update({data:athlete}).eq('id',athlete.id).select('id').single();
         if(error)throw error;
       } catch (err) {
         console.warn("Could not sync updated athlete to cloud (stored locally):", err);

@@ -1,5 +1,5 @@
 import type {AthletePlan,TrainingWeek,WorkoutType,WorkoutStep} from '../types';
-import {getLocalDateString,parseDateString,getWorkoutDateString} from './time';
+import {getLocalDateString,parseDateString,getWorkoutDateString} from './time.ts';
 export const importTypes:WorkoutType[]=['Rodagem','Regenerativo','Longão','Limiar','Intervalado','Maratona','Descanso','Fortalecimento','Velocidade','Natação','Ciclismo','Transição','Prova'];
 export const importDays=['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo'];
 export interface ImportRow{id:string;week:number;dayIndex:number|null;date:string;type:WorkoutType;description:string;distanceKm:number|null;durationMinutes:number|null;steps:WorkoutStep[];issues:string[];}

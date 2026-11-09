@@ -139,6 +139,7 @@ export interface Athlete {
     specificGoal: string;
     weeks: TrainingWeek[];
     archivedAt: string;
+    cyclePlanning?: import('./utils/cyclePlanning').CyclePlanning;
   }[];
 }
 
@@ -178,6 +179,7 @@ export type StepType = 'warmup' | 'interval' | 'recovery' | 'cooldown' | 'steady
 export type StepTargetType = 'distance' | 'time' | 'lap_button';
 
 export interface WorkoutStep {
+  plannedIntensity?: import('./utils/cyclePlanning').PlannedIntensity;
   id: string;
   name: string; // Ex: "Aquecimento", "Tiro 1/5", "Recuperação 1/5", "Desaquecimento"
   type: StepType;
@@ -208,6 +210,8 @@ export interface TrainingWeek {
   isVisible?: boolean; 
   coachNotes?: string; 
     workouts: {
+      plannedIntensity?: import('./utils/cyclePlanning').PlannedIntensity;
+      plannedDurationMinutes?: number;
       objective?: string;
       capacity?: string;
       method?: string;
@@ -292,6 +296,8 @@ export interface TrainingWeek {
 export type FreeRun = TrainingWeek["workouts"][number] & { id: string; startTime?: string; createdAt?: string; updatedAt?: string };
 
 export interface AthletePlan {
+  editorDraft?: boolean;
+  cyclePlanning?: import('./utils/cyclePlanning').CyclePlanning;
   importDrafts?: import('./utils/planTranscription').PlanImportDraft[];
   priorPrescriptionReview?: import('./utils/prescriptionIntelligence').PrescriptionReview;
   prescriptionReview?: import('./utils/prescriptionIntelligence').PrescriptionReview;

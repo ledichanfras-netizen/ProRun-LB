@@ -1,3 +1,4 @@
+import {planningPrompt,validateCyclePlanning,type CyclePlanning} from '../utils/cyclePlanning';
 import {requestAI} from '../lib/access';
 import {buildPrescriptionContext,inspectPrescription,prescriptionPrinciples,prescriptionDays,type PrescriptionConstraints} from '../utils/prescriptionIntelligence';
 import {withoutMenstrualData} from '../utils/menstrualReadiness';
@@ -23,14 +24,16 @@ export const generateTrainingPlan = async (
   runningDaysOfWeek?: number[],
   gymDaysOfWeek?: number[],
   longRunDayOfWeek?: number,
-  currentPlan?: AthletePlan | null
+  currentPlan?: AthletePlan | null,
+  cyclePlanning?: CyclePlanning
 ): Promise<AthletePlan> => {
   
+  if(cyclePlanning){const errors=validateCyclePlanning(cyclePlanning,weeks,true);if(errors.length)throw new Error(errors.join(' '));}
   athlete = withoutMenstrualData(athlete);
 
   const asOf=getLocalDateString(getAppNow());
   const context=buildPrescriptionContext(athlete,currentPlan,asOf);
-  const constraints:PrescriptionConstraints={weeks,startDate:startDate||asOf,raceDate,runningDays:runningDaysOfWeek||[],gymDays:gymDaysOfWeek||[],longRunDay:longRunDayOfWeek??6,multisport:/triat|duat|triath|duath/i.test(`${raceDistance} ${raceGoal||''} ${goalDescription}`)};
+  const constraints:PrescriptionConstraints={weeks,startDate:startDate||asOf,raceDate,runningDays:runningDaysOfWeek||[],gymDays:gymDaysOfWeek||[],longRunDay:longRunDayOfWeek??6,multisport:/triat|duat|triath|duath/i.test(`${raceDistance} ${raceGoal||''} ${goalDescription}`),cyclePlanning};
   if(!Number.isInteger(weeks)||weeks<1)throw new Error('Informe uma duração válida para o ciclo.');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(constraints.startDate))throw new Error('Informe a data de início do ciclo.');
   const expectedRaceWeek=Array.from({length:7},(_,i)=>getWorkoutDateString(constraints.startDate,weeks-1,i));
@@ -91,6 +94,8 @@ export const generateTrainingPlan = async (
     - BIOMETRIA: ${athlete.age} anos, ${athlete.weight}kg, ${athlete.height}cm.
     - HISTÓRICO DE LESÕES (CRÍTICO): ${athlete.injuryHistory || 'Nenhum reportado'}. (Se houver lesão, seja mais conservador no volume e evite muitos treinos de impacto seguidos).
 
+    ${cyclePlanning?planningPrompt(cyclePlanning):''}
+
     PARÂMETROS DO CICLO:
     - DATA DE INÍCIO: ${startDate || today}.
     - DATA DA PROVA: ${raceDate} (${raceWeekday}).
@@ -150,7 +155,7 @@ export const generateTrainingPlan = async (
     const response = await requestAI('periodization', {
       contents: prompt,
       config: {
-        systemInstruction: prescriptionPrinciples + " Você é um assistente de planejamento do Treinador Leandro Barbosa. Especialista em Performance Humana, Triathlon e Duathlon. Suas planilhas são baseadas nas metodologias de Joe Friel (Training Bible), Jack Daniels (VDOT) e 80/20 Training. Suas prescrições são precisas e formatadas com sintaxe padronizada para reconhecimento automático pelo conversor de treinos estruturados GPS (ex: '2km aq + 6x 1000m rec 2min ritmo 04:15 + 1km des'). Você sempre termina a periodização no dia da prova.",
+        systemInstruction: prescriptionPrinciples + " Você é um assistente de planejamento do Treinador Leandro Barbosa. Especialista em Performance Humana, Triathlon e Duathlon. Suas planilhas são baseadas nas metodologias de Joe Friel (Training Bible), Jack Daniels (VDOT) e nas escolhas de organização do treinador, sem impor uma distribuição universal. Suas prescrições são precisas e formatadas com sintaxe padronizada para reconhecimento automático pelo conversor de treinos estruturados GPS (ex: '2km aq + 6x 1000m rec 2min ritmo 04:15 + 1km des'). Você sempre termina a periodização no dia da prova.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
         responseSchema: {
@@ -196,7 +201,7 @@ export const generateTrainingPlan = async (
     const parsed = JSON.parse(response.text || "{}");
     if(!Array.isArray(parsed.weeks)||parsed.weeks.length!==weeks||parsed.weeks.some((w:any)=>!Array.isArray(w.workouts)))throw new Error('REVIEW: A resposta não contém as semanas e sessões solicitadas. Gere novamente.');
     // Whitelist model output: generated sessions cannot arrive as completed or published.
-    const plan:AthletePlan={raceStrategy:String(parsed.raceStrategy||''),motivationalMessage:String(parsed.motivationalMessage||''),startDate:constraints.startDate,endDate:raceDate,weeks:parsed.weeks.map((w:any,i:number)=>({id:crypto.randomUUID(),phase:w.phase,weekNumber:i+1,isVisible:false,totalVolume:0,coachNotes:String(w.coachNotes||''),workouts:w.workouts.map((s:any)=>({day:s.day,type:s.type,distance:s.distance,customDescription:String(s.customDescription||''),objective:String(s.objective||''),capacity:String(s.capacity||''),method:String(s.method||'')}))}))};
+    const plan:AthletePlan={cyclePlanning,raceStrategy:String(parsed.raceStrategy||''),motivationalMessage:String(parsed.motivationalMessage||''),startDate:constraints.startDate,endDate:raceDate,weeks:parsed.weeks.map((w:any,i:number)=>({id:crypto.randomUUID(),phase:w.phase,weekNumber:i+1,isVisible:false,totalVolume:0,coachNotes:String(w.coachNotes||''),workouts:w.workouts.map((s:any)=>({day:s.day,type:s.type,distance:s.distance,customDescription:String(s.customDescription||''),objective:String(s.objective||''),capacity:String(s.capacity||''),method:String(s.method||'')}))}))};
     const review=inspectPrescription(plan,constraints,context);
     if(review.errors.length)throw new Error('REVIEW: '+review.errors.slice(0,5).join(' '));
     plan.weeks=plan.weeks.map((week,i)=>({...week,totalVolume:review.totals[i].runningKm,workouts:prescriptionDays.map((day,di)=>({...week.workouts.find(w=>w.day===day)!,date:getWorkoutDateString(constraints.startDate,i,di)}))}));

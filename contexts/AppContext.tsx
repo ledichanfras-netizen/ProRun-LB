@@ -766,6 +766,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const planWithMetadata = {
       ...plan,
       freeRuns: plan.freeRuns || athletePlans[athleteId]?.freeRuns || [],
+      importDrafts:plan.importDrafts??athletePlans[athleteId]?.importDrafts??[],
       weeks: weeksWithMetadata
     };
 

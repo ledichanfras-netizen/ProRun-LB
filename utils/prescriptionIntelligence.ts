@@ -34,7 +34,7 @@ export function buildPrescriptionContext(athlete:Athlete,current:AthletePlan|nul
  };
 }
 export type PrescriptionContext=ReturnType<typeof buildPrescriptionContext>;
-export interface PrescriptionConstraints {weeks:number;startDate:string;raceDate?:string;runningDays:number[];gymDays:number[];longRunDay:number;multisport?:boolean;}
+export interface PrescriptionConstraints {cyclePlanning?:import('./cyclePlanning').CyclePlanning;weeks:number;startDate:string;raceDate?:string;runningDays:number[];gymDays:number[];longRunDay:number;multisport?:boolean;}
 export interface PrescriptionReview {version:1;generatedAt:string;constraints:PrescriptionConstraints;context:PrescriptionContext;}
 export function inspectPrescription(plan:AthletePlan,constraints:PrescriptionConstraints,context?:PrescriptionContext){
  const errors:string[]=[],warnings:string[]=[],totals:{week:number;runningKm:number;cyclingKm:number;swimmingKm:number;demandingDays:number}[]=[];

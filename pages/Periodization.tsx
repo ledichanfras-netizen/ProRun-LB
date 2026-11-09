@@ -1,3 +1,5 @@
+import {CyclePlanningPanel} from '../components/CyclePlanningPanel';
+import {emptyCyclePlanning,createManualCycle,validateCyclePlanning,type CyclePlanning} from '../utils/cyclePlanning';
 import PlanImportModal from '../components/PlanImportModal';
 import {useLocation} from 'react-router-dom';
 import {currentPublicationWeeks,publishTrainingWeek} from '../utils/weekPublication';
@@ -66,6 +68,9 @@ import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 const Periodization: React.FC = () => {
   const location=useLocation();
   const [importOpen,setImportOpen]=useState(false);
+  const [cyclePlanning,setCyclePlanning]=useState<CyclePlanning>(emptyCyclePlanning);
+  const [planningDirty,setPlanningDirty]=useState(false);
+  const planningOwner=useRef<string|null>(null);
   const { canPeriodizeAI, refreshData, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan: persistAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [showAthleteSelector, setShowAthleteSelector] = useState(false);
@@ -105,14 +110,14 @@ const Periodization: React.FC = () => {
   const [rescheduleTargetDay, setRescheduleTargetDay] = useState<number>(0);
 
   useEffect(()=>{
-    if(aiProposalAthlete.current&&fullPlan?.prescriptionReview){
+    if(aiProposalAthlete.current&&fullPlan){
       setDraftSaveFailed(!savePrescriptionDraft(aiProposalAthlete.current,fullPlan));
     }
   },[fullPlan]);
 
   // AI proposals use an explicit review/publish path; edits are checkpointed locally.
   const saveAthletePlan = async (id:string,plan:AthletePlan) => {
-    if(plan.prescriptionReview){setIsEditing(true);return;}
+    if(aiProposalAthlete.current===id||plan.prescriptionReview){setIsEditing(true);setDraftSaveFailed(!savePrescriptionDraft(id,plan));return;}
     await persistAthletePlan(id,plan);
   };
 
@@ -265,17 +270,21 @@ const Periodization: React.FC = () => {
   ];
 
   useEffect(() => {
-    if(aiProposalAthlete.current===activeAthlete?.id&&fullPlan?.prescriptionReview)return;
+    const switching=planningOwner.current!==(activeAthlete?.id||null);
+    if(switching){planningOwner.current=activeAthlete?.id||null;setPlanningDirty(false);setIsEditing(false);}
+    if(!switching&&(isEditing||planningDirty))return;
+    if(aiProposalAthlete.current===activeAthlete?.id&&fullPlan)return;
     aiProposalAthlete.current=null;
     const draft=activeAthlete?readPrescriptionDraft(activeAthlete.id):null;
     if(draft&&activeAthlete){
       aiProposalAthlete.current=activeAthlete.id;
-      setFullPlan(draft);setIsEditing(true);setStartDate(draft.startDate||'');setRaceDate(draft.endDate||'');
+      setFullPlan(draft);setWeeks(draft.weeks.length);setCyclePlanning(draft.cyclePlanning||emptyCyclePlanning());setIsEditing(true);setStartDate(draft.startDate||'');setRaceDate(draft.endDate||'');
       return;
     }
     if (activeAthlete && athletePlans[activeAthlete.id]) {
       const plan = athletePlans[activeAthlete.id];
-      setFullPlan(plan);
+      setFullPlan(plan);setWeeks(plan.weeks.length||8);
+      setCyclePlanning(plan.cyclePlanning||emptyCyclePlanning());
       setRaceGoal(plan.specificGoal || '');
       if (plan.startDate) setStartDate(plan.startDate);
       if (plan.runningDaysOfWeek && plan.runningDaysOfWeek.length > 0) {
@@ -298,6 +307,7 @@ const Periodization: React.FC = () => {
       }
     } else {
       setFullPlan(null);
+      setCyclePlanning(emptyCyclePlanning());
       setRaceGoal('');
       setStartDate('');
       setRunningDaysOfWeek([0, 1, 3, 6]); // Segunda, Terça, Quinta, Domingo
@@ -336,7 +346,16 @@ const Periodization: React.FC = () => {
     }
   }, [raceDate, startDate]);
 
+  const updatePlanning=(next:CyclePlanning)=>{setCyclePlanning(next);setPlanningDirty(true);setFullPlan(prev=>prev?{...prev,cyclePlanning:next}:prev);};
+  const savePlanning=async()=>{
+    if(!activeAthlete||publishing||isEditing||aiProposalAthlete.current)return;
+    const current=athletePlans[activeAthlete.id];if(!current?.weeks.length)return;
+    const errors=validateCyclePlanning(cyclePlanning,current.weeks.length,true);if(errors.length){alert(errors.join(' '));return;}
+    setPublishing(true);try{const updated={...current,cyclePlanning};await persistAthletePlan(activeAthlete.id,updated);setFullPlan(updated);setPlanningDirty(false);alert('Organização do ciclo salva.');}catch{alert('Não foi possível confirmar o salvamento da organização. Tente novamente.');}finally{setPublishing(false);}
+  };
+
   const handleGenerate = async () => {
+    const planningErrors=validateCyclePlanning(cyclePlanning,weeks,true);if(planningErrors.length){alert(planningErrors.join(' '));return;}
     if(!canPeriodizeAI){alert('Periodização por IA exclusiva do administrador.');return;}
     if (!activeAthlete || !raceDate) {
       alert("Defina a data da prova para calcular o ciclo.");
@@ -363,7 +382,8 @@ const Periodization: React.FC = () => {
         runningDaysOfWeek,
         gymDaysOfWeek,
         longRunDayOfWeek,
-        athletePlans[activeAthlete.id]
+        athletePlans[activeAthlete.id],
+        cyclePlanning
       );
       
       const normalizedWeeks = (generated.weeks || []).map(w => {
@@ -434,7 +454,9 @@ const Periodization: React.FC = () => {
   const handleSave = async (weekToPublish?:number) => {
     if(publishing)return;
     if (activeAthlete && fullPlan) {
-      const toPublish=weekToPublish===undefined?fullPlan:publishTrainingWeek(fullPlan,weekToPublish);
+      const selectedPlan=weekToPublish===undefined?fullPlan:publishTrainingWeek(fullPlan,weekToPublish);
+      const toPublish={...selectedPlan,cyclePlanning,editorDraft:undefined};
+      const planningErrors=validateCyclePlanning(cyclePlanning,toPublish.weeks.length);if(planningErrors.length){alert(planningErrors.join(' '));return;}
       if(fullPlan.prescriptionReview){
         const meta=fullPlan.prescriptionReview;
         const report=inspectPrescription(fullPlan,{...meta.constraints,startDate:fullPlan.startDate||meta.constraints.startDate},meta.context);
@@ -442,17 +464,18 @@ const Periodization: React.FC = () => {
         if(!prescriptionAccepted){alert('Confira a revisão da periodização e marque a confirmação antes de publicar.');return;}
       }
       if(!toPublish.weeks.some(w=>w.isVisible)){alert('Selecione pelo menos uma semana para liberar antes de publicar.');return;}
+      if(toPublish.weeks.filter(w=>w.isVisible).some(w=>w.workouts.some(s=>s.type!=='Descanso'&&!s.customDescription?.trim()&&!s.exercises?.length&&!s.structuredWorkout?.steps.length&&!(Number(s.distance)>0)&&!(Number(s.plannedDurationMinutes)>0)))){alert('Preencha os treinos das semanas selecionadas antes de publicar.');return;}
       setPublishing(true);
       try {
         const previous=athletePlans[activeAthlete.id];
-        if(fullPlan.prescriptionReview&&previous&&previous.prescriptionReview?.generatedAt!==fullPlan.prescriptionReview.generatedAt&&previous.weeks.some(w=>w.workouts.some(s=>s.completed))){
-          const archiveId=`before-ai-${fullPlan.prescriptionReview.generatedAt}`;
-          if(!activeAthlete.archivedPlans?.some(p=>p.id===archiveId))await updateAthlete(activeAthlete.id,{archivedPlans:[{id:archiveId,name:`Ciclo anterior · ${previous.specificGoal||'Treinos realizados'}`,startDate:previous.startDate||'',endDate:previous.endDate||'',specificGoal:previous.specificGoal||'',weeks:previous.weeks,archivedAt:new Date().toISOString()},...(activeAthlete.archivedPlans||[])]});
+        if(previous&&previous.weeks.length&&((fullPlan.editorDraft&&previous.weeks[0]?.id!==fullPlan.weeks[0]?.id)||(fullPlan.prescriptionReview&&previous.prescriptionReview?.generatedAt!==fullPlan.prescriptionReview.generatedAt&&previous.weeks.some(w=>w.workouts.some(s=>s.completed))))){
+          const archiveId=fullPlan.editorDraft?`before-manual-${fullPlan.weeks[0]?.id}`:`before-ai-${fullPlan.prescriptionReview!.generatedAt}`;
+          if(!activeAthlete.archivedPlans?.some(p=>p.id===archiveId))await updateAthlete(activeAthlete.id,{archivedPlans:[{id:archiveId,name:`Ciclo anterior · ${previous.specificGoal||'Treinos realizados'}`,startDate:previous.startDate||'',endDate:previous.endDate||'',specificGoal:previous.specificGoal||'',weeks:previous.weeks,cyclePlanning:previous.cyclePlanning,archivedAt:new Date().toISOString()},...(activeAthlete.archivedPlans||[])]});
         }
         await persistAthletePlan(activeAthlete.id,toPublish);
         clearPrescriptionDraft(activeAthlete.id);
         aiProposalAthlete.current=null;
-        setFullPlan(toPublish);
+        setFullPlan(toPublish);setPlanningDirty(false);
       }catch{alert('Não foi possível confirmar o salvamento. Seu rascunho foi mantido. Tente publicar novamente.');return;}finally{setPublishing(false);}
       
       // Notificar Atleta sobre nova planilha
@@ -487,6 +510,7 @@ const Periodization: React.FC = () => {
       endDate: fullPlan.endDate || '',
       specificGoal: fullPlan.specificGoal || '',
       weeks: fullPlan.weeks,
+      cyclePlanning:fullPlan.cyclePlanning,
       archivedAt: new Date().toISOString()
     };
     
@@ -519,65 +543,11 @@ const Periodization: React.FC = () => {
     
     const combinedDays = Array.from(new Set([...runningDaysOfWeek, ...gymDaysOfWeek])).sort((a, b) => a - b);
 
-    const manualWeeks: TrainingWeek[] = Array.from({ length: weeks }, (_, i) => ({
-      id: crypto.randomUUID(),
-      weekNumber: i + 1,
-      phase: i < weeks / 2 ? 'Base' : 'Construção',
-      totalVolume: 0,
-      isVisible: true,
-      workouts: diasSemanaFull.map((day, dayIdx) => {
-        const isRun = runningDaysOfWeek.includes(dayIdx);
-        const isGym = gymDaysOfWeek.includes(dayIdx);
-
-        if (isRun && isGym) {
-          return {
-            day,
-            type: 'Regenerativo' as WorkoutType,
-            customDescription: 'Corrida Leve (Z1/Z2) + Fortalecimento funcional.',
-            distance: 6
-          };
-        } else if (isRun) {
-          const isLongRun = dayIdx === longRunDayOfWeek;
-          return {
-            day,
-            type: (isLongRun ? 'Longão' : 'Regenerativo') as WorkoutType,
-            customDescription: isLongRun ? 'Rodagem Longa (Longão - Z2) para construção aeróbica e resistência.' : 'Corrida contínua aeróbica.',
-            distance: isLongRun ? 14 : 8
-          };
-        } else if (isGym) {
-          return {
-            day,
-            type: 'Fortalecimento' as WorkoutType,
-            customDescription: 'Treino de Força / Musculação para Corrida (Core, membros inferiores, estabilidade).',
-            distance: 0
-          };
-        } else {
-          return {
-            day,
-            type: 'Descanso' as WorkoutType,
-            customDescription: 'Descanso total.',
-            distance: 0
-          };
-        }
-      })
-    }));
-
-    const newPlan: AthletePlan = {
-      weeks: manualWeeks,
-      specificGoal: raceGoal || raceDistance,
-      raceStrategy: 'Periodização manual iniciada.',
-      motivationalMessage: 'Foco e consistência no processo!',
-      startDate: startDate || getTodayDateString(),
-      trainingDays: combinedDays,
-      runningDaysOfWeek,
-      gymDaysOfWeek,
-      longRunDayOfWeek,
-      runningDaysCount: runningDaysOfWeek.length,
-      gymDaysCount: gymDaysOfWeek.length
-    };
-
+    let newPlan:AthletePlan;try{newPlan=createManualCycle({weeks,startDate:startDate||getTodayDateString(),endDate:raceDate,planning:cyclePlanning,runningDays:runningDaysOfWeek,gymDays:gymDaysOfWeek,goal:raceGoal||raceDistance});}catch(e:any){alert(e.message);return;}
+    newPlan={...newPlan,trainingDays:combinedDays,runningDaysOfWeek,gymDaysOfWeek,longRunDayOfWeek,runningDaysCount:runningDaysOfWeek.length,gymDaysCount:gymDaysOfWeek.length};
+    aiProposalAthlete.current=activeAthlete.id;
+    setDraftSaveFailed(!savePrescriptionDraft(activeAthlete.id,newPlan));
     setFullPlan(newPlan);
-    saveAthletePlan(activeAthlete.id, newPlan);
     setIsEditing(true);
   };
 
@@ -1177,10 +1147,11 @@ const Periodization: React.FC = () => {
         </div>
       </header>
       {importOpen&&activeAthlete&&<PlanImportModal athleteId={activeAthlete.id} athleteName={activeAthlete.name} plan={athletePlans[activeAthlete.id]||{weeks:[]}} onClose={()=>setImportOpen(false)} onChanged={refreshData}/>}
+      {activeAthlete&&!selectedArchivedPlan&&<CyclePlanningPanel key={activeAthlete.id} value={cyclePlanning} onChange={updatePlanning} weeks={fullPlan?.weeks.length||weeks} plan={fullPlan} onPlanChange={next=>{setFullPlan(next);setIsEditing(true);}} onSave={()=>void savePlanning()} saveDisabled={!planningDirty||isEditing||!!aiProposalAthlete.current||!athletePlans[activeAthlete.id]?.weeks.length} busy={loading||publishing}/>}
       {activeAthlete&&fullPlan?.prescriptionReview&&<PrescriptionReview plan={fullPlan} accepted={prescriptionAccepted} onAccept={setPrescriptionAccepted}/>}
-      {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<button type="button" className="text-sm text-emerald-500 font-bold p-3 rounded-xl border border-emerald-500/30" onClick={()=>{clearPrescriptionDraft(activeAthlete.id);aiProposalAthlete.current=null;setFullPlan(athletePlans[activeAthlete.id]||null);setIsEditing(false);}}>Descartar proposta e voltar ao ciclo atual</button>}
+      {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<button type="button" className="text-sm text-emerald-500 font-bold p-3 rounded-xl border border-emerald-500/30" onClick={()=>{clearPrescriptionDraft(activeAthlete.id);aiProposalAthlete.current=null;setFullPlan(athletePlans[activeAthlete.id]||null);setCyclePlanning(athletePlans[activeAthlete.id]?.cyclePlanning||emptyCyclePlanning());setPlanningDirty(false);setIsEditing(false);}}>Descartar rascunho e voltar ao ciclo atual</button>}
 
-      {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<div role="status" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200 p-4 text-sm font-bold">{draftSaveFailed?'Não foi possível salvar o rascunho neste dispositivo. Mantenha esta tela aberta até publicar.':'Rascunho salvo neste dispositivo. Selecione as semanas, confirme a revisão e toque em Publicar para salvar e liberar ao atleta.'}</div>}
+      {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<div role="status" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200 p-4 text-sm font-bold">{draftSaveFailed?'Não foi possível salvar o rascunho neste dispositivo. Mantenha esta tela aberta até publicar.':(fullPlan?.prescriptionReview?'Rascunho salvo neste dispositivo. Selecione as semanas, confirme a revisão e toque em Publicar para salvar e liberar ao atleta.':'Rascunho manual salvo neste dispositivo. Preencha os treinos, selecione as semanas e publique após conferir.')}</div>}
       {/* CARD DO ATLETA EM FOCO */}
       {activeAthlete && (
         <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-5 md:p-6 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5">

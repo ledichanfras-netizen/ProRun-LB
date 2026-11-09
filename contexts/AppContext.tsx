@@ -806,7 +806,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const clearAthletePlan = async (athleteId: string) => {
-    await saveAthletePlan(athleteId,{weeks:[],freeRuns:athletePlans[athleteId]?.freeRuns||[]});
+    await saveAthletePlan(athleteId,{weeks:[],freeRuns:athletePlans[athleteId]?.freeRuns||[],importDrafts:athletePlans[athleteId]?.importDrafts||[]});
   };
 
   const rescheduleWorkout = async (

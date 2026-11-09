@@ -1,3 +1,4 @@
+import PlanImportModal from '../components/PlanImportModal';
 import {useLocation} from 'react-router-dom';
 import {currentPublicationWeeks,publishTrainingWeek} from '../utils/weekPublication';
 import {savePrescriptionDraft,readPrescriptionDraft,clearPrescriptionDraft} from '../utils/prescriptionDraft';
@@ -12,7 +13,7 @@ import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType, AthletePlan, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-import { getAppNow, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getTodayDateString, getWorkoutDateString, getWorkoutIndicesFromDate } from '../utils/time';
+import { getAppNow, parseDateString, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getTodayDateString, getWorkoutDateString, getWorkoutIndicesFromDate } from '../utils/time';
 import { 
   Sparkles, 
   Loader2, 
@@ -64,7 +65,8 @@ import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 
 const Periodization: React.FC = () => {
   const location=useLocation();
-  const { canPeriodizeAI, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan: persistAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
+  const [importOpen,setImportOpen]=useState(false);
+  const { canPeriodizeAI, refreshData, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan: persistAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [showAthleteSelector, setShowAthleteSelector] = useState(false);
   const [raceDate, setRaceDate] = useState('');
@@ -119,7 +121,7 @@ const Periodization: React.FC = () => {
     setRescheduleTargetWeek(wIdx);
     setRescheduleTargetDay(dIdx);
     if (fullPlan?.startDate) {
-      setRescheduleTargetDate(getWorkoutDateString(fullPlan.startDate, wIdx, dIdx));
+      setRescheduleTargetDate(fullPlan.weeks[wIdx].workouts[dIdx].date||getWorkoutDateString(fullPlan.startDate, wIdx, dIdx));
     } else {
       setRescheduleTargetDate(getTodayDateString());
     }
@@ -1148,6 +1150,7 @@ const Periodization: React.FC = () => {
              <ChevronDown className="w-3.5 h-3.5 opacity-70 group-hover:translate-y-0.5 transition-transform" />
            </button>
 
+           <button type="button" disabled={!activeAthlete||publishing||isEditing||!!aiProposalAthlete.current} onClick={()=>setImportOpen(true)} className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-black text-xs uppercase disabled:opacity-40" title="Conclua suas edições antes de importar uma planilha">Importar planilha com IA</button>
            {fullPlan && (
              <>
                <button 
@@ -1173,6 +1176,7 @@ const Periodization: React.FC = () => {
            )}
         </div>
       </header>
+      {importOpen&&activeAthlete&&<PlanImportModal athleteId={activeAthlete.id} athleteName={activeAthlete.name} plan={athletePlans[activeAthlete.id]||{weeks:[]}} onClose={()=>setImportOpen(false)} onChanged={refreshData}/>}
       {activeAthlete&&fullPlan?.prescriptionReview&&<PrescriptionReview plan={fullPlan} accepted={prescriptionAccepted} onAccept={setPrescriptionAccepted}/>}
       {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<button type="button" className="text-sm text-emerald-500 font-bold p-3 rounded-xl border border-emerald-500/30" onClick={()=>{clearPrescriptionDraft(activeAthlete.id);aiProposalAthlete.current=null;setFullPlan(athletePlans[activeAthlete.id]||null);setIsEditing(false);}}>Descartar proposta e voltar ao ciclo atual</button>}
 
@@ -1598,7 +1602,7 @@ const Periodization: React.FC = () => {
                           return acc;
                         }, 0);
                         const fPlanned = Math.round(plannedKm * 10) / 10;
-                        const freeKm = freeRunsInWeek(fullPlan, getWorkoutDateString(fullPlan.startDate || getTodayDateString(), weekIndex, 0)).reduce((sum, run) => sum + activityDistance(run), 0);
+                        const freeKm = freeRunsInWeek(fullPlan, week.calendarStartDate||getWorkoutDateString(fullPlan.startDate || getTodayDateString(), weekIndex, 0)).reduce((sum, run) => sum + activityDistance(run), 0);
                         const fReal = Math.round((realKm + freeKm) * 10) / 10;
                         return (
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1616,7 +1620,7 @@ const Periodization: React.FC = () => {
                       
                       {fullPlan.startDate && (
                         <span className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-tighter italic flex items-center gap-1.5 bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg whitespace-nowrap">
-                          📅 {formatWeekDateRange(fullPlan.startDate, weekIndex)}
+                          📅 {formatWeekDateRange(week.calendarStartDate||fullPlan.startDate, week.calendarStartDate?0:weekIndex)}
                         </span>
                       )}
                     </div>
@@ -1716,7 +1720,7 @@ const Periodization: React.FC = () => {
                                    title="Clique para alterar a data ou mover este treino"
                                  >
                                    <Calendar className="w-2.5 h-2.5 inline" />
-                                   <span>{formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex))}</span>
+                                   <span>{formatWorkoutDateShort(workout.date?parseDateString(workout.date):getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex))}</span>
                                  </button>
                                )}
                              </div>
@@ -1995,7 +1999,7 @@ const Periodization: React.FC = () => {
                                         type="button"
                                         onClick={() => {
                                           const r = workout.gpsRoute || workout.route;
-                                          setViewingWorkoutRoute({ ...r, workoutType: workout.type, workoutDate: fullPlan?.startDate ? formatWorkoutDateShort(getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex)) : undefined });
+                                          setViewingWorkoutRoute({ ...r, workoutType: workout.type, workoutDate: fullPlan?.startDate ? formatWorkoutDateShort(workout.date?parseDateString(workout.date):getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex)) : undefined });
                                         }}
                                         className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-md uppercase italic border border-emerald-500/30 flex items-center gap-1 transition-all cursor-pointer"
                                       >

@@ -2,7 +2,7 @@
 import React from 'react';
 import { Athlete, TrainingWeek, TrainingPace } from '../types';
 import { calculateDanielsSprintsByPaces } from '../utils/calculations';
-import { formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../utils/time';
+import { parseDateString, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort } from '../utils/time';
 import { formatStructuredWorkoutSummary, formatStructuredWorkoutFullDescription } from '../utils/workoutParser';
 
 export const LBSportsLogo = () => (
@@ -131,7 +131,7 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
                  <div className="text-[10px] font-black uppercase text-emerald-700 tracking-[0.2em] italic bg-emerald-50 px-5 py-2 rounded-xl border border-emerald-100 shadow-sm">{week.phase}</div>
                  {startDate && (
                    <div className="text-[9px] font-black uppercase text-slate-500 tracking-[0.1em] italic bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
-                     📅 {formatWeekDateRange(startDate, week.weekNumber - 1)}
+                     📅 {formatWeekDateRange(week.calendarStartDate||startDate, week.calendarStartDate?0:week.weekNumber - 1)}
                    </div>
                  )}
                </div>
@@ -151,7 +151,7 @@ export const PrintLayout: React.FC<PrintLayoutProps> = ({ athlete, plan, paces, 
                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">{workout.day.substring(0, 3)}</span>
                        {startDate && (
                          <span className="text-[8px] font-black text-emerald-600 italic">
-                           {formatWorkoutDateShort(getWorkoutDate(startDate, week.weekNumber - 1, idx))}
+                           {formatWorkoutDateShort(workout.date?parseDateString(workout.date):getWorkoutDate(startDate, week.weekNumber - 1, idx))}
                          </span>
                        )}
                      </div>

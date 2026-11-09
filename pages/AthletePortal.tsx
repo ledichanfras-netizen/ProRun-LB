@@ -621,8 +621,8 @@ const AthletePortal: React.FC = () => {
 
   const {todayWorkout,tomorrowWorkout,yesterdayWorkout,currentWeek,latestCompleted,state:scheduleState}=useMemo(()=>selectPortalSchedule(athletePlan,calendarToday),[athletePlan,calendarToday]);
 
-  const progressWeekDate = currentWeek && athletePlan?.startDate
-    ? getWorkoutDateString(athletePlan.startDate, allWeeks.indexOf(currentWeek), 0) : getTodayDateString();
+  const progressWeekDate = currentWeek?.calendarStartDate || (currentWeek && athletePlan?.startDate
+    ? getWorkoutDateString(athletePlan.startDate, allWeeks.indexOf(currentWeek), 0) : getTodayDateString());
   const weeklyFreeRuns = freeRunsInWeek(athletePlan, progressWeekDate);
   const weeklyProgress = {
     completed: (currentWeek?.workouts.filter((w: any) => w.completed && w.type !== 'Descanso').length || 0) + weeklyFreeRuns.length,
@@ -2808,7 +2808,7 @@ const AthletePortal: React.FC = () => {
                const d = Number(curr.distance) || 0;
                return acc + (isNaN(d) ? 0 : d);
              }, 0);
-             const weekActivities = activityWeeks.find(item => item.weekStart === weekStart(getWorkoutDateString(athletePlan?.startDate || getTodayDateString(), originalWeekIndex, 0)))?.workouts || week.workouts;
+             const weekActivities = activityWeeks.find(item => item.weekStart === weekStart(week.calendarStartDate||getWorkoutDateString(athletePlan?.startDate || getTodayDateString(), originalWeekIndex, 0)))?.workouts || week.workouts;
              const weekRealKm = (weekActivities || []).reduce((acc: number, curr: any) => {
                if (curr.completed) {
                  const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
@@ -2832,7 +2832,7 @@ const AthletePortal: React.FC = () => {
                       </div>
                       {athletePlan?.startDate && (
                         <span className="text-[8px] text-slate-400 font-extrabold uppercase bg-slate-100 border border-slate-200/50 px-1.5 py-0.5 rounded-md italic">
-                          📅 {formatWeekDateRange(athletePlan.startDate, originalWeekIndex)}
+                          📅 {formatWeekDateRange(week.calendarStartDate||athletePlan.startDate, week.calendarStartDate?0:originalWeekIndex)}
                         </span>
                       )}
                     </div>
@@ -3966,7 +3966,7 @@ const AthletePortal: React.FC = () => {
                       isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-white/5 text-slate-300 border-white/10'
                     }`}>
                       <Calendar className="w-3 h-3 text-emerald-500" />
-                      {formatWorkoutDateShort(getWorkoutDate(athletePlan.startDate, selectedWorkout.weekIndex, selectedWorkout.dayIndex))}
+                      {formatWorkoutDateShort(selectedWorkout.data.date?parseDateString(selectedWorkout.data.date):getWorkoutDate(athletePlan.startDate, selectedWorkout.weekIndex, selectedWorkout.dayIndex))}
                     </span>
                   )}
                   <button

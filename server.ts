@@ -1,3 +1,4 @@
+import {registerPlanTranscription} from './server/planTranscription.ts';
 import {registerProrunAI} from './server/prorunAI.ts';
 
 import express from "express";
@@ -18,6 +19,7 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(cors());
+  registerPlanTranscription(app);
   app.use(express.json({ limit: '256kb' }));
 
   registerProrunAI(app);

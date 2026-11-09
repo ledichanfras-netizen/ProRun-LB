@@ -199,6 +199,7 @@ export interface StructuredWorkout {
 }
 
 export interface TrainingWeek {
+  calendarStartDate?: string;
   id: string;
   phase: 'Base' | 'Construção' | 'Pico' | 'Polimento';
   weekNumber: number;
@@ -291,6 +292,8 @@ export interface TrainingWeek {
 export type FreeRun = TrainingWeek["workouts"][number] & { id: string; startTime?: string; createdAt?: string; updatedAt?: string };
 
 export interface AthletePlan {
+  importDrafts?: import('./utils/planTranscription').PlanImportDraft[];
+  priorPrescriptionReview?: import('./utils/prescriptionIntelligence').PrescriptionReview;
   prescriptionReview?: import('./utils/prescriptionIntelligence').PrescriptionReview;
   freeRuns?: FreeRun[];
   weeks: TrainingWeek[];

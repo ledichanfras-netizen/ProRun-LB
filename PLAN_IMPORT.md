@@ -24,3 +24,13 @@ A leitura usa a chave Gemini já configurada no servidor e os modelos com altern
 - Advisory de segurança sem novos alertas relacionados à função. Aviso anterior de proteção contra senhas vazadas desativada continua fora deste escopo: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .
 
 A exatidão da leitura de documentos reais depende da legibilidade e da resposta da IA; a revisão do treinador é obrigatória. Não houve leitura de planilhas reais de alunos nem criação de contas de teste em produção.
+
+## Correção de leitura parcial de semanas
+
+A leitura visual agora percorre a planilha inteira antes de estruturar os blocos. A resposta traz uma conferência explícita dos sete dias de cada semana, diferenciando conteúdo, célula vazia, dia não localizado e conteúdo ilegível. Respostas truncadas e dias declarados como lidos mas sem texto são recusados. A estruturação usa o texto dessa primeira leitura; se retornar só a segunda-feira ou falhar, os textos dos demais dias identificados são preservados para revisão, sem inventar sessões.
+
+A prévia mostra a conferência de segunda a domingo e exige confirmação específica. A opção **Manter os treinos das datas já programadas** permite completar uma importação parcial sem duplicar a segunda-feira. Semanas importadas ainda ocultas e sem treinos concluídos podem receber os dias faltantes na mesma semana. Semanas publicadas ou com registros concluídos permanecem intactas.
+
+Ciclos novos importados terminam no domingo da última semana identificada. Ao completar um ciclo importado antigo cujo fim ficou na data do último treino (por exemplo, só segunda), o limite é corrigido até o domingo correspondente, sem estender ciclos manuais.
+
+Regressões: `tests/planImportReading.test.ts`. Fluxo móvel verificado com sete dias, estruturação simulada retornando só segunda, conferência visual, complementação de um ciclo antigo com segunda isolada e preservação dessa sessão. Esses testes não usaram a planilha real do aluno; os arquivos originais continuam necessários para recuperar treinos que não foram lidos anteriormente.

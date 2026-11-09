@@ -1,9 +1,11 @@
+import type {RouteVideoSceneInput} from '../utils/routeVideoCanvas';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, 
   Download, 
-  Share2, 
+  Share2,
+  Video,
   Image as ImageIcon, 
   Sparkles, 
   Layers, 
@@ -367,6 +369,8 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
   );
 };
 
+const RouteVideoModal=React.lazy(()=>import('./RouteVideoModal'));
+
 export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onClose }) => {
   // Theme and Styling State - DEFAULT TO TRANSPARENT BACKGROUND (Sticker PNG)
   const [textTheme, setTextTheme] = useState<TextTheme>('white');
@@ -375,6 +379,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const [logoStyle, setLogoStyle] = useState<LogoStyle>('original');
   const [cardLayout, setCardLayout] = useState<CardLayout>(normalizeGpsPoints(data.route).length >= 2 ? 'map' : 'strava');
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
+  const [isVideoOpen,setIsVideoOpen]=useState(false);
+  const [videoSceneInput,setVideoSceneInput]=useState<RouteVideoSceneInput|null>(null);
   const [stravaRouteColor, setStravaRouteColor] = useState<StravaRouteColor>('orange');
   const [stravaStatsAlign, setStravaStatsAlign] = useState<'vertical' | 'horizontal'>('vertical');
   const [activePhraseTab, setActivePhraseTab] = useState<number>(0);
@@ -528,6 +534,12 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const strengthDurationMin = Math.max(1, Math.round(strengthDurationSec / 60));
   const strengthRpe = data.rpe ?? 6;
   const strengthLoadUA = Math.round(strengthDurationMin * strengthRpe);
+
+  const openRouteVideo=()=>{
+    if(points.length<2)return;
+    setVideoSceneInput({points:points.map(point=>[point[0],point[1]]),title:customTitle,athleteName:data.athleteName,date:data.date,distanceKm:data.distanceKm,durationSeconds:data.durationSeconds,avgPace:data.avgPace,mapMode:mapDisplayMode,routeColor:stravaRouteColor==='emerald'?'#10b981':stravaRouteColor==='white'?'#ffffff':stravaRouteColor==='black'?'#0f172a':'#fb923c',logoUrl:processedLogoUrl,showLogo,showKm,showKmPace,kmSplits:kmMetrics.markers.length?savedRoute?.kmSplits:undefined});
+    setIsVideoOpen(true);
+  };
 
   // Handle Export Download
   const handleDownload = async () => {
@@ -718,6 +730,8 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
             <span>{backgroundType === 'transparent' ? 'Baixar PNG' : 'Baixar'}</span>
           </button>
         </div>
+
+        {!isStrength&&<div className="px-4 sm:px-6 py-2 border-b border-white/10"><button type="button" disabled={points.length<2||isExporting} onClick={openRouteVideo} className="w-full py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center justify-center gap-2 disabled:opacity-40"><Video size={16}/>Criar vídeo do percurso</button></div>}
 
         {/* Content Body: Foto em Primeiro Plano no Topo e Botões de Edição na Parte de Baixo */}
         <div className="share-editor-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col items-center gap-5">
@@ -2479,6 +2493,11 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
               </div>
             </div>
 
+            {!isStrength&&<section className="space-y-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+              <button type="button" disabled={points.length<2||isExporting} onClick={openRouteVideo} className="w-full rounded-xl bg-emerald-600 text-white py-3 px-4 font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40"><Video size={18}/>Vídeo do percurso · 10 a 15 segundos</button>
+              <p className="text-xs text-slate-400">{points.length<2?'É necessário um percurso GPS salvo para gerar o vídeo. A postagem em imagem continua disponível.':'Veja a rota sendo desenhada, com suas métricas e a logo. Geração no próprio aparelho.'}</p>
+            </section>}
+
             {/* ACTION BUTTONS */}
             <div className="pt-2 space-y-2">
               <button
@@ -2520,6 +2539,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
         </div>
 
       </div>
+      {isVideoOpen&&videoSceneInput&&<React.Suspense fallback={<div role="status" className="fixed inset-0 z-[140] bg-black/80 flex items-center justify-center text-white">Abrindo vídeo…</div>}><RouteVideoModal onClose={()=>{setIsVideoOpen(false);setVideoSceneInput(null);}} input={videoSceneInput}/></React.Suspense>}
     </div>,
     document.body
   );

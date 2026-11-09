@@ -1,149 +1,59 @@
-
-import React from 'react';
-import { Check, Zap, Star, Shield, CreditCard, ChevronRight } from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
-
-const Subscriptions: React.FC = () => {
-  const { hasActiveSubscription, userRole } = useApp();
-
-  const plans = [
-    {
-      name: 'Mensal',
-      price: 'R$ 89,90',
-      period: '/mês',
-      features: [
-        'Planilha Individualizada',
-        'Cálculo de Paces VDOT',
-        'Portal do Atleta PWA',
-        'Análise de PSE pelo Coach'
-      ],
-      highlight: false,
-      buttonText: 'Assinar Mensal'
-    },
-    {
-      name: 'Anual',
-      price: 'R$ 69,90',
-      period: '/mês',
-      features: [
-        'Tudo do Mensal',
-        'Análise de Biofeedback IA',
-        'Gráficos de Performance',
-        'Prioridade no Suporte',
-        'Economia de 22%'
-      ],
-      highlight: true,
-      buttonText: 'Assinar Plano Anual'
-    },
-    {
-      name: 'Trimestral',
-      price: 'R$ 79,90',
-      period: '/mês',
-      features: [
-        'Tudo do Mensal',
-        'Análise IA Básica',
-        'Exportação de Relatórios',
-        'Histórico Ilimitado'
-      ],
-      highlight: false,
-      buttonText: 'Assinar Trimestral'
-    }
-  ];
-
-  return (
-    <div className="max-w-5xl mx-auto space-y-12 pb-20 animate-fade-in">
-      <header className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">
-          <Star className="w-3 h-3 fill-current" /> Planos de Performance
-        </div>
-        <h1 className="text-4xl md:text-5xl font-black text-white uppercase italic tracking-tighter leading-none">
-          Evolua como um Pró
-        </h1>
-        <p className="text-slate-400 font-medium max-w-xl mx-auto italic text-sm">
-          Escolha o plano ideal para seus objetivos de corrida. Performance integrada com ciência e tecnologia.
-        </p>
-      </header>
-
-      {hasActiveSubscription && userRole === 'athlete' && (
-        <div className="bg-emerald-950 text-white p-6 rounded-[2rem] shadow-xl border border-emerald-800 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="bg-emerald-500 p-3 rounded-2xl">
-              <Shield className="w-6 h-6 text-emerald-950" />
-            </div>
-            <div>
-              <p className="font-black uppercase italic tracking-tighter text-emerald-400">Assinatura Ativa</p>
-              <p className="text-xs text-emerald-100/60 font-medium">Você tem acesso total a todas as ferramentas ProRun.</p>
-            </div>
-          </div>
-          <button className="text-[10px] font-black uppercase italic tracking-widest text-emerald-400 hover:text-emerald-300">
-            Gerenciar
-          </button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {plans.map((plan, i) => (
-          <div 
-            key={i} 
-            className={`relative bg-white rounded-[2.5rem] p-8 border-2 transition-all hover:scale-[1.02] flex flex-col ${
-              plan.highlight 
-                ? 'border-emerald-500 shadow-2xl shadow-emerald-500/10' 
-                : 'border-slate-100 shadow-sm'
-            }`}
-          >
-            {plan.highlight && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-emerald-500 text-emerald-950 text-[9px] font-black px-4 py-1.5 rounded-full uppercase italic tracking-widest shadow-lg">
-                Mais Popular
-              </div>
-            )}
-
-            <div className="mb-8">
-              <h3 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter mb-4">{plan.name}</h3>
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-black text-slate-900">{plan.price}</span>
-                <span className="text-slate-400 text-xs font-bold uppercase italic">{plan.period}</span>
-              </div>
-            </div>
-
-            <div className="space-y-4 mb-10 flex-1">
-              {plan.features.map((feature, j) => (
-                <div key={j} className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${plan.highlight ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                    <Check className="w-3 h-3 stroke-[3px]" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-600 italic">{feature}</span>
-                </div>
-              ))}
-            </div>
-
-            <button 
-              className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-                plan.highlight 
-                  ? 'bg-emerald-500 text-emerald-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20' 
-                  : 'bg-slate-900 text-white hover:bg-black'
-              }`}
-            >
-              <CreditCard className="w-4 h-4" /> {plan.buttonText}
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-slate-50 rounded-[2.5rem] p-10 flex flex-col md:flex-row items-center gap-8 border border-slate-100">
-        <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex-shrink-0">
-          <Zap className="w-10 h-10 text-emerald-500 fill-current" />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-2">Para sua Assessoria?</h3>
-          <p className="text-slate-500 text-sm font-medium italic">
-            Temos condições especiais para treinadores e assessorias esportivas com mais de 20 atletas. Ganhe controle total sobre o desempenho do seu time.
-          </p>
-        </div>
-        <button className="whitespace-nowrap flex items-center gap-2 text-emerald-600 font-black uppercase italic tracking-widest text-[10px] hover:gap-4 transition-all">
-          CONSULTAR WHATSAPP <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-export default Subscriptions;
+import React,{useEffect,useState} from 'react';
+import {CreditCard,CheckCircle,Clock,AlertCircle,Wallet,Settings,RefreshCw,Receipt} from 'lucide-react';
+import {useApp} from '../contexts/AppContext';
+import {billingRequest,refreshBilling,type BillingOverview} from '../lib/billing';
+import {billingToday,moneyBRL,parseMoneyCents,billingEntitlement,type BillingMembership,type BillingInvoice} from '../utils/billing';
+const date=(value:string|null)=>value?value.slice(0,10).split('-').reverse().join('/'):'—';
+const methodNames:Record<string,string>={pix:'Pix',dinheiro:'Dinheiro',transferencia:'Transferência',cartao:'Cartão',outro:'Outro',mercado_pago:'Mercado Pago'};
+const invoiceStatus=(i:BillingInvoice)=>i.status==='paid'?'Pago':i.status==='cancelled'?'Cancelado':i.status==='reversed'?'Pagamento estornado':i.due_date<billingToday()?'Vencido':'Pendente';
+const input='w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-3';
+const button='inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 text-white px-4 py-3 font-bold text-sm disabled:opacity-50';
+const secondary='inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/35 px-4 py-3 font-bold text-sm disabled:opacity-50';
+const panel='rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 sm:p-6 space-y-4';
+async function receipt(i:BillingInvoice){
+ const {jsPDF}=await import('jspdf');const pdf=new jsPDF();
+ pdf.setTextColor(4,120,87);pdf.setFontSize(22);pdf.text('ProRun LB',20,25);pdf.setFontSize(16);pdf.text('Recibo de pagamento',20,40);pdf.setTextColor(30,41,59);pdf.setFontSize(11);
+ const lines=[`Recebedor: ${i.issuer_name||'Responsável'}`,`Recebido de: ${i.subject_name}`,`Valor: ${moneyBRL(i.amount_cents)}`,`Periodo: ${date(i.period_start)} a ${date(i.period_end)}`,`Data do recebimento: ${date(i.paid_at)}`,`Forma de pagamento: ${methodNames[i.paid_method||'']||'Confirmado'}`,`Identificador: ${i.id}`];let y=60;for(const line of lines){const wrapped=pdf.splitTextToSize(line,170);pdf.text(wrapped,20,y);y+=wrapped.length*7+6;}pdf.save('Recibo-ProRun-'+i.id.slice(0,8)+'.pdf');
+}
+export default function Subscriptions(){
+ const {account,refreshData,refreshSubscription}=useApp();
+ const [data,setData]=useState<BillingOverview|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ const [filter,setFilter]=useState('all'),[search,setSearch]=useState(''),[editing,setEditing]=useState<BillingMembership|null|undefined>(undefined);
+ const [target,setTarget]=useState(''),[amount,setAmount]=useState(''),[months,setMonths]=useState(1),[due,setDue]=useState(billingToday()),[enabled,setEnabled]=useState(false),[grace,setGrace]=useState(0),[courtesy,setCourtesy]=useState('');
+ const [manual,setManual]=useState<BillingInvoice|null>(null),[method,setMethod]=useState('pix'),[paidDate,setPaidDate]=useState(billingToday()),[note,setNote]=useState('');
+ const [showSettings,setShowSettings]=useState(false),[clientId,setClientId]=useState(''),[clientSecret,setClientSecret]=useState(''),[webhookSecret,setWebhookSecret]=useState('');
+ useEffect(()=>{if(manual)document.getElementById('manual-receipt')?.scrollIntoView({behavior:'smooth',block:'start'});},[manual?.id]);
+ useEffect(()=>{if(editing!==undefined)document.getElementById('membership-form')?.scrollIntoView({behavior:'smooth',block:'start'});},[editing]);
+ const load=async()=>{try{const response=await billingRequest('overview');setData(response);setError('');refreshBilling();await refreshSubscription();}catch(e:any){setError(e.message);}finally{setLoading(false);}};
+ useEffect(()=>{void load();const params=new URLSearchParams(location.hash.split('?')[1]||'');if(params.get('connection')==='ok')setMessage('Conta Mercado Pago conectada. Os recebimentos serão enviados para essa conta.');if(params.get('connection')==='error')setError('Não foi possível conectar a conta. Confira a configuração e tente novamente.');},[account?.user_id]);
+ useEffect(()=>{const focus=()=>void load();window.addEventListener('focus',focus);return()=>window.removeEventListener('focus',focus);},[account?.user_id]);
+ const perform=async(action:()=>Promise<void>,success?:string)=>{setBusy(true);setError('');setMessage('');try{await action();if(success)setMessage(success);await load();}catch(e:any){setError(e.message);}finally{setBusy(false);}};
+ const startEdit=(m:BillingMembership|null)=>{setEditing(m);setTarget('');setAmount(m?(m.amount_cents/100).toFixed(2).replace('.',','):'');setMonths(m?.months||1);setDue(m?.first_due_date||billingToday());setEnabled(m?.enabled||false);setGrace(m?.grace_days||0);setCourtesy(m?.complimentary_until||'');};
+ const correct=(i:BillingInvoice,action:'cancel'|'reverse_manual')=>{const reason=window.prompt(action==='cancel'?'Motivo do cancelamento desta cobrança:':'Motivo da correção do recebimento manual (o acesso será recalculado):');if(reason?.trim())void perform(async()=>{await billingRequest(action,{invoiceId:i.id,note:reason});await refreshData();},'Correção registrada no histórico.');};
+ const openCheckout=(i:BillingInvoice)=>void perform(async()=>{const response=await billingRequest('checkout',{invoiceId:i.id});window.location.assign(response.url);});
+ const sync=(i:BillingInvoice)=>void perform(async()=>{await billingRequest('sync',{invoiceId:i.id});await refreshData();},'Situação consultada no Mercado Pago.');
+ if(loading)return <p role="status" className="p-8 text-center">Carregando mensalidades…</p>;
+ if(!data)return <section className={panel}><p role="alert">{error}</p><button className={button} onClick={()=>void load()}>Tentar novamente</button></section>;
+ const manager=account?.role==='coach'&&data.access.allowed;
+ const ownIds=new Set(data.members.map(m=>m.id));
+ const managedInvoices=data.invoices.filter(i=>ownIds.has(i.membership_id));
+ const mine=data.self?data.invoices.filter(i=>i.membership_id===data.self!.id):[];
+ const received=managedInvoices.filter(i=>i.status==='paid').reduce((sum,i)=>sum+i.amount_cents*i.paid_count,0);
+ const pending=managedInvoices.filter(i=>i.status==='pending').reduce((sum,i)=>sum+i.amount_cents,0);
+ const overdue=managedInvoices.filter(i=>i.status==='pending'&&i.due_date<billingToday()).reduce((sum,i)=>sum+i.amount_cents,0);
+ const available=data.targets.filter(t=>!data.members.some(m=>t.type==='athlete'?m.athlete_id===t.id:m.coach_user_id===t.id));
+ const invoices=(items:BillingInvoice[],canManage:boolean)=>items.length?<div className="space-y-3">{items.map(i=><article key={i.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-bold break-words">{i.subject_name}</p><p className="text-sm text-slate-500 dark:text-slate-400">{date(i.period_start)} a {date(i.period_end)}</p></div><div className="text-right"><p className="font-black text-xl">{moneyBRL(i.amount_cents)}</p><p className={i.status==='paid'?'text-emerald-600 dark:text-emerald-400 font-bold':'font-bold'}>{invoiceStatus(i)}</p></div></div><p className="text-sm">Recebedor: {i.issuer_name||'Responsável'}</p><p className="text-sm">Vencimento: {date(i.due_date)}{i.paid_at&&` · Recebido: ${date(i.paid_at)} · ${methodNames[i.paid_method||'']||'Confirmado'}`}</p>{i.paid_count>1&&<p role="alert" className="text-amber-700 dark:text-amber-300 font-bold">Mais de um pagamento confirmado nesta cobrança. Confira os recebimentos no Mercado Pago antes de ajustar valores.</p>}<div className="flex flex-wrap gap-2">{['pending','reversed'].includes(i.status)&&<><button className={button} disabled={busy} onClick={()=>openCheckout(i)}><CreditCard size={16}/>{canManage?'Abrir pagamento online':'Pagar no Mercado Pago'}</button>{canManage&&<button className={secondary} disabled={busy} onClick={()=>{setManual(i);setMethod('pix');setPaidDate(billingToday());setNote('');}}>Registrar recebido por fora</button>}</>}{i.provider_preference_id&&<button className={secondary} disabled={busy} onClick={()=>sync(i)}><RefreshCw size={16}/>Consultar pagamento</button>}{canManage&&i.status==='pending'&&!i.provider_preference_id&&<button className={secondary} disabled={busy} onClick={()=>correct(i,'cancel')}>Cancelar cobrança</button>}{canManage&&i.status==='paid'&&i.paid_count===1&&i.paid_method!=='mercado_pago'&&<button className={secondary} disabled={busy} onClick={()=>correct(i,'reverse_manual')}>Corrigir recebimento</button>}{i.status==='paid'&&<button className={secondary} disabled={busy} onClick={()=>void perform(()=>receipt(i))}><Receipt size={16}/>Baixar recibo</button>}</div></article>)}</div>:<p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma cobrança neste período.</p>;
+ return <main className="max-w-5xl mx-auto space-y-6 pb-24 text-slate-900 dark:text-slate-100"><header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase tracking-widest">ProRun LB</p><h1 className="text-3xl font-black uppercase italic">{manager?'Mensalidades':'Minha mensalidade'}</h1><p className="mt-2 text-sm">Pagamento, recebimento e período de acesso.</p></div><button className={secondary} disabled={busy} onClick={()=>void load()}><RefreshCw size={16}/>Atualizar</button></header>
+ {error&&<p role="alert" className="rounded-xl border border-red-400/40 bg-red-500/10 p-4">{error}</p>}{message&&<p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">{message}</p>}
+ {(!account?.platform_admin||data.self)&&<section className={panel}><div className="flex gap-3 items-center">{data.access.allowed?<CheckCircle className="text-emerald-500"/>:<AlertCircle className="text-amber-500"/>}<div><h2 className="font-black text-lg">{data.access.allowed?'Acesso liberado':'Acesso pendente'}</h2><p className="text-sm">{data.access.until?`Válido até ${date(data.access.until)}${data.access.reason==='grace'?' · Período de tolerância':''}`:'Sem cobrança de acesso ativada pelo responsável.'}</p></div></div>{data.self&&<p>{moneyBRL(data.self.amount_cents)} por {data.self.months===1?'mês':`${data.self.months} meses`}</p>}{invoices(mine,false)}<p className="text-sm text-slate-500 dark:text-slate-400">Pagamento online libera o período após confirmação. Se pagou por fora, peça ao responsável para registrar o recebimento.</p></section>}
+ {manager&&<><section className="grid sm:grid-cols-3 gap-3">{[{label:'Recebido no histórico',amount:received,icon:Wallet},{label:'A receber',amount:pending,icon:Clock},{label:'Vencido',amount:overdue,icon:AlertCircle}].map(s=><div key={s.label} className={panel}><s.icon className="text-emerald-500" size={22}/><p className="text-sm">{s.label}</p><p className="text-2xl font-black">{moneyBRL(s.amount)}</p></div>)}</section>
+ <section className={panel}><div className="flex flex-wrap justify-between items-center gap-3"><div><h2 className="font-black text-lg">Recebimentos online</h2><p className="text-sm mt-1">{data.connection?`Conta Mercado Pago conectada · ${data.connection.collector_id}`:data.configured?'Conecte sua conta para receber dos seus alunos.':'Integração Mercado Pago aguardando configuração do administrador.'}</p></div><button className={button} disabled={busy||!data.configured} onClick={()=>void perform(async()=>{const r=await billingRequest('connect');window.location.assign(r.url);})}>{data.connection?'Reconectar Mercado Pago':'Conectar Mercado Pago'}</button></div><p className="text-sm text-slate-500 dark:text-slate-400">Cada treinador recebe na própria conta. As mensalidades são pagas pelo checkout; não há débito automático no cartão.</p>{account.platform_admin&&<button className={secondary} onClick={()=>setShowSettings(!showSettings)}><Settings size={16}/>Configurar integração</button>}
+ {showSettings&&account.platform_admin&&<form className="space-y-4 border-t border-slate-200 dark:border-slate-700 pt-4" onSubmit={e=>{e.preventDefault();void perform(async()=>{await billingRequest('settings',{clientId,clientSecret,webhookSecret});setClientSecret('');setWebhookSecret('');setClientId('');setShowSettings(false);},'Integração salva. Agora conecte sua conta Mercado Pago.');}}><p className="text-sm">Em <a href="https://www.mercadopago.com.br/developers/panel/app" target="_blank" rel="noreferrer" className="underline text-emerald-600 dark:text-emerald-400">Suas integrações do Mercado Pago</a>, cadastre o ProRun LB, habilite OAuth com PKCE e configure as URLs abaixo. Use as credenciais de produção para pagamentos reais.</p><label className="block text-sm">URL de redirecionamento OAuth<input readOnly className={input} value={data.callbackUrl} onFocus={e=>e.target.select()}/></label><label className="block text-sm">URL de notificações (evento Pagamentos)<input readOnly className={input} value={data.webhookUrl} onFocus={e=>e.target.select()}/></label><p className="text-sm">Os links de cobrança incluem a identificação do recebedor automaticamente.</p><label className="block text-sm">App ID<input required autoComplete="off" className={input} value={clientId} onChange={e=>setClientId(e.target.value)}/></label><label className="block text-sm">Client Secret<input required type="password" autoComplete="new-password" className={input} value={clientSecret} onChange={e=>setClientSecret(e.target.value)}/></label><label className="block text-sm">Assinatura secreta dos Webhooks<input required type="password" autoComplete="new-password" className={input} value={webhookSecret} onChange={e=>setWebhookSecret(e.target.value)}/></label><p className="text-xs text-slate-500 dark:text-slate-400">As credenciais ficam no servidor e não são exibidas novamente. Insira-as apenas nesta configuração.</p><button disabled={busy} className={button}>Salvar integração</button></form>}</section>
+ <section className={panel}><div className="flex flex-wrap justify-between gap-3"><h2 className="font-black text-lg">Planos e liberação</h2><button className={button} disabled={busy||!available.length} onClick={()=>startEdit(null)}>Cadastrar mensalidade</button></div><p className="text-sm">Cadastre o valor por período e escolha quando exigir pagamento para acessar o aplicativo. Treinadores só são cobrados quando o administrador cadastra e ativa seu plano.</p>
+ {editing!==undefined&&<form id="membership-form" className="space-y-4 rounded-2xl border border-emerald-500/30 p-4" onSubmit={e=>{e.preventDefault();void perform(async()=>{const t=available.find(t=>`${t.type}:${t.id}`===target);await billingRequest('save',{id:editing?.id,subjectType:t?.type,subjectId:t?.id,amountCents:parseMoneyCents(amount),months,firstDueDate:due,enabled,graceDays:grace,complimentaryUntil:courtesy||null});setEditing(undefined);},'Mensalidade salva. O histórico de pagamentos foi preservado.');}}><h3 className="font-bold">{editing?`Editar · ${editing.subject_name}`:'Nova mensalidade'}</h3>{!editing&&<label className="block text-sm">Aluno ou treinador<select required className={input} value={target} onChange={e=>setTarget(e.target.value)}><option value="">Selecione</option>{available.map(t=><option key={`${t.type}:${t.id}`} value={`${t.type}:${t.id}`}>{t.name} · {t.type==='athlete'?'Aluno':'Treinador'}</option>)}</select></label>}<div className="grid sm:grid-cols-2 gap-3"><label className="block text-sm">Valor total do período (R$)<input required inputMode="decimal" placeholder="Ex.: 150,00" className={input} value={amount} onChange={e=>setAmount(e.target.value)}/></label><label className="block text-sm">Período<select className={input} value={months} onChange={e=>setMonths(Number(e.target.value))}>{[[1,'Mensal'],[3,'Trimestral'],[6,'Semestral'],[12,'Anual']].map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label><label className="block text-sm">Primeiro vencimento<input type="date" required disabled={!!editing} className={input} value={due} onChange={e=>setDue(e.target.value)}/></label><label className="block text-sm">Tolerância após período pago (dias)<input type="number" min="0" max="30" required className={input} value={grace} onChange={e=>setGrace(Number(e.target.value))}/></label><label className="block text-sm">Liberação de cortesia até (opcional)<input type="date" className={input} value={courtesy} onChange={e=>setCourtesy(e.target.value)}/></label></div><label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/><span>Exigir período pago para acessar o aplicativo</span></label>{enabled&&<p className="text-sm text-amber-700 dark:text-amber-300">Sem pagamento válido ou cortesia, o acesso ficará restrito à mensalidade. Ative apenas quando o aluno ou treinador estiver pronto para entrar nessa cobrança.</p>}{editing&&<p className="text-sm">Alterações de valor e período valem para novas cobranças. Cobranças já emitidas mantêm os dados originais.</p>}<div className="flex flex-wrap gap-2"><button className={button} disabled={busy}>Salvar mensalidade</button><button type="button" className={secondary} disabled={busy} onClick={()=>setEditing(undefined)}>Cancelar</button></div></form>}
+ <label className="block text-sm">Buscar aluno ou treinador<input className={input} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nome"/></label>
+ {data.members.filter(m=>m.subject_name.toLowerCase().includes(search.toLowerCase())).map(m=>{const status=billingEntitlement(m,managedInvoices);return <article key={m.id} className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-bold">{m.subject_name} · {m.subject_type==='athlete'?'Aluno':'Treinador'}</p><p className="text-sm">{moneyBRL(m.amount_cents)} / {m.months===1?'mês':`${m.months} meses`}</p><p className="text-sm">{!m.enabled?'Acesso sem bloqueio financeiro':status.allowed?`Liberado até ${date(status.until)}`:'Aguardando pagamento'}</p></div><div className="flex flex-wrap gap-2 items-start"><button className={secondary} disabled={busy} onClick={()=>startEdit(m)}>Editar / Liberar</button><button className={secondary} disabled={busy} onClick={()=>void perform(async()=>{await billingRequest('issue',{membershipId:m.id});},'Cobrança disponível no histórico.')}>Gerar próxima cobrança</button></div></div></article>;})}{!data.members.length&&<p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma mensalidade cadastrada. Os acessos atuais continuam liberados.</p>}</section>
+ <section className={panel}><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-black text-lg">Cobranças e recebimentos</h2><label className="text-sm">Situação<select className={input} value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">Todas</option><option value="pending">Pendentes / Vencidas</option><option value="paid">Pagas</option><option value="reversed">Estornadas</option></select></label></div>{invoices(managedInvoices.filter(i=>(filter==='all'||i.status===filter)&&i.subject_name.toLowerCase().includes(search.toLowerCase())),true)}</section></>}
+ {manual&&<section id="manual-receipt" role="region" aria-label="Registrar recebimento" className={`${panel} border-emerald-500`}><form className="space-y-4" onSubmit={e=>{e.preventDefault();void perform(async()=>{await billingRequest('manual',{invoiceId:manual.id,method,note,paidDate});setManual(null);await refreshData();},'Recebimento registrado e período de acesso atualizado.');}}><h2 className="font-black text-xl">Registrar recebimento por fora</h2><p>{manual.subject_name} · {moneyBRL(manual.amount_cents)}<br/>{date(manual.period_start)} a {date(manual.period_end)}</p><label className="block text-sm">Forma de pagamento<select className={input} value={method} onChange={e=>setMethod(e.target.value)}>{Object.entries(methodNames).filter(([key])=>key!=='mercado_pago').map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label><label className="block text-sm">Data do recebimento<input type="date" required max={billingToday()} className={input} value={paidDate} onChange={e=>setPaidDate(e.target.value)}/></label><label className="block text-sm">Observação (opcional)<input maxLength={500} className={input} value={note} onChange={e=>setNote(e.target.value)}/></label><label className="flex items-start gap-3"><input required type="checkbox" className="mt-1"/><span>Confirmo o recebimento integral de {moneyBRL(manual.amount_cents)}.</span></label><div className="flex flex-wrap gap-2"><button className={button} disabled={busy}>Confirmar recebimento</button><button type="button" className={secondary} disabled={busy} onClick={()=>setManual(null)}>Cancelar</button></div></form></section>}
+ </main>;
+}

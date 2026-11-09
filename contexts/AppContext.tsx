@@ -1,3 +1,4 @@
+import {billingRequest} from '../lib/billing';
 import {accessRequest,type AccessAccount} from '../lib/access';
 import type {MenstrualPhase} from '../utils/menstrualReadiness';
 
@@ -288,20 +289,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setTemplates(prev => prev.filter(t => t.id !== id));
   };
 
-  const hasActiveSubscription = useMemo(() => {
-    if (userRole === 'coach') return true; 
-    return subscription?.status === 'active';
-  }, [subscription, userRole]);
-
+  const [billingAllowed,setBillingAllowed]=useState(true);
+  const hasActiveSubscription = account?.platform_admin || billingAllowed;
   const refreshSubscription = async () => {
+    if(!accountRef.current)return;
+    const owner=accountRef.current.user_id;
     try {
-       const { data, error } = await supabase.from('subscriptions').select('*').limit(1);
-       if (!error && data && data.length > 0) {
-         setSubscription(data[0] as Subscription);
-       }
-    } catch (e) {
-      // Silence table not found errors
-    }
+      const data=await billingRequest('access');
+      if(accountRef.current?.user_id===owner)setBillingAllowed(data.allowed===true);
+    } catch { /* The access gate handles retry and never infers a successful payment. */ }
   };
 
   const runAIAnalysis = async (athleteId: string) => {
@@ -311,7 +307,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         message: 'Esta funcionalidade requer uma assinatura ProRun Ativa.',
         type: 'warning',
         category: 'system',
-        link: '/subscription'
+        link: '/subscriptions'
       });
       return;
     }

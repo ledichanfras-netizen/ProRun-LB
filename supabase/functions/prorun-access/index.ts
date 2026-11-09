@@ -72,6 +72,7 @@ Deno.serve(async(req:Request)=>{
   }
   if(actor.must_change_password)return respond({error:'Atualize sua senha antes de continuar.'},403);
   if(actor.role!=='coach')return respond({error:'Acesso exclusivo do treinador.'},403);
+  if(!check(await admin.rpc('prorun_billing_check',{p_user:actor.user_id})))return respond({error:'Renove sua mensalidade para gerenciar os acessos.'},403);
   if(action==='list'){
    let q=admin.from('prorun_accounts').select('user_id,organization_id,name,login,role,active,platform_admin,athlete_id');if(!actor.platform_admin)q=q.eq('organization_id',actor.organization_id).eq('role','athlete');
    return respond({accounts:check(await q.order('name'))});

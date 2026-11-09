@@ -52,7 +52,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { to: '/athlete-portal', icon: UserCheck, label: 'Visualizar Treino' },
         { to: '/achievements', icon: Trophy, label: 'Conquistas e Provas' },
         { to: '/access', icon: Users, label: 'Acessos e Convites' },
-        { to: '/subscriptions', icon: CreditCard, label: 'Assinatura' },
+        { to: '/subscriptions', icon: CreditCard, label: 'Mensalidades' },
       ]
     : [
         { to: '/', icon: LayoutDashboard, label: 'Meu Painel' },
@@ -60,7 +60,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { to: '/athlete-portal', icon: UserCheck, label: 'Meu Treino' },
         { to: '/assessments', icon: Activity, label: 'Minhas Zonas' },
         { to: '/achievements', icon: Trophy, label: 'Minhas Conquistas' },
-        { to: '/subscriptions', icon: CreditCard, label: 'Assinatura' },
+        { to: '/subscriptions', icon: CreditCard, label: 'Minha Mensalidade' },
       ];
 
   const handleLogout = () => {

@@ -1,3 +1,4 @@
+import {BillingAccessGate} from './components/BillingAccessGate';
 import {AccountPasswordGate} from './components/AccountPasswordGate';
 
 import React, { Component, ErrorInfo, ReactNode, Suspense, lazy, useState, useEffect } from 'react';
@@ -309,7 +310,7 @@ function AppContent() {
 
         {userRole ? (
           <Layout>
-            <Routes>
+            <BillingAccessGate><Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/achievements" element={<RaceHistory />} />
               <Route path="/access" element={userRole==='coach'?<AccessManagement />:<Navigate to="/athlete-portal" replace />} />
@@ -321,7 +322,7 @@ function AppContent() {
               <Route path="/athlete-portal" element={<AthletePortal />} />
               <Route path="/subscriptions" element={<Subscriptions />} />
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            </Routes></BillingAccessGate>
           </Layout>
         ) : (
           <Routes>

@@ -1,49 +1,63 @@
-import {routeAnimationProgress,supportedVideoMime,videoFileExtension,ROUTE_VIDEO_FPS} from './routeVideo';
+import {routeAnimationProgress,supportedVideoMime,videoFileExtension,VIDEO_MIME_TYPES,ROUTE_VIDEO_FPS} from './routeVideo';
 import type {RouteVideoScene} from './routeVideoCanvas';
 export interface RecordedRouteVideo {blob:Blob;mimeType:string;extension:'mp4'|'webm';}
+export type RecordingStage='starting'|'recording'|'finalizing'|'retrying';
 export function localVideoMime():string|null {
  if(typeof MediaRecorder==='undefined'||typeof HTMLCanvasElement==='undefined'||typeof HTMLCanvasElement.prototype.captureStream!=='function')return null;
  return supportedVideoMime(type=>MediaRecorder.isTypeSupported(type));
 }
-export async function recordRouteVideo(canvas:HTMLCanvasElement,scene:RouteVideoScene,durationSeconds:number,signal:AbortSignal,onProgress:(n:number)=>void):Promise<RecordedRouteVideo> {
- const mime=localVideoMime();if(!mime)throw new Error('Este navegador não permite gravar o vídeo. Use a postagem em imagem ou abra o app em um navegador atualizado.');
+class EncoderError extends Error {}
+export async function recordRouteVideo(canvas:HTMLCanvasElement,scene:RouteVideoScene,durationSeconds:number,signal:AbortSignal,onProgress:(n:number)=>void,onStage:(stage:RecordingStage)=>void=()=>{}):Promise<RecordedRouteVideo> {
+ if(!localVideoMime())throw new Error('Este navegador não permite gravar o vídeo. Use a postagem em imagem ou abra o app em um navegador atualizado.');
  if(!Number.isFinite(durationSeconds)||durationSeconds<1||durationSeconds>15)throw new Error('Escolha um vídeo de até 15 segundos.');
- if(signal.aborted)throw new DOMException('Geração cancelada.','AbortError');
- let stream:MediaStream|null=null,recorder:MediaRecorder|null=null,raf=0,finishTimer:ReturnType<typeof setTimeout>|undefined,watchdog:ReturnType<typeof setTimeout>|undefined,wakeLock:{release:()=>Promise<void>}|null=null;
- const chunks:Blob[]=[];let totalBytes=0;
- let aborted:()=>void=()=>{},hidden:()=>void=()=>{};
+ let finished=false,wakeLock:{release:()=>Promise<void>}|null=null;
+ const release=(lock:typeof wakeLock)=>{try{void lock?.release().catch(()=>{});}catch{}};
+ // A phone's optional screen-lock API must never delay starting, cancelling or delivering a video.
+ try{void Promise.resolve((navigator as any).wakeLock?.request('screen')).then(lock=>{if(finished||signal.aborted)release(lock);else wakeLock=lock||null;}).catch(()=>{});}catch{}
  try{
-  scene.draw(canvas,0);stream=canvas.captureStream(ROUTE_VIDEO_FPS);
-  recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000});
-  const activeRecorder=recorder;
-  try{wakeLock=await (navigator as any).wakeLock?.request('screen')||null;}catch{/* Encoding still works with the page visible. */}
-  if(signal.aborted)throw new DOMException('Geração cancelada.','AbortError');
-  return await new Promise<RecordedRouteVideo>((resolve,reject)=>{
-   let settled=false,requestedStop=false;
-   const fail=(error:Error)=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(finishTimer);clearTimeout(watchdog);try{if(activeRecorder.state!=='inactive')activeRecorder.stop();}catch{}reject(error);};
-   aborted=()=>fail(new DOMException('Geração cancelada.','AbortError'));
-   hidden=()=>{if(document.hidden)fail(new Error('A geração foi interrompida ao sair da tela. Mantenha o aplicativo aberto e tente novamente.'));};
-   signal.addEventListener('abort',aborted,{once:true});document.addEventListener('visibilitychange',hidden);
-   activeRecorder.ondataavailable=event=>{if(event.data.size){totalBytes+=event.data.size;if(totalBytes>24*1024*1024){fail(new Error('O vídeo ultrapassou o tamanho previsto. Tente novamente com 10 segundos.'));return;}chunks.push(event.data);}};
-   activeRecorder.onerror=()=>fail(new Error('O aparelho não conseguiu gravar o vídeo. Feche outros aplicativos e tente novamente.'));
-   activeRecorder.onstop=()=>{
-    if(settled)return;settled=true;
-    if(!requestedStop){reject(new Error('A gravação foi interrompida antes de terminar. Tente novamente.'));return;}
-    if(!chunks.length){reject(new Error('A gravação ficou vazia. Tente novamente ou use imagem.'));return;}
-    const actual=(activeRecorder.mimeType||chunks[0].type||mime).split(';')[0];
-    try{const blob=new Blob(chunks,{type:actual});onProgress(1);resolve({blob,mimeType:actual,extension:videoFileExtension(actual)});}catch{reject(new Error('O aparelho gerou um formato de vídeo incompatível. Use a postagem em imagem.'));}
-   };
-   try{
-    activeRecorder.start(250);const started=performance.now();
-    const tick=()=>{if(settled||activeRecorder.state!=='recording')return;try{const elapsed=(performance.now()-started)/1000;scene.draw(canvas,routeAnimationProgress(elapsed,durationSeconds));onProgress(Math.min(.99,elapsed/durationSeconds));raf=requestAnimationFrame(tick);}catch{fail(new Error('Não foi possível desenhar o percurso durante a gravação.'));}};
-    scene.draw(canvas,0);raf=requestAnimationFrame(tick);
-    finishTimer=setTimeout(()=>{if(settled)return;try{scene.draw(canvas,1);cancelAnimationFrame(raf);requestedStop=true;activeRecorder.stop();}catch{fail(new Error('Não foi possível finalizar o vídeo.'));}},durationSeconds*1000);
-    watchdog=setTimeout(()=>fail(new Error('A gravação demorou mais que o previsto. Tente novamente com 10 segundos.')),durationSeconds*1000+8000);
-   }catch{fail(new Error('Este formato não pôde ser iniciado no aparelho. Use a postagem em imagem.'));}
-  });
- }finally{
-  cancelAnimationFrame(raf);clearTimeout(finishTimer);clearTimeout(watchdog);signal.removeEventListener('abort',aborted);document.removeEventListener('visibilitychange',hidden);
-  if(recorder){recorder.ondataavailable=null;recorder.onstop=null;recorder.onerror=null;try{if(recorder.state!=='inactive')recorder.stop();}catch{}}
-  stream?.getTracks().forEach(track=>track.stop());try{await wakeLock?.release();}catch{}
+  for(const mime of VIDEO_MIME_TYPES){
+   if(signal.aborted)throw new DOMException('Geração cancelada.','AbortError');
+   let supported=false;try{supported=MediaRecorder.isTypeSupported(mime);}catch{}if(!supported)continue;
+   onStage('starting');onProgress(0);
+   try{return await recordAttempt(mime);}catch(error){if(!(error instanceof EncoderError))throw error;onStage('retrying');}
+  }
+  throw new Error('O aparelho não conseguiu iniciar nenhum formato de vídeo. Abra o app em um navegador atualizado ou use a postagem em imagem.');
+ }finally{finished=true;release(wakeLock);}
+ async function recordAttempt(mime:string):Promise<RecordedRouteVideo>{
+  let stream:MediaStream|null=null,recorder:MediaRecorder|null=null,raf=0,finishTimer:ReturnType<typeof setTimeout>|undefined,watchdog:ReturnType<typeof setTimeout>|undefined;
+  let aborted=()=>{},hidden=()=>{};
+  try{
+   scene.draw(canvas,0);stream=canvas.captureStream(ROUTE_VIDEO_FPS);
+   try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000});}catch{throw new EncoderError('Formato indisponível.');}
+   const activeRecorder=recorder;
+   return await new Promise<RecordedRouteVideo>((resolve,reject)=>{
+    let settled=false,requestedStop=false,totalBytes=0;const chunks:Blob[]=[];
+    const fail=(error:Error)=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(finishTimer);clearTimeout(watchdog);try{if(activeRecorder.state!=='inactive')activeRecorder.stop();}catch{}reject(error);};
+    aborted=()=>fail(new DOMException('Geração cancelada.','AbortError'));
+    hidden=()=>{if(document.hidden)fail(new Error('A geração foi interrompida ao sair da tela. Mantenha o aplicativo aberto e tente novamente.'));};
+    signal.addEventListener('abort',aborted,{once:true});document.addEventListener('visibilitychange',hidden);
+    if(signal.aborted){aborted();return;}if(document.hidden){hidden();return;}
+    activeRecorder.ondataavailable=event=>{if(settled)return;if(event.data.size){totalBytes+=event.data.size;if(totalBytes>24*1024*1024){fail(new Error('O vídeo ultrapassou o tamanho previsto. Tente novamente com 10 segundos.'));return;}chunks.push(event.data);}};
+    activeRecorder.onerror=()=>fail(new EncoderError('O aparelho não conseguiu gravar neste formato.'));
+    activeRecorder.onstop=()=>{
+     if(settled)return;settled=true;
+     if(!requestedStop){reject(new EncoderError('A gravação foi interrompida.'));return;}
+     if(!chunks.length){reject(new EncoderError('A gravação ficou vazia.'));return;}
+     const actual=(activeRecorder.mimeType||chunks[0].type||mime).split(';')[0];
+     try{const blob=new Blob(chunks,{type:actual});onProgress(1);resolve({blob,mimeType:actual,extension:videoFileExtension(actual)});}catch{reject(new Error('O aparelho gerou um formato de vídeo incompatível. Use a postagem em imagem.'));}
+    };
+    try{
+     activeRecorder.start(250);onStage('recording');const started=performance.now();
+     const tick=()=>{if(settled||activeRecorder.state!=='recording')return;try{const elapsed=(performance.now()-started)/1000;scene.draw(canvas,routeAnimationProgress(elapsed,durationSeconds));onProgress(Math.min(.99,elapsed/durationSeconds));raf=requestAnimationFrame(tick);}catch{fail(new Error('Não foi possível desenhar o percurso durante a gravação.'));}};
+     raf=requestAnimationFrame(tick);
+     finishTimer=setTimeout(()=>{if(settled)return;try{scene.draw(canvas,1);cancelAnimationFrame(raf);requestedStop=true;onStage('finalizing');activeRecorder.stop();}catch{fail(new EncoderError('Não foi possível finalizar neste formato.'));}},durationSeconds*1000);
+     watchdog=setTimeout(()=>fail(new EncoderError('A gravação demorou mais que o previsto.')),durationSeconds*1000+8000);
+    }catch{fail(new EncoderError('Este formato não pôde ser iniciado.'));}
+   });
+  }finally{
+   cancelAnimationFrame(raf);clearTimeout(finishTimer);clearTimeout(watchdog);signal.removeEventListener('abort',aborted);document.removeEventListener('visibilitychange',hidden);
+   if(recorder){recorder.ondataavailable=null;recorder.onstop=null;recorder.onerror=null;try{if(recorder.state!=='inactive')recorder.stop();}catch{}}
+   stream?.getTracks().forEach(track=>track.stop());
+  }
  }
 }

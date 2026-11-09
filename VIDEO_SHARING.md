@@ -18,3 +18,7 @@ Em **Postar Treino → Criar vídeo do percurso**, o atleta pode visualizar, gra
 `npm run lint` e `npm run build`.
 
 QA em Chromium isolado: MP4 H.264 Baseline 720 × 1280 de aproximadamente 12 segundos; alternativa WebM; cancelamento; geração e download na interface de 390 × 844; fundo limpo após falha do mapa e carregamento CORS. Arquivos de QA são temporários e não usam trajetos ou contas reais. Compatibilidade com o aplicativo de postagem e o navegador do aparelho continua dependendo dos formatos que eles aceitam.
+
+### Correção de inicialização em celulares
+
+A solicitação e a liberação do bloqueio de tela são opcionais e não bloqueiam a gravação, o cancelamento nem a entrega do arquivo. Se um aparelho anuncia suporte a MP4 mas falha ao criar/iniciar o gravador, o aplicativo tenta os demais formatos suportados e mostra o formato efetivamente gerado. Ações, erros e progresso ficam em uma área fixa da janela; a prévia rola separadamente. Testes de regressão cobrem APIs opcionais sem resposta, cancelamento e suporte MP4 anunciado incorretamente.

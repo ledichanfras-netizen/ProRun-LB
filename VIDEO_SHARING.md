@@ -22,3 +22,7 @@ QA em Chromium isolado: MP4 H.264 Baseline 720 × 1280 de aproximadamente 12 seg
 ### Correção de inicialização em celulares
 
 A solicitação e a liberação do bloqueio de tela são opcionais e não bloqueiam a gravação, o cancelamento nem a entrega do arquivo. Se um aparelho anuncia suporte a MP4 mas falha ao criar/iniciar o gravador, o aplicativo tenta os demais formatos suportados e mostra o formato efetivamente gerado. Ações, erros e progresso ficam em uma área fixa da janela; a prévia rola separadamente. Testes de regressão cobrem APIs opcionais sem resposta, cancelamento e suporte MP4 anunciado incorretamente.
+
+### Janela de vídeo sobre a postagem
+
+A postagem usa uma camada própria de tela inteira. A janela do vídeo e o aviso de carregamento agora aparecem acima dessa camada, para que o usuário veja e possa acionar a geração. Validado em fluxo integrado: abrir WorkoutShareModal, abrir vídeo, gerar MP4 720 × 1280, reproduzir e voltar à postagem sem fechá-la.

@@ -1,3 +1,5 @@
+import {useLocation} from 'react-router-dom';
+import {currentPublicationWeeks,publishTrainingWeek} from '../utils/weekPublication';
 import {savePrescriptionDraft,readPrescriptionDraft,clearPrescriptionDraft} from '../utils/prescriptionDraft';
 import {PrescriptionReview} from '../components/PrescriptionReview';
 import {inspectPrescription} from '../utils/prescriptionIntelligence';
@@ -61,6 +63,7 @@ import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareM
 import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 
 const Periodization: React.FC = () => {
+  const location=useLocation();
   const { canPeriodizeAI, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan: persistAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
   const [showAthleteSelector, setShowAthleteSelector] = useState(false);
@@ -304,6 +307,15 @@ const Periodization: React.FC = () => {
     }
   }, [activeAthlete, athletePlans]);
 
+  useEffect(()=>{
+    if(new URLSearchParams(location.search).get('publishWeek')!=='current'||!fullPlan)return;
+    const indexes=currentPublicationWeeks(fullPlan,getTodayDateString());
+    const target=indexes.find(index=>fullPlan.weeks[index].isVisible!==true)??indexes[0];
+    if(target===undefined)return;
+    const timer=setTimeout(()=>document.querySelector(`[data-training-week="${target}"]`)?.scrollIntoView({behavior:'smooth',block:'start'}),100);
+    return()=>clearTimeout(timer);
+  },[location.search,activeAthlete?.id,fullPlan?.weeks.length]);
+
   // Cálculo automático de semanas a partir das datas
   useEffect(() => {
     if (raceDate && startDate) {
@@ -417,16 +429,17 @@ const Periodization: React.FC = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (weekToPublish?:number) => {
     if(publishing)return;
     if (activeAthlete && fullPlan) {
+      const toPublish=weekToPublish===undefined?fullPlan:publishTrainingWeek(fullPlan,weekToPublish);
       if(fullPlan.prescriptionReview){
         const meta=fullPlan.prescriptionReview;
         const report=inspectPrescription(fullPlan,{...meta.constraints,startDate:fullPlan.startDate||meta.constraints.startDate},meta.context);
         if(report.errors.length){alert('Corrija a revisão da periodização antes de publicar: '+report.errors.slice(0,3).join(' '));return;}
         if(!prescriptionAccepted){alert('Confira a revisão da periodização e marque a confirmação antes de publicar.');return;}
       }
-      if(fullPlan.prescriptionReview&&!fullPlan.weeks.some(w=>w.isVisible)){alert('Selecione pelo menos uma semana para liberar antes de publicar.');return;}
+      if(!toPublish.weeks.some(w=>w.isVisible)){alert('Selecione pelo menos uma semana para liberar antes de publicar.');return;}
       setPublishing(true);
       try {
         const previous=athletePlans[activeAthlete.id];
@@ -434,7 +447,6 @@ const Periodization: React.FC = () => {
           const archiveId=`before-ai-${fullPlan.prescriptionReview.generatedAt}`;
           if(!activeAthlete.archivedPlans?.some(p=>p.id===archiveId))await updateAthlete(activeAthlete.id,{archivedPlans:[{id:archiveId,name:`Ciclo anterior · ${previous.specificGoal||'Treinos realizados'}`,startDate:previous.startDate||'',endDate:previous.endDate||'',specificGoal:previous.specificGoal||'',weeks:previous.weeks,archivedAt:new Date().toISOString()},...(activeAthlete.archivedPlans||[])]});
         }
-        const toPublish=fullPlan;
         await persistAthletePlan(activeAthlete.id,toPublish);
         clearPrescriptionDraft(activeAthlete.id);
         aiProposalAthlete.current=null;
@@ -451,7 +463,8 @@ const Periodization: React.FC = () => {
       });
 
       setIsEditing(false);
-      alert('Planilha publicada com sucesso!');
+      const currentHidden=currentPublicationWeeks(toPublish,getTodayDateString()).some(index=>!toPublish.weeks[index].isVisible);
+      alert(weekToPublish!==undefined?`Semana ${toPublish.weeks[weekToPublish].weekNumber} publicada com sucesso!`:currentHidden?'Alterações salvas. A semana atual continua oculta. Use Publicar semana na semana que deseja liberar.':'Planilha publicada com sucesso!');
     }
   };
 
@@ -1155,7 +1168,7 @@ const Periodization: React.FC = () => {
                <button onClick={() => setIsEditing(!isEditing)} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition border-2 ${isEditing ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200'}`}>
                  {isEditing ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />} {isEditing ? 'Travar' : 'Editar'}
                </button>
-               <button onClick={handleSave} disabled={publishing} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg uppercase text-xs italic tracking-widest"><Save className="w-4 h-4" /> Publicar</button>
+               <button onClick={()=>void handleSave()} disabled={publishing} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 shadow-lg uppercase text-xs italic tracking-widest"><Save className="w-4 h-4" /> Publicar</button>
              </>
            )}
         </div>
@@ -2030,8 +2043,8 @@ const Periodization: React.FC = () => {
                     ))}
                   </div>
                   <div data-week-actions className="px-4 md:px-6 py-4 border-t border-white/10 bg-white/5 flex flex-wrap items-center justify-end gap-3">
-                    <button type="button" onClick={handleSave} disabled={publishing} className="flex-1 sm:flex-none min-w-0 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2">
-                      <CheckCircle className="w-4 h-4 shrink-0" /> Publicar
+                    <button type="button" aria-label={`Publicar semana ${week.weekNumber}`} onClick={()=>void handleSave(weekIndex)} disabled={publishing} className="flex-1 sm:flex-none min-w-0 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2">
+                      <CheckCircle className="w-4 h-4 shrink-0" /> Publicar semana
                     </button>
                     <button type="button" onClick={() => handleDownloadSingleWeek(weekIndex)} disabled={exportLoading} className="flex-1 sm:flex-none min-w-0 px-5 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-black uppercase italic tracking-wider flex items-center justify-center gap-2 disabled:opacity-50">
                       {exportLoading && exportingWeekIdx === weekIndex ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <Download className="w-4 h-4 shrink-0" />} {exportLoading && exportingWeekIdx === weekIndex ? 'Gerando...' : 'Baixar'}

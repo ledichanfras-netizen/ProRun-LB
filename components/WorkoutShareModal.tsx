@@ -2539,7 +2539,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
         </div>
 
       </div>
-      {isVideoOpen&&videoSceneInput&&<React.Suspense fallback={<div role="status" className="fixed inset-0 z-[140] bg-black/80 flex items-center justify-center text-white">Abrindo vídeo…</div>}><RouteVideoModal onClose={()=>{setIsVideoOpen(false);setVideoSceneInput(null);}} input={videoSceneInput}/></React.Suspense>}
+      {isVideoOpen&&videoSceneInput&&<React.Suspense fallback={<div role="status" className="fixed inset-0 z-[100001] bg-black/80 flex items-center justify-center text-white">Abrindo vídeo…</div>}><RouteVideoModal onClose={()=>{setIsVideoOpen(false);setVideoSceneInput(null);}} input={videoSceneInput}/></React.Suspense>}
     </div>,
     document.body
   );

@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Public provider callbacks verify HMAC/OAuth state. Every app action validates getUser().
 import {createClient} from 'npm:@supabase/supabase-js@2.101.0';
-import {billingToday,billingPeriod,billingEntitlement,validBillingDate,validatedProviderPayment,verifyMercadoSignature,shiftBillingDate} from '../../../utils/billing.ts';
+import {billingToday,billingPeriod,billingEntitlement,validBillingDate,validatedProviderPayment,verifyMercadoSignature,shiftBillingDate,buildBillingSchedule,billingDaysBetween} from '../../../utils/billing.ts';
 const cloudUrl=Deno.env.get('SUPABASE_URL')!;
 const db=createClient(cloudUrl,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
 const APP_URL='https://prorunlb-prbv.onrender.com';
@@ -53,6 +53,11 @@ async function reconcile(paymentId:string,org:string){
  return check(await db.rpc('prorun_billing_receipt',{p_invoice:invoice.id,p_actor:null,p_method:'mercado_pago',p_note:'',p_provider_id:paymentId,p_state:state,p_updated:payment.date_last_updated,p_paid_at:payment.date_approved||null}));
 }
 async function issue(m:any){
+ if(m.plan_kind&&m.plan_kind!=='recurring'){
+  const schedule=buildBillingSchedule(m);
+  const invoices=check(await db.rpc('prorun_billing_issue_contract',{p_member:m.id,p_schedule:schedule}));
+  return invoices.find(i=>['pending','reversed'].includes(i.status))||invoices[invoices.length-1];
+ }
  const existing=check(await db.from('prorun_billing_invoices').select('*').eq('membership_id',m.id).neq('status','cancelled').order('period_start',{ascending:false}).limit(1));
  if(existing[0]?.status==='pending'||existing[0]?.status==='reversed')return existing[0];
  const next=existing[0]?shiftBillingDate(existing[0].period_end,1):m.first_due_date;
@@ -97,6 +102,21 @@ Deno.serve(async(req:Request)=>{
   if(actor.must_change_password)return respond({error:'Atualize sua senha antes de continuar.'},403);
   const body=await req.json(),action=body.action;
   if(action==='access')return respond(await access(actor));
+  if(action==='notice-read'||action==='notice-dismiss'){
+   check(await db.from('prorun_billing_notices').update(action==='notice-read'?{read:true}:{dismissed:true}).eq('id',body.noticeId).eq('user_id',actor.user_id));return respond({success:true});
+  }
+  if(action==='reminders'){
+   check(await db.rpc('prorun_billing_refresh_notices',{p_user:actor.user_id}));
+   const entitlement=await access(actor);
+   let q=db.from('prorun_billing_notices').select('*').eq('user_id',actor.user_id).eq('resolved',false).order('target_date');
+   if(actor.role==='coach'&&!entitlement.allowed)q=q.eq('audience','payer');
+   const rows=check(await q);
+   const memberIds=[...new Set(rows.filter(n=>n.audience==='issuer').map(n=>n.membership_id))];
+   const members=memberIds.length?check(await db.from('prorun_memberships').select('id,athlete_id').in('id',memberIds).eq('issuer_org_id',actor.organization_id)):[];
+   const athleteIds=members.map(m=>m.athlete_id).filter(Boolean);
+   const athletes=athleteIds.length?check(await db.from('athletes').select('id,data').in('id',athleteIds).eq('organization_id',actor.organization_id)):[];
+   return respond({notices:rows.filter(n=>!n.dismissed).map(n=>({id:'billing:'+n.id,title:n.title,message:n.message,type:n.stage<0?'warning':'info',category:'payment',timestamp:n.created_at,read:n.read,link:'/subscriptions'})),alerts:rows.map(n=>({id:n.id,membership_id:n.membership_id,subject_name:n.subject_name,subject_type:n.subject_type,audience:n.audience,kind:n.kind,target_date:n.target_date,days_remaining:billingDaysBetween(billingToday(),n.target_date),restriction_date:n.restriction_date,title:n.title,message:n.message,read:n.read,phone:athletes.find(a=>a.id===members.find(m=>m.id===n.membership_id)?.athlete_id)?.data?.phone||''}))});
+  }
   if(action==='overview'){
    const self=await memberFor(actor),entitlement=await access(actor);
    let members=actor.role==='coach'&&entitlement.allowed?check(await db.from('prorun_memberships').select('*').eq('issuer_org_id',actor.organization_id).order('subject_name')):[];
@@ -161,9 +181,15 @@ Deno.serve(async(req:Request)=>{
    }else if(body.subjectType==='coach'&&actor.platform_admin){
     const c=check(await db.from('prorun_accounts').select('user_id,name').eq('user_id',body.subjectId).eq('role','coach').eq('platform_admin',false).single());coachId=c.user_id;subjectName=c.name;
    }else throw new Error('Destinatário inválido.');
-   if(!Number.isInteger(body.amountCents)||body.amountCents<100||body.amountCents>10000000||![1,3,6,12].includes(body.months)||!Number.isInteger(body.graceDays)||body.graceDays<0||body.graceDays>30||(!existing&&!validBillingDate(body.firstDueDate))||(body.complimentaryUntil&&!validBillingDate(body.complimentaryUntil)))throw new Error('Confira valor, período e datas.');
-   const member=check(await db.rpc('prorun_billing_save_member',{p_actor:actor.user_id,p_member:{id:existing?.id||null,issuer_org_id:actor.organization_id,subject_type:coachId?'coach':'athlete',athlete_id:athleteId,coach_user_id:coachId,subject_name:subjectName,amount_cents:body.amountCents,months:body.months,first_due_date:existing?.first_due_date||body.firstDueDate,enabled:body.enabled===true,grace_days:body.graceDays,complimentary_until:body.complimentaryUntil||null}}));
-   if(!existing)await issue(member);return respond({success:true});
+   const newTerm=body.newTerm===true;
+   const planKind=body.planKind||existing?.plan_kind||'recurring';
+   const paymentSchedule=body.paymentSchedule||existing?.payment_schedule||'full';
+   const firstDueDate=existing&&!newTerm?existing.first_due_date:body.firstDueDate;
+   const schedule=buildBillingSchedule({plan_kind:planKind,payment_schedule:paymentSchedule,months:body.months,first_due_date:firstDueDate,contract_end:existing&&!newTerm?existing.contract_end:body.contractEnd,amount_cents:body.amountCents});
+   const contractEnd=planKind==='recurring'?null:schedule[schedule.length-1].period_end;
+   if(!Number.isInteger(body.graceDays)||body.graceDays<0||body.graceDays>30||(body.complimentaryUntil&&!validBillingDate(body.complimentaryUntil)))throw new Error('Confira a tolerância e a cortesia.');
+   const member=check(await db.rpc('prorun_billing_save_v2',{p_actor:actor.user_id,p_new_term:newTerm,p_schedule:schedule,p_member:{id:existing?.id||null,issuer_org_id:actor.organization_id,subject_type:coachId?'coach':'athlete',athlete_id:athleteId,coach_user_id:coachId,subject_name:subjectName,amount_cents:body.amountCents,months:body.months,first_due_date:firstDueDate,enabled:body.enabled===true,grace_days:body.graceDays,complimentary_until:body.complimentaryUntil||null,plan_kind:planKind,payment_schedule:paymentSchedule,contract_end:contractEnd,cycle_label:typeof body.cycleLabel==='string'?body.cycleLabel.slice(0,120):null}}));
+   return respond({success:true});
   }
   if(action==='issue'){const m=await ownedMember(actor,body.membershipId,true);return respond({invoice:await issue(m)});}
   if(action==='cancel'||action==='reverse_manual'){

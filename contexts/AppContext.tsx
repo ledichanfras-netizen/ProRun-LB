@@ -1,3 +1,4 @@
+import type {BillingAlert} from '../utils/billing';
 import {billingRequest} from '../lib/billing';
 import {accessRequest,type AccessAccount} from '../lib/access';
 import type {MenstrualPhase} from '../utils/menstrualReadiness';
@@ -100,6 +101,7 @@ interface AppContextType {
   deleteTemplate: (id: string) => Promise<void>;
 
   notifications: AppNotification[];
+  billingAlerts: BillingAlert[];
   addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
   markAsRead: (id: string) => void;
   removeNotification: (id: string) => void;
@@ -126,6 +128,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [templates,setTemplates]=useState<TrainingTemplate[]>([]);
   const [notifications,setNotifications]=useState<AppNotification[]>([]);
+  const [billingNotices,setBillingNotices]=useState<AppNotification[]>([]);
+  const [billingAlerts,setBillingAlerts]=useState<BillingAlert[]>([]);
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('proRun_theme');
     return (saved === 'light' || saved === 'dark') ? saved : 'dark';
@@ -211,6 +215,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('proRun_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
+  useEffect(()=>{
+    setBillingNotices([]);setBillingAlerts([]);
+    if(!account?.user_id)return;
+    const owner=account.user_id;let alive=true,inFlight=false;
+    const load=async()=>{if(inFlight)return;inFlight=true;try{const response=await billingRequest('reminders');if(alive&&accountRef.current?.user_id===owner){setBillingNotices(response.notices);setBillingAlerts(response.alerts);}}catch{/* Keep the last notices on a transient connection failure. */}finally{inFlight=false;}};
+    void load();const timer=setInterval(()=>void load(),60000);window.addEventListener('focus',load);window.addEventListener('prorun-billing-changed',load);
+    return()=>{alive=false;clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('prorun-billing-changed',load);};
+  },[account?.user_id]);
+
   const addNotification = useCallback(async (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
     const newNotif: AppNotification = {
       ...notif,
@@ -236,6 +249,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const markAsRead = useCallback(async (id: string) => {
+    if(id.startsWith('billing:')){setBillingNotices(prev=>prev.map(n=>n.id===id?{...n,read:true}:n));try{await billingRequest('notice-read',{noticeId:id.slice(8)});}catch{}return;}
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     try {
       await supabase.from('app_notifications').update({ read: true }).eq('id', id);
@@ -243,6 +257,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const removeNotification = useCallback(async (id: string) => {
+    if(id.startsWith('billing:')){setBillingNotices(prev=>prev.filter(n=>n.id!==id));try{await billingRequest('notice-dismiss',{noticeId:id.slice(8)});}catch{}return;}
     setNotifications(prev => prev.filter(n => n.id !== id));
     try {
       await supabase.from('app_notifications').delete().eq('id', id);
@@ -1109,7 +1124,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isFirebaseConfigured: true, 
       subscription, hasActiveSubscription, refreshSubscription,
       templates, saveTemplate, deleteTemplate,
-      notifications, addNotification, markAsRead, removeNotification,
+      notifications: [...billingNotices,...notifications].sort((a,b)=>b.timestamp.localeCompare(a.timestamp)), billingAlerts, addNotification, markAsRead, removeNotification,
       addUserGoal,
       theme, setTheme, toggleTheme
     }}>

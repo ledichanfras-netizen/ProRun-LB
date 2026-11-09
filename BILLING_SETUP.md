@@ -29,3 +29,13 @@ Checkout Pro via Preferences cria o link por cobrança; o pagante escolhe entre 
 - Testes de calendário, confirmação, valores, HMAC e liberação: `node --import tsx --test tests/billing.test.ts`.
 
 A integração real só pode ser homologada depois da configuração e autorização da conta Mercado Pago. A publicação do módulo não realiza débitos, pagamentos, reembolsos ou bloqueios individuais por conta própria.
+
+## Avisos e contratos com parcelas
+
+- Card no painel e sino: avisos aos responsáveis e pagantes nos marcos de 7, 3 e 1 dia, no vencimento, em atraso e após a tolerância. Cada etapa mantém um único registro por pessoa/plano/data; abrir o aplicativo novamente não gera duplicatas. Etapas superadas e pagamentos confirmados deixam de aparecer como pendência.
+- Avisos são internos ao aplicativo, persistidos por usuário, com leitura/exclusão sincronizada. Não há envio automático de WhatsApp, e-mail ou push do sistema operacional. O botão de WhatsApp abre a conversa/mensagem para revisão e envio pelo treinador; se não houver telefone válido, permite escolher o contato.
+- Uma rotina diária gera os avisos às 12h UTC (9h em Brasília). A abertura, retorno ao aplicativo e atualização do módulo também recalculam as pendências. O trabalho diário usa somente o banco, sem serviços pagos nem chaves externas.
+- Duração e pagamento são distintos: mensal, trimestral, semestral e anual podem ser integrais ou divididos em parcelas mensais; por periodização usa datas fixas, com nome opcional e cópia explícita das datas do plano de treino.
+- O valor informado é o total do contrato. O parcelamento distribui centavos e preserva o total; cada cobrança mostra número da parcela e seu período de acesso. Pagar uma parcela não libera os outros períodos. Pagamentos integrais liberam todas as datas daquela cobrança.
+- Parcelas emitidas não são reescritas. Novo período cria uma nova contratação após os períodos financeiros existentes, preservando histórico, recibos e cobranças anteriores. Editar treinos ou arquivar um ciclo não altera datas financeiras.
+- A migration nova é `20261109021934_prorun_billing_reminders_terms.sql`. Verificar `supabase/tests/prorun_billing_reminders.sql` em transação com rollback; não criar contas de teste persistentes em produção.

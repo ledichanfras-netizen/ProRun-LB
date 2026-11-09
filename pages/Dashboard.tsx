@@ -1,3 +1,4 @@
+import {BillingExpiryCard} from '../components/BillingExpiryCard';
 import {WeeklyVolumeChart} from '../components/WeeklyVolumeChart';
 import { CoachOverview } from '../components/CoachOverview';
 import { getTrainingActivities } from '../utils/trainingActivities';
@@ -444,11 +445,13 @@ export default function Dashboard() {
 
   if (userRole === 'coach' && !selectedAthleteId) return <div className="space-y-6 pb-10 min-w-0">
     <header><h1 className={`text-2xl sm:text-3xl font-black uppercase italic tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>Painel Geral ProRun LB</h1><p className={`text-sm mt-2 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>Prontidão, execução e acompanhamento do elenco.</p></header>
+    <BillingExpiryCard/>
     <CoachOverview syncFailed={planLoadError} athletes={athletes} plans={athletePlans} today={getTodayDateString()} isLight={isLight} onOpen={id => { setSelectedAthleteId(id); window.scrollTo({top:0,behavior:'auto'}); }} />
   </div>;
 
   return (
     <div data-athlete-dashboard className="space-y-8 animate-fade-in pb-10 min-w-0 [&>*]:min-w-0">
+      <BillingExpiryCard/>
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-black text-white uppercase italic tracking-tighter flex flex-wrap items-center gap-2 min-w-0 drop-shadow-sm">

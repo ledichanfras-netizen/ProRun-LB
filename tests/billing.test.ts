@@ -48,3 +48,34 @@ test('Mercado Pago HMAC requires secret, request ID and the signed payment ID',a
  assert.equal(await verifyMercadoSignature(secret,signature,'','123'),false);
  assert.equal(await verifyMercadoSignature(secret,'ts=1,v1=invalid','req','123'),false);
 });
+
+test('annual and quarterly contracts preserve exact installment totals and cover every day',async()=>{
+ const {buildBillingSchedule}=await import('../utils/billing');
+ const schedule=buildBillingSchedule({plan_kind:'contract',payment_schedule:'monthly',months:12,first_due_date:'2028-01-31',amount_cents:100001});
+ assert.equal(schedule.length,12);assert.equal(schedule.reduce((sum,p)=>sum+p.amount_cents,0),100001);
+ assert.equal(schedule[0].period_end,'2028-02-28');assert.equal(schedule[1].period_start,'2028-02-29');assert.equal(schedule[2].period_start,'2028-03-31');
+ assert.equal(schedule[11].period_end,'2029-01-30');
+ for(let i=1;i<schedule.length;i++)assert.equal(new Date(schedule[i].period_start+'T12:00:00Z').getTime()-new Date(schedule[i-1].period_end+'T12:00:00Z').getTime(),86400000);
+});
+test('periodization uses fixed contracted dates; full and monthly payments preserve the same contract end',async()=>{
+ const {buildBillingSchedule}=await import('../utils/billing');
+ const input={plan_kind:'periodization' as const,payment_schedule:'full' as const,months:1,first_due_date:'2026-11-09',contract_end:'2027-01-31',amount_cents:10001};
+ assert.equal(buildBillingSchedule(input)[0].period_end,'2027-01-31');
+ const parts=buildBillingSchedule({...input,payment_schedule:'monthly'});
+ assert.deepEqual(parts.map(p=>p.amount_cents),[3334,3334,3333]);assert.equal(parts[2].period_end,'2027-01-31');
+ assert.throws(()=>buildBillingSchedule({...input,contract_end:'2026-11-08'}));
+ assert.throws(()=>buildBillingSchedule({...input,payment_schedule:'monthly',amount_cents:200}));
+});
+test('a first installment cannot unlock the rest of an annual contract',async()=>{
+ const {buildBillingSchedule}=await import('../utils/billing');
+ const schedule=buildBillingSchedule({plan_kind:'contract',payment_schedule:'monthly',months:12,first_due_date:'2026-11-01',amount_cents:120000});
+ const invoices=schedule.map((p,i)=>({...invoice,...p,id:'i'+i,status:i===0?'paid' as const:'pending' as const}));
+ assert.equal(billingEntitlement(member,invoices,'2026-11-30').allowed,true);
+ assert.equal(billingEntitlement(member,invoices,'2026-12-01').allowed,false);
+});
+test('WhatsApp link uses a validated Brazilian number and URL-encoded reviewable text',async()=>{
+ const {billingWhatsappLink}=await import('../utils/billing');
+ const alert:any={subject_name:'Atleta & Parceiro',kind:'renewal',target_date:'2026-11-15',phone:'(43) 99999-1234'};
+ const link=new URL(billingWhatsappLink(alert));assert.equal(link.pathname,'/5543999991234');assert.match(link.searchParams.get('text')!,/Atleta & Parceiro/);
+ assert.equal(new URL(billingWhatsappLink({...alert,phone:'invalid'})).pathname,'/');
+});

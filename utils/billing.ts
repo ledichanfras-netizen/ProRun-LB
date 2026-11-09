@@ -26,8 +26,8 @@ export function parseMoneyCents(value:string):number {
   if(!Number.isSafeInteger(cents)||cents<100||cents>10000000)throw new Error('Valor deve estar entre R$ 1 e R$ 100.000.');
   return cents;
 }
-export interface BillingMembership {id:string;issuer_org_id:string;subject_type:'athlete'|'coach';athlete_id:string|null;coach_user_id:string|null;subject_name:string;amount_cents:number;months:number;first_due_date:string;enabled:boolean;grace_days:number;complimentary_until:string|null;}
-export interface BillingInvoice {id:string;membership_id:string;issuer_org_id:string;issuer_name?:string;subject_name:string;amount_cents:number;period_start:string;period_end:string;due_date:string;status:'pending'|'paid'|'cancelled'|'reversed';checkout_url:string|null;paid_at:string|null;paid_method:string|null;paid_count:number;provider_preference_id?:string|null;}
+export interface BillingMembership {plan_kind?:BillingPlanKind;payment_schedule?:'full'|'monthly';contract_end?:string|null;contract_key?:string;cycle_label?:string|null;id:string;issuer_org_id:string;subject_type:'athlete'|'coach';athlete_id:string|null;coach_user_id:string|null;subject_name:string;amount_cents:number;months:number;first_due_date:string;enabled:boolean;grace_days:number;complimentary_until:string|null;}
+export interface BillingInvoice {contract_key?:string|null;installment_number?:number;installment_count?:number;term_end?:string|null;id:string;membership_id:string;issuer_org_id:string;issuer_name?:string;subject_name:string;amount_cents:number;period_start:string;period_end:string;due_date:string;status:'pending'|'paid'|'cancelled'|'reversed';checkout_url:string|null;paid_at:string|null;paid_method:string|null;paid_count:number;provider_preference_id?:string|null;}
 export function billingEntitlement(m:BillingMembership|null,invoices:BillingInvoice[],today=billingToday()) {
   if(!m||!m.enabled)return {allowed:true,reason:'free',until:null as string|null};
   if(m.complimentary_until&&m.complimentary_until>=today)return {allowed:true,reason:'courtesy',until:m.complimentary_until};
@@ -48,4 +48,33 @@ export async function verifyMercadoSignature(secret:string,signature:string,requ
   const encoder=new TextEncoder();const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['verify']);
   const bytes=new Uint8Array(parts.v1.match(/../g)!.map((x:string)=>parseInt(x,16)));
   return crypto.subtle.verify('HMAC',key,bytes,encoder.encode(`id:${dataId.toLowerCase()};request-id:${requestId};ts:${parts.ts};`));
+}
+
+export type BillingPlanKind='recurring'|'contract'|'periodization';
+export interface BillingScheduleInput {plan_kind:BillingPlanKind;payment_schedule:'full'|'monthly';months:number;first_due_date:string;contract_end?:string|null;amount_cents:number;}
+export interface BillingInstallment {period_start:string;period_end:string;due_date:string;amount_cents:number;installment_number:number;installment_count:number;}
+export const billingDaysBetween=(from:string,to:string)=>Math.round((Date.parse(to+'T12:00:00Z')-Date.parse(from+'T12:00:00Z'))/86400000);
+/** A fixed contract is split into monthly coverage periods; cents always sum to its total. */
+export function buildBillingSchedule(input:BillingScheduleInput):BillingInstallment[] {
+ const {plan_kind,payment_schedule,first_due_date:start,amount_cents}=input;
+ if(!validBillingDate(start)||!['recurring','contract','periodization'].includes(plan_kind)||!['full','monthly'].includes(payment_schedule)||!Number.isSafeInteger(amount_cents)||amount_cents<100||amount_cents>10000000)throw new Error('Confira as condições do plano.');
+ if(plan_kind==='recurring'&&payment_schedule!=='full')throw new Error('Parcelas mensais exigem um contrato com término definido.');
+ const end=plan_kind==='periodization'?input.contract_end:billingPeriod(start,input.months).end;
+ if(!validBillingDate(end)||end<start||billingDaysBetween(start,end)>3660)throw new Error('Informe início e término válidos, com duração máxima de dez anos.');
+ const periods:{start:string;end:string}[]=[];
+ if(payment_schedule==='full')periods.push({start,end});
+ else {
+  let cursor=start;
+  while(cursor<=end){if(periods.length>=120)throw new Error('Limite de parcelas excedido.');const next=billingPeriod(cursor,1,Number(start.slice(8)));periods.push({start:cursor,end:next.end<end?next.end:end});cursor=next.next;}
+ }
+ const amount=Math.floor(amount_cents/periods.length),extra=amount_cents%periods.length;
+ if(amount<100)throw new Error('Cada parcela deve ter valor mínimo de R$ 1.');
+ return periods.map((p,i)=>({period_start:p.start,period_end:p.end,due_date:p.start,amount_cents:amount+(i<extra?1:0),installment_number:i+1,installment_count:periods.length}));
+}
+export interface BillingAlert {id:string;membership_id:string;subject_name:string;subject_type:'athlete'|'coach';audience:'issuer'|'payer';kind:'payment'|'renewal';target_date:string;days_remaining:number;restriction_date:string|null;title:string;message:string;phone?:string;read:boolean;}
+export function billingWhatsappLink(alert:BillingAlert):string {
+ const digits=(alert.phone||'').replace(/\D/g,'');const phone=digits.length===10||digits.length===11?'55'+digits:/^55\d{10,11}$/.test(digits)?digits:'';
+ const name=alert.subject_name;const date=alert.target_date.split('-').reverse().join('/');
+ const text=`Olá, ${name}! ${alert.kind==='renewal'?'Seu plano no ProRun LB termina':'Sua parcela no ProRun LB vence'} em ${date}. Vamos organizar a renovação/pagamento para manter seu acompanhamento?`;
+ return 'https://wa.me/'+phone+'?text='+encodeURIComponent(text);
 }

@@ -26,3 +26,9 @@ A solicitação e a liberação do bloqueio de tela são opcionais e não bloque
 ### Janela de vídeo sobre a postagem
 
 A postagem usa uma camada própria de tela inteira. A janela do vídeo e o aviso de carregamento agora aparecem acima dessa camada, para que o usuário veja e possa acionar a geração. Validado em fluxo integrado: abrir WorkoutShareModal, abrir vídeo, gerar MP4 720 × 1280, reproduzir e voltar à postagem sem fechá-la.
+
+## Perspectiva imersiva
+
+No gerador, “Ângulo do vídeo” alterna entre a vista superior existente e uma câmera inclinada com rotação, aproximação e acompanhamento suaves. O início e o final mostram o percurso completo. O fundo pode ser ruas, satélite ou fundo limpo. A perspectiva é aplicada ao canvas exportado; o arquivo baixado contém o mesmo efeito da prévia. Não há relevo, edifícios ou imagens de rua em 3D.
+
+O mapa e a linha GPS compartilham uma única superfície projetada; os marcadores usam a mesma transformação e mantêm os textos legíveis. Trocar somente o ângulo reutiliza as imagens já carregadas. As opções ficam bloqueadas durante a gravação; alterar o ângulo ou o fundo descarta o arquivo anterior para evitar compartilhar uma versão desatualizada. A câmera depende apenas do progresso, mantendo a animação reproduzível em tentativas alternativas de codec. Não adiciona chamadas ao banco, uploads, bibliotecas ou serviços pagos.

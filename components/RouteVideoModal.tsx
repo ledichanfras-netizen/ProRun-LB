@@ -4,9 +4,12 @@ import {X,Play,Video,Download,Share2,RefreshCw} from 'lucide-react';
 import {createRouteVideoScene,type RouteVideoScene,type RouteVideoSceneInput} from '../utils/routeVideoCanvas';
 import {localVideoMime,recordRouteVideo,type RecordedRouteVideo,type RecordingStage} from '../utils/recordRouteVideo';
 import {routeAnimationProgress,safeVideoFilename,videoFileExtension} from '../utils/routeVideo';
+import type {RouteVideoView} from '../utils/routeVideoCamera';
 interface VideoFile extends RecordedRouteVideo {url:string;filename:string;}
 export default function RouteVideoModal({input,onClose}:{input:RouteVideoSceneInput;onClose:()=>void}){
  const [stage,setStage]=useState<RecordingStage>('starting'),[prepareVersion,setPrepareVersion]=useState(0);
+ const [view,setView]=useState<RouteVideoView>('overhead'),[background,setBackground]=useState(input.mapMode);
+ const viewRef=useRef(view);viewRef.current=view;
  const scrollArea=useRef<HTMLDivElement>(null);
  const closeButton=useRef<HTMLButtonElement>(null);
  const canvas=useRef<HTMLCanvasElement>(null),scene=useRef<RouteVideoScene|null>(null),generation=useRef<AbortController|null>(null),previewFrame=useRef(0),fileUrl=useRef<string|null>(null),alive=useRef(true);
@@ -16,16 +19,17 @@ export default function RouteVideoModal({input,onClose}:{input:RouteVideoSceneIn
  const stopPreview=()=>{cancelAnimationFrame(previewFrame.current);setPlaying(false);};
  useEffect(()=>{
   alive.current=true;const controller=new AbortController();let currentScene:RouteVideoScene|null=null;
-  setLoading(true);setError('');setWarnings([]);clearFile();
-  void createRouteVideoScene(input,controller.signal).then(created=>{
+  setLoading(true);setError('');setWarnings([]);setMessage('');stopPreview();clearFile();
+  void createRouteVideoScene({...input,mapMode:background},controller.signal).then(created=>{
    if(controller.signal.aborted){created.dispose();return;}
-   currentScene=created;scene.current=created;setWarnings(created.warnings);if(canvas.current)created.draw(canvas.current,0);setLoading(false);
+   currentScene=created;scene.current=created;setWarnings(created.warnings);if(canvas.current)created.draw(canvas.current,0,viewRef.current);setLoading(false);
   }).catch(e=>{if(!controller.signal.aborted){setError(e.message||'Não foi possível preparar o vídeo.');setLoading(false);}});
   return()=>{alive.current=false;controller.abort();generation.current?.abort();cancelAnimationFrame(previewFrame.current);currentScene?.dispose();scene.current=null;if(fileUrl.current)URL.revokeObjectURL(fileUrl.current);fileUrl.current=null;};
- },[prepareVersion,input.points,input.title,input.athleteName,input.date,input.distanceKm,input.durationSeconds,input.avgPace,input.mapMode,input.routeColor,input.logoUrl,input.showLogo,input.showKm,input.showKmPace,input.kmSplits]);
+ },[prepareVersion,background,input.points,input.title,input.athleteName,input.date,input.distanceKm,input.durationSeconds,input.avgPace,input.mapMode,input.routeColor,input.logoUrl,input.showLogo,input.showKm,input.showKmPace,input.kmSplits]);
+ useEffect(()=>{stopPreview();clearFile();setMessage('');setError('');if(canvas.current&&scene.current&&!loading)scene.current.draw(canvas.current,0,view);},[view]);
  const preview=()=>{
   if(!canvas.current||!scene.current)return;stopPreview();setError('');setMessage('');clearFile();setPlaying(true);const started=performance.now();
-  const frame=()=>{if(!canvas.current||!scene.current)return;const elapsed=(performance.now()-started)/1000;scene.current.draw(canvas.current,routeAnimationProgress(elapsed,duration));if(elapsed<duration)previewFrame.current=requestAnimationFrame(frame);else{scene.current.draw(canvas.current,1);setPlaying(false);}};
+  const frame=()=>{if(!canvas.current||!scene.current)return;const elapsed=(performance.now()-started)/1000;scene.current.draw(canvas.current,routeAnimationProgress(elapsed,duration),viewRef.current);if(elapsed<duration)previewFrame.current=requestAnimationFrame(frame);else{scene.current.draw(canvas.current,1,viewRef.current);setPlaying(false);}};
   previewFrame.current=requestAnimationFrame(frame);
  };
  const generate=async()=>{
@@ -33,7 +37,9 @@ export default function RouteVideoModal({input,onClose}:{input:RouteVideoSceneIn
   if(!canvas.current||!scene.current){setError('O percurso ainda não está pronto. Tente preparar novamente.');return;}stopPreview();clearFile();setRecording(true);setProgress(0);setError('');setMessage('');setStage('starting');
   const controller=new AbortController();generation.current=controller;let lastUpdate=0;
   try{
-   const result=await recordRouteVideo(canvas.current,scene.current,duration,controller.signal,value=>{if(alive.current&&(value===1||performance.now()-lastUpdate>100)){lastUpdate=performance.now();setProgress(value);}},value=>{if(alive.current)setStage(value);});
+   const prepared=scene.current,selectedView=view;
+   const recordingScene:RouteVideoScene={...prepared,draw:(target,p)=>prepared.draw(target,p,selectedView)};
+   const result=await recordRouteVideo(canvas.current,recordingScene,duration,controller.signal,value=>{if(alive.current&&(value===1||performance.now()-lastUpdate>100)){lastUpdate=performance.now();setProgress(value);}},value=>{if(alive.current)setStage(value);});
    if(!alive.current||controller.signal.aborted)return;
    const url=URL.createObjectURL(result.blob);fileUrl.current=url;setFile({...result,url,filename:safeVideoFilename(input.title,input.distanceKm,result.mimeType)});setMessage('Vídeo pronto. Confira a prévia antes de compartilhar.');scrollArea.current?.scrollTo({top:0});
   }catch(e:any){if(alive.current){if(e.name==='AbortError')setMessage('Geração cancelada. Você pode tentar novamente.');else setError(e.message||'Não foi possível gerar o vídeo.');}}
@@ -56,6 +62,11 @@ export default function RouteVideoModal({input,onClose}:{input:RouteVideoSceneIn
  return createPortal(<div className="fixed inset-0 z-[100001] bg-black/80 flex items-center justify-center p-3 sm:p-5" onClick={event=>{event.stopPropagation();close();}}><section role="dialog" aria-modal="true" aria-labelledby="route-video-title" className="w-full max-w-xl max-h-[96dvh] flex flex-col overflow-hidden rounded-3xl border border-white/15 bg-slate-950 text-white shadow-2xl" onClick={e=>e.stopPropagation()}>
   <header className="shrink-0 z-10 bg-slate-950 border-b border-white/10 px-5 py-4 flex items-center justify-between gap-3"><div><h2 id="route-video-title" className="font-black uppercase italic flex gap-2 items-center"><Video className="text-emerald-400" size={20}/>Vídeo do percurso</h2><p className="text-xs text-slate-400 mt-1">Vertical 9:16 · percurso completo · gerado no aparelho</p></div><button ref={closeButton} type="button" aria-label="Fechar vídeo do percurso" className="p-3 rounded-xl bg-white/10" onClick={close}><X size={20}/></button></header>
   <div ref={scrollArea} className="p-4 sm:p-5 space-y-4 flex-1 min-h-0 overflow-y-auto">
+   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <label className="text-sm font-bold">Ângulo do vídeo<select aria-label="Ângulo do vídeo" className="mt-2 w-full rounded-xl border border-white/20 bg-slate-900 px-3 py-3" value={view} disabled={recording} onChange={e=>setView(e.target.value as RouteVideoView)}><option value="overhead">Vista superior</option><option value="immersive">Perspectiva imersiva</option></select></label>
+    <label className="text-sm font-bold">Fundo do vídeo<select aria-label="Fundo do vídeo" className="mt-2 w-full rounded-xl border border-white/20 bg-slate-900 px-3 py-3" value={background} disabled={recording} onChange={e=>setBackground(e.target.value as typeof background)}><option value="standard">Ruas</option><option value="satellite">Satélite</option><option value="transparent">Fundo limpo</option></select></label>
+   </div>
+   {view==='immersive'&&<p className="text-xs text-slate-400">Câmera inclinada com movimento suave sobre o percurso GPS. O efeito não representa relevo ou prédios em 3D.</p>}
    <div className="mx-auto w-full max-w-[280px] aspect-[9/16] rounded-2xl overflow-hidden bg-[#03151a] border border-white/10 relative">
     <canvas ref={canvas} width={720} height={1280} aria-label="Prévia do percurso animado" className={`w-full h-full ${file?'hidden':''}`}/>
     {file&&<video key={file.url} src={file.url} controls playsInline preload="metadata" aria-label="Vídeo gerado do treino" className="w-full h-full"/>}

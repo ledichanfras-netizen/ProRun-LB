@@ -4,7 +4,7 @@ import {DEFAULT_VIDEO_FRAMING,normalizeVideoFraming,gestureVideoFraming} from '.
 
 test('zoom and drag keep a valid crop of the loaded map, including extreme and invalid input',()=>{
  assert.deepEqual(normalizeVideoFraming({zoom:NaN,panX:Infinity,panY:NaN}),DEFAULT_VIDEO_FRAMING);
- assert.deepEqual(normalizeVideoFraming({zoom:20,panX:30,panY:-30}),{zoom:3,panX:1,panY:-1});
+ assert.deepEqual(normalizeVideoFraming({zoom:20,panX:30,panY:-30}),{zoom:3,panX:1,panY:-1,rotation:0});
  for(const zoom of [1,1.5,2,3])for(const panX of [-5,0,5])for(const panY of [-5,0,5]){
   const f=normalizeVideoFraming({zoom,panX,panY});
   for(const [position,pan] of [[0,f.panX],[1,f.panX],[0,f.panY],[1,f.panY]]){
@@ -23,4 +23,15 @@ test('pinch preserves the point under the fingers while drag follows screen dire
  assert.ok(Math.abs(moved.panX-.2)<1e-10);assert.ok(Math.abs(moved.panY+.05)<1e-10);
  assert.deepEqual(initial,{zoom:2,panX:.1,panY:-.1});
  assert.deepEqual(gestureVideoFraming(initial,anchor,anchor,.1),DEFAULT_VIDEO_FRAMING);
+});
+
+test('rotation wraps safely and simultaneous twist/pinch preserves the gesture anchor',()=>{
+ assert.equal(normalizeVideoFraming({zoom:1,panX:0,panY:0,rotation:-450}).rotation,270);
+ assert.equal(normalizeVideoFraming({zoom:2,panX:0,panY:0,rotation:Infinity}).rotation,0);
+ const center={x:.5,y:.5},initial={zoom:2,panX:0,panY:0,rotation:350};
+ const turned=gestureVideoFraming(initial,center,center,1,25);assert.equal(turned.rotation,15);
+ const from={x:.6,y:.4},to={x:.63,y:.45},before={zoom:2,panX:.1,panY:-.05,rotation:12},after=gestureVideoFraming(before,from,to,1.1,35);
+ const inverse=(p:{x:number;y:number},f:typeof after)=>{const a=-(f.rotation??0)*Math.PI/180,x=(p.x-.5-f.panX)*656,y=(p.y-.5-f.panY)*650;return {x:(x*Math.cos(a)-y*Math.sin(a))/f.zoom,y:(x*Math.sin(a)+y*Math.cos(a))/f.zoom};};
+ const a=inverse(from,before),b=inverse(to,after);assert.ok(Math.abs(a.x-b.x)<1e-8);assert.ok(Math.abs(a.y-b.y)<1e-8);
+ assert.deepEqual(initial,{zoom:2,panX:0,panY:0,rotation:350});
 });

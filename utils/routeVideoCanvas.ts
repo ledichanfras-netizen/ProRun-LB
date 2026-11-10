@@ -94,7 +94,7 @@ export async function createRouteVideoScene(input:RouteVideoSceneInput,signal?:A
   output.beginPath();output.arc(cursor.x,cursor.y,4,0,Math.PI*2);output.fillStyle='#10b981';output.fill();
   const frame=normalizeVideoFraming(framing);
   ctx.save();ctx.beginPath();ctx.rect(mapX,mapY,width,height);ctx.clip();
-  ctx.translate(mapX+width/2+frame.panX*width,mapY+height/2+frame.panY*height);ctx.scale(frame.zoom,frame.zoom);ctx.drawImage(panel,-width/2,-height/2);ctx.restore();
+  ctx.translate(mapX+width/2+frame.panX*width,mapY+height/2+frame.panY*height);ctx.rotate((frame.rotation??0)*Math.PI/180);ctx.scale(frame.zoom,frame.zoom);ctx.drawImage(panel,-width/2,-height/2);ctx.restore();
   const stats=[{value:Number.isFinite(input.distanceKm)&&input.distanceKm>0?input.distanceKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—',label:'DISTÂNCIA · KM'},{value:input.avgPace&&input.avgPace!=='0:00'?input.avgPace.replace(/\s*\/km$/,''):'—',label:'PACE MÉDIO · /KM'},{value:timeText(input.durationSeconds),label:'TEMPO TOTAL'}];
   stats.forEach((stat,i)=>{const x=32+i*226;ctx.fillStyle='#f8fafc';fittedText(ctx,stat.value,x,1046,210,i===0?52:44,22);ctx.fillStyle='#8db7aa';ctx.font='800 14px Arial, sans-serif';ctx.fillText(stat.label,x,1078);});
   ctx.fillStyle='#10b981';ctx.fillRect(32,1134,656,3);ctx.fillStyle='#f8fafc';ctx.font='900 23px Arial, sans-serif';ctx.fillText('CADA TREINO CONTA.',32,1183);

@@ -3,9 +3,9 @@ export type RouteVideoView = 'overhead' | 'immersive';
 export interface CameraPoint { x:number; y:number; }
 export interface RouteCamera { width:number;height:number;center:CameraPoint;scale:number;angle:number; }
 const clamp=(value:number)=>Math.max(0,Math.min(1,Number.isFinite(value)?value:0));
-export function routeCamera(width:number,height:number,progress:number,head:CameraPoint):RouteCamera {
- const p=clamp(progress),motion=Math.sin(Math.PI*p)**2;
- return {width,height,center:{x:width/2+(head.x-width/2)*motion*.28,y:height/2+(head.y-height/2)*motion*.28},scale:.9+motion*.26,angle:Math.sin(2*Math.PI*p)*.12};
+export function routeCamera(width:number,height:number,progress:number,head:CameraPoint,fixed=false):RouteCamera {
+ const p=clamp(progress),motion=fixed?0:Math.sin(Math.PI*p)**2;
+ return {width,height,center:{x:width/2+(head.x-width/2)*motion*.28,y:height/2+(head.y-height/2)*motion*.28},scale:.9+motion*.26,angle:fixed?0:Math.sin(2*Math.PI*p)*.12};
 }
 export function orientCameraPoint(point:CameraPoint,camera:RouteCamera):CameraPoint {
  const x=(point.x-camera.center.x)*camera.scale,y=(point.y-camera.center.y)*camera.scale,c=Math.cos(camera.angle),s=Math.sin(camera.angle);

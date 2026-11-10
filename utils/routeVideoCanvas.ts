@@ -72,7 +72,9 @@ export async function createRouteVideoScene(input:RouteVideoSceneInput,signal?:A
   ctx.fillStyle='#a7c8bf';ctx.font='20px Arial, sans-serif';ctx.fillText(dateText(input.date),32,178);
   ctx.fillStyle='#f8fafc';fittedText(ctx,input.title||'TREINO CONCLUÍDO',32,243,656,39,22);
   ctx.fillStyle='#34d399';ctx.font='800 16px Arial, sans-serif';ctx.fillText(progress>=1?'PERCURSO CONCLUÍDO':'SEU PERCURSO',32,278);
-  const camera=routeCamera(width,height,progress,head);
+  const frame=normalizeVideoFraming(framing);
+  const manualFrame=Math.abs(frame.zoom-1)>1e-6||Math.abs(frame.panX)>1e-6||Math.abs(frame.panY)>1e-6||Math.abs(frame.rotation??0)>1e-6;
+  const camera=routeCamera(width,height,progress,head,manualFrame);
   const isOnPlane=(point:{x:number;y:number})=>{if(view!=='immersive')return true;const p=orientCameraPoint(point,camera);return p.x>=0&&p.x<=width&&p.y>=0&&p.y<=height;};
   const pointOnScreen=(point:{x:number;y:number})=>view==='immersive'?projectCameraPoint(point,camera):point;
   const mapCtx=planeCtx;mapCtx.clearRect(0,0,width,height);mapCtx.drawImage(base,0,0);
@@ -92,7 +94,6 @@ export async function createRouteVideoScene(input:RouteVideoSceneInput,signal?:A
   if(isOnPlane(projected[0])){output.beginPath();output.arc(origin.x,origin.y,7,0,Math.PI*2);output.fillStyle='#fff';output.fill();}
   output.beginPath();output.arc(cursor.x,cursor.y,11,0,Math.PI*2);output.fillStyle='#fff';output.fill();output.strokeStyle='#065f46';output.lineWidth=4;output.stroke();
   output.beginPath();output.arc(cursor.x,cursor.y,4,0,Math.PI*2);output.fillStyle='#10b981';output.fill();
-  const frame=normalizeVideoFraming(framing);
   ctx.save();ctx.beginPath();ctx.rect(mapX,mapY,width,height);ctx.clip();
   ctx.translate(mapX+width/2+frame.panX*width,mapY+height/2+frame.panY*height);ctx.rotate((frame.rotation??0)*Math.PI/180);ctx.scale(frame.zoom,frame.zoom);ctx.drawImage(panel,-width/2,-height/2);ctx.restore();
   const stats=[{value:Number.isFinite(input.distanceKm)&&input.distanceKm>0?input.distanceKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—',label:'DISTÂNCIA · KM'},{value:input.avgPace&&input.avgPace!=='0:00'?input.avgPace.replace(/\s*\/km$/,''):'—',label:'PACE MÉDIO · /KM'},{value:timeText(input.durationSeconds),label:'TEMPO TOTAL'}];

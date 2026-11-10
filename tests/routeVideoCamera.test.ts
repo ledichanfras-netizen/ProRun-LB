@@ -27,3 +27,9 @@ test('perspective narrows the far edge and preserves map-plane alignment without
  assert.ok(topLeft.x>bottomLeft.x);assert.ok(topLeft.y<bottomLeft.y);
  assert.ok(Number.isFinite(routeCamera(656,650,NaN,point).angle));
 });
+
+test('manual framing fixes the immersive camera through the entire animation',()=>{
+ const fixed=routeCamera(656,650,0,{x:48,y:48},true);
+ for(let i=0;i<=100;i++)assert.deepEqual(routeCamera(656,650,i/100,{x:48+i*5,y:600-i*4},true),fixed);
+ assert.notDeepEqual(routeCamera(656,650,.5,{x:48,y:48}),fixed);
+});

@@ -21,7 +21,7 @@ QA em Chromium isolado: MP4 H.264 Baseline 720 × 1280 de aproximadamente 12 seg
 
 ### Correção de inicialização em celulares
 
-A solicitação e a liberação do bloqueio de tela são opcionais e não bloqueiam a gravação, o cancelamento nem a entrega do arquivo. Se um aparelho anuncia suporte a MP4 mas falha ao criar/iniciar o gravador, o aplicativo tenta os demais formatos suportados e mostra o formato efetivamente gerado. Ações, erros e progresso ficam em uma área fixa da janela; a prévia rola separadamente. Testes de regressão cobrem APIs opcionais sem resposta, cancelamento e suporte MP4 anunciado incorretamente.
+A solicitação e a liberação do bloqueio de tela são opcionais e não bloqueiam a gravação, o cancelamento nem a entrega do arquivo. Se um aparelho anuncia suporte a MP4 mas falha ao criar/iniciar o gravador, o aplicativo tenta os demais formatos suportados e mostra o formato efetivamente gerado. Ações, erros e progresso ficam em uma área fixa da janela; a área de prévia se adapta ao espaço disponível. Testes de regressão cobrem APIs opcionais sem resposta, cancelamento e suporte MP4 anunciado incorretamente.
 
 ### Janela de vídeo sobre a postagem
 
@@ -29,12 +29,18 @@ A postagem usa uma camada própria de tela inteira. A janela do vídeo e o aviso
 
 ## Perspectiva imersiva
 
-No gerador, “Ângulo do vídeo” alterna entre a vista superior existente e uma câmera inclinada com rotação, aproximação e acompanhamento suaves. O início e o final mostram o percurso completo. O fundo pode ser ruas, satélite ou fundo limpo. A perspectiva é aplicada ao canvas exportado; o arquivo baixado contém o mesmo efeito da prévia. Não há relevo, edifícios ou imagens de rua em 3D.
+No gerador, “Ângulo do vídeo” alterna entre a vista superior existente e uma câmera inclinada com rotação, aproximação e acompanhamento suaves. No enquadramento original, o início e o final mostram o percurso completo. O fundo pode ser ruas, satélite ou fundo limpo. A perspectiva é aplicada ao canvas exportado; o arquivo baixado contém o mesmo efeito da prévia. Não há relevo, edifícios ou imagens de rua em 3D.
 
 O mapa e a linha GPS compartilham uma única superfície projetada; os marcadores usam a mesma transformação e mantêm os textos legíveis. Trocar somente o ângulo reutiliza as imagens já carregadas. As opções ficam bloqueadas durante a gravação; alterar o ângulo ou o fundo descarta o arquivo anterior para evitar compartilhar uma versão desatualizada. A câmera depende apenas do progresso, mantendo a animação reproduzível em tentativas alternativas de codec. Não adiciona chamadas ao banco, uploads, bibliotecas ou serviços pagos.
 
 ## Enquadramento em tela cheia
 
-“Ajustar mapa em tela cheia” abre um editor com apenas o mapa ampliado e os controles de concluir, restaurar o percurso ou gerar o vídeo. A barra e os botões visuais de zoom foram removidos. Um dedo arrasta; a pinça aproxima e afasta; torcer dois dedos gira o mapa. Mouse/roda e atalhos de teclado continuam disponíveis (setas, +/−, [ e ] para girar, Home para restaurar).
+“Vídeo do percurso” abre diretamente o editor com o mapa ampliado, opções de ângulo e fundo, restauração do percurso, prévia e geração. A barra e os botões visuais de zoom foram removidos. Um dedo arrasta; a pinça aproxima e afasta; torcer dois dedos gira o mapa. Mouse/roda e atalhos de teclado continuam disponíveis (setas, +/−, [ e ] para girar, Home para restaurar).
 
 O editor exibe exatamente o painel do mapa recortado do canvas do vídeo, com o mesmo aspecto. O zoom (1×–3×), posição e rotação são aplicados juntos ao mapa, rota e marcadores, nos dois ângulos. Métricas, nome e marca ficam fixos. O botão “Mostrar percurso inteiro” restaura também a rotação. Edição, prévia e gravação compartilham os mesmos valores; a geração captura uma cópia do enquadramento e permite baixar/compartilhar o arquivo ao terminar. Alterações invalidam o vídeo anterior. Gestos não recarregam tiles nem alteram GPS, treinos ou banco.
+
+## Acesso direto ao editor
+
+“Vídeo do percurso” abre diretamente o mapa ampliado. Ângulo, fundo e duração ficam na mesma tela; não é necessário abrir um cartão de enquadramento nem concluir um ajuste separado. O fluxo é ajustar com os dedos → prévia opcional → gerar → baixar/compartilhar. A área disponível é medida com ResizeObserver para acomodar o mapa e os botões no celular e na horizontal. Erros, preparação e nova tentativa permanecem visíveis no editor.
+
+Na perspectiva imersiva, um enquadramento manual (zoom, posição ou rotação) fixa a câmera para toda a animação. O ponto do percurso continua avançando e os marcadores aparecem, mas a câmera automática não substitui a composição escolhida. Ao restaurar o percurso inteiro, volta o movimento automático original.

@@ -2,6 +2,7 @@ import {generateMapTileLayout,projectShareMapPoint,type MapDisplayMode} from './
 import {shareMapMetrics} from './shareMapMetrics';
 import type {MapPoint} from './mapRoute';
 import type {KmSplit} from './runningMetrics';
+import {DEFAULT_VIDEO_FRAMING,normalizeVideoFraming,type RouteVideoFraming} from './routeVideoFraming';
 import {drawPerspectivePlane,routeCamera,projectCameraPoint,orientCameraPoint,type RouteVideoView} from './routeVideoCamera';
 import {prepareVideoRoute,videoRoutePosition,ROUTE_VIDEO_WIDTH,ROUTE_VIDEO_HEIGHT} from './routeVideo';
 
@@ -9,7 +10,7 @@ export interface RouteVideoSceneInput {
  points:MapPoint[];title:string;athleteName?:string;date?:string;distanceKm:number;durationSeconds:number;avgPace:string;
  mapMode:MapDisplayMode;routeColor?:string;logoUrl?:string;showLogo?:boolean;showKm?:boolean;showKmPace?:boolean;kmSplits?:KmSplit[];
 }
-export interface RouteVideoScene {draw:(canvas:HTMLCanvasElement,progress:number,view?:RouteVideoView)=>void;dispose:()=>void;warnings:string[];}
+export interface RouteVideoScene {draw:(canvas:HTMLCanvasElement,progress:number,view?:RouteVideoView,framing?:RouteVideoFraming)=>void;dispose:()=>void;warnings:string[];}
 const abortError=()=>new DOMException('Geração cancelada.','AbortError');
 function loadImage(src:string,signal?:AbortSignal):Promise<HTMLImageElement> {
  return new Promise((resolve,reject)=>{
@@ -54,11 +55,12 @@ export async function createRouteVideoScene(input:RouteVideoSceneInput,signal?:A
  const projected=route.points.map(point=>projectShareMapPoint(layout,point));
  const km=shareMapMetrics(route.points,input.distanceKm,input.kmSplits||[]).markers.map(m=>({...m,...projectShareMapPoint(layout,m.point)}));
  const color=input.routeColor||'#10b981';let disposed=false;
- const plane=document.createElement('canvas'),surface=document.createElement('canvas');
- for(const buffer of [plane,surface]){buffer.width=width;buffer.height=height;}
+ const plane=document.createElement('canvas'),surface=document.createElement('canvas'),panel=document.createElement('canvas');
+ for(const buffer of [plane,surface,panel]){buffer.width=width;buffer.height=height;}
+ const panelCtx=panel.getContext('2d');if(!panelCtx)throw new Error('Não foi possível preparar o enquadramento.');
  const planeCtx=plane.getContext('2d');if(!planeCtx)throw new Error('Não foi possível preparar o mapa do vídeo.');
  const trace=(ctx:CanvasRenderingContext2D,end:number,position?:{x:number;y:number})=>{ctx.beginPath();ctx.moveTo(projected[0].x,projected[0].y);for(let i=1;i<end;i++)ctx.lineTo(projected[i].x,projected[i].y);if(position)ctx.lineTo(position.x,position.y);};
- return {warnings,dispose(){disposed=true;base.width=0;base.height=0;plane.width=0;plane.height=0;surface.width=0;surface.height=0;logo=null;},draw(canvas,rawProgress,view='overhead'){
+ return {warnings,dispose(){disposed=true;base.width=0;base.height=0;plane.width=0;plane.height=0;surface.width=0;surface.height=0;panel.width=0;panel.height=0;logo=null;},draw(canvas,rawProgress,view='overhead',framing=DEFAULT_VIDEO_FRAMING){
   if(disposed)return;const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Vídeo indisponível neste navegador.');
   if(canvas.width!==ROUTE_VIDEO_WIDTH)canvas.width=ROUTE_VIDEO_WIDTH;if(canvas.height!==ROUTE_VIDEO_HEIGHT)canvas.height=ROUTE_VIDEO_HEIGHT;
   const progress=clamp(rawProgress,0,1),position=videoRoutePosition(route,progress),head=projectShareMapPoint(layout,position.point);
@@ -76,20 +78,23 @@ export async function createRouteVideoScene(input:RouteVideoSceneInput,signal?:A
   const mapCtx=planeCtx;mapCtx.clearRect(0,0,width,height);mapCtx.drawImage(base,0,0);
   mapCtx.lineCap='round';mapCtx.lineJoin='round';trace(mapCtx,projected.length);mapCtx.strokeStyle='rgba(255,255,255,.27)';mapCtx.lineWidth=10;mapCtx.stroke();
   if(progress>0){trace(mapCtx,position.index,head);mapCtx.strokeStyle='rgba(2,6,23,.9)';mapCtx.lineWidth=13;mapCtx.stroke();mapCtx.strokeStyle=color;mapCtx.lineWidth=7;mapCtx.stroke();}
-  ctx.save();ctx.beginPath();ctx.rect(mapX,mapY,width,height);ctx.clip();ctx.translate(mapX,mapY);
-  if(view==='immersive')drawPerspectivePlane(ctx,plane,camera,surface);else ctx.drawImage(plane,0,0);
+  const output=panelCtx;output.clearRect(0,0,width,height);output.textAlign='left';
+  if(view==='immersive')drawPerspectivePlane(output,plane,camera,surface);else output.drawImage(plane,0,0);
   if(input.showKm){const labelStep=Math.max(1,Math.ceil(km.length/7));for(let i=0;i<km.length;i++){
    if(!isOnPlane(km[i]))continue;const marker={...km[i],...pointOnScreen(km[i])};if(marker.km>input.distanceKm*progress+1e-6)continue;
-   ctx.beginPath();ctx.arc(marker.x,marker.y,4,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+   output.beginPath();output.arc(marker.x,marker.y,4,0,Math.PI*2);output.fillStyle='#fff';output.fill();
    if(i%labelStep!==0&&i!==km.length-1)continue;
-   const label=`${marker.km} km${input.showKmPace&&marker.pace?' · '+marker.pace+'/km':''}`;ctx.font='800 15px Arial, sans-serif';
-   const labelWidth=ctx.measureText(label).width+18,x=clamp(marker.x-labelWidth/2,4,width-labelWidth-4),y=clamp(marker.y-31,4,height-28);
-   ctx.fillStyle='rgba(2,6,23,.9)';ctx.fillRect(x,y,labelWidth,25);ctx.fillStyle='#fff';ctx.fillText(label,x+9,y+18);
+   const label=`${marker.km} km${input.showKmPace&&marker.pace?' · '+marker.pace+'/km':''}`;output.font='800 15px Arial, sans-serif';
+   const labelWidth=output.measureText(label).width+18,x=clamp(marker.x-labelWidth/2,4,width-labelWidth-4),y=clamp(marker.y-31,4,height-28);
+   output.fillStyle='rgba(2,6,23,.9)';output.fillRect(x,y,labelWidth,25);output.fillStyle='#fff';output.fillText(label,x+9,y+18);
   }}
   const origin=pointOnScreen(projected[0]),cursor=pointOnScreen(head);
-  if(isOnPlane(projected[0])){ctx.beginPath();ctx.arc(origin.x,origin.y,7,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();}
-  ctx.beginPath();ctx.arc(cursor.x,cursor.y,11,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#065f46';ctx.lineWidth=4;ctx.stroke();
-  ctx.beginPath();ctx.arc(cursor.x,cursor.y,4,0,Math.PI*2);ctx.fillStyle='#10b981';ctx.fill();ctx.restore();
+  if(isOnPlane(projected[0])){output.beginPath();output.arc(origin.x,origin.y,7,0,Math.PI*2);output.fillStyle='#fff';output.fill();}
+  output.beginPath();output.arc(cursor.x,cursor.y,11,0,Math.PI*2);output.fillStyle='#fff';output.fill();output.strokeStyle='#065f46';output.lineWidth=4;output.stroke();
+  output.beginPath();output.arc(cursor.x,cursor.y,4,0,Math.PI*2);output.fillStyle='#10b981';output.fill();
+  const frame=normalizeVideoFraming(framing);
+  ctx.save();ctx.beginPath();ctx.rect(mapX,mapY,width,height);ctx.clip();
+  ctx.translate(mapX+width/2+frame.panX*width,mapY+height/2+frame.panY*height);ctx.scale(frame.zoom,frame.zoom);ctx.drawImage(panel,-width/2,-height/2);ctx.restore();
   const stats=[{value:Number.isFinite(input.distanceKm)&&input.distanceKm>0?input.distanceKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—',label:'DISTÂNCIA · KM'},{value:input.avgPace&&input.avgPace!=='0:00'?input.avgPace.replace(/\s*\/km$/,''):'—',label:'PACE MÉDIO · /KM'},{value:timeText(input.durationSeconds),label:'TEMPO TOTAL'}];
   stats.forEach((stat,i)=>{const x=32+i*226;ctx.fillStyle='#f8fafc';fittedText(ctx,stat.value,x,1046,210,i===0?52:44,22);ctx.fillStyle='#8db7aa';ctx.font='800 14px Arial, sans-serif';ctx.fillText(stat.label,x,1078);});
   ctx.fillStyle='#10b981';ctx.fillRect(32,1134,656,3);ctx.fillStyle='#f8fafc';ctx.font='900 23px Arial, sans-serif';ctx.fillText('CADA TREINO CONTA.',32,1183);

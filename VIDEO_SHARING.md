@@ -32,3 +32,9 @@ A postagem usa uma camada própria de tela inteira. A janela do vídeo e o aviso
 No gerador, “Ângulo do vídeo” alterna entre a vista superior existente e uma câmera inclinada com rotação, aproximação e acompanhamento suaves. O início e o final mostram o percurso completo. O fundo pode ser ruas, satélite ou fundo limpo. A perspectiva é aplicada ao canvas exportado; o arquivo baixado contém o mesmo efeito da prévia. Não há relevo, edifícios ou imagens de rua em 3D.
 
 O mapa e a linha GPS compartilham uma única superfície projetada; os marcadores usam a mesma transformação e mantêm os textos legíveis. Trocar somente o ângulo reutiliza as imagens já carregadas. As opções ficam bloqueadas durante a gravação; alterar o ângulo ou o fundo descarta o arquivo anterior para evitar compartilhar uma versão desatualizada. A câmera depende apenas do progresso, mantendo a animação reproduzível em tentativas alternativas de codec. Não adiciona chamadas ao banco, uploads, bibliotecas ou serviços pagos.
+
+## Zoom e enquadramento do vídeo
+
+“Enquadramento do mapa” permite aproximar de 1× a 3×, arrastar com um dedo e ajustar com dois dedos após ativar “Ajustar mapa com gestos”. O mouse, a roda, as setas e +/− também funcionam na área do mapa. Fora dessa área, a rolagem da tela continua livre. “Mostrar percurso inteiro” restaura o zoom e a posição originais.
+
+O corte é aplicado ao painel do mapa no canvas final, tanto na vista superior quanto na perspectiva imersiva. Rota, fundo e marcadores se movem juntos; nome, métricas e identificação permanecem fixos. Zoom pode recortar partes do trajeto. Prévia e gravação usam os mesmos valores; a gravação captura uma cópia do enquadramento e bloqueia a edição até finalizar. Alterar o enquadramento invalida o vídeo anterior. Os gestos reutilizam os mapas carregados e não alteram GPS, treinos ou banco de dados.

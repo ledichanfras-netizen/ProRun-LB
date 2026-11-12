@@ -27,7 +27,7 @@ A solicitação e a liberação do bloqueio de tela são opcionais e não bloque
 
 A postagem usa uma camada própria de tela inteira. A janela do vídeo e o aviso de carregamento agora aparecem acima dessa camada, para que o usuário veja e possa acionar a geração. Validado em fluxo integrado: abrir WorkoutShareModal, abrir vídeo, gerar MP4 720 × 1280, reproduzir e voltar à postagem sem fechá-la.
 
-## Perspectiva imersiva
+## Perspectiva fixa
 
 No gerador, “Ângulo do vídeo” alterna entre a vista superior existente e uma câmera inclinada com rotação, aproximação e acompanhamento suaves. No enquadramento original, o início e o final mostram o percurso completo. O fundo pode ser ruas, satélite ou fundo limpo. A perspectiva é aplicada ao canvas exportado; o arquivo baixado contém o mesmo efeito da prévia. Não há relevo, edifícios ou imagens de rua em 3D.
 
@@ -43,4 +43,15 @@ O editor exibe exatamente o painel do mapa recortado do canvas do vídeo, com o 
 
 “Vídeo do percurso” abre diretamente o mapa ampliado. Ângulo, fundo e duração ficam na mesma tela; não é necessário abrir um cartão de enquadramento nem concluir um ajuste separado. O fluxo é ajustar com os dedos → prévia opcional → gerar → baixar/compartilhar. A área disponível é medida com ResizeObserver para acomodar o mapa e os botões no celular e na horizontal. Erros, preparação e nova tentativa permanecem visíveis no editor.
 
-Na perspectiva imersiva, um enquadramento manual (zoom, posição ou rotação) fixa a câmera para toda a animação. O ponto do percurso continua avançando e os marcadores aparecem, mas a câmera automática não substitui a composição escolhida. Ao restaurar o percurso inteiro, volta o movimento automático original.
+Na perspectiva fixa, um enquadramento manual (zoom, posição ou rotação) fixa a câmera para toda a animação. O ponto do percurso continua avançando e os marcadores aparecem, mas a câmera automática não substitui a composição escolhida. Ao restaurar o percurso inteiro, volta o movimento automático original.
+
+
+## Acompanhar trajeto
+
+O vídeo abre por padrão em “Acompanhar trajeto”, com fundo satélite. Uma câmera baixa avança pela distância GPS, acompanha a direção do percurso e suaviza as mudanças de orientação. O menu “Câmera de acompanhamento” permite escolher altura (15–120 m), inclinação (15–65°) e distância atrás do ponto (15–150 m). Pinça, arraste e giro ajustam a composição e a direção relativa à câmera; “Restaurar câmera” reinicia esses ajustes. A vista superior e a perspectiva fixa continuam disponíveis.
+
+Esta etapa usa imagens planas de satélite projetadas em perspectiva, sem relevo ou edifícios em 3D. O GPS salvo e as métricas permanecem intactos. A prévia e o arquivo gravado usam as mesmas configurações e os mesmos quadros determinísticos.
+
+A preparação seleciona um corredor de até 128 tiles ao longo do trajeto, com zoom adaptado ao tamanho da rota, seis carregamentos simultâneos e orçamento de 18 segundos. Alterar a câmera não busca imagens novamente. As imagens são rasterizadas e validadas para exportação antes do uso. A projeção acelerada por WebGL envia cada textura uma vez à GPU; aparelhos sem suporte ou com perda do contexto gráfico usam a alternativa Canvas 2D. Recursos, texturas e imagens são liberados ao fechar a janela. Não há upload de vídeo, alterações no banco ou chamadas de renderização no servidor.
+
+Validação: geometria, limites e direção da câmera, cruzamento do norte e da linha de data, controles inválidos e preservação do GPS; fluxo integrado de postagem no tamanho de celular, gestos, comparação do mapa exportado com a prévia, reprodução e download MP4 720 × 1280; funcionamento das outras vistas, imagens ausentes, cancelamento, layout em celular pequeno e na horizontal, e alternativa sem WebGL. Um teste com textura de quatro cores verifica que a projeção da imagem e dos pontos GPS coincide em posições independentes.

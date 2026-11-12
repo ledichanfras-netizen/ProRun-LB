@@ -1,5 +1,5 @@
 /** Deterministic camera: preview, recording and codec retries render identical frames. */
-export type RouteVideoView = 'overhead' | 'immersive';
+export type RouteVideoView = 'overhead' | 'immersive' | 'follow';
 export interface CameraPoint { x:number; y:number; }
 export interface RouteCamera { width:number;height:number;center:CameraPoint;scale:number;angle:number; }
 const clamp=(value:number)=>Math.max(0,Math.min(1,Number.isFinite(value)?value:0));

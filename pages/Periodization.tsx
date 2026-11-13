@@ -6,11 +6,12 @@ import {useLocation} from 'react-router-dom';
 import {currentPublicationWeeks,publishTrainingWeek} from '../utils/weekPublication';
 import {savePrescriptionDraft,readPrescriptionDraft,clearPrescriptionDraft} from '../utils/prescriptionDraft';
 import {PrescriptionReview} from '../components/PrescriptionReview';
+import {acceptPrescriptionReview,isPrescriptionReviewAccepted} from '../utils/prescriptionReviewAcceptance';
 import {inspectPrescription} from '../utils/prescriptionIntelligence';
 import {AthletePhoto} from '../components/AthletePhoto';
 import { activityDistance, freeRunsInWeek } from '../utils/trainingActivities';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
@@ -96,8 +97,15 @@ const Periodization: React.FC = () => {
   const aiProposalAthlete=useRef<string|null>(null);
   const [draftSaveFailed,setDraftSaveFailed]=useState(false);
   const [publishing,setPublishing]=useState(false);
-  const [prescriptionAccepted,setPrescriptionAccepted]=useState(false);
-  useEffect(()=>setPrescriptionAccepted(false),[fullPlan]);
+  const prescriptionAccepted=useMemo(()=>isPrescriptionReviewAccepted(fullPlan,selectedAthleteId),[fullPlan,selectedAthleteId]);
+  const [reviewExpanded,setReviewExpanded]=useState(false);
+  useEffect(()=>setReviewExpanded(false),[fullPlan,selectedAthleteId]);
+  const acceptReview=()=>{
+    if(!fullPlan||!selectedAthleteId)return;
+    const accepted=acceptPrescriptionReview(fullPlan,selectedAthleteId);
+    setFullPlan(accepted);setReviewExpanded(false);
+    if(aiProposalAthlete.current===selectedAthleteId)setDraftSaveFailed(!savePrescriptionDraft(selectedAthleteId,accepted));
+  };
   const [isEditing, setIsEditing] = useState(false);
   const [showLibraryModal, setShowLibraryModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
@@ -465,13 +473,14 @@ const Periodization: React.FC = () => {
     if(publishing)return;
     if (activeAthlete && fullPlan) {
       const selectedPlan=weekToPublish===undefined?fullPlan:publishTrainingWeek(fullPlan,weekToPublish);
-      const toPublish={...selectedPlan,cyclePlanning,editorDraft:undefined};
+      let toPublish:AthletePlan={...selectedPlan,cyclePlanning,editorDraft:undefined};
       const planningErrors=validateCyclePlanning(cyclePlanning,toPublish.weeks.length);if(planningErrors.length){alert(planningErrors.join(' '));return;}
       if(fullPlan.prescriptionReview){
         const meta=fullPlan.prescriptionReview;
         const report=inspectPrescription(fullPlan,{...meta.constraints,startDate:fullPlan.startDate||meta.constraints.startDate},meta.context);
         if(report.errors.length){alert('Corrija a revisão da periodização antes de publicar: '+report.errors.slice(0,3).join(' '));return;}
         if(!prescriptionAccepted){alert('Confira a revisão da periodização e marque a confirmação antes de publicar.');return;}
+        toPublish=acceptPrescriptionReview(toPublish,activeAthlete.id);
       }
       if(!toPublish.weeks.some(w=>w.isVisible)){alert('Selecione pelo menos uma semana para liberar antes de publicar.');return;}
       if(toPublish.weeks.filter(w=>w.isVisible).some(w=>w.workouts.some(s=>s.type!=='Descanso'&&!s.customDescription?.trim()&&!s.exercises?.length&&!s.structuredWorkout?.steps.length&&!(Number(s.distance)>0)&&!(Number(s.plannedDurationMinutes)>0)))){alert('Preencha os treinos das semanas selecionadas antes de publicar.');return;}
@@ -1157,7 +1166,8 @@ const Periodization: React.FC = () => {
         </div>
       </header>
       {importOpen&&activeAthlete&&<PlanImportModal athleteId={activeAthlete.id} athleteName={activeAthlete.name} plan={athletePlans[activeAthlete.id]||{weeks:[]}} onClose={()=>setImportOpen(false)} onChanged={refreshData}/>}
-      {activeAthlete&&fullPlan?.prescriptionReview&&<PrescriptionReview plan={fullPlan} accepted={prescriptionAccepted} onAccept={setPrescriptionAccepted}/>}
+      {activeAthlete&&fullPlan?.prescriptionReview&&(!prescriptionAccepted||reviewExpanded)&&<PrescriptionReview plan={fullPlan} accepted={prescriptionAccepted} onAccept={value=>{if(value)acceptReview();else setReviewExpanded(false);}} onClose={prescriptionAccepted?()=>setReviewExpanded(false):undefined}/>}
+      {activeAthlete&&fullPlan?.prescriptionReview&&prescriptionAccepted&&!reviewExpanded&&<button type="button" onClick={()=>setReviewExpanded(true)} className="text-xs font-bold text-emerald-700 dark:text-emerald-300 underline underline-offset-4">Reabrir revisão da periodização</button>}
       {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<button type="button" className="text-sm text-emerald-500 font-bold p-3 rounded-xl border border-emerald-500/30" onClick={()=>{clearPrescriptionDraft(activeAthlete.id);aiProposalAthlete.current=null;setFullPlan(athletePlans[activeAthlete.id]||null);setCyclePlanning(athletePlans[activeAthlete.id]?.cyclePlanning||emptyCyclePlanning());setPlanningDirty(false);setIsEditing(false);}}>Descartar rascunho e voltar ao ciclo atual</button>}
 
       {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<div role="status" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200 p-4 text-sm font-bold">{draftSaveFailed?'Não foi possível salvar o rascunho neste dispositivo. Mantenha esta tela aberta até publicar.':(fullPlan?.prescriptionReview?'Rascunho salvo neste dispositivo. Selecione as semanas, confirme a revisão e toque em Publicar para salvar e liberar ao atleta.':'Rascunho manual salvo neste dispositivo. Preencha os treinos, selecione as semanas e publique após conferir.')}</div>}

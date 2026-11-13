@@ -16,6 +16,10 @@
   main, .custom-scrollbar, [class*="overflow-y-auto"], [class*="overflow-auto"] {
     overscroll-behavior-y: contain;
   }
+  /* A horizontal table/chart must let vertical swipes reach the page scroller. */
+  .overflow-x-auto {
+    overscroll-behavior-y: auto;
+  }
   html {
     @apply bg-[#020617] text-slate-100 transition-colors duration-200;
   }

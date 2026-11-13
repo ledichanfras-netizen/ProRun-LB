@@ -303,6 +303,7 @@ export interface AthletePlan {
   importDrafts?: import('./utils/planTranscription').PlanImportDraft[];
   priorPrescriptionReview?: import('./utils/prescriptionIntelligence').PrescriptionReview;
   prescriptionReview?: import('./utils/prescriptionIntelligence').PrescriptionReview;
+  prescriptionReviewAcceptance?: import('./utils/prescriptionReviewAcceptance').PrescriptionReviewAcceptance;
   freeRuns?: FreeRun[];
   weeks: TrainingWeek[];
   raceStrategy?: string;

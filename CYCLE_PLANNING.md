@@ -43,3 +43,11 @@ Fluxo móvel em Chromium com a página de Prescrição real: escolha e edição 
 
 
 A validação móvel da simplificação usa a página e o serviço de geração reais, com contexto, transporte de IA e persistência simulados. Cobriu administrador gerando sem modelo/distribuição, escolhas parciais sem vazamento para a IA, treinador comum criando e publicando a primeira semana sem IA, recuperação do rascunho, foco das etapas no calendário, opções avançadas recolhidas e alternância de modos preservando campos. Sem contas ou dados de teste em produção.
+
+## Revisão após conferência
+
+Ao confirmar a revisão, o cartão sai da página e fica disponível apenas pelo botão discreto “Reabrir revisão da periodização”. O aceite é vinculado ao atleta e ao conteúdo prescrito, preservado localmente antes da publicação e incluído nos dados do plano ao publicar. Um novo plano, data ou conteúdo de sessão invalida o aceite; publicação de semanas, volumes derivados e registros de execução não o invalidam. A revisão e as validações continuam obrigatórias para publicar propostas com alterações ainda não conferidas.
+
+`tests/prescriptionReviewAcceptance.test.ts` verifica persistência, isolamento por atleta, ordenação das chaves do JSON, alterações de prescrição, registros de execução e indisponibilidade do armazenamento local. QA móvel com a página real e contexto/persistência simulados confere ocultação, recarga, reabertura, troca de atleta, publicação com aceite e nova conferência após editar uma sessão.
+
+A rolagem das tabelas horizontais passa os gestos verticais ao contêiner da página. QA com a tela real de Atletas e toques CDP reproduz o bloqueio anterior (`overscroll-behavior-y: contain`) e verifica o gesto no centro da tabela com a correção, preservando o movimento horizontal. Sem dados ou contas de teste em produção.

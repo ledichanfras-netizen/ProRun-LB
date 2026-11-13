@@ -11,5 +11,7 @@ test('the generation service sends selected organization to the prompt and retai
  const athlete={id:'qa',name:'QA',age:30,weight:70,height:175,metrics:{vdot:40,fcMax:190,fcThreshold:170},readinessHistory:[],archivedPlans:[],injuryHistory:''};
  const plan=await generateTrainingPlan(athlete,'Teste',1,4,2,'10km','2026-11-15','Objetivo','2026-11-09',[0,1,2,3,4,6],[0,2,4,6],[1,3],6,null,selected);
  const request=(globalThis as any).__planningRequest;assert.equal(request.purpose,'periodization');assert.ok(request.payload.contents.includes('Modelo: Em blocos'));assert.ok(request.payload.contents.includes('Distribuição do tempo de corrida: Piramidal'));assert.ok(request.payload.contents.includes('Prioridade específica'));assert.deepEqual(plan.cyclePlanning,selected);assert.deepEqual(plan.prescriptionReview.constraints.cyclePlanning,selected);assert.ok(plan.weeks.every((w:any)=>!w.isVisible));
+ const simple=await generateTrainingPlan(athlete,'Descrição livre: foco no limiar',1,4,2,'10km','2026-11-15','Objetivo','2026-11-09',[0,1,2,3,4,6],[0,2,4,6],[1,3],6,null);
+ const simpleRequest=(globalThis as any).__planningRequest;assert.ok(simpleRequest.payload.contents.includes('Descrição livre: foco no limiar'));assert.ok(!simpleRequest.payload.contents.includes('ESCOLHAS DO TREINADOR (são decisões diferentes'));assert.equal(simple.cyclePlanning,undefined);assert.equal(simple.prescriptionReview.constraints.cyclePlanning,undefined);
  }finally{delete (globalThis as any).__planningRequest;await rm(directory,{recursive:true,force:true});}
 });

@@ -296,6 +296,8 @@ export interface TrainingWeek {
 export type FreeRun = TrainingWeek["workouts"][number] & { id: string; startTime?: string; createdAt?: string; updatedAt?: string };
 
 export interface AthletePlan {
+  prescriptionMode?: 'ai' | 'cycle';
+  raceDistance?: string;
   editorDraft?: boolean;
   cyclePlanning?: import('./utils/cyclePlanning').CyclePlanning;
   importDrafts?: import('./utils/planTranscription').PlanImportDraft[];

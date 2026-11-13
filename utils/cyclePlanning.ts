@@ -32,8 +32,20 @@ export function weekIntensity(week:TrainingWeek){
 export function createManualCycle(args:{weeks:number;startDate:string;endDate?:string;planning:CyclePlanning;runningDays:number[];gymDays:number[];goal:string}):AthletePlan{
  const valid=(date:string)=>/^\d{4}-\d{2}-\d{2}$/.test(date)&&getLocalDateString(parseDateString(date))===date;
  if(!Number.isInteger(args.weeks)||args.weeks<1||args.weeks>52)throw new Error('Informe uma duração válida para o ciclo.');
+ if(!args.runningDays.length&&!args.gymDays.length)throw new Error('Selecione ao menos um dia de treino.');
  if(!valid(args.startDate)||args.endDate&&(!valid(args.endDate)||args.endDate<args.startDate))throw new Error('Confira o início e o fim do ciclo.');
  const errors=validateCyclePlanning(args.planning,args.weeks,true);if(errors.length)throw new Error(errors.join(' '));
  const days=['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo'];
- return {editorDraft:true,cyclePlanning:args.planning,startDate:args.startDate,endDate:args.endDate||undefined,specificGoal:args.goal,weeks:Array.from({length:args.weeks},(_,i)=>({id:crypto.randomUUID(),weekNumber:i+1,phase:'Base',totalVolume:0,isVisible:false,workouts:days.map((day,d)=>{const date=getWorkoutDateString(args.startDate,i,d);const outside=date<args.startDate||!!args.endDate&&date>args.endDate;return {day,date,type:outside?'Descanso':args.runningDays.includes(d)?'Rodagem':args.gymDays.includes(d)?'Fortalecimento':'Descanso',customDescription:'',...(!outside&&args.runningDays.includes(d)?{}:{distance:0})};})}))};
+ const phases=['Base','Construção','Pico','Polimento'] as const;
+ return {editorDraft:true,cyclePlanning:args.planning,startDate:args.startDate,endDate:args.endDate||undefined,specificGoal:args.goal,
+  weeks:Array.from({length:args.weeks},(_,i)=>{
+   const block=args.planning.blocks.find(b=>b.fromWeek<=i+1&&b.toWeek>=i+1);
+   return {id:crypto.randomUUID(),weekNumber:i+1,
+    phase:phases.find(phase=>phase.toLocaleLowerCase()===block?.priority.trim().toLocaleLowerCase())||'Base',
+    coachNotes:[block?.priority,block?.notes||args.planning.notes].filter(Boolean).join(' · '),
+    totalVolume:0,isVisible:false,workouts:days.map((day,d)=>{
+     const date=getWorkoutDateString(args.startDate,i,d),outside=date<args.startDate||!!args.endDate&&date>args.endDate;
+     return {day,date,type:outside?'Descanso':args.runningDays.includes(d)?'Rodagem':args.gymDays.includes(d)?'Fortalecimento':'Descanso',customDescription:'',...(!outside&&args.runningDays.includes(d)?{}:{distance:0})};
+    })};
+  })};
 }

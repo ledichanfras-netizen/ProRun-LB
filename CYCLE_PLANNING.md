@@ -1,17 +1,22 @@
-# Organização da periodização
+# Prescrição: IA simples ou organização por ciclo
 
-Na Prescrição, depois de selecionar o atleta, a seção **Organização da periodização** permite escolher de forma independente:
+Após selecionar o atleta, o administrador pode alternar entre **Gerar com IA** e **Organizar por ciclo**. Os demais treinadores recebem a organização por ciclo; a geração de periodização por IA continua restrita ao administrador no frontend e no servidor.
 
-- Modelo: linear, ondulatório, em blocos ou personalizado.
-- Distribuição do tempo de corrida: polarizada, piramidal, foco no limiar ou personalizada.
-- Orientações, blocos com semanas inicial/final, prioridade, volume alvo do bloco e observações.
-- Percentuais desejados opcionais, escolhidos pelo treinador e com soma de 100%; não há preset 80/20 automático.
+## Gerar com IA
 
-Dados guardados em `AthletePlan.cyclePlanning` pelo salvamento de planos existente. Não há nova tabela ou migração. Ciclos antigos continuam sem modelo definido até uma escolha explícita. **Salvar organização do ciclo** salva somente essa organização sobre o ciclo atual, sem publicar semanas ou alterar os treinos. Durante edição dos treinos e em rascunhos novos, a organização acompanha a publicação do conjunto.
+Objetivo, distância/modalidade, início e final/prova, dias de corrida e descrição livre para a IA. Fortalecimento e dia do longão ficam recolhidos em uma seção opcional. Nenhum dia de fortalecimento é acrescentado por padrão em prescrições novas.
 
-A proposta por IA recebe as escolhas, as prioridades dos blocos e o alvo opcional no prompt. A resposta e sua revisão preservam as escolhas do treinador. A montagem manual está disponível para treinadores comuns; geração de periodização e força por IA continua restrita ao administrador, pelo controle anterior de frontend e servidor.
+Modelo, distribuição e etapas não são exigidos nem enviados neste modo, mesmo que haja escolhas parciais no outro formulário. A geração mantém revisão, rascunho local e publicação. O serviço segue aceitando organização explícita para compatibilidade, mas o formulário simples envia esse parâmetro ausente.
 
-Novos ciclos manuais começam como rascunhos locais com semanas ocultas e sem distâncias ou exercícios preenchidos automaticamente. O rascunho e a organização sobrevivem à navegação/reabertura no mesmo dispositivo. O ciclo ativo permanece até a publicação. Ao publicar um novo rascunho manual sobre um ciclo existente, o anterior é arquivado. Os rascunhos de importação do aluno são preservados. Treinos vazios das semanas selecionadas precisam ser preenchidos antes da publicação.
+## Organizar por ciclo
+
+O calendário e os dias são compartilhados entre os modos. O treinador define modelo, distribuição e foco. Etapas são opcionais: semana inicial, semana final e foco. Percentuais, volume alvo, observações detalhadas e conferência de intensidade ficam em **Mais opções e conferência do ciclo**, carregados somente quando abertos. Metadados avançados existentes são preservados pela edição simples.
+
+**Criar ciclo e preencher treinos** monta a planilha nas datas e dias escolhidos, sem inventar quilômetros ou exercícios, com semanas ocultas. O foco de cada etapa aparece no calendário; prioridades exatamente iguais a Base, Construção, Pico ou Polimento também preenchem a fase. Os demais focos ficam nas notas, sem inferir uma fase pelo nome de uma capacidade.
+
+O rascunho sobrevive à recarga no mesmo dispositivo. A publicação exige treinos preenchidos nas semanas liberadas; **Publicar semana** salva e libera a semana em uma ação. O ciclo anterior permanece até a publicação e é arquivado ao ser substituído. Não há nova tabela ou migração: a organização usa `AthletePlan.cyclePlanning` e as notas de semana existentes.
+
+Alternar modos preserva campos sem salvar ou alterar sessões automaticamente. Gerar uma nova proposta simples de IA limpa os metadados de organização do novo rascunho. Ao trocar de atleta, os dados são restaurados do ciclo/rascunho correspondente. Datas inválidas, ausência de dias e limites de duração (24 semanas para IA e 52 por ciclo) são validados antes da criação.
 
 ## Conferência do planejamento
 
@@ -35,3 +40,6 @@ Referência de contexto para os conceitos de distribuição, sem adoção de per
 Testes cobrem escolhas independentes, validação de blocos e percentuais, dados incompletos, inclusão de aquecimento/recuperação ativa/desaquecimento, exclusão de pausa passiva, uso somente de dados planejados, rascunho manual e persistência das escolhas na geração e na revisão. No teste de integração da geração, apenas o transporte da IA é simulado; o serviço e a inspeção da prescrição são reais.
 
 Fluxo móvel em Chromium com a página de Prescrição real: escolha e edição de blocos; criação manual sem gravação no ciclo ativo; recarga preservando escolhas; troca de atleta sem herdar o modelo; geração visível somente ao administrador; salvamento da organização em um ciclo existente preservando os treinos e dados de execução; painel de minutos previstos. Autenticação/contexto e persistência de nuvem foram simulados, sem contas de teste em produção.
+
+
+A validação móvel da simplificação usa a página e o serviço de geração reais, com contexto, transporte de IA e persistência simulados. Cobriu administrador gerando sem modelo/distribuição, escolhas parciais sem vazamento para a IA, treinador comum criando e publicando a primeira semana sem IA, recuperação do rascunho, foco das etapas no calendário, opções avançadas recolhidas e alternância de modos preservando campos. Sem contas ou dados de teste em produção.

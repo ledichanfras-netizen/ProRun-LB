@@ -1,3 +1,4 @@
+import PeriodizationSetup,{type PrescriptionMode} from '../components/PeriodizationSetup';
 import {CyclePlanningPanel} from '../components/CyclePlanningPanel';
 import {emptyCyclePlanning,createManualCycle,validateCyclePlanning,type CyclePlanning} from '../utils/cyclePlanning';
 import PlanImportModal from '../components/PlanImportModal';
@@ -15,7 +16,7 @@ import { useApp } from '../contexts/AppContext';
 import { generateTrainingPlan } from '../services/geminiService';
 import { TrainingWeek, Athlete, WorkoutType, AthletePlan, Exercise } from '../types';
 import { PrintLayout } from '../components/PrintLayout';
-import { getAppNow, parseDateString, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getTodayDateString, getWorkoutDateString, getWorkoutIndicesFromDate } from '../utils/time';
+import { getAppNow, getLocalDateString, parseDateString, formatWeekDateRange, getWorkoutDate, formatWorkoutDateShort, getTodayDateString, getWorkoutDateString, getWorkoutIndicesFromDate } from '../utils/time';
 import { 
   Sparkles, 
   Loader2, 
@@ -67,12 +68,15 @@ import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 
 const Periodization: React.FC = () => {
   const location=useLocation();
+  const [prescriptionMode,setPrescriptionMode]=useState<PrescriptionMode>('ai');
+  const [advancedCycle,setAdvancedCycle]=useState(false);
   const [importOpen,setImportOpen]=useState(false);
   const [cyclePlanning,setCyclePlanning]=useState<CyclePlanning>(emptyCyclePlanning);
   const [planningDirty,setPlanningDirty]=useState(false);
   const planningOwner=useRef<string|null>(null);
   const { canPeriodizeAI, refreshData, athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, saveAthletePlan: persistAthletePlan, clearAthletePlan, rescheduleWorkout, updateAthlete, workouts: libraryWorkouts, templates, saveTemplate, addNotification } = useApp();
   
+  const effectiveMode:PrescriptionMode=canPeriodizeAI?prescriptionMode:'cycle';
   const [showAthleteSelector, setShowAthleteSelector] = useState(false);
   const [raceDate, setRaceDate] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -82,11 +86,11 @@ const Periodization: React.FC = () => {
   const [goalDescription, setGoalDescription] = useState('');
   const [weeks, setWeeks] = useState(8);
   const [runningDaysOfWeek, setRunningDaysOfWeek] = useState<number[]>([0, 1, 3, 6]); // Segunda, Terça, Quinta, Domingo (exemplo padrão)
-  const [gymDaysOfWeek, setGymDaysOfWeek] = useState<number[]>([2, 4]); // Quarta, Sexta (exemplo padrão)
+  const [gymDaysOfWeek, setGymDaysOfWeek] = useState<number[]>([]); // Fortalecimento opcional, escolhido pelo treinador.
   const [longRunDayOfWeek, setLongRunDayOfWeek] = useState<number>(6); // Domingo (padrão)
   const [runningDays, setRunningDays] = useState(4);
-  const [gymDays, setGymDays] = useState(2);
-  const [trainingDays, setTrainingDays] = useState<number[]>([0, 1, 2, 3, 4, 6]); // All selected days
+  const [gymDays, setGymDays] = useState(0);
+  const [trainingDays, setTrainingDays] = useState<number[]>([0, 1, 3, 6]); // All selected days
   const [loading, setLoading] = useState(false);
   const [fullPlan, setFullPlan] = useState<AthletePlan | null>(null);
   const aiProposalAthlete=useRef<string|null>(null);
@@ -271,23 +275,27 @@ const Periodization: React.FC = () => {
 
   useEffect(() => {
     const switching=planningOwner.current!==(activeAthlete?.id||null);
-    if(switching){planningOwner.current=activeAthlete?.id||null;setPlanningDirty(false);setIsEditing(false);}
+    if(switching){const saved=activeAthlete?readPrescriptionDraft(activeAthlete.id)||athletePlans[activeAthlete.id]:null;setPrescriptionMode(saved?.prescriptionMode||(saved?.prescriptionReview?'ai':saved?.cyclePlanning?.model?'cycle':'ai'));setAdvancedCycle(false);setStartDate('');setRaceDate('');setRaceGoal('');setRaceDistance('10km');setRunningDaysOfWeek([0,1,3,6]);setRunningDays(4);setLongRunDayOfWeek(6);setTrainingDays([0,1,3,6]);setGymDaysOfWeek([]);setGymDays(0);setGoalDescription('');planningOwner.current=activeAthlete?.id||null;setPlanningDirty(false);setIsEditing(false);}
     if(!switching&&(isEditing||planningDirty))return;
     if(aiProposalAthlete.current===activeAthlete?.id&&fullPlan)return;
     aiProposalAthlete.current=null;
     const draft=activeAthlete?readPrescriptionDraft(activeAthlete.id):null;
     if(draft&&activeAthlete){
       aiProposalAthlete.current=activeAthlete.id;
-      setFullPlan(draft);setWeeks(draft.weeks.length);setCyclePlanning(draft.cyclePlanning||emptyCyclePlanning());setIsEditing(true);setStartDate(draft.startDate||'');setRaceDate(draft.endDate||'');
+      setFullPlan(draft);setWeeks(draft.weeks.length);setCyclePlanning(draft.cyclePlanning||emptyCyclePlanning());setIsEditing(true);setStartDate(draft.startDate||'');setRaceDate(draft.endDate||'');setRaceGoal(draft.specificGoal||'');setRaceDistance(draft.raceDistance||'10km');
+      if(Array.isArray(draft.runningDaysOfWeek)){setRunningDaysOfWeek(draft.runningDaysOfWeek);setRunningDays(draft.runningDaysOfWeek.length);}
+      if(Array.isArray(draft.gymDaysOfWeek)){setGymDaysOfWeek(draft.gymDaysOfWeek);setGymDays(draft.gymDaysOfWeek.length);}
+      if(typeof draft.longRunDayOfWeek==='number')setLongRunDayOfWeek(draft.longRunDayOfWeek);
+      if(Array.isArray(draft.trainingDays))setTrainingDays(draft.trainingDays);
       return;
     }
     if (activeAthlete && athletePlans[activeAthlete.id]) {
       const plan = athletePlans[activeAthlete.id];
-      setFullPlan(plan);setWeeks(plan.weeks.length||8);
+      setFullPlan(plan);setWeeks(plan.weeks.length||8);setRaceDate(plan.endDate||'');setRaceDistance(plan.raceDistance||'10km');
       setCyclePlanning(plan.cyclePlanning||emptyCyclePlanning());
       setRaceGoal(plan.specificGoal || '');
       if (plan.startDate) setStartDate(plan.startDate);
-      if (plan.runningDaysOfWeek && plan.runningDaysOfWeek.length > 0) {
+      if (Array.isArray(plan.runningDaysOfWeek)) {
         setRunningDaysOfWeek(plan.runningDaysOfWeek);
         setRunningDays(plan.runningDaysOfWeek.length);
       }
@@ -298,7 +306,7 @@ const Periodization: React.FC = () => {
       } else if (plan.runningDaysOfWeek && plan.runningDaysOfWeek.length > 0) {
         setLongRunDayOfWeek(plan.runningDaysOfWeek[plan.runningDaysOfWeek.length - 1]);
       }
-      if (plan.gymDaysOfWeek && plan.gymDaysOfWeek.length > 0) {
+      if (Array.isArray(plan.gymDaysOfWeek)) {
         setGymDaysOfWeek(plan.gymDaysOfWeek);
         setGymDays(plan.gymDaysOfWeek.length);
       }
@@ -306,16 +314,16 @@ const Periodization: React.FC = () => {
         setTrainingDays(plan.trainingDays);
       }
     } else {
-      setFullPlan(null);
+      setFullPlan(null);setRaceDate('');setWeeks(8);
       setCyclePlanning(emptyCyclePlanning());
       setRaceGoal('');
       setStartDate('');
       setRunningDaysOfWeek([0, 1, 3, 6]); // Segunda, Terça, Quinta, Domingo
       setLongRunDayOfWeek(6); // Domingo
       setRunningDays(4);
-      setGymDaysOfWeek([2, 4]); // Quarta, Sexta
-      setGymDays(2);
-      setTrainingDays([0, 1, 2, 3, 4, 6]);
+      setGymDaysOfWeek([]);
+      setGymDays(0);
+      setTrainingDays([0, 1, 3, 6]);
     }
   }, [activeAthlete, athletePlans]);
 
@@ -336,15 +344,15 @@ const Periodization: React.FC = () => {
       start.setHours(0, 0, 0, 0);
       race.setHours(0, 0, 0, 0);
       
-      if (race > start) {
+      if (race >= start) {
         const monday=getWorkoutDateString(startDate,0,0);
         const diffMs=Date.parse(`${raceDate}T00:00:00Z`)-Date.parse(`${monday}T00:00:00Z`);
         const diffWeeks=Math.floor(diffMs/(1000*60*60*24*7))+1;
-        // Limitamos entre 1 e 24 semanas para manter a qualidade da prescrição
-        setWeeks(Math.min(24, Math.max(1, diffWeeks)));
+        // A duração acompanha o calendário; cada modo valida seu limite antes de criar.
+        setWeeks(Math.max(1, diffWeeks));
       }
     }
-  }, [raceDate, startDate]);
+  }, [raceDate, startDate, effectiveMode]);
 
   const updatePlanning=(next:CyclePlanning)=>{setCyclePlanning(next);setPlanningDirty(true);setFullPlan(prev=>prev?{...prev,cyclePlanning:next}:prev);};
   const savePlanning=async()=>{
@@ -355,8 +363,8 @@ const Periodization: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    const planningErrors=validateCyclePlanning(cyclePlanning,weeks,true);if(planningErrors.length){alert(planningErrors.join(' '));return;}
     if(!canPeriodizeAI){alert('Periodização por IA exclusiva do administrador.');return;}
+    if(!startDate||!raceDate||getLocalDateString(parseDateString(startDate))!==startDate||getLocalDateString(parseDateString(raceDate))!==raceDate||raceDate<startDate){alert('Confira as datas de início e final da prescrição.');return;}
     if (!activeAthlete || !raceDate) {
       alert("Defina a data da prova para calcular o ciclo.");
       return;
@@ -365,6 +373,7 @@ const Periodization: React.FC = () => {
       alert("Selecione pelo menos um dia de corrida ou academia para a prescrição.");
       return;
     }
+    if(weeks>24){alert('A geração por IA aceita até 24 semanas por vez. Ajuste a data final.');return;}
     setLoading(true);
     try {
       const combinedDays = Array.from(new Set([...runningDaysOfWeek, ...gymDaysOfWeek])).sort((a, b) => a - b);
@@ -383,7 +392,7 @@ const Periodization: React.FC = () => {
         gymDaysOfWeek,
         longRunDayOfWeek,
         athletePlans[activeAthlete.id],
-        cyclePlanning
+        undefined
       );
       
       const normalizedWeeks = (generated.weeks || []).map(w => {
@@ -413,7 +422,7 @@ const Periodization: React.FC = () => {
       });
 
       const newPlan: AthletePlan = { 
-        ...generated, 
+        ...generated,prescriptionMode:'ai',raceDistance,
         weeks: normalizedWeeks, 
         specificGoal: raceGoal ? `${raceDistance} (${raceGoal})` : raceDistance,
         startDate: startDate || getTodayDateString(),
@@ -424,6 +433,7 @@ const Periodization: React.FC = () => {
         runningDaysCount: runningDaysOfWeek.length,
         gymDaysCount: gymDaysOfWeek.length
       };
+      setCyclePlanning(emptyCyclePlanning());setPlanningDirty(false);
       aiProposalAthlete.current=activeAthlete.id;
       setDraftSaveFailed(!savePrescriptionDraft(activeAthlete.id,newPlan));
       setFullPlan(newPlan);
@@ -481,7 +491,7 @@ const Periodization: React.FC = () => {
       // Notificar Atleta sobre nova planilha
       addNotification({
         title: 'Sua planilha foi atualizada!',
-        message: 'Coach Leandro publicou novos treinos no seu ciclo. Toque para ver.',
+        message: 'Seu treinador publicou novos treinos no seu ciclo. Toque para ver.',
         type: 'success',
         link: '/athlete-portal',
         category: 'plan'
@@ -544,7 +554,7 @@ const Periodization: React.FC = () => {
     const combinedDays = Array.from(new Set([...runningDaysOfWeek, ...gymDaysOfWeek])).sort((a, b) => a - b);
 
     let newPlan:AthletePlan;try{newPlan=createManualCycle({weeks,startDate:startDate||getTodayDateString(),endDate:raceDate,planning:cyclePlanning,runningDays:runningDaysOfWeek,gymDays:gymDaysOfWeek,goal:raceGoal||raceDistance});}catch(e:any){alert(e.message);return;}
-    newPlan={...newPlan,trainingDays:combinedDays,runningDaysOfWeek,gymDaysOfWeek,longRunDayOfWeek,runningDaysCount:runningDaysOfWeek.length,gymDaysCount:gymDaysOfWeek.length};
+    newPlan={...newPlan,prescriptionMode:'cycle',raceDistance,trainingDays:combinedDays,runningDaysOfWeek,gymDaysOfWeek,longRunDayOfWeek,runningDaysCount:runningDaysOfWeek.length,gymDaysCount:gymDaysOfWeek.length};
     aiProposalAthlete.current=activeAthlete.id;
     setDraftSaveFailed(!savePrescriptionDraft(activeAthlete.id,newPlan));
     setFullPlan(newPlan);
@@ -1105,7 +1115,7 @@ const Periodization: React.FC = () => {
           <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter flex items-center gap-2">
             <Sparkles className="text-emerald-400 w-6 h-6" /> Ciclo de Performance
           </h1>
-          <p className="text-slate-300 font-medium italic text-sm">{canPeriodizeAI?'IA Treinador: Prescrição personalizada até o dia da prova.':'Prescrição manual e acompanhamento dos seus atletas.'}</p>
+          <p className="text-slate-300 font-medium italic text-sm">{canPeriodizeAI?'Escolha gerar com IA ou organizar o ciclo do seu jeito.':'Organize o ciclo e prescreva os treinos dos seus atletas.'}</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -1147,7 +1157,6 @@ const Periodization: React.FC = () => {
         </div>
       </header>
       {importOpen&&activeAthlete&&<PlanImportModal athleteId={activeAthlete.id} athleteName={activeAthlete.name} plan={athletePlans[activeAthlete.id]||{weeks:[]}} onClose={()=>setImportOpen(false)} onChanged={refreshData}/>}
-      {activeAthlete&&!selectedArchivedPlan&&<CyclePlanningPanel key={activeAthlete.id} value={cyclePlanning} onChange={updatePlanning} weeks={fullPlan?.weeks.length||weeks} plan={fullPlan} onPlanChange={next=>{setFullPlan(next);setIsEditing(true);}} onSave={()=>void savePlanning()} saveDisabled={!planningDirty||isEditing||!!aiProposalAthlete.current||!athletePlans[activeAthlete.id]?.weeks.length} busy={loading||publishing}/>}
       {activeAthlete&&fullPlan?.prescriptionReview&&<PrescriptionReview plan={fullPlan} accepted={prescriptionAccepted} onAccept={setPrescriptionAccepted}/>}
       {activeAthlete&&aiProposalAthlete.current===activeAthlete.id&&<button type="button" className="text-sm text-emerald-500 font-bold p-3 rounded-xl border border-emerald-500/30" onClick={()=>{clearPrescriptionDraft(activeAthlete.id);aiProposalAthlete.current=null;setFullPlan(athletePlans[activeAthlete.id]||null);setCyclePlanning(athletePlans[activeAthlete.id]?.cyclePlanning||emptyCyclePlanning());setPlanningDirty(false);setIsEditing(false);}}>Descartar rascunho e voltar ao ciclo atual</button>}
 
@@ -1271,218 +1280,13 @@ const Periodization: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
           <div className="space-y-6">
-            <div className="bg-slate-900/50 p-6 rounded-3xl shadow-xl border border-white/5 space-y-5">
-              <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                <Target className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-black text-[10px] uppercase tracking-widest text-slate-400">Parâmetros do Ciclo</h3>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="pro-label">Objetivo de Prova (Ex: Sub 4h)</label>
-                  <input 
-                    type="text" 
-                    className="pro-input w-full p-3 text-sm italic" 
-                    placeholder="Meta de tempo ou colocação..."
-                    value={raceGoal || ''}
-                    onChange={e => setRaceGoal(e.target.value)}
-                  />
-                </div>
+            <PeriodizationSetup mode={effectiveMode} canAI={canPeriodizeAI} onMode={setPrescriptionMode} busy={loading||publishing}
+              goal={raceGoal} onGoal={setRaceGoal} distance={raceDistance} onDistance={setRaceDistance} distances={distancias}
+              start={startDate} onStart={setStartDate} end={raceDate} onEnd={setRaceDate} weeks={weeks}
+              description={goalDescription} onDescription={setGoalDescription} runningDays={runningDaysOfWeek} onRunningDay={toggleRunningDay} gymDays={gymDaysOfWeek} onGymDay={toggleGymDay} longRunDay={longRunDayOfWeek} onLongRunDay={setLongRunDayOfWeek}
+              planning={cyclePlanning} onPlanning={updatePlanning} onGenerate={()=>void handleGenerate()} onCreate={handleManualCreate}/>
+            {effectiveMode==='cycle'&&<details className="rounded-2xl border border-emerald-500/30 p-3" onToggle={event=>setAdvancedCycle(event.currentTarget.open)}><summary className="text-sm font-bold text-emerald-600 dark:text-emerald-300 cursor-pointer">Mais opções e conferência do ciclo</summary>{advancedCycle&&<div className="pt-3"><CyclePlanningPanel key={activeAthlete.id} value={cyclePlanning} onChange={updatePlanning} weeks={fullPlan?.weeks.length||weeks} plan={fullPlan} onPlanChange={next=>{setFullPlan(next);setIsEditing(true);}} onSave={()=>void savePlanning()} saveDisabled={!planningDirty||isEditing||!!aiProposalAthlete.current||!athletePlans[activeAthlete.id]?.weeks.length} busy={loading||publishing}/></div>}</details>}
 
-                <div>
-                  <label className="pro-label flex items-center gap-1">
-                    <MessageSquare className="w-3 h-3" /> Descrição do Treinador
-                  </label>
-                  <textarea 
-                    className="pro-input w-full p-3 text-xs resize-none" 
-                    rows={4} 
-                    placeholder="Ex: Limitar treinos de semana em 50 min. Focar em volume no domingo..."
-                    value={goalDescription || ''}
-                    onChange={e => setGoalDescription(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="relative">
-                    <label className="pro-label">Início da Prescrição</label>
-                    <input type="date" className="pro-input w-full p-3 text-[10px] uppercase" value={startDate || ''} onChange={e => {
-                      setStartDate(e.target.value);
-                      if (fullPlan) {
-                         const newPlan = safeDeepClone(fullPlan);
-                         newPlan.startDate = e.target.value;
-                         setFullPlan(newPlan);
-                      }
-                    }} />
-                  </div>
-                  <div className="relative">
-                    <label className="pro-label">Data da Prova</label>
-                    <input type="date" className="pro-input w-full p-3 text-[10px] uppercase border-emerald-500/30" value={raceDate || ''} onChange={e => setRaceDate(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <label className="pro-label">Duração (Semanas)</label>
-                  <div className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm font-black text-white text-center flex items-center justify-center gap-2">
-                    <CalendarDays className="w-4 h-4 text-emerald-400" /> {weeks}
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <label className="pro-label">Distância da Prova</label>
-                  <select className="pro-input w-full p-3 text-sm appearance-none" value={raceDistance} onChange={e => setRaceDistance(e.target.value)}>
-                    {distancias.map(dist => (
-                      <option key={dist.value} value={dist.value} className="bg-slate-900">{dist.label}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-[34px] w-4 h-4 text-slate-400 pointer-events-none" />
-                </div>
-
-                {/* Marcadores de Dias de Corrida */}
-                <div className="bg-slate-950/40 p-4 rounded-2xl border border-emerald-500/20 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <label className="pro-label flex items-center gap-1.5 !mb-0 text-emerald-400 font-black">
-                      <Zap className="w-3.5 h-3.5 text-emerald-400" /> Dias de Corrida
-                    </label>
-                    <span className="text-[10px] font-black uppercase italic tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg">
-                      {runningDaysOfWeek.length} {runningDaysOfWeek.length === 1 ? 'dia' : 'dias'}/sem
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-7 gap-1.5 pt-1">
-                    {diasSemanaAbbr.map((abbr, idx) => {
-                      const isSelected = runningDaysOfWeek.includes(idx);
-                      const isLongRun = isSelected && longRunDayOfWeek === idx;
-                      return (
-                        <button
-                          key={`run-marker-${idx}`}
-                          type="button"
-                          onClick={() => toggleRunningDay(idx)}
-                          className={`h-11 rounded-xl text-[11px] font-black uppercase italic transition-all flex flex-col items-center justify-center border relative ${
-                            isSelected
-                              ? isLongRun
-                                ? 'bg-emerald-600 border-amber-400 text-white shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/60 scale-[1.03]'
-                                : 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-600/30 scale-[1.03]'
-                              : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:border-white/20 hover:bg-white/10'
-                          }`}
-                          title={`Treino de Corrida: ${diasSemanaFull[idx]}${isLongRun ? ' ★ DIA DO LONGÃO' : ''}`}
-                        >
-                          <span>{abbr}</span>
-                          <span className={`w-1.5 h-1.5 rounded-full mt-0.5 transition-all ${isSelected ? (isLongRun ? 'bg-amber-300' : 'bg-white') : 'bg-transparent'}`} />
-                          {isLongRun && (
-                            <span className="absolute -top-1.5 -right-1 bg-amber-400 text-slate-950 text-[8px] font-black px-1 rounded-full uppercase leading-tight shadow flex items-center justify-center">
-                              ★
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-white/5">
-                    <span className="truncate pr-2">
-                      {runningDaysOfWeek.length > 0
-                        ? runningDaysOfWeek.map(i => diasSemanaFull[i].split('-')[0]).join(', ')
-                        : 'Nenhum dia de corrida marcado'}
-                    </span>
-                    <span className="text-emerald-400 font-bold shrink-0">{runningDaysOfWeek.length}x</span>
-                  </div>
-
-                  {/* Seletor Específico do Dia do Longão */}
-                  {runningDaysOfWeek.length > 0 && (
-                    <div className="pt-2 border-t border-white/5 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-black uppercase italic tracking-wider text-amber-400 flex items-center gap-1">
-                          <Flame className="w-3 h-3 text-amber-400 fill-amber-400" /> Dia do Longão:
-                        </label>
-                        <span className="text-[9px] text-slate-400 italic">
-                          (Padrão Domingo, clique para alterar)
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1.5 pt-0.5">
-                        {runningDaysOfWeek.map(dayIdx => {
-                          const isLongRun = longRunDayOfWeek === dayIdx;
-                          return (
-                            <button
-                              key={`longrun-choice-${dayIdx}`}
-                              type="button"
-                              onClick={() => setLongRunDayOfWeek(dayIdx)}
-                              className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase italic tracking-wide transition-all border flex items-center gap-1.5 ${
-                                isLongRun
-                                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md shadow-amber-400/20 scale-[1.03]'
-                                  : 'bg-white/5 border-white/10 text-slate-300 hover:border-amber-400/40 hover:text-amber-300 hover:bg-white/10'
-                              }`}
-                              title={`Definir ${diasSemanaFull[dayIdx]} como o dia do treino Longão`}
-                            >
-                              <Flame className={`w-2.5 h-2.5 ${isLongRun ? 'text-slate-950 fill-slate-950' : 'text-amber-400'}`} />
-                              <span>{diasSemanaFull[dayIdx].split('-')[0]}</span>
-                              {isLongRun && (
-                                <span className="text-[8px] bg-slate-950/20 px-1 py-0.2 rounded font-black tracking-widest">
-                                  LONGÃO
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Marcadores de Dias de Academia / Fortalecimento */}
-                <div className="bg-slate-950/40 p-4 rounded-2xl border border-purple-500/20 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="pro-label flex items-center gap-1.5 !mb-0 text-purple-400 font-black">
-                      <Dumbbell className="w-3.5 h-3.5 text-purple-400" /> Dias de Academia / Fortalecimento
-                    </label>
-                    <span className="text-[10px] font-black uppercase italic tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/30 px-2 py-0.5 rounded-lg">
-                      {gymDaysOfWeek.length} {gymDaysOfWeek.length === 1 ? 'dia' : 'dias'}/sem
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-7 gap-1.5 pt-1">
-                    {diasSemanaAbbr.map((abbr, idx) => {
-                      const isSelected = gymDaysOfWeek.includes(idx);
-                      return (
-                        <button
-                          key={`gym-marker-${idx}`}
-                          type="button"
-                          onClick={() => toggleGymDay(idx)}
-                          className={`h-11 rounded-xl text-[11px] font-black uppercase italic transition-all flex flex-col items-center justify-center border ${
-                            isSelected
-                              ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-600/30 scale-[1.03]'
-                              : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:border-white/20 hover:bg-white/10'
-                          }`}
-                          title={`Treino de Força / Academia: ${diasSemanaFull[idx]}`}
-                        >
-                          <span>{abbr}</span>
-                          <span className={`w-1.5 h-1.5 rounded-full mt-0.5 transition-all ${isSelected ? 'bg-white' : 'bg-transparent'}`} />
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-white/5">
-                    <span className="truncate pr-2">
-                      {gymDaysOfWeek.length > 0
-                        ? gymDaysOfWeek.map(i => diasSemanaFull[i].split('-')[0]).join(', ')
-                        : 'Nenhum dia de academia marcado'}
-                    </span>
-                    <span className="text-purple-400 font-bold shrink-0">{gymDaysOfWeek.length}x</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 mt-4">
-                  {canPeriodizeAI&&<button onClick={handleGenerate} disabled={loading || !raceDate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
-                    {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />} {loading ? 'GERANDO...' : 'Gerar com IA'}
-                  </button>}
-                  <button onClick={handleManualCreate} disabled={loading} className="w-full bg-slate-800 hover:bg-black text-white py-4 rounded-2xl font-black shadow-xl flex justify-center items-center gap-3 disabled:opacity-50 transition-all uppercase text-xs italic tracking-widest">
-                    <CalendarDays className="w-5 h-5" /> Criar Manualmente
-                  </button>
-                </div>
-              </div>
-            </div>
-            
             {fullPlan?.raceStrategy && (
               <div className="bg-emerald-950 p-6 rounded-3xl shadow-xl text-white border border-emerald-800 animate-fade-in">
                  <div className="flex items-center gap-2 mb-4 border-b border-emerald-800 pb-2">
@@ -1656,6 +1460,7 @@ const Periodization: React.FC = () => {
                       </button>
                     </div>
                   </div>
+                  {fullPlan.cyclePlanning?.blocks.find(block=>block.fromWeek<=week.weekNumber&&block.toWeek>=week.weekNumber)?.priority&&<p className="px-4 md:px-6 py-2 text-sm text-emerald-300 border-b border-white/10">Foco: {fullPlan.cyclePlanning.blocks.find(block=>block.fromWeek<=week.weekNumber&&block.toWeek>=week.weekNumber)!.priority}</p>}
                   <div className="divide-y divide-white/5">
                     {week.workouts.map((workout, dayIndex) => (
                       <div key={dayIndex} className={`p-4 min-w-0 flex flex-col xl:flex-row gap-4 items-start xl:items-center border-l-8 hover:bg-white/5 transition-colors ${
@@ -2030,7 +1835,7 @@ const Periodization: React.FC = () => {
             ) : (
               <div className="bg-white/5 p-20 rounded-[3rem] border-2 border-dashed border-white/10 flex flex-col items-center text-center">
                 <CalendarDays className="w-16 h-16 text-white/10 mb-4" />
-                <p className="text-slate-400 font-black uppercase italic tracking-widest text-sm">Insira os parâmetros e a Data da Prova para gerar o ciclo automático ou crie manualmente.</p>
+                <p className="text-slate-400 font-black uppercase italic tracking-widest text-sm">Defina o objetivo, o calendário e a forma de prescrição para começar.</p>
               </div>
             )}
 

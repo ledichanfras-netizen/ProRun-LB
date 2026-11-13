@@ -5,7 +5,7 @@ import type {KmSplit} from './runningMetrics';
 import {createFollowRenderer,DEFAULT_FOLLOW_SETTINGS,type FollowSettings} from './routeVideoFollow';
 import {DEFAULT_VIDEO_FRAMING,normalizeVideoFraming,type RouteVideoFraming} from './routeVideoFraming';
 import {drawPerspectivePlane,routeCamera,projectCameraPoint,orientCameraPoint,type RouteVideoView} from './routeVideoCamera';
-import {prepareVideoRoute,videoRoutePosition,ROUTE_VIDEO_WIDTH,ROUTE_VIDEO_HEIGHT} from './routeVideo';
+import {routeVideoKilometerCheck,prepareVideoRoute,videoRoutePosition,ROUTE_VIDEO_WIDTH,ROUTE_VIDEO_HEIGHT} from './routeVideo';
 
 export interface RouteVideoSceneInput {
  points:MapPoint[];title:string;athleteName?:string;date?:string;distanceKm:number;durationSeconds:number;avgPace:string;
@@ -100,6 +100,17 @@ export async function createRouteVideoScene(input:RouteVideoSceneInput,signal?:A
   output.beginPath();output.arc(cursor.x,cursor.y,4,0,Math.PI*2);output.fillStyle='#10b981';output.fill();
   ctx.save();ctx.beginPath();ctx.rect(mapX,mapY,width,height);ctx.clip();
   ctx.translate(mapX+width/2+frame.panX*width,mapY+height/2+frame.panY*height);ctx.rotate((frame.rotation??0)*Math.PI/180);ctx.scale(frame.zoom,frame.zoom);ctx.drawImage(panel,-width/2,-height/2);ctx.restore();
+  }
+  // Keep the latest check readable even after the follow camera passes its map pin.
+  const checkpoint=routeVideoKilometerCheck(km,input.distanceKm,progress);
+  if(checkpoint){
+   ctx.save();ctx.fillStyle='rgba(2,44,34,.96)';ctx.fillRect(48,852,624,80);
+   ctx.beginPath();ctx.arc(84,892,20,0,Math.PI*2);ctx.fillStyle='#10b981';ctx.fill();
+   ctx.beginPath();ctx.moveTo(75,892);ctx.lineTo(82,899);ctx.lineTo(94,884);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();
+   ctx.textAlign='left';ctx.fillStyle='#fff';ctx.font='900 25px Arial, sans-serif';
+   ctx.fillText(`KM ${checkpoint.km} CONCLUÍDO`,118,checkpoint.pace?885:901);
+   if(checkpoint.pace){ctx.fillStyle='#a7f3d0';ctx.font='700 21px Arial, sans-serif';ctx.fillText(`PACE DO KM · ${checkpoint.pace}/km`,118,915);}
+   ctx.restore();
   }
   const stats=[{value:Number.isFinite(input.distanceKm)&&input.distanceKm>0?input.distanceKm.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—',label:'DISTÂNCIA · KM'},{value:input.avgPace&&input.avgPace!=='0:00'?input.avgPace.replace(/\s*\/km$/,''):'—',label:'PACE MÉDIO · /KM'},{value:timeText(input.durationSeconds),label:'TEMPO TOTAL'}];
   stats.forEach((stat,i)=>{const x=32+i*226;ctx.fillStyle='#f8fafc';fittedText(ctx,stat.value,x,1046,210,i===0?52:44,22);ctx.fillStyle='#8db7aa';ctx.font='800 14px Arial, sans-serif';ctx.fillText(stat.label,x,1078);});

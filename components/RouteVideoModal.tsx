@@ -3,7 +3,7 @@ import {createPortal} from 'react-dom';
 import {X,Play,Video,Download,Share2,RefreshCw} from 'lucide-react';
 import {createRouteVideoScene,type RouteVideoScene,type RouteVideoSceneInput} from '../utils/routeVideoCanvas';
 import {localVideoMime,recordRouteVideo,type RecordedRouteVideo,type RecordingStage} from '../utils/recordRouteVideo';
-import {routeAnimationProgress,safeVideoFilename,videoFileExtension} from '../utils/routeVideo';
+import {ROUTE_VIDEO_DURATIONS,routeAnimationProgress,safeVideoFilename,videoFileExtension} from '../utils/routeVideo';
 import type {RouteVideoView} from '../utils/routeVideoCamera';
 import RouteVideoMapGesture from './RouteVideoMapGesture';
 import {DEFAULT_VIDEO_FRAMING,normalizeVideoFraming,type RouteVideoFraming} from '../utils/routeVideoFraming';
@@ -22,7 +22,7 @@ export default function RouteVideoModal({input,onClose}:{input:RouteVideoSceneIn
  const viewRef=useRef(view);viewRef.current=view;
  const closeButton=useRef<HTMLButtonElement>(null);
  const canvas=useRef<HTMLCanvasElement>(null),scene=useRef<RouteVideoScene|null>(null),generation=useRef<AbortController|null>(null),previewFrame=useRef(0),fileUrl=useRef<string|null>(null),alive=useRef(true);
- const [loading,setLoading]=useState(true),[recording,setRecording]=useState(false),[playing,setPlaying]=useState(false),[duration,setDuration]=useState(12),[progress,setProgress]=useState(0),[error,setError]=useState(''),[message,setMessage]=useState(''),[warnings,setWarnings]=useState<string[]>([]),[file,setFile]=useState<VideoFile|null>(null);
+ const [loading,setLoading]=useState(true),[recording,setRecording]=useState(false),[playing,setPlaying]=useState(false),[duration,setDuration]=useState(30),[progress,setProgress]=useState(0),[error,setError]=useState(''),[message,setMessage]=useState(''),[warnings,setWarnings]=useState<string[]>([]),[file,setFile]=useState<VideoFile|null>(null);
  const mime=localVideoMime();const format=file?file.extension.toUpperCase():mime?videoFileExtension(mime).toUpperCase():null;
  const clearFile=()=>{if(fileUrl.current)URL.revokeObjectURL(fileUrl.current);fileUrl.current=null;setFile(null);};
  const drawFrame=(p:number,prepared=scene.current)=>{
@@ -116,12 +116,12 @@ export default function RouteVideoModal({input,onClose}:{input:RouteVideoSceneIn
    {!mime&&<p className="text-xs text-amber-200">Este navegador permite a prévia, mas não grava vídeo.</p>}
    {format==='WEBM'&&<p className="text-xs text-amber-200">Formato WebM; alguns aplicativos de postagem exigem MP4.</p>}
    <div className="flex items-center justify-between gap-3">
-    <label className="text-xs font-bold">Duração <select aria-label="Duração do vídeo" className="ml-1 rounded-lg border border-white/20 bg-slate-900 px-2 py-1" value={duration} disabled={recording} onChange={event=>{openEditor();setDuration(Number(event.target.value));}}>{[10,12,15].map(seconds=><option key={seconds} value={seconds}>{seconds}s</option>)}</select></label>
+    <label className="text-xs font-bold">Duração <select aria-label="Duração do vídeo" className="ml-1 rounded-lg border border-white/20 bg-slate-900 px-2 py-1" value={duration} disabled={recording} onChange={event=>{openEditor();setDuration(Number(event.target.value));}}>{ROUTE_VIDEO_DURATIONS.map(seconds=><option key={seconds} value={seconds}>{seconds}s</option>)}</select></label>
     {mapEditing?<button type="button" className="text-xs text-emerald-300 font-bold py-2 disabled:opacity-40" disabled={!ready} onClick={()=>{setFraming({...DEFAULT_VIDEO_FRAMING});if(followMode)setFollowSettings({...DEFAULT_FOLLOW_SETTINGS});}}>{followMode?'Restaurar câmera':'Mostrar percurso inteiro'}</button>:<button type="button" className="text-xs text-emerald-300 font-bold py-2 disabled:opacity-40" disabled={!ready||recording} onClick={openEditor}>Ajustar mapa</button>}
    </div>
    {!loading&&!scene.current&&<button type="button" className={`${button} w-full bg-emerald-600`} onClick={()=>setPrepareVersion(value=>value+1)}>Tentar preparar novamente</button>}
    {recording?<div className="space-y-2"><p role="status" className="text-sm text-emerald-300">{stage==='starting'?'Iniciando vídeo…':stage==='retrying'?'Tentando outro formato…':stage==='finalizing'?'Finalizando vídeo…':`Gerando vídeo… ${Math.round(progress*100)}%`}. Mantenha o app aberto.</p><progress aria-label="Progresso da geração" className="w-full accent-emerald-500" max={1} value={progress}/><button type="button" className={`${button} w-full bg-white/10`} onClick={()=>generation.current?.abort()}>Cancelar geração</button></div>:file?<div className="grid grid-cols-2 gap-2"><button type="button" className={`${button} bg-emerald-600`} onClick={download}><Download size={17}/>Baixar {file.extension.toUpperCase()}</button><button type="button" className={`${button} bg-white/10`} onClick={()=>void share()}><Share2 size={17}/>Compartilhar</button></div>:<div className="grid grid-cols-2 gap-2"><button type="button" className={`${button} bg-white/10`} disabled={!ready} onClick={()=>playing?stopPreview():preview()}><Play size={17}/>{playing?'Parar prévia':'Ver prévia'}</button><button type="button" className={`${button} bg-emerald-600`} disabled={!ready||!mime} onClick={()=>void generate()}><Video size={17}/>Gerar vídeo</button></div>}
-   <p className="text-[11px] text-slate-400 landscape:hidden">{mapEditing?(view==='follow'?'A câmera acompanha o GPS sobre imagens planas do mapa.':view==='immersive'?'Perspectiva do mapa sem relevo 3D. Seus ajustes serão mantidos.':'Ajuste com os dedos e confira a prévia antes de gerar.'):'Percurso acelerado · métricas totais do treino · gerado no aparelho'}</p>
+   <p className="text-[11px] text-slate-400 landscape:hidden">{mapEditing?(view==='follow'?'A câmera acompanha o GPS sobre imagens planas do mapa.':view==='immersive'?'Perspectiva do mapa sem relevo 3D. Seus ajustes serão mantidos.':'Ajuste com os dedos e confira a prévia antes de gerar.'):'Checks por km · pace quando registrado · gerado no aparelho'}</p>
   </footer>
  </div>,document.body);
 }

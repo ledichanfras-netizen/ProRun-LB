@@ -1,8 +1,11 @@
+import type {ShareKmMarker} from './shareMapMetrics';
 import {mapSegmentMeters,validMapPoint,type MapPoint} from './mapRoute';
 
 export const ROUTE_VIDEO_WIDTH=720;
 export const ROUTE_VIDEO_HEIGHT=1280;
 export const ROUTE_VIDEO_FPS=24;
+export const ROUTE_VIDEO_DURATIONS=[10,12,15,30,45,60] as const;
+export const ROUTE_VIDEO_MAX_SECONDS=60;
 export const VIDEO_MIME_TYPES=['video/mp4;codecs=avc1.42E01F','video/mp4','video/webm;codecs=vp8','video/webm;codecs=vp9','video/webm'] as const;
 export function supportedVideoMime(supports:(type:string)=>boolean):string|null {
  for(const type of VIDEO_MIME_TYPES){try{if(supports(type))return type;}catch{/* Some browsers throw for an unknown codec. */}}
@@ -40,4 +43,11 @@ export function safeVideoFilename(name:string,distanceKm:number,mime:string):str
  const title=(name||'Treino').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,45)||'Treino';
  const distance=Number.isFinite(distanceKm)&&distanceKm>0?distanceKm.toFixed(2).replace('.', '_')+'km':'percurso';
  return `ProRunLB_${title}_${distance}.${videoFileExtension(mime)}`;
+}
+
+/** Latest completed whole kilometre. Partial final kilometres never become checks. */
+export function routeVideoKilometerCheck(markers:ShareKmMarker[],distanceKm:number,progress:number):ShareKmMarker|null {
+ if(!Number.isFinite(distanceKm)||distanceKm<=0||!Number.isFinite(progress))return null;
+ const completed=Math.floor(distanceKm*Math.max(0,Math.min(1,progress))+1e-7);
+ return markers.find(marker=>marker.km===completed)||null;
 }

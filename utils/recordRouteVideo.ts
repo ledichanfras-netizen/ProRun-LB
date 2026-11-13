@@ -1,4 +1,4 @@
-import {routeAnimationProgress,supportedVideoMime,videoFileExtension,VIDEO_MIME_TYPES,ROUTE_VIDEO_FPS} from './routeVideo';
+import {routeAnimationProgress,supportedVideoMime,videoFileExtension,VIDEO_MIME_TYPES,ROUTE_VIDEO_FPS,ROUTE_VIDEO_MAX_SECONDS} from './routeVideo';
 import type {RouteVideoScene} from './routeVideoCanvas';
 export interface RecordedRouteVideo {blob:Blob;mimeType:string;extension:'mp4'|'webm';}
 export type RecordingStage='starting'|'recording'|'finalizing'|'retrying';
@@ -10,7 +10,7 @@ export function localVideoMime():string|null {
 class EncoderError extends Error {}
 export async function recordRouteVideo(canvas:HTMLCanvasElement,scene:RouteVideoScene,durationSeconds:number,signal:AbortSignal,onProgress:(n:number)=>void,onStage:(stage:RecordingStage)=>void=()=>{}):Promise<RecordedRouteVideo> {
  if(!localVideoMime())throw new Error('Este navegador não permite gravar o vídeo. Use a postagem em imagem ou abra o app em um navegador atualizado.');
- if(!Number.isFinite(durationSeconds)||durationSeconds<1||durationSeconds>15)throw new Error('Escolha um vídeo de até 15 segundos.');
+ if(!Number.isFinite(durationSeconds)||durationSeconds<1||durationSeconds>ROUTE_VIDEO_MAX_SECONDS)throw new Error('Escolha um vídeo de até 60 segundos.');
  let finished=false,wakeLock:{release:()=>Promise<void>}|null=null;
  const release=(lock:typeof wakeLock)=>{try{void lock?.release().catch(()=>{});}catch{}};
  // A phone's optional screen-lock API must never delay starting, cancelling or delivering a video.

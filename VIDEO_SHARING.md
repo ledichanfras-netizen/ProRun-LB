@@ -1,6 +1,6 @@
 # Vídeo local do percurso
 
-Em **Postar Treino → Criar vídeo do percurso**, o atleta pode visualizar, gravar, baixar e compartilhar uma animação vertical 720 × 1280 com 10, 12 (padrão) ou 15 segundos.
+Em **Postar Treino → Criar vídeo do percurso**, o atleta pode visualizar, gravar, baixar e compartilhar uma animação vertical 720 × 1280 com 10, 12, 15, 30 (padrão), 45 ou 60 segundos.
 
 - Usa somente a geometria GPS salva; um percurso ausente, inválido ou sem deslocamento não é substituído por circuito de demonstração ou posição atual.
 - Introdução de um segundo, reprodução acelerada por distância ao longo da geometria e encerramento de dois segundos com os totais registrados. Não fabrica pace instantâneo, tempo, FC ou dados de quilômetros ausentes.
@@ -59,10 +59,21 @@ Validação: geometria, limites e direção da câmera, cruzamento do norte e da
 
 ## Duração e compatibilidade ao postar
 
-O caminho principal usa WebCodecs e Mediabunny (carregado apenas ao exportar) para gerar 240, 288 ou 360 quadros em MP4/H.264 Baseline, 24 fps, 720 × 1280. Cada quadro recebe timestamp e duração explícitos; a velocidade de renderização afeta o tempo de geração, sem encurtar o vídeo salvo. O MP4 final usa metadados completos no início e não é fragmentado. A preparação também reescreve o contêiner dos MP4s nativos, preservando os pacotes codificados.
+O caminho principal usa WebCodecs e Mediabunny (carregado apenas ao exportar) para gerar 24 quadros por segundo em MP4/H.264 Baseline, 720 × 1280. Cada quadro recebe timestamp e duração explícitos; a velocidade de renderização afeta o tempo de geração, sem encurtar o vídeo salvo. O MP4 final usa metadados completos no início e não é fragmentado. A preparação também reescreve o contêiner dos MP4s nativos, preservando os pacotes codificados.
 
 Antes de disponibilizar download ou compartilhamento, o aplicativo lê os timestamps das amostras do arquivo e compara a duração real com a escolhida (tolerância de 0,6 s para gravação nativa). Arquivos vazios, inválidos ou incompletos são bloqueados e pedem nova geração. O resultado identifica a duração escolhida. Cancelar, sair da tela e falhas liberam os recursos; há limite de tempo de geração. Mantém geração local, sem upload nem mudanças no banco.
 
 Regressão: `node --import tsx --test tests/routeVideoExport.test.ts tests/recordRouteVideo.test.ts tests/videoStartup.test.ts tests/routeVideo.test.ts tests/routeVideoFollow.test.ts`.
 
 QA em Chromium com WebCodecs: MP4s de exatamente 10, 12 e 15 segundos, 240/288/360 quadros, H.264, yuv420p, 24 fps e metadados antes da mídia, sem fragmentos. Simulação de desenho lento (50 ms por quadro) leva mais de 13 segundos para gerar os 10 segundos completos. Fluxo integrado abre postagem → editor → geração → download e valida MP4 de 12 segundos com ffprobe. O arquivo original do usuário e o aplicativo de postagem não foram fornecidos; os testes confirmam o arquivo exportado, sem afirmar reprodução do defeito específico nesse serviço.
+
+
+## Vídeos mais lentos e checks por quilômetro
+
+O seletor inclui 30, 45 e 60 segundos; o padrão passa a 30 segundos. A mesma rota percorre a duração escolhida, com a introdução e o encerramento preservados. Exportação, prévia e validação do arquivo usam esse mesmo tempo. O limite da gravação nativa acompanha o seletor (60 s), e o prazo máximo do encoder considera a duração maior. Mantém os limites de memória/tamanho e geração local.
+
+Em todas as câmeras, um cartão com check destaca o último quilômetro inteiro concluído, permanecendo legível até o próximo. O pace aparece somente quando há parcial válida salva para aquele km. O cartão funciona também quando a marcação geográfica fica atrás da câmera ou fora do enquadramento. Não transforma o trecho final parcial em um km completo, não muda métricas nem dados de treino e não recarrega o mapa por passagem de quilômetro.
+
+Regressão cobre todos os tempos oferecidos, os dez limites de km de uma rota de 10,03 km, persistência do check, trechos parciais, dados ausentes e pace apenas quando registrado. QA do canvas verifica o texto de cada check e pace nas três câmeras.
+
+QA de arquivo: exportações MP4/H.264 a 24 fps de exatamente 30, 45 e 60 segundos (720, 1080 e 1440 quadros), verificadas com ffprobe. Os checks e parciais foram conferidos no canvas em todas as câmeras.

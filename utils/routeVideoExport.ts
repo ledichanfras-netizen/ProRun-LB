@@ -9,7 +9,7 @@ export async function encodeRouteVideo(canvas:HTMLCanvasElement,scene:RouteVideo
  const abort=()=>controller.abort(signal.reason);
  const hidden=()=>{if(document.hidden)controller.abort(new Error('A geração foi interrompida ao sair da tela. Mantenha o aplicativo aberto e tente novamente.'));};
  signal.addEventListener('abort',abort,{once:true});document.addEventListener('visibilitychange',hidden);
- const watchdog=setTimeout(()=>controller.abort(new Error('A geração demorou mais que o previsto. Tente um vídeo de 10 segundos.')),180000);
+ const watchdog=setTimeout(()=>controller.abort(new Error('A geração demorou mais que o previsto. Tente uma duração menor.')),Math.max(180000,seconds*6000));
  const check=()=>{if(controller.signal.aborted)throw controller.signal.reason instanceof Error?controller.signal.reason:new DOMException('Geração cancelada.','AbortError');};
  // Interrupt even an encoder that stops resolving its backpressure promise.
  const wait=<T>(promise:Promise<T>)=>new Promise<T>((resolve,reject)=>{

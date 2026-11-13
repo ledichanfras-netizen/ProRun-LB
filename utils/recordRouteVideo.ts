@@ -3,6 +3,7 @@ import type {RouteVideoScene} from './routeVideoCanvas';
 export interface RecordedRouteVideo {blob:Blob;mimeType:string;extension:'mp4'|'webm';}
 export type RecordingStage='starting'|'recording'|'finalizing'|'retrying';
 export function localVideoMime():string|null {
+ if(typeof globalThis.VideoEncoder!=='undefined'&&typeof globalThis.VideoFrame!=='undefined')return 'video/mp4';
  if(typeof MediaRecorder==='undefined'||typeof HTMLCanvasElement==='undefined'||typeof HTMLCanvasElement.prototype.captureStream!=='function')return null;
  return supportedVideoMime(type=>MediaRecorder.isTypeSupported(type));
 }
@@ -15,6 +16,12 @@ export async function recordRouteVideo(canvas:HTMLCanvasElement,scene:RouteVideo
  // A phone's optional screen-lock API must never delay starting, cancelling or delivering a video.
  try{void Promise.resolve((navigator as any).wakeLock?.request('screen')).then(lock=>{if(finished||signal.aborted)release(lock);else wakeLock=lock||null;}).catch(()=>{});}catch{}
  try{
+  if(typeof globalThis.VideoEncoder!=='undefined'&&typeof globalThis.VideoFrame!=='undefined'){
+   const {encodeRouteVideo}=await import('./routeVideoExport');
+   const result=await encodeRouteVideo(canvas,scene,durationSeconds,signal,onProgress,onStage);
+   if(result)return result;
+   onStage('retrying');
+  }
   for(const mime of VIDEO_MIME_TYPES){
    if(signal.aborted)throw new DOMException('Geração cancelada.','AbortError');
    let supported=false;try{supported=MediaRecorder.isTypeSupported(mime);}catch{}if(!supported)continue;

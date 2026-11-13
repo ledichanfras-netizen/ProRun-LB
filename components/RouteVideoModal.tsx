@@ -55,9 +55,13 @@ export default function RouteVideoModal({input,onClose}:{input:RouteVideoSceneIn
   try{
    const prepared=scene.current,selectedView=view,selectedFraming={...framing},selectedFollow={...followSettings};
    const recordingScene:RouteVideoScene={...prepared,draw:(target,p)=>prepared.draw(target,p,selectedView,selectedFraming,selectedFollow)};
-   const result=await recordRouteVideo(canvas.current,recordingScene,duration,controller.signal,value=>{if(alive.current&&(value===1||performance.now()-lastUpdate>100)){lastUpdate=performance.now();setProgress(value);}},value=>{if(alive.current)setStage(value);});
+   const recorded=await recordRouteVideo(canvas.current,recordingScene,duration,controller.signal,value=>{if(alive.current&&(value===1||performance.now()-lastUpdate>100)){lastUpdate=performance.now();setProgress(value);}},value=>{if(alive.current)setStage(value);});
    if(!alive.current||controller.signal.aborted)return;
-   const url=URL.createObjectURL(result.blob);fileUrl.current=url;setFile({...result,url,filename:safeVideoFilename(input.title,input.distanceKm,result.mimeType)});setMessage('Vídeo pronto. Confira a prévia antes de compartilhar.');
+   setStage('finalizing');
+   const {prepareRouteVideoDownload}=await import('../utils/routeVideoExport');
+   const result=await prepareRouteVideoDownload(recorded,duration,controller.signal);
+   if(!alive.current||controller.signal.aborted)return;
+   const url=URL.createObjectURL(result.blob);fileUrl.current=url;setFile({...result,url,filename:safeVideoFilename(input.title,input.distanceKm,result.mimeType)});setMessage(`Vídeo de ${duration} segundos pronto. Confira a prévia antes de compartilhar.`);
   }catch(e:any){if(alive.current){if(e.name==='AbortError')setMessage('Geração cancelada. Você pode tentar novamente.');else setError(e.message||'Não foi possível gerar o vídeo.');}}
   finally{if(alive.current)setRecording(false);generation.current=null;}
  };

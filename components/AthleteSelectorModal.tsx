@@ -1,322 +1,94 @@
 import {AthletePhoto} from './AthletePhoto';
-import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useApp } from '../contexts/AppContext';
-import { 
-  Users, 
-  Search, 
-  X, 
-  CheckCircle, 
-  UserCheck, 
-  Activity, 
-  Calendar, 
-  ArrowRight,
-  TrendingUp,
-  Sparkles,
-  Zap
-} from 'lucide-react';
-import { Athlete } from '../types';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
+import {Search,X,CheckCircle,ArrowRight,Users} from 'lucide-react';
+import {useApp} from '../contexts/AppContext';
 
-interface AthleteSelectorModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title?: string;
-  subtitle?: string;
-}
+interface AthleteSelectorModalProps {isOpen:boolean;onClose:()=>void;title?:string;subtitle?:string;}
+const searchable=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
 
-export const AthleteSelectorModal: React.FC<AthleteSelectorModalProps> = ({
-  isOpen,
-  onClose,
-  title = "Atleta em Foco",
-  subtitle = "Selecione o aluno para analisar, periodizar e gerenciar treinos"
-}) => {
-  const { athletes, selectedAthleteId, setSelectedAthleteId, athletePlans, getAthleteMetrics } = useApp();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'with_plan' | 'no_plan'>('all');
-
-  const filteredAthletes = useMemo(() => {
-    return athletes.filter(athlete => {
-      const matchesSearch = 
-        athlete.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        athlete.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        athlete.experience.toLowerCase().includes(searchTerm.toLowerCase());
-
-      if (!matchesSearch) return false;
-
-      const hasPlan = Boolean(athletePlans[athlete.id]?.weeks?.length);
-      if (filterMode === 'with_plan') return hasPlan;
-      if (filterMode === 'no_plan') return !hasPlan;
-      return true;
-    }).sort((a, b) => {
-      // Put currently selected first, then alphabetical
-      if (a.id === selectedAthleteId) return -1;
-      if (b.id === selectedAthleteId) return 1;
-      return a.name.localeCompare(b.name, 'pt-BR');
-    });
-  }, [athletes, searchTerm, filterMode, athletePlans, selectedAthleteId]);
-
-  const handleSelect = (athleteId: string) => {
-    setSelectedAthleteId(athleteId);
-    onClose();
+export const AthleteSelectorModal:React.FC<AthleteSelectorModalProps>=({isOpen,onClose,title='Atleta em Foco',subtitle='Selecione o aluno para analisar, periodizar e gerenciar treinos'})=>{
+ const {athletes,selectedAthleteId,setSelectedAthleteId,athletePlans}=useApp();
+ const [searchTerm,setSearchTerm]=useState('');
+ const [filterMode,setFilterMode]=useState<'all'|'with_plan'|'no_plan'>('all');
+ const [viewport,setViewport]=useState<{height:number;top:number}|null>(null);
+ const dialog=useRef<HTMLDivElement>(null),search=useRef<HTMLInputElement>(null),list=useRef<HTMLDivElement>(null);
+ const close=useRef(onClose);close.current=onClose;
+ const withPlan=athletes.filter(a=>athletePlans[a.id]?.weeks?.length).length;
+ const filteredAthletes=useMemo(()=>{
+  const query=searchable(searchTerm);
+  return athletes.filter(a=>{
+   const matches=[a.name,a.email,a.experience].some(value=>searchable(value||'').includes(query));
+   const hasPlan=Boolean(athletePlans[a.id]?.weeks?.length);
+   return matches&&(filterMode==='all'||(filterMode==='with_plan'?hasPlan:!hasPlan));
+  }).sort((a,b)=>a.id===selectedAthleteId?-1:b.id===selectedAthleteId?1:a.name.localeCompare(b.name,'pt-BR'));
+ },[athletes,searchTerm,filterMode,athletePlans,selectedAthleteId]);
+ useEffect(()=>{
+  if(!isOpen)return;
+  setSearchTerm('');setFilterMode('all');
+  const previous=document.activeElement as HTMLElement|null;
+  const bodyOverflow=document.body.style.overflow;
+  document.body.style.overflow='hidden';
+  const updateViewport=()=>setViewport({height:window.visualViewport?.height||window.innerHeight,top:window.visualViewport?.offsetTop||0});
+  updateViewport();window.visualViewport?.addEventListener('resize',updateViewport);window.visualViewport?.addEventListener('scroll',updateViewport);window.addEventListener('resize',updateViewport);
+  // Opening the picker must not summon a keyboard and cover the mobile list.
+  if(window.matchMedia('(min-width: 640px) and (pointer: fine)').matches)search.current?.focus({preventScroll:true});
+  else dialog.current?.focus({preventScroll:true});
+  const keyboard=(event:KeyboardEvent)=>{
+   if(event.key==='Escape'){event.preventDefault();close.current();}
+   if(event.key==='Tab'){
+    const controls=Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled])')||[]);
+    const first=controls[0],last=controls[controls.length-1];if(!first)return;
+    if(event.shiftKey&&(document.activeElement===first||document.activeElement===dialog.current)){event.preventDefault();last.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+   }
   };
-
-  const handleClearSelection = () => {
-    setSelectedAthleteId(null);
-    onClose();
+  document.addEventListener('keydown',keyboard);
+  return()=>{
+   document.body.style.overflow=bodyOverflow;document.removeEventListener('keydown',keyboard);
+   window.visualViewport?.removeEventListener('resize',updateViewport);window.visualViewport?.removeEventListener('scroll',updateViewport);window.removeEventListener('resize',updateViewport);
+   if(previous?.isConnected)previous.focus({preventScroll:true});
   };
-
-  if (!isOpen) return null;
-
-  return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-md"
-        />
-
-        {/* Modal Window */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full max-w-2xl bg-[#090d1a] border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[88vh] text-white z-10"
-        >
-          {/* Header */}
-          <div className="p-6 sm:p-7 border-b border-white/5 bg-slate-950/60 flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
-                <Users className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 italic">
-                    Troca Rápida de Aluno
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-bold">
-                    {athletes.length} {athletes.length === 1 ? 'cadastrado' : 'cadastrados'}
-                  </span>
-                </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tight text-white mt-1">
-                  {title}
-                </h3>
-                <p className="text-xs text-slate-400 italic">
-                  {subtitle}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={onClose}
-              className="p-2.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-full transition-all border border-white/5"
-              aria-label="Fechar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Search & Filter Bar */}
-          <div className="p-5 sm:p-6 border-b border-white/5 bg-slate-950/30 space-y-3">
-            <div className="relative">
-              <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                autoFocus
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nome, e-mail ou nível..."
-                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-10 py-3.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Quick Filters */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setFilterMode('all')}
-                className={`px-3 py-1.5 rounded-xl font-bold uppercase text-[10px] tracking-wider transition-all border ${
-                  filterMode === 'all'
-                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                Todos ({athletes.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterMode('with_plan')}
-                className={`px-3 py-1.5 rounded-xl font-bold uppercase text-[10px] tracking-wider transition-all border ${
-                  filterMode === 'with_plan'
-                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                Com Ciclo Ativo ({athletes.filter(a => athletePlans[a.id]?.weeks?.length).length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterMode('no_plan')}
-                className={`px-3 py-1.5 rounded-xl font-bold uppercase text-[10px] tracking-wider transition-all border ${
-                  filterMode === 'no_plan'
-                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                Sem Ciclo ({athletes.filter(a => !athletePlans[a.id]?.weeks?.length).length})
-              </button>
-            </div>
-          </div>
-
-          {/* Athletes List */}
-          <div className="p-5 sm:p-6 overflow-y-auto custom-scrollbar space-y-2.5 flex-1 max-h-[50vh]">
-            {filteredAthletes.length > 0 ? (
-              filteredAthletes.map((athlete) => {
-                const isSelected = athlete.id === selectedAthleteId;
-                const plan = athletePlans[athlete.id];
-                const hasPlan = Boolean(plan?.weeks?.length);
-                const metrics = getAthleteMetrics ? getAthleteMetrics(athlete.id) : null;
-
-                return (
-                  <div
-                    key={athlete.id}
-                    onClick={() => handleSelect(athlete.id)}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 group ${
-                      isSelected
-                        ? 'bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
-                        : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.08] hover:border-emerald-500/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      {/* Avatar */}
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black italic text-base transition-all shrink-0 ${
-                        isSelected
-                          ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
-                          : 'bg-white/10 text-slate-300 group-hover:bg-emerald-500 group-hover:text-white'
-                      }`}>
-                        <AthletePhoto name={athlete.name} src={athlete.profilePhoto} className="w-full h-full"/>
-                      </div>
-
-                      {/* Info */}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-black text-sm uppercase italic tracking-tight text-white group-hover:text-emerald-300 transition-colors truncate">
-                            {athlete.name}
-                          </h4>
-                          {isSelected && (
-                            <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-500/30 italic tracking-wider shrink-0">
-                              <CheckCircle className="w-2.5 h-2.5" /> Em Foco
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1 flex-wrap font-medium">
-                          <span className="text-slate-300 font-bold">{athlete.experience}</span>
-                          {athlete.metrics?.vdot && (
-                            <>
-                              <span>•</span>
-                              <span className="text-emerald-400 font-bold">VDOT {athlete.metrics.vdot}</span>
-                            </>
-                          )}
-                          {metrics && (
-                            <>
-                              <span>•</span>
-                              <span className={`${metrics.completionRate < 50 ? 'text-amber-400' : 'text-slate-400'}`}>
-                                {metrics.completionRate.toFixed(0)}% adesão
-                              </span>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Plan Tag */}
-                        <div className="mt-1.5 flex items-center gap-2">
-                          {hasPlan ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                              <Calendar className="w-3 h-3" />
-                              Ciclo: {plan.specificGoal || 'Personalizado'} ({plan.weeks.length} sem)
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-white/5 px-2 py-0.5 rounded-md">
-                              Sem ciclo ativo
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Button */}
-                    <div className="shrink-0">
-                      {isSelected ? (
-                        <div className="px-3 py-1.5 rounded-xl bg-emerald-500 text-white font-black text-xs uppercase italic tracking-wider flex items-center gap-1.5 shadow-md shadow-emerald-500/20">
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          <span>Ativo</span>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-emerald-500 text-slate-300 hover:text-white font-black text-xs uppercase italic tracking-wider flex items-center gap-1.5 transition-all border border-white/10 group-hover:border-emerald-500/30"
-                        >
-                          <span>Focar</span>
-                          <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center py-12">
-                <Users className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 font-black uppercase italic text-xs tracking-widest">
-                  Nenhum aluno encontrado
-                </p>
-                <p className="text-slate-500 text-xs mt-1">
-                  Verifique o termo buscado ou o filtro selecionado.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="p-5 sm:p-6 border-t border-white/5 bg-slate-950/60 flex items-center justify-between gap-3">
-            <div>
-              {selectedAthleteId ? (
-                <button
-                  type="button"
-                  onClick={handleClearSelection}
-                  className="text-xs font-bold text-red-400/80 hover:text-red-400 transition-colors uppercase tracking-wider"
-                >
-                  Remover Atleta em Foco
-                </button>
-              ) : (
-                <span className="text-xs text-slate-500 italic">
-                  Nenhum aluno focado atualmente
-                </span>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all uppercase text-xs tracking-wider"
-            >
-              Fechar
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
-  );
+ },[isOpen]);
+ useEffect(()=>{if(list.current)list.current.scrollTop=0;},[searchTerm,filterMode,isOpen]);
+ const select=(id:string|null)=>{setSelectedAthleteId(id);onClose();};
+ const compactHeight=viewport!==null&&viewport.height<500;
+ if(!isOpen)return null;
+ return createPortal(<div className={`fixed inset-x-0 z-[2000] flex items-center justify-center bg-slate-950/80 backdrop-blur-md ${compactHeight?'':'sm:p-6'}`} style={{top:viewport?.top||0,height:viewport?.height||'100dvh'}} onClick={onClose}>
+  <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="athlete-picker-title" aria-describedby="athlete-picker-description" tabIndex={-1} className={`athlete-picker relative w-full h-full bg-[#090d1a] text-white shadow-2xl flex flex-col min-h-0 overflow-hidden outline-none border border-white/10 ${compactHeight?'':'sm:max-h-[88%] sm:max-w-2xl sm:rounded-3xl'}`} onClick={event=>event.stopPropagation()}>
+   <header className="shrink-0 px-4 pt-3 pb-2 border-b border-white/10" style={{paddingTop:'max(.75rem, env(safe-area-inset-top))'}}>
+    <div className="flex items-center justify-between gap-3 mb-2">
+     <div className="min-w-0"><h2 id="athlete-picker-title" className="text-base font-black uppercase italic truncate">{title}</h2><p id="athlete-picker-description" className="sr-only">{subtitle}</p></div>
+     <button type="button" aria-label="Fechar troca de atleta" onClick={onClose} className="shrink-0 rounded-xl w-11 h-11 flex items-center justify-center bg-white/5 hover:bg-white/10"><X size={22}/></button>
+    </div>
+    <div className="relative">
+     <Search size={19} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 pointer-events-none"/>
+     <input ref={search} type="search" autoComplete="off" autoCorrect="off" spellCheck={false} aria-label="Buscar atleta" value={searchTerm} onChange={event=>setSearchTerm(event.target.value)} placeholder="Nome, e-mail ou nível" className="w-full rounded-xl bg-white/5 border border-white/15 text-base text-white py-3 pl-10 pr-11 outline-none focus:border-emerald-500 [&::-webkit-search-cancel-button]:hidden"/>
+     {searchTerm&&<button type="button" aria-label="Limpar busca" className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-slate-400" onClick={()=>{setSearchTerm('');search.current?.focus();}}><X size={18}/></button>}
+    </div>
+   </header>
+   <div ref={list} data-athlete-picker-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain custom-scrollbar px-3 sm:px-4" style={{paddingBottom:'max(.75rem, env(safe-area-inset-bottom))'}}>
+    <div className="flex flex-wrap gap-2 py-3" aria-label="Filtrar atletas">
+     {([{value:'all',label:'Todos',count:athletes.length},{value:'with_plan',label:'Com ciclo',count:withPlan},{value:'no_plan',label:'Sem ciclo',count:athletes.length-withPlan}] as const).map(filter=><button key={filter.value} type="button" aria-pressed={filterMode===filter.value} onClick={()=>setFilterMode(filter.value)} className={`min-h-11 px-3 rounded-xl text-xs font-bold border ${filterMode===filter.value?'bg-emerald-600 border-emerald-500 text-white':'border-white/10 text-slate-300 bg-white/5'}`}>{filter.label} ({filter.count})</button>)}
+    </div>
+    <p aria-live="polite" className="text-xs text-slate-400 mb-2">{filteredAthletes.length} {filteredAthletes.length===1?'atleta encontrado':'atletas encontrados'}</p>
+    <div className="space-y-2">
+     {filteredAthletes.map(athlete=>{
+      const selected=athlete.id===selectedAthleteId,plan=athletePlans[athlete.id];
+      return <button type="button" key={athlete.id} data-athlete-choice={athlete.id} aria-label={`Selecionar ${athlete.name}${selected?' (em foco)':''}`} aria-pressed={selected} onClick={()=>select(athlete.id)} className={`w-full text-left flex items-center gap-3 rounded-2xl border p-3 transition-colors ${selected?'bg-emerald-500/15 border-emerald-500/50':'bg-white/[0.03] border-white/10 hover:border-emerald-500/40'}`}>
+       <div className="w-11 h-11 shrink-0 rounded-xl overflow-hidden bg-emerald-500/15 text-emerald-300"><AthletePhoto name={athlete.name} src={athlete.profilePhoto} className="w-full h-full"/></div>
+       <div className="flex-1 min-w-0">
+        <span className="block text-sm font-black uppercase italic text-white truncate" title={athlete.name}>{athlete.name}</span>
+        <span className="block text-xs text-slate-400 truncate">{athlete.experience}{selected?' · Em foco':''}</span>
+        <span className="block text-xs text-emerald-400 truncate mt-1" title={plan?.specificGoal||undefined}>{plan?.weeks?.length?`${plan.specificGoal||'Ciclo ativo'} · ${plan.weeks.length} sem`:'Sem ciclo ativo'}</span>
+       </div>
+       {selected?<CheckCircle size={21} className="text-emerald-400 shrink-0"/>:<ArrowRight size={20} className="text-slate-400 shrink-0"/>}
+      </button>;
+     })}
+    </div>
+    {!filteredAthletes.length&&<div className="py-10 text-center text-slate-400"><Users className="mx-auto mb-3" size={30}/><p className="font-bold">Nenhum aluno encontrado</p><p className="text-sm mt-1">Tente outro nome ou altere o filtro.</p><button type="button" className="text-emerald-400 font-bold p-3 mt-2" onClick={()=>{setSearchTerm('');setFilterMode('all');}}>Mostrar todos os atletas</button></div>}
+    {selectedAthleteId&&<button type="button" onClick={()=>select(null)} className="text-xs text-slate-400 hover:text-white py-4 mt-2 underline underline-offset-4">Remover atleta em foco</button>}
+   </div>
+  </div>
+ </div>,document.body);
 };

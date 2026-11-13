@@ -4,3 +4,10 @@ export function formatDistance(value: number | string | null | undefined): strin
   const km = Number(String(value).replace(',', '.'));
   return Number.isFinite(km) ? km.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '—';
 }
+
+/** Text inputs use no thousands separator, while their unchanged state keeps the raw GPS value. */
+export function formatDistanceInput(value:number|string|null|undefined):string {
+ if(value==null||value==='')return '';
+ const km=Number(String(value).replace(',', '.'));
+ return Number.isFinite(km)?km.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false}):String(value);
+}

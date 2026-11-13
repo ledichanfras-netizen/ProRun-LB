@@ -1,3 +1,4 @@
+import {formatDistance} from '../utils/formatDistance';
 import type {RouteVideoSceneInput} from '../utils/routeVideoCanvas';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -636,10 +637,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
         const file = new File([result.blob], `${filename}.png`, { type: 'image/png' });
         await navigator.share({
           files: [file],
-          title: isStrength ? `Treino ProRun - Fortalecimento` : `Treino ProRun - ${data.distanceKm}km`,
+          title: isStrength ? `Treino ProRun - Fortalecimento` : `Treino ProRun - ${formatDistance(data.distanceKm)} km`,
           text: isStrength
             ? `💪 ${data.workoutType || 'Fortalecimento'} • Tempo ${formatDuration(strengthDurationSec)} • PSE ${strengthRpe}/10 (${strengthLoadUA} UA)${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
-            : `🏃‍♂️ ${data.distanceKm}km • Pace ${data.avgPace}/km • Tempo ${formatDuration(data.durationSeconds)}${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
+            : `🏃‍♂️ ${formatDistance(data.distanceKm)} km • Pace ${data.avgPace}/km • Tempo ${formatDuration(data.durationSeconds)}${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
         });
       } else {
         setExportSuccess(true);

@@ -1,3 +1,4 @@
+import {formatDistance} from '../utils/formatDistance';
 import PeriodizationSetup,{type PrescriptionMode} from '../components/PeriodizationSetup';
 import {CyclePlanningPanel} from '../components/CyclePlanningPanel';
 import {emptyCyclePlanning,createManualCycle,validateCyclePlanning,type CyclePlanning} from '../utils/cyclePlanning';
@@ -1079,8 +1080,8 @@ const Periodization: React.FC = () => {
                           <p className="text-[11px] text-slate-300 italic leading-relaxed">{workout.customDescription}</p>
                         )}
                         <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 mt-1 border-t border-white/5 pt-1.5">
-                          {workout.distance > 0 && <span>Planejado: {workout.distance} KM</span>}
-                          {workout.actualDistance > 0 && <span className="text-emerald-400">Executado: {workout.actualDistance} KM</span>}
+                          {workout.distance > 0 && <span>Planejado: {formatDistance(workout.distance)} KM</span>}
+                          {workout.actualDistance > 0 && <span className="text-emerald-400">Executado: {formatDistance(workout.actualDistance)} KM</span>}
                           {workout.rpe && <span className="text-amber-400">Esforço (RPE): {workout.rpe}/10</span>}
                         </div>
                         {workout.feedback && (
@@ -1790,7 +1791,7 @@ const Periodization: React.FC = () => {
                                         className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-md uppercase italic border border-emerald-500/30 flex items-center gap-1 transition-all cursor-pointer"
                                       >
                                         <Navigation className="w-2.5 h-2.5" />
-                                        <span>Rota GPS ({(workout.gpsRoute || workout.route)?.totalDistanceKm || workout.actualDistance || workout.distance}km)</span>
+                                        <span>Rota GPS ({formatDistance((workout.gpsRoute || workout.route)?.totalDistanceKm || workout.actualDistance || workout.distance)} km)</span>
                                       </button>
                                     )}
                                     {workout.feedback && (
@@ -1819,10 +1820,10 @@ const Periodization: React.FC = () => {
                            ) : (
                                workout.distance && workout.distance > 0 ? (
                                  <div className="flex flex-col items-end gap-1">
-                                   <span className="font-black text-white text-xs whitespace-nowrap bg-white/5 px-3 py-1 rounded-full border border-white/5" title="Distância Planejada">{workout.distance} KM</span>
+                                   <span className="font-black text-white text-xs whitespace-nowrap bg-white/5 px-3 py-1 rounded-full border border-white/5" title="Distância Planejada">{formatDistance(workout.distance)} KM</span>
                                    {workout.completed && workout.actualDistance !== undefined && (
                                      <span className="text-[9px] font-black px-2 py-0.5 rounded-md uppercase italic whitespace-nowrap bg-emerald-500/15 text-emerald-400 border border-emerald-500/20" title="Distância Real Concluída">
-                                       Real: {workout.actualDistance} KM
+                                       Real: {formatDistance(workout.actualDistance)} KM
                                      </span>
                                    )}
                                  </div>
@@ -2052,7 +2053,7 @@ const Periodization: React.FC = () => {
                   <div>
                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Distância</span>
                     <span className="text-base font-black text-emerald-400 font-mono">
-                      {viewingWorkoutRoute.totalDistanceKm} KM
+                      {formatDistance(viewingWorkoutRoute.totalDistanceKm)} KM
                     </span>
                   </div>
                   <div>
@@ -2174,7 +2175,7 @@ const Periodization: React.FC = () => {
                         <span>{sourceWorkout.type}</span>
                         {(sourceWorkout.distance || 0) > 0 && (
                           <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full">
-                            {sourceWorkout.distance} km
+                            {formatDistance(sourceWorkout.distance)} km
                           </span>
                         )}
                       </p>
@@ -2285,7 +2286,7 @@ const Periodization: React.FC = () => {
                           </div>
                           <div className="text-[11px] font-bold text-slate-300 truncate">
                             {targetDayWorkout?.type || 'Descanso'}
-                            {(targetDayWorkout?.distance || 0) > 0 && ` • ${targetDayWorkout.distance} km`}
+                            {(targetDayWorkout?.distance || 0) > 0 && ` • ${formatDistance(targetDayWorkout.distance)} km`}
                           </div>
                         </button>
                       );

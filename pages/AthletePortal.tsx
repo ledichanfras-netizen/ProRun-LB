@@ -2,7 +2,7 @@ import type {RouteData} from '../utils/gpsUtils';
 import type {TrainingWeek} from '../types';
 import {selectPortalSchedule} from '../utils/portalSchedule';
 import {PortalScheduleStatus} from '../components/PortalScheduleStatus';
-import { formatDistance } from '../utils/formatDistance';
+import { formatDistance, formatDistanceInput } from '../utils/formatDistance';
 import { RunRouteDetails } from '../components/RunRouteDetails';
 import { activityDistance, freeRunsInWeek, getActivityWeeks, getTrainingActivities, weekStart } from '../utils/trainingActivities';
 import {MenstrualReadinessFields,MenstrualReadinessSummary} from '../components/MenstrualReadiness';
@@ -206,6 +206,7 @@ const AthletePortal: React.FC = () => {
   const [feedbackText, setFeedbackText] = useState('');
   const [rpeValue, setRpeValue] = useState<number>(0);
   const [actualDistanceValue, setActualDistanceValue] = useState<string>('');
+  const [distanceEdited,setDistanceEdited]=useState(false);
   const [actualDurationValue, setActualDurationValue] = useState<string>('');
   const [actualHeartRateValue, setActualHeartRateValue] = useState<string>('');
   const [currentGpsRoute, setCurrentGpsRoute] = useState<any>(null);
@@ -1102,6 +1103,7 @@ const AthletePortal: React.FC = () => {
     setFeedbackText(workout.feedback || '');
     setRpeValue(workout.rpe || (isStrength ? 6 : 0));
     setLocalExercises(workout.exercises || []);
+    setDistanceEdited(false);
     setActualDistanceValue(isStrength ? '' : (workout.actualDistance !== undefined ? String(workout.actualDistance) : String(workout.distance || '')));
     let initialDuration = '';
     if (workout.actualDuration) {
@@ -2875,7 +2877,7 @@ const AthletePortal: React.FC = () => {
                                 ? 'bg-slate-100 dark:bg-white/[0.03] border-slate-100 dark:border-white/5 text-slate-300 dark:text-slate-600' 
                                 : `${theme.cardBg} hover:scale-105 shadow-xs`
                           }`}
-                          title={`${workout.type || 'Descanso'} ${workout.distance ? `(${workout.distance} KM)` : ''}`}
+                          title={`${workout.type || 'Descanso'} ${workout.distance ? `(${formatDistance(workout.distance)} KM)` : ''}`}
                         >
                           <span className={`text-[7px] font-black uppercase mb-0.5 ${
                             isCompleted ? 'text-white' : 'opacity-70'
@@ -3921,7 +3923,7 @@ const AthletePortal: React.FC = () => {
                                     <p className={`italic text-[10px] leading-relaxed ${isLight ? 'text-slate-700 font-medium' : 'text-slate-300'}`}>"{workout.customDescription}"</p>
                                   )}
                                   <div className={`flex items-center gap-3 text-[9px] font-bold pt-1 border-t ${isLight ? 'border-slate-200 text-slate-500' : 'border-white/5 text-slate-500'}`}>
-                                    {workout.distance > 0 && <span>Meta: {workout.distance} KM</span>}
+                                    {workout.distance > 0 && <span>Meta: {formatDistance(workout.distance)} KM</span>}
                                     {workout.actualDistance > 0 && <span className={isLight ? 'text-emerald-700 font-extrabold' : 'text-emerald-400'}>Dist: {formatDistance(workout.actualDistance)} KM</span>}
                                     {workout.rpe && <span className={isLight ? 'text-amber-700 font-extrabold' : 'text-amber-400'}>RPE: {workout.rpe}/10</span>}
                                   </div>
@@ -4075,7 +4077,7 @@ const AthletePortal: React.FC = () => {
                           isStrengthWorkoutType(editWorkoutType || selectedWorkout.data.type)
                             ? `${editWorkoutType || selectedWorkout.data.type || 'Fortalecimento'} Prescrito`
                             : selectedWorkout.data.distance
-                              ? `${selectedWorkout.data.type || 'Treino'} ${selectedWorkout.data.distance} km`
+                              ? `${selectedWorkout.data.type || 'Treino'} ${formatDistance(selectedWorkout.data.distance)} km`
                               : `${selectedWorkout.data.type || 'Corrida'} Prescrita`
                         )}
                       </p>
@@ -4110,7 +4112,7 @@ const AthletePortal: React.FC = () => {
                       <span className={`inline-flex items-center gap-2 text-xs font-black uppercase px-4 py-2 rounded-2xl border italic tracking-wider ${
                         isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
                       }`}>
-                        📏 {selectedWorkout.data.distance || selectedWorkout.data.distanceKm} KM Meta
+                        📏 {formatDistance(selectedWorkout.data.distance || selectedWorkout.data.distanceKm)} KM Meta
                       </span>
                     )}
                     {(selectedWorkout.data.durationMinutes && selectedWorkout.data.durationMinutes > 0) && (
@@ -4636,15 +4638,15 @@ const AthletePortal: React.FC = () => {
                                 isLight ? 'bg-white border-slate-300 text-emerald-800 focus:border-emerald-500' : 'bg-white/5 border-white/10 text-emerald-400 focus:border-emerald-500/50'
                               }`}
                               placeholder="Ex: 10.5"
-                              value={actualDistanceValue}
-                              onChange={e => setActualDistanceValue(e.target.value)}
+                              value={distanceEdited?actualDistanceValue:formatDistanceInput(actualDistanceValue)}
+                              onChange={e => {setDistanceEdited(true);setActualDistanceValue(e.target.value);}}
                             />
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black italic text-slate-500">
                               KM
                             </div>
                           </div>
                           <div className="text-[9px] font-black uppercase text-slate-500/80 italic pl-1">
-                            Plano: {selectedWorkout.data.distance || 0} KM
+                            Plano: {formatDistance(selectedWorkout.data.distance || 0)} KM
                           </div>
                         </div>
 
@@ -4886,6 +4888,7 @@ const AthletePortal: React.FC = () => {
                         type="button"
                         onClick={() => {
                           if (!actualDistanceValue && selectedWorkout.data.distance) {
+                            setDistanceEdited(false);
                             setActualDistanceValue(String(selectedWorkout.data.distance));
                           }
                           if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
@@ -4907,6 +4910,7 @@ const AthletePortal: React.FC = () => {
                         type="button"
                         onClick={() => {
                           if (!actualDistanceValue && selectedWorkout.data.distance) {
+                            setDistanceEdited(false);
                             setActualDistanceValue(String(selectedWorkout.data.distance));
                           }
                           if (!actualDurationValue && selectedWorkout.data.durationMinutes) {
@@ -5205,7 +5209,7 @@ const AthletePortal: React.FC = () => {
               <div className="text-center space-y-0.5">
                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Distância</span>
                 <span className="text-base sm:text-lg font-black font-mono text-emerald-400">
-                  {completedWorkoutPrompt.distanceKm} <span className="text-[9px]">KM</span>
+                  {formatDistance(completedWorkoutPrompt.distanceKm)} <span className="text-[9px]">KM</span>
                 </span>
               </div>
               <div className="text-center space-y-0.5 border-x border-white/5">
@@ -5360,7 +5364,7 @@ const AthletePortal: React.FC = () => {
                   <span>{athleteRescheduling.workout?.type || 'Treino'}</span>
                   {(athleteRescheduling.workout?.distance || 0) > 0 && (
                     <span className="text-xs font-bold bg-emerald-500/20 text-emerald-600 px-2 py-0.5 rounded-full">
-                      {athleteRescheduling.workout.distance} km
+                      {formatDistance(athleteRescheduling.workout.distance)} km
                     </span>
                   )}
                 </p>
@@ -5457,7 +5461,7 @@ const AthletePortal: React.FC = () => {
                           isLight ? 'text-slate-600' : 'text-slate-300'
                         }`}>
                           {targetDayWorkout?.type || 'Descanso'}
-                          {(targetDayWorkout?.distance || 0) > 0 && ` • ${targetDayWorkout.distance} km`}
+                          {(targetDayWorkout?.distance || 0) > 0 && ` • ${formatDistance(targetDayWorkout.distance)} km`}
                         </div>
                       </button>
                     );
@@ -5551,6 +5555,7 @@ const AthletePortal: React.FC = () => {
                 setAutoResumeGpsBackup(false);
                 setActiveBackup(null);
                 setCurrentGpsRoute(route);
+                setDistanceEdited(false);
                 setActualDistanceValue(String(route.totalDistanceKm));
                 const durSec = route.totalDurationSeconds || (route as any).durationSeconds || 0;
                 const formattedDuration = formatSecondsToTimeString(durSec);

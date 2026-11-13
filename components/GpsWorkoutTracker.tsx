@@ -1,3 +1,4 @@
+import {formatDistance} from '../utils/formatDistance';
 import {appendRecoveryFix,restoredHeartRateSummary} from '../utils/workoutRecovery';
 import { compactWorkoutTelemetry, appendTimedTelemetry } from '../utils/runningMetrics';
 import { freshTelemetryHeartRate } from '../utils/telemetryChart';
@@ -2611,7 +2612,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 <div>
                   <span className={`text-[8px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Distância</span>
                   <span className={`text-base font-black font-mono ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
-                    {gpxParsedRoute.totalDistanceKm}k
+                    {formatDistance(gpxParsedRoute.totalDistanceKm)} km
                   </span>
                 </div>
                 <div>

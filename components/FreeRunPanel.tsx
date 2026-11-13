@@ -1,3 +1,4 @@
+import {formatDistanceInput} from '../utils/formatDistance';
 import { RpeSelector } from './RpeSelector';
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -24,6 +25,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   const [heartRate, setHeartRate] = useState('');
   const createdAt = useRef('');
   const [distance, setDistance] = useState('');
+  const [distanceEdited,setDistanceEdited]=useState(false);
   const [duration, setDuration] = useState('');
   const [rpe, setRpe] = useState('');
   const [observations, setObservations] = useState('');
@@ -60,12 +62,13 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
     runId.current = crypto.randomUUID();
     createdAt.current = getAppNow().toISOString();
     setEditingRun(null); setSelectedId(null); setTitle('Corrida livre'); setDate(getTodayDateString()); setStartTime(getAppNow().toTimeString().slice(0,5)); setHeartRate('');
-    setDistance(''); setDuration(''); setRpe(''); setObservations(''); setRoute(null);
+    setDistanceEdited(false);setDistance(''); setDuration(''); setRpe(''); setObservations(''); setRoute(null);
     setError(''); setSuccess(false); setResume(false); setMode(next);
   };
 
   const capture = (captured: any) => {
     setRoute(captured);
+    setDistanceEdited(false);
     setDistance(String(captured.totalDistanceKm || 0));
     const seconds = Math.round(captured.totalDurationSeconds || captured.durationSeconds || 0);
     setDuration(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`);
@@ -121,7 +124,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
 
   const edit = (run: FreeRun) => {
     setEditingRun(run); runId.current=run.id; setTitle(run.customDescription || 'Corrida livre'); setDate(run.date || getTodayDateString()); setStartTime(run.startTime || '');
-    setDistance(String(activityDistance(run))); setDuration(run.actualDuration || ''); setRpe(run.rpe !== undefined ? String(run.rpe) : ''); setHeartRate(run.avgHeartRate !== undefined ? String(run.avgHeartRate) : ''); setObservations(run.feedback || '');
+    setDistanceEdited(false);setDistance(String(activityDistance(run))); setDuration(run.actualDuration || ''); setRpe(run.rpe !== undefined ? String(run.rpe) : ''); setHeartRate(run.avgHeartRate !== undefined ? String(run.avgHeartRate) : ''); setObservations(run.feedback || '');
     setRoute(run.gpsRoute || run.route || null);setError('');setSuccess(false);setSelectedId(null);setMode('manual');
   };
   const history = runs.length > 0 && <details className="w-full space-y-2" data-free-run-history>
@@ -178,7 +181,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
               <label className="block text-slate-300">Data<input aria-label="Data do treino" type="date" className="pro-input block w-full mt-2" value={date} onChange={e=>setDate(e.target.value)}/></label>
               <label className="block text-slate-300">Horário<input aria-label="Horário do treino" type="time" className="pro-input block w-full mt-2" value={startTime} onChange={e=>setStartTime(e.target.value)}/></label>
             </div>
-            <label className="block text-slate-300">Distância (km)<input aria-label="Distância (km)" className="pro-input block w-full mt-2" inputMode="decimal" value={distance} onChange={e => setDistance(e.target.value)} /></label>
+            <label className="block text-slate-300">Distância (km)<input aria-label="Distância (km)" className="pro-input block w-full mt-2" inputMode="decimal" value={distanceEdited?distance:formatDistanceInput(distance)} onChange={e => {setDistanceEdited(true);setDistance(e.target.value);}} /></label>
             <label className="block text-slate-300">Tempo (minutos:segundos)<input aria-label="Tempo (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={duration} onChange={e => setDuration(e.target.value)} /></label>
             <label className="block text-slate-300">FC média (bpm)<input aria-label="FC média (bpm)" className="pro-input block w-full mt-2" type="number" min="1" max="300" value={heartRate} onChange={e=>setHeartRate(e.target.value)}/></label>
             <RpeSelector value={rpe} onChange={setRpe} />

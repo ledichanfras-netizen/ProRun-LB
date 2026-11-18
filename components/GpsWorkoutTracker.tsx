@@ -69,7 +69,7 @@ import {
   TelemetryPoint
 } from '../utils/runningMetrics';
 import { WorkoutTelemetryCharts } from './WorkoutTelemetryCharts';
-import { StructuredWorkout, WorkoutStep, StepType, StepTargetType, TrainingPace, WorkoutType } from '../types';
+import { StructuredWorkout, WorkoutStep, StepType, StepTargetType, TrainingPace, WorkoutType, RunningShoe, Athlete, AthletePlan } from '../types';
 import { workoutAudio } from '../utils/workoutAudio';
 import { 
   formatStepTarget,
@@ -97,6 +97,10 @@ interface GpsWorkoutTrackerProps {
   athleteWeight?: number;
   workoutContext?: { weekIndex?: number; dayIndex?: number };
   autoResumeBackup?: boolean;
+  shoes?: RunningShoe[];
+  athletePlan?: AthletePlan | null;
+  archivedPlans?: Athlete['archivedPlans'];
+  initialShoeId?: string;
   onRouteCaptured: (route: RouteData) => void | Promise<void>;
   onCancel?: () => void;
 }
@@ -122,6 +126,10 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   athleteWeight = 70,
   workoutContext,
   autoResumeBackup = false,
+  shoes,
+  athletePlan,
+  archivedPlans,
+  initialShoeId,
   onRouteCaptured: persistCapturedRoute,
   onCancel
 }) => {
@@ -1444,6 +1452,11 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         : 'bg-slate-950/95 border-white/10 text-white'
     }`}>
       {pendingCompletion && <WorkoutCompletionReview route={pendingCompletion}
+        shoes={shoes}
+        plan={athletePlan}
+        archivedPlans={archivedPlans}
+        workoutType={workoutType}
+        initialShoeId={initialShoeId}
         onBack={() => setPendingCompletion(null)}
         onConfirm={async reviewed => {
           saveUnsavedRouteBackup(reviewed, workoutContext);

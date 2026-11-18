@@ -47,6 +47,24 @@ export interface TrainingPace {
   heartRateRange?: string; 
 }
 
+export type ShoeCategory = 'daily' | 'speed' | 'race' | 'recovery' | 'trail';
+
+export interface RunningShoe {
+  id: string;
+  name: string;
+  brand: string;
+  category: ShoeCategory;
+  initialKm: number;
+  maxKm: number;
+  isDefault?: boolean;
+  retired?: boolean;
+  retiredAt?: string;
+  notes?: string;
+  color?: 'emerald' | 'amber' | 'sky' | 'violet' | 'rose';
+  alertedLevel?: '80' | '100';
+  createdAt: string;
+}
+
 export interface Athlete {
   organizationId?:string;
   raceResults?: import('./utils/raceResults').RaceResult[];
@@ -131,6 +149,7 @@ export interface Athlete {
   customZones?: TrainingPace[]; 
   assessmentHistory: Assessment[];
   gamification?: GamificationData;
+  shoes?: RunningShoe[];
   archivedPlans?: {
     id: string;
     name: string;
@@ -228,6 +247,8 @@ export interface TrainingWeek {
       completed?: boolean;
       feedback?: string; 
       rpe?: number;
+      shoeId?: string;
+      shoeName?: string;
       exercises?: Exercise[];
       structuredWorkout?: StructuredWorkout;
       sleepScore?: number;
@@ -254,6 +275,8 @@ export interface TrainingWeek {
         maxHeartRate?: number;
         cadenceSource?: 'phone_accelerometer' | 'gpx';
         completion?: { rpe: number; observations: string };
+        shoeId?: string;
+        shoeName?: string;
         avgCadence?: number; // SPM
         maxCadence?: number;
         calories?: number; // kcal

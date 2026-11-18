@@ -30,6 +30,8 @@ export interface RouteData {
   maxCadence?: number; // SPM peak
   cadenceSource?: 'phone_accelerometer' | 'gpx';
   completion?: { rpe: number; observations: string };
+  shoeId?: string;
+  shoeName?: string;
   calories?: number; // kcal
   kmSplits?: KmSplit[]; // Parciais por KM
   telemetrySamples?: TelemetryPoint[]; // Stream de telemetria compactado

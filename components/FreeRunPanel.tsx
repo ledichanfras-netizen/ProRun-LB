@@ -14,6 +14,8 @@ import { activityDistance, getTrainingActivities, weekStart } from '../utils/tra
 import { calculateWorkoutTRIMP } from '../utils/stressModel';
 import { getAppNow, getTodayDateString, parseDateString } from '../utils/time';
 import { clearActiveWorkoutBackup, clearUnsavedRouteBackup, getActiveWorkoutBackup, getUnsavedRouteBackup } from '../utils/gpsUtils';
+import { ShoeSelectorField } from './ShoeSelectorField';
+import { formatShoeLabel, suggestShoeForWorkout } from '../utils/shoeUtils';
 
 export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; compact?: boolean }) => {
   const { athletePlans, saveFreeRun, theme } = useApp();
@@ -35,6 +37,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedShoeId, setSelectedShoeId] = useState('');
   const [resume, setResume] = useState(false);
   const runId = useRef('');
   const saveLock = useRef(false);
@@ -63,11 +66,13 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
     createdAt.current = getAppNow().toISOString();
     setEditingRun(null); setSelectedId(null); setTitle('Corrida livre'); setDate(getTodayDateString()); setStartTime(getAppNow().toTimeString().slice(0,5)); setHeartRate('');
     setDistanceEdited(false);setDistance(''); setDuration(''); setRpe(''); setObservations(''); setRoute(null);
+    setSelectedShoeId(suggestShoeForWorkout(athlete.shoes, 'Corrida livre').shoe?.id || '');
     setError(''); setSuccess(false); setResume(false); setMode(next);
   };
 
   const capture = (captured: any) => {
     setRoute(captured);
+    if (captured.shoeId !== undefined) setSelectedShoeId(captured.shoeId || '');
     setDistanceEdited(false);
     setDistance(String(captured.totalDistanceKm || 0));
     const seconds = Math.round(captured.totalDurationSeconds || captured.durationSeconds || 0);
@@ -78,18 +83,19 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   const save = async (post = false) => {
     if (saveLock.current) return;
     let run: FreeRun;
+    const chosenShoe = (athlete.shoes || []).find(s => s.id === selectedShoeId);
     try {
       run = applyFreeRunEdits(editingRun || {
         id: runId.current || (runId.current = crypto.randomUUID()), day: '', type: 'Rodagem', completed: true,
         createdAt: createdAt.current || getAppNow().toISOString(),
         ...(route ? {gpsRoute: route} : {})
-      }, {title,date,startTime,distance,duration,rpe,heartRate,observations});
+      }, {title,date,startTime,distance,duration,rpe,heartRate,observations,shoeId:chosenShoe?chosenShoe.id:'',shoeName:chosenShoe?formatShoeLabel(chosenShoe):''});
     } catch (cause) {setError(cause instanceof Error ? cause.message : 'Confira os dados do treino.'); return;}
     saveLock.current = true; setSaving(true); setError('');
     try {
       await saveFreeRun(athlete.id, run);
       if (!editingRun && (recoverable || route)) {clearActiveWorkoutBackup(); clearUnsavedRouteBackup();}
-      setMode(null); setSuccess(true); setRoute(null); setEditingRun(null); setSelectedId(run.id);
+      setMode(null); setSuccess(true); setRoute(null); setEditingRun(null); setSelectedShoeId(''); setSelectedId(run.id);
       if (post) setShareData(freeRunShareData(run,athlete));
     } catch {
       setError('Não foi possível salvar. Seus dados continuam aqui; verifique a conexão e tente novamente.');
@@ -101,15 +107,18 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
     const { rpe: effort, observations: notes } = captured.completion;
     const seconds = Math.round(captured.totalDurationSeconds);
     const duration = `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`;
+    const chosenShoe = captured.shoeId ? (athlete.shoes || []).find(s => s.id === captured.shoeId) : undefined;
     await saveFreeRun(athlete.id, {
       id: runId.current || (runId.current = crypto.randomUUID()),
       day: parseDateString(date).toLocaleDateString('pt-BR', { weekday: 'long' }), date,
       type: 'Rodagem', customDescription: title || 'Corrida livre', completed: true,
       startTime, createdAt: createdAt.current || getAppNow().toISOString(),
       actualDistance: captured.totalDistanceKm, actualDuration: duration, rpe: effort, feedback: notes,
-      gpsRoute: captured as FreeRun['gpsRoute'], avgHeartRate: captured.avgHeartRate
+      gpsRoute: captured as FreeRun['gpsRoute'], avgHeartRate: captured.avgHeartRate,
+      shoeId: chosenShoe ? chosenShoe.id : captured.shoeId,
+      shoeName: chosenShoe ? formatShoeLabel(chosenShoe) : captured.shoeName
     });
-    clearActiveWorkoutBackup(); clearUnsavedRouteBackup(); setMode(null); setSuccess(true); setSelectedId(runId.current);
+    clearActiveWorkoutBackup(); clearUnsavedRouteBackup(); setMode(null); setSuccess(true); setSelectedShoeId(''); setSelectedId(runId.current);
     setShareData({ title: title || 'Corrida livre', athleteName: athlete.name, date,
       distanceKm: captured.totalDistanceKm, durationSeconds: seconds, avgPace: captured.avgPace,
       rpe: effort, route: captured, elevationGainMeters: captured.elevationGainMeters,
@@ -117,7 +126,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   };
 
   const recover = () => {
-    runId.current = crypto.randomUUID(); createdAt.current = getAppNow().toISOString(); setEditingRun(null); setDate(getTodayDateString()); setTitle('Corrida livre'); setStartTime(''); setError(''); setSuccess(false);
+    runId.current = crypto.randomUUID(); createdAt.current = getAppNow().toISOString(); setEditingRun(null); setDate(getTodayDateString()); setTitle('Corrida livre'); setStartTime(''); setSelectedShoeId(suggestShoeForWorkout(athlete.shoes, 'Corrida livre').shoe?.id || ''); setError(''); setSuccess(false);
     if (unsavedBackup?.workoutContext?.weekIndex === -1) { setResume(true); setMode('gps'); }
     else if (activeBackup?.weekIndex === -1) { setResume(true); setMode('gps'); }
   };
@@ -125,6 +134,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
   const edit = (run: FreeRun) => {
     setEditingRun(run); runId.current=run.id; setTitle(run.customDescription || 'Corrida livre'); setDate(run.date || getTodayDateString()); setStartTime(run.startTime || '');
     setDistanceEdited(false);setDistance(String(activityDistance(run))); setDuration(run.actualDuration || ''); setRpe(run.rpe !== undefined ? String(run.rpe) : ''); setHeartRate(run.avgHeartRate !== undefined ? String(run.avgHeartRate) : ''); setObservations(run.feedback || '');
+    setSelectedShoeId(run.shoeId || '');
     setRoute(run.gpsRoute || run.route || null);setError('');setSuccess(false);setSelectedId(null);setMode('manual');
   };
   const history = runs.length > 0 && <details className="w-full space-y-2" data-free-run-history>
@@ -173,6 +183,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
             </button>
           </div>}
           {mode === 'gps' ? <GpsWorkoutTracker workoutType="Corrida livre" athleteWeight={athlete.weight || 70}
+            shoes={athlete.shoes} athletePlan={plan} archivedPlans={athlete.archivedPlans} initialShoeId={selectedShoeId}
             workoutContext={{ weekIndex: -1, dayIndex: -1 }} autoResumeBackup={resume}
             onRouteCaptured={saveCapturedWorkout} onCancel={() => setMode(null)} /> : <>
             <h2 className="text-xl font-black text-white uppercase italic">{editingRun ? 'Editar corrida livre' : 'Registrar corrida livre'}</h2>
@@ -184,6 +195,18 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
             <label className="block text-slate-300">Distância (km)<input aria-label="Distância (km)" className="pro-input block w-full mt-2" inputMode="decimal" value={distanceEdited?distance:formatDistanceInput(distance)} onChange={e => {setDistanceEdited(true);setDistance(e.target.value);}} /></label>
             <label className="block text-slate-300">Tempo (minutos:segundos)<input aria-label="Tempo (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={duration} onChange={e => setDuration(e.target.value)} /></label>
             <label className="block text-slate-300">FC média (bpm)<input aria-label="FC média (bpm)" className="pro-input block w-full mt-2" type="number" min="1" max="300" value={heartRate} onChange={e=>setHeartRate(e.target.value)}/></label>
+            {(athlete.shoes && athlete.shoes.length > 0) && (
+              <ShoeSelectorField
+                shoes={athlete.shoes}
+                plan={plan}
+                archivedPlans={athlete.archivedPlans}
+                value={selectedShoeId}
+                onChange={setSelectedShoeId}
+                workoutType="Corrida livre"
+                isLight={false}
+                disabled={saving}
+              />
+            )}
             <RpeSelector value={rpe} onChange={setRpe} />
             <label className="block text-slate-300">Observações<textarea aria-label="Observações" className="pro-input block w-full mt-2" value={observations} onChange={e => setObservations(e.target.value)} maxLength={3000} /></label>
             {error && <p role="alert" className="text-red-400">{error}</p>}
@@ -194,7 +217,7 @@ export const FreeRunPanel = ({ athlete, compact = false }: { athlete: Athlete; c
         </div>
       </div>, document.body)}
       {shareData && <WorkoutShareModal data={shareData} onClose={() => setShareData(null)} />}
-      {selected && <FreeRunDetails run={selected} isLight={theme==='light'} onClose={()=>setSelectedId(null)} onEdit={()=>edit(selected)} onPost={()=>setShareData(freeRunShareData(selected,athlete))}/>}
+      {selected && <FreeRunDetails run={selected} shoes={athlete.shoes} isLight={theme==='light'} onClose={()=>setSelectedId(null)} onEdit={()=>edit(selected)} onPost={()=>setShareData(freeRunShareData(selected,athlete))}/>}
     </section>
   );
 };

@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../utils/sanitization';
 import { getAppNow, getTodayDateString } from '../utils/time';
 import { DEFAULT_WORKOUTS } from '../data/defaultWorkouts';
+import { calculateShoeStats, formatShoeLabel, getNewShoeWearAlert } from '../utils/shoeUtils';
 
 interface AppContextType {
 // ... existing types ...
@@ -76,7 +77,8 @@ interface AppContextType {
     avgHeartRate?: number,
     workoutType?: string,
     customDescription?: string,
-    workoutDate?: string
+    workoutDate?: string,
+    shoeId?: string | null
   ) => Promise<void>;
   
   getAthleteMetrics: (athleteId: string) => { 
@@ -802,7 +804,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const athlete = athletes.find(item => item.id === athleteId);
     if (athlete) {
       const { updatedData } = calculateAthleteGamification({...athletePlans, [athleteId]: nextPlan}, athleteId, athlete.gamification, athlete.archivedPlans);
-      await updateAthlete(athleteId, {gamification: updatedData});
+      const athletePatch: Partial<Athlete> = { gamification: updatedData };
+      if (run.shoeId && athlete.shoes && athlete.shoes.length > 0) {
+        const targetShoe = athlete.shoes.find(s => s.id === run.shoeId);
+        if (targetShoe) {
+          const stats = calculateShoeStats(targetShoe, nextPlan, athlete.archivedPlans);
+          const alertInfo = getNewShoeWearAlert(targetShoe, stats);
+          if (alertInfo) {
+            athletePatch.shoes = athlete.shoes.map(s => s.id === targetShoe.id ? { ...s, alertedLevel: alertInfo.level } : s);
+            addNotification({
+              title: alertInfo.title,
+              message: alertInfo.message,
+              type: alertInfo.type,
+              icon: '👟',
+              category: 'workout',
+              link: '/athlete-portal'
+            } as any);
+          }
+        }
+      }
+      await updateAthlete(athleteId, athletePatch);
     }
   };
 
@@ -898,7 +919,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     avgHeartRate?: number,
     workoutType?: string,
     customDescription?: string,
-    workoutDate?: string
+    workoutDate?: string,
+    shoeId?: string | null
   ) => {
     const sFeedback = sanitizeInput(feedback);
     const currentPlan = athletePlans[athleteId];
@@ -959,6 +981,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (menstrualPhase !== undefined) workout.menstrualPhase = menstrualPhase;
     if (readinessScore !== undefined) workout.readinessScore = readinessScore;
     if (gpsRoute !== undefined) workout.gpsRoute = gpsRoute;
+    if (shoeId !== undefined) {
+      if (shoeId) {
+        workout.shoeId = shoeId;
+        const matchedShoe = athletes.find(a => a.id === athleteId)?.shoes?.find(s => s.id === shoeId);
+        if (matchedShoe) {
+          workout.shoeName = formatShoeLabel(matchedShoe);
+        }
+      } else {
+        delete workout.shoeId;
+        delete workout.shoeName;
+      }
+    }
 
     // Recalculate planned totalVolume and actualVolume for all weeks in the plan
     const weeksWithMetadata = updatedPlan.weeks.map((w: any, index: number) => {
@@ -1019,6 +1053,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       
       const updateData: Partial<Athlete> = { gamification: updatedData };
+
+      const effectiveShoeId = shoeId !== undefined ? shoeId : workout.shoeId;
+      if (completed && effectiveShoeId && athlete.shoes && athlete.shoes.length > 0) {
+        const targetShoe = athlete.shoes.find(s => s.id === effectiveShoeId);
+        if (targetShoe) {
+          const stats = calculateShoeStats(targetShoe, planWithMetadata, athlete.archivedPlans);
+          const alertInfo = getNewShoeWearAlert(targetShoe, stats);
+          if (alertInfo) {
+            updateData.shoes = athlete.shoes.map(s => s.id === targetShoe.id ? { ...s, alertedLevel: alertInfo.level } : s);
+            addNotification({
+              title: alertInfo.title,
+              message: alertInfo.message,
+              type: alertInfo.type,
+              icon: '👟',
+              category: 'workout',
+              link: '/athlete-portal'
+            } as any);
+          }
+        }
+      }
       
       if (readinessScore !== undefined && readinessScore !== null && !isNaN(readinessScore)) {
         const clampedScore = Math.min(100, Math.max(0, Math.round(readinessScore)));

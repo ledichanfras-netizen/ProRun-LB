@@ -1,21 +1,29 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Edit3, Share2, X } from 'lucide-react';
-import type { FreeRun } from '../types';
+import { Edit3, Footprints, Share2, X } from 'lucide-react';
+import type { FreeRun, RunningShoe } from '../types';
 import { activityDistance } from '../utils/trainingActivities';
 import { calculateWorkoutTRIMP } from '../utils/stressModel';
 import { freeRunDurationSeconds, freeRunRoute } from '../utils/freeRunSession';
+import { formatShoeLabel } from '../utils/shoeUtils';
 import { RunMetricsGrid } from './RunMetricsGrid';
 import { RunRouteDetails } from './RunRouteDetails';
 
-export function FreeRunDetails({run,isLight,onClose,onEdit,onPost}:{run:FreeRun;isLight:boolean;onClose:()=>void;onEdit:()=>void;onPost:()=>void}) {
+export function FreeRunDetails({run,shoes,isLight,onClose,onEdit,onPost}:{run:FreeRun;shoes?:RunningShoe[];isLight:boolean;onClose:()=>void;onEdit:()=>void;onPost:()=>void}) {
   const route=freeRunRoute(run);
+  const resolvedShoe = run.shoeId ? (shoes || []).find(s => s.id === run.shoeId) : undefined;
+  const shoeLabel = resolvedShoe ? formatShoeLabel(resolvedShoe) : run.shoeName;
   return createPortal(<div role="dialog" aria-modal="true" aria-labelledby="free-run-details-title" className="fixed inset-0 z-[10002] overflow-y-auto bg-slate-950 p-4 sm:p-6">
     <div className="max-w-2xl mx-auto space-y-5 pb-8 text-slate-200">
       <header className="flex items-start justify-between gap-3"><div>
         <p className="text-[10px] font-black uppercase italic tracking-wider text-emerald-400">Corrida livre · Concluída</p>
         <h2 id="free-run-details-title" className="text-xl font-black uppercase italic tracking-tight text-white">{run.customDescription || 'Corrida livre'}</h2>
         <p className="text-xs text-slate-400 mt-1">{run.date?.split('-').reverse().join('/')} · {run.startTime || 'Horário não informado'}</p>
+        {shoeLabel && (
+          <p className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-black uppercase text-emerald-300">
+            <Footprints className="w-3 h-3" /> {shoeLabel}
+          </p>
+        )}
       </div><button type="button" onClick={onClose} aria-label="Fechar detalhes da corrida livre" className="p-2 rounded-xl bg-white/10 text-slate-300 shrink-0"><X className="w-5 h-5"/></button></header>
       <div className="flex flex-wrap gap-3">
         <button type="button" onClick={onEdit} className="flex-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 p-3 text-xs font-black uppercase italic flex items-center justify-center gap-2"><Edit3 className="w-4 h-4"/>Editar treino</button>

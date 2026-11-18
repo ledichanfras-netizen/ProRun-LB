@@ -64,6 +64,9 @@ import { PrintLayout } from '../components/PrintLayout';
 import { AIPerformanceHub } from '../components/AIPerformanceHub';
 import { FreeRunPanel } from '../components/FreeRunPanel';
 import { GpsWorkoutTracker } from '../components/GpsWorkoutTracker';
+import { ShoesManagerPanel } from '../components/ShoesManagerPanel';
+import { ShoeSelectorField } from '../components/ShoeSelectorField';
+import { calculateShoeStats, formatShoeLabel, isRunningShoeWorkout, suggestShoeForWorkout } from '../utils/shoeUtils';
 import { WorkoutMap } from '../components/WorkoutMap';
 import { WorkoutTelemetryCharts } from '../components/WorkoutTelemetryCharts';
 import {
@@ -256,6 +259,7 @@ const AthletePortal: React.FC = () => {
   const [localSteps, setLocalSteps] = useState<any[]>([]);
   const [editWorkoutType, setEditWorkoutType] = useState<string>('');
   const [editCustomDescription, setEditCustomDescription] = useState<string>('');
+  const [selectedShoeId, setSelectedShoeId] = useState<string>('');
 
   // Reagendamento / Alteração de Data pelo Atleta
   const [athleteRescheduling, setAthleteRescheduling] = useState<{
@@ -351,7 +355,7 @@ const AthletePortal: React.FC = () => {
   };
 
   const [isSaving, setIsSaving] = useState(false);
-  const [activePortalTab, setActivePortalTab] = useState<'current' | 'history'>('current');
+  const [activePortalTab, setActivePortalTab] = useState<'current' | 'history' | 'shoes'>('current');
   const [expandedArchivedId, setExpandedArchivedId] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -817,6 +821,10 @@ const AthletePortal: React.FC = () => {
       const moodPct = ((moodValue - 1) / 4) * 100;
       const calculatedScore = Math.round((sleepPct * 0.30) + (stressPct * 0.20) + (sorenessPct * 0.30) + (moodPct * 0.20));
 
+      const effectiveShoeId = !isRunningShoeWorkout(effectiveType)
+        ? null
+        : (customRoute?.shoeId !== undefined ? (customRoute.shoeId || null) : (selectedShoeId || null));
+
       await updateWorkoutStatus(
         activeAthlete.id,
         currentSelected.weekIndex,
@@ -837,7 +845,9 @@ const AthletePortal: React.FC = () => {
         dur,
         heartRate,
         editWorkoutType,
-        editCustomDescription
+        editCustomDescription,
+        undefined,
+        effectiveShoeId
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -884,6 +894,7 @@ const AthletePortal: React.FC = () => {
       setActualDurationValue('');
       setActualHeartRateValue('');
       setCurrentGpsRoute(null);
+      setSelectedShoeId('');
     } catch (err: any) {
       console.error("Erro ao salvar e compartilhar treino:", err?.message || err);
       if (customRoute?.completion) throw err;
@@ -921,6 +932,9 @@ const AthletePortal: React.FC = () => {
         ? actualDurationValue 
         : (selectedWorkout.data.actualDuration || (selectedWorkout.data.durationMinutes ? `${selectedWorkout.data.durationMinutes}:00` : (isStrength ? '45:00' : undefined)));
 
+      const effectiveShoeId = !isRunningShoeWorkout(effectiveType) ? null : (selectedShoeId || null);
+      const chosenShoe = effectiveShoeId ? (activeAthlete.shoes || []).find(s => s.id === effectiveShoeId) : undefined;
+
       await updateWorkoutStatus(
         activeAthlete.id, 
         selectedWorkout.weekIndex, 
@@ -946,7 +960,9 @@ const AthletePortal: React.FC = () => {
         durStr,
         parsedHeartRate,
         editWorkoutType,
-        editCustomDescription
+        editCustomDescription,
+        undefined,
+        effectiveShoeId
       );
 
       // Gatilho de Notificação para Esforço Alto (PSE >= 8)
@@ -974,7 +990,9 @@ const AthletePortal: React.FC = () => {
           rpe: effectiveRpe,
           actualDistance: parsedDistance,
           actualDuration: durStr,
-          avgHeartRate: parsedHeartRate
+          avgHeartRate: parsedHeartRate,
+          shoeId: chosenShoe ? chosenShoe.id : undefined,
+          shoeName: chosenShoe ? formatShoeLabel(chosenShoe) : undefined
         }
       } : null);
 
@@ -1014,6 +1032,7 @@ const AthletePortal: React.FC = () => {
           setActualDurationValue('');
           setActualHeartRateValue('');
           setCurrentGpsRoute(null);
+          setSelectedShoeId('');
           setShowGpsTracker(false);
 
           if (completedWorkoutSnapshot && (completedWorkoutSnapshot.workoutType !== 'Descanso' || completedWorkoutSnapshot.distanceKm > 0 || completedWorkoutSnapshot.route)) {
@@ -1124,6 +1143,13 @@ const AthletePortal: React.FC = () => {
     setMoodValue(workout.moodScore || activeAthlete?.lastReadiness?.moodScore || 4);
     setMenstrualPhaseValue(workout.menstrualPhase || (activeAthlete?.lastReadiness?.menstrualPhase as any) || 'none');
     setCurrentGpsRoute(workout.gpsRoute || null);
+    if (workout.shoeId) {
+      setSelectedShoeId(workout.shoeId);
+    } else if (!workout.completed && isRunningShoeWorkout(workout.type)) {
+      setSelectedShoeId(suggestShoeForWorkout(activeAthlete?.shoes, workout.type).shoe?.id || '');
+    } else {
+      setSelectedShoeId('');
+    }
 
     // Auto-parse structured workout steps from description
     const descText = workout.customDescription || workout.description || '';
@@ -1289,23 +1315,37 @@ const AthletePortal: React.FC = () => {
       <div className="bg-slate-900 border border-slate-800 p-1.5 rounded-[1.8rem] flex gap-1 shadow-inner">
         <button
           onClick={() => setActivePortalTab('current')}
-          className={`flex-1 py-3 text-center rounded-2xl font-black text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-2 ${
+          className={`flex-1 py-3 px-2 text-center rounded-2xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-1.5 ${
             activePortalTab === 'current'
               ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/10'
               : 'text-slate-400 hover:text-white hover:bg-white/5'
           }`}
         >
-          <Activity className="w-4 h-4" /> Ciclo Atual
+          <Activity className="w-4 h-4 shrink-0" /> <span>Ciclo Atual</span>
+        </button>
+        <button
+          onClick={() => setActivePortalTab('shoes')}
+          className={`flex-1 py-3 px-2 text-center rounded-2xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-1.5 relative ${
+            activePortalTab === 'shoes'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/10'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Footprints className="w-4 h-4 shrink-0" />
+          <span>Meus Tênis</span>
+          {(activeAthlete.shoes || []).some(s => !s.retired && calculateShoeStats(s, athletePlan, activeAthlete.archivedPlans).status !== 'ok') && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" title="Alerta de desgaste em um tênis ativo" />
+          )}
         </button>
         <button
           onClick={() => setActivePortalTab('history')}
-          className={`flex-1 py-3 text-center rounded-2xl font-black text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-2 ${
+          className={`flex-1 py-3 px-2 text-center rounded-2xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider italic transition-all flex justify-center items-center gap-1.5 ${
             activePortalTab === 'history'
               ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/10'
               : 'text-slate-400 hover:text-white hover:bg-white/5'
           }`}
         >
-          <Archive className="w-4 h-4" /> Ciclos Concluídos
+          <Archive className="w-4 h-4 shrink-0" /> <span>Histórico</span>
         </button>
       </div>
 
@@ -2256,6 +2296,21 @@ const AthletePortal: React.FC = () => {
                   <Navigation className="w-2.5 h-2.5" /> Rota GPS Gravada ({formatDistance(todayWorkout.workout.gpsRoute.totalDistanceKm)} km)
                 </div>
               )}
+              {todayWorkout?.workout.completed && (todayWorkout.workout.shoeId || todayWorkout.workout.shoeName) && (() => {
+                const matched = todayWorkout.workout.shoeId
+                  ? (activeAthlete?.shoes || []).find(s => s.id === todayWorkout.workout.shoeId)
+                  : undefined;
+                const shoeLabel = matched ? formatShoeLabel(matched) : todayWorkout.workout.shoeName;
+                return shoeLabel ? (
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-black text-[8px] uppercase italic border ${
+                    isLight
+                      ? 'text-slate-800 bg-white border-slate-300'
+                      : 'text-slate-200 bg-white/10 border-white/15'
+                  }`}>
+                    <Footprints className="w-2.5 h-2.5 text-emerald-500" /> {shoeLabel}
+                  </div>
+                ) : null;
+              })()}
             </div>
  
             <h2 className={`text-3xl font-black italic uppercase tracking-tighter mb-2 leading-tight ${
@@ -3794,6 +3849,17 @@ const AthletePortal: React.FC = () => {
         );
       })()}
         </>
+      ) : activePortalTab === 'shoes' ? (
+        <div className="px-2">
+          <ShoesManagerPanel
+            athlete={activeAthlete}
+            plan={athletePlan}
+            isLight={isLight}
+            onUpdateShoes={async (nextShoes) => {
+              await updateAthlete(activeAthlete.id, { shoes: nextShoes });
+            }}
+          />
+        </div>
       ) : (
         <div className="space-y-6 animate-fade-in px-2">
           {/* Header of history section */}
@@ -4177,6 +4243,7 @@ const AthletePortal: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setEditWorkoutType('Rodagem');
+                      setSelectedShoeId(prev => prev || suggestShoeForWorkout(activeAthlete?.shoes, 'Rodagem').shoe?.id || '');
                     }}
                     className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
                   >
@@ -4607,6 +4674,27 @@ const AthletePortal: React.FC = () => {
                     </div>
                   )}
 
+                  {!selectedWorkout.data.completed && isRunningShoeWorkout(editWorkoutType || selectedWorkout.data.type) && (
+                    <div className={`p-5 rounded-[2rem] border transition-all ${
+                      isLight ? 'bg-slate-50 border-slate-200 text-slate-900 shadow-sm' : 'bg-white/5 border-white/10 text-white'
+                    }`}>
+                      <ShoeSelectorField
+                        shoes={activeAthlete?.shoes}
+                        plan={athletePlan}
+                        archivedPlans={activeAthlete?.archivedPlans}
+                        value={selectedShoeId}
+                        onChange={setSelectedShoeId}
+                        workoutType={editWorkoutType || selectedWorkout.data.type}
+                        isLight={isLight}
+                        disabled={isSaving}
+                        onOpenGarage={() => {
+                          setSelectedWorkout(null);
+                          setActivePortalTab('shoes');
+                        }}
+                      />
+                    </div>
+                  )}
+
                   {/* RELATÓRIO DE EXECUÇÃO (ENVIAR AO TREINADOR) - Only visible after marking the workout as completed */}
                   {selectedWorkout.data.completed && (
                     <div className={`p-6 rounded-[2rem] border space-y-6 transition-all ${
@@ -4779,6 +4867,24 @@ const AthletePortal: React.FC = () => {
                           </div>
                         );
                       })()}
+
+                      {/* Seletor de Tênis usado no treino */}
+                      {isRunningShoeWorkout(editWorkoutType || selectedWorkout.data.type) && (
+                        <ShoeSelectorField
+                          shoes={activeAthlete?.shoes}
+                          plan={athletePlan}
+                          archivedPlans={activeAthlete?.archivedPlans}
+                          value={selectedShoeId}
+                          onChange={setSelectedShoeId}
+                          workoutType={editWorkoutType || selectedWorkout.data.type}
+                          isLight={isLight}
+                          disabled={isSaving}
+                          onOpenGarage={() => {
+                            setSelectedWorkout(null);
+                            setActivePortalTab('shoes');
+                          }}
+                        />
+                      )}
 
                       {/* 2. Percepção de Esforço (PSE) */}
                       <div className="space-y-3">
@@ -5551,10 +5657,17 @@ const AthletePortal: React.FC = () => {
               }
               workoutDescription={selectedWorkout.data.customDescription || selectedWorkout.data.description}
               athletePaces={paces}
+              shoes={activeAthlete?.shoes}
+              athletePlan={athletePlan}
+              archivedPlans={activeAthlete?.archivedPlans}
+              initialShoeId={selectedShoeId}
               onRouteCaptured={async (route) => {
                 setAutoResumeGpsBackup(false);
                 setActiveBackup(null);
                 setCurrentGpsRoute(route);
+                if (route.shoeId !== undefined) {
+                  setSelectedShoeId(route.shoeId || '');
+                }
                 setDistanceEdited(false);
                 setActualDistanceValue(String(route.totalDistanceKm));
                 const durSec = route.totalDurationSeconds || (route as any).durationSeconds || 0;

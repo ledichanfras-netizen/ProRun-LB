@@ -2,16 +2,34 @@ import { RpeSelector } from './RpeSelector';
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RouteData, formatDuration, formatPace } from '../utils/gpsUtils';
+import type { Athlete, AthletePlan, RunningShoe } from '../types';
+import { formatShoeLabel, isRunningShoeWorkout, suggestShoeForWorkout } from '../utils/shoeUtils';
+import { ShoeSelectorField } from './ShoeSelectorField';
 import { RunMetricsGrid } from './RunMetricsGrid';
 import { WorkoutMap } from './WorkoutMap';
 
-export function WorkoutCompletionReview({ route, onConfirm, onBack }: {
-  route: RouteData; onConfirm: (reviewed: RouteData) => Promise<void>; onBack: () => void;
+export function WorkoutCompletionReview({ route, onConfirm, onBack, shoes, plan, archivedPlans, workoutType, initialShoeId }: {
+  route: RouteData;
+  onConfirm: (reviewed: RouteData) => Promise<void>;
+  onBack: () => void;
+  shoes?: RunningShoe[];
+  plan?: AthletePlan | null;
+  archivedPlans?: Athlete['archivedPlans'];
+  workoutType?: string;
+  initialShoeId?: string;
 }) {
   const [rpe, setRpe] = useState(route.completion ? String(route.completion.rpe) : '');
   const [observations, setObservations] = useState(route.completion?.observations || '');
   const [distance, setDistance] = useState(String(route.totalDistanceKm || ''));
   const [time, setTime] = useState(route.totalDurationSeconds > 0 ? `${Math.floor(route.totalDurationSeconds / 60)}:${String(Math.round(route.totalDurationSeconds) % 60).padStart(2, '0')}` : '');
+  const [selectedShoeId, setSelectedShoeId] = useState<string>(() => {
+    if (route.shoeId) return route.shoeId;
+    if (initialShoeId) return initialShoeId;
+    if (isRunningShoeWorkout(workoutType)) {
+      return suggestShoeForWorkout(shoes, workoutType).shoe?.id || '';
+    }
+    return '';
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const lock = useRef(false);
@@ -22,8 +40,17 @@ export function WorkoutCompletionReview({ route, onConfirm, onBack }: {
     if (rpe === '' || !Number.isInteger(Number(rpe)) || Number(rpe) < 0 || Number(rpe) > 10) { setError('Preencha a PSE de 0 a 10.'); return; }
     if (!Number.isFinite(km) || km <= 0 || seconds <= 0) { setError('Preencha a distância e o tempo real do treino.'); return; }
     lock.current = true; setSaving(true); setError('');
+    const chosenShoe = (shoes || []).find((s) => s.id === selectedShoeId);
     try {
-      await onConfirm({ ...route, totalDistanceKm: km, totalDurationSeconds: seconds, avgPace: formatPace(seconds, km), completion: { rpe: Number(rpe), observations: observations.trim() } });
+      await onConfirm({
+        ...route,
+        totalDistanceKm: km,
+        totalDurationSeconds: seconds,
+        avgPace: formatPace(seconds, km),
+        shoeId: chosenShoe ? chosenShoe.id : undefined,
+        shoeName: chosenShoe ? formatShoeLabel(chosenShoe) : undefined,
+        completion: { rpe: Number(rpe), observations: observations.trim() },
+      });
     } catch { setError('Não foi possível salvar. Seus dados foram mantidos. Verifique a conexão e tente novamente.'); }
     finally { lock.current = false; setSaving(false); }
   };
@@ -38,6 +65,18 @@ export function WorkoutCompletionReview({ route, onConfirm, onBack }: {
       {!(route.totalDurationSeconds > 0) && <label className="block text-xs font-bold text-slate-300">Tempo real (minutos:segundos)<input aria-label="Tempo real (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={time} onChange={e => setTime(e.target.value)} /></label>}
       {!!route.points?.length && <WorkoutMap points={route.points} height="180px" />}
       {!!route.kmSplits?.length && <details><summary className="pro-label cursor-pointer">Parciais da corrida</summary><div className="space-y-2">{route.kmSplits.map((split, index) => <p key={index} className="text-xs text-slate-300">Parcial {index + 1} · {split.pace}/km · {formatDuration(split.durationSeconds)}</p>)}</div></details>}
+      {shoes && shoes.length > 0 && isRunningShoeWorkout(workoutType) && (
+        <ShoeSelectorField
+          shoes={shoes}
+          plan={plan}
+          archivedPlans={archivedPlans}
+          value={selectedShoeId}
+          onChange={setSelectedShoeId}
+          workoutType={workoutType}
+          isLight={false}
+          disabled={saving}
+        />
+      )}
       <RpeSelector value={rpe} disabled={saving} onChange={value => { setRpe(value); setError(''); }} />
       <label className="block text-xs font-black uppercase italic tracking-wide text-slate-300">Observações<textarea aria-label="Observações" value={observations} onChange={e => { setObservations(e.target.value); setError(''); }} className="pro-input block w-full mt-2 min-h-24" placeholder="Como você se sentiu? Dor, cansaço, clima ou outros detalhes." maxLength={3000} /></label>
       {error && <p role="alert" className="text-red-400 text-sm font-semibold">{error}</p>}

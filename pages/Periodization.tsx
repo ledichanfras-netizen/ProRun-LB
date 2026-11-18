@@ -1,4 +1,5 @@
 import {formatDistance} from '../utils/formatDistance';
+import { formatShoeLabel } from '../utils/shoeUtils';
 import PeriodizationSetup,{type PrescriptionMode} from '../components/PeriodizationSetup';
 import {CyclePlanningPanel} from '../components/CyclePlanningPanel';
 import {emptyCyclePlanning,createManualCycle,validateCyclePlanning,type CyclePlanning} from '../utils/cyclePlanning';
@@ -55,7 +56,8 @@ import {
   Users,
   UserCheck,
   ArrowRight,
-  Search
+  Search,
+  Footprints
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculatePaces } from '../utils/calculations';
@@ -1786,7 +1788,13 @@ const Periodization: React.FC = () => {
                                         type="button"
                                         onClick={() => {
                                           const r = workout.gpsRoute || workout.route;
-                                          setViewingWorkoutRoute({ ...r, workoutType: workout.type, workoutDate: fullPlan?.startDate ? formatWorkoutDateShort(workout.date?parseDateString(workout.date):getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex)) : undefined });
+                                          setViewingWorkoutRoute({
+                                            ...r,
+                                            workoutType: workout.type,
+                                            workoutDate: fullPlan?.startDate ? formatWorkoutDateShort(workout.date?parseDateString(workout.date):getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex)) : undefined,
+                                            shoeId: workout.shoeId || r?.shoeId,
+                                            shoeName: workout.shoeName || r?.shoeName
+                                          });
                                         }}
                                         className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-md uppercase italic border border-emerald-500/30 flex items-center gap-1 transition-all cursor-pointer"
                                       >
@@ -1794,6 +1802,18 @@ const Periodization: React.FC = () => {
                                         <span>Rota GPS ({formatDistance((workout.gpsRoute || workout.route)?.totalDistanceKm || workout.actualDistance || workout.distance)} km)</span>
                                       </button>
                                     )}
+                                    {(workout.shoeId || workout.shoeName) && (() => {
+                                      const matched = workout.shoeId
+                                        ? (activeAthlete?.shoes || []).find(s => s.id === workout.shoeId)
+                                        : undefined;
+                                      const shoeLabel = matched ? formatShoeLabel(matched) : workout.shoeName;
+                                      return shoeLabel ? (
+                                        <span className="text-[9px] font-black px-2 py-0.5 bg-white/10 text-slate-200 rounded-md uppercase italic border border-white/15 flex items-center gap-1" title="Tênis utilizado neste treino">
+                                          <Footprints className="w-2.5 h-2.5 text-emerald-400" />
+                                          <span>{shoeLabel}</span>
+                                        </span>
+                                      ) : null;
+                                    })()}
                                     {workout.feedback && (
                                       <div className="w-full flex items-start gap-1.5 bg-white/5 p-2 rounded-xl border border-white/5">
                                         <MessageSquare className="w-3 h-3 text-slate-400 mt-0.5" />
@@ -2037,6 +2057,17 @@ const Periodization: React.FC = () => {
                     <p className="text-[10px] text-slate-400 font-medium">
                       Atleta: <strong className="text-emerald-400">{activeAthlete?.name}</strong> {viewingWorkoutRoute.workoutDate ? `• Data: ${viewingWorkoutRoute.workoutDate}` : ''}
                     </p>
+                    {(viewingWorkoutRoute.shoeId || viewingWorkoutRoute.shoeName) && (() => {
+                      const matched = viewingWorkoutRoute.shoeId
+                        ? (activeAthlete?.shoes || []).find(s => s.id === viewingWorkoutRoute.shoeId)
+                        : undefined;
+                      const shoeLabel = matched ? formatShoeLabel(matched) : viewingWorkoutRoute.shoeName;
+                      return shoeLabel ? (
+                        <p className="inline-flex items-center gap-1 mt-1 text-[10px] font-black uppercase text-emerald-300">
+                          <Footprints className="w-3 h-3" /> {shoeLabel}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
                 <button

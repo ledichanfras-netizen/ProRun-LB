@@ -36,13 +36,17 @@ export function buildPrescriptionContext(athlete:Athlete,current:AthletePlan|nul
 export type PrescriptionContext=ReturnType<typeof buildPrescriptionContext>;
 export interface PrescriptionConstraints {cyclePlanning?:import('./cyclePlanning').CyclePlanning;weeks:number;startDate:string;raceDate?:string;runningDays:number[];gymDays:number[];longRunDay:number;multisport?:boolean;}
 export interface PrescriptionReview {version:1;generatedAt:string;constraints:PrescriptionConstraints;context:PrescriptionContext;}
-export function inspectPrescription(plan:AthletePlan,constraints:PrescriptionConstraints,context?:PrescriptionContext){
+export interface InspectPrescriptionOptions {allowCoachOverrides?:boolean;}
+export function inspectPrescription(plan:AthletePlan,constraints:PrescriptionConstraints,context?:PrescriptionContext,options:InspectPrescriptionOptions={}){
+ const allowCoachOverrides=Boolean(options.allowCoachOverrides);
  const errors:string[]=[],warnings:string[]=[],totals:{week:number;runningKm:number;cyclingKm:number;swimmingKm:number;demandingDays:number}[]=[];
- if(!Array.isArray(plan.weeks)||plan.weeks.length!==constraints.weeks)errors.push(`O ciclo precisa conter ${constraints.weeks} semanas.`);
+ let hasScheduleAdjustment=false;
+ if(!Array.isArray(plan.weeks)||(!allowCoachOverrides&&plan.weeks.length!==constraints.weeks)||(allowCoachOverrides&&plan.weeks.length<1))errors.push(`O ciclo precisa conter ${constraints.weeks} semanas.`);
  const allowedTypes=new Set([...running,'Prova','Descanso','Fortalecimento','Natação','Ciclismo','Transição']);let previous:{date:string;hard:boolean;strength:boolean}|null=null;
  if(!Number.isInteger(constraints.weeks)||constraints.weeks<1||!/^\d{4}-\d{2}-\d{2}$/.test(constraints.startDate)||getLocalDateString(parseDateString(constraints.startDate))!==constraints.startDate)return {errors:['Parâmetros de duração ou início inválidos.'],warnings:[],totals:[]};
  for(const [wi,week] of (plan.weeks||[]).entries()){
-  if(!['Base','Construção','Pico','Polimento'].includes(week.phase))errors.push(`Semana ${wi+1}: fase inválida.`);
+  const validDefaultPhase=['Base','Construção','Pico','Polimento'].includes(week.phase);
+  if((!allowCoachOverrides&&!validDefaultPhase)||(allowCoachOverrides&&(typeof week.phase!=='string'||!week.phase.trim())))errors.push(`Semana ${wi+1}: fase inválida.`);
   if(!Array.isArray(week.workouts)){errors.push(`Semana ${wi+1}: sessões ausentes.`);continue;}
   if(week.workouts.length!==7||new Set(week.workouts.map(w=>w.day)).size!==7||week.workouts.some(w=>!prescriptionDays.includes(w.day)))errors.push(`Semana ${wi+1}: precisa conter os sete dias, sem duplicações.`);
   if(week.workouts.some(w=>w.distance!==undefined&&finite(w.distance)===null))errors.push(`Semana ${wi+1}: distância inválida em uma sessão.`);
@@ -52,13 +56,34 @@ export function inspectPrescription(plan:AthletePlan,constraints:PrescriptionCon
    if(!allowedTypes.has(w.type))errors.push(`Semana ${wi+1}, ${day}: tipo de treino inválido.`);
    if(w.date&&w.date!==date)errors.push(`Semana ${wi+1}, ${day}: data incompatível com o calendário.`);
    if(w.distance!==undefined&&km===null)errors.push(`Semana ${wi+1}, ${day}: distância inválida.`);
-   if(w.type==='Descanso'&&km)errors.push(`Semana ${wi+1}, ${day}: descanso com distância.`);
-   if((date<constraints.startDate||constraints.raceDate&&date>constraints.raceDate)&&w.type!=='Descanso')errors.push(`${date}: sessão fora do período do ciclo.`);
-   if(w.type==='Prova'&&constraints.raceDate&&date!==constraints.raceDate)errors.push(`${date}: prova fora da data-alvo.`);
-   if(w.type!=='Descanso'&&w.type!=='Prova'&&!constraints.runningDays.includes(di)&&!constraints.gymDays.includes(di))errors.push(`${date}: treino em dia indisponível.`);
-   if(running.has(w.type)&&!constraints.runningDays.includes(di))errors.push(`${date}: corrida fora dos dias escolhidos.`);
-   if(w.type==='Fortalecimento'&&!constraints.gymDays.includes(di))errors.push(`${date}: força fora dos dias escolhidos.`);
-   if(w.type==='Longão'&&di!==constraints.longRunDay)errors.push(`${date}: longão fora do dia escolhido.`);
+   if(w.type==='Descanso'&&km){
+    if(allowCoachOverrides)hasScheduleAdjustment=true;
+    else errors.push(`Semana ${wi+1}, ${day}: descanso com distância.`);
+   }
+   if((date<constraints.startDate||constraints.raceDate&&date>constraints.raceDate)&&w.type!=='Descanso'){
+    if(allowCoachOverrides)hasScheduleAdjustment=true;
+    else errors.push(`${date}: sessão fora do período do ciclo.`);
+   }
+   if(w.type==='Prova'&&constraints.raceDate&&date!==constraints.raceDate){
+    if(allowCoachOverrides)hasScheduleAdjustment=true;
+    else errors.push(`${date}: prova fora da data-alvo.`);
+   }
+   if(w.type!=='Descanso'&&w.type!=='Prova'&&!constraints.runningDays.includes(di)&&!constraints.gymDays.includes(di)){
+    if(allowCoachOverrides)hasScheduleAdjustment=true;
+    else errors.push(`${date}: treino em dia indisponível.`);
+   }
+   if(running.has(w.type)&&!constraints.runningDays.includes(di)){
+    if(allowCoachOverrides)hasScheduleAdjustment=true;
+    else errors.push(`${date}: corrida fora dos dias escolhidos.`);
+   }
+   if(w.type==='Fortalecimento'&&!constraints.gymDays.includes(di)){
+    if(allowCoachOverrides)hasScheduleAdjustment=true;
+    else errors.push(`${date}: força fora dos dias escolhidos.`);
+   }
+   if(w.type==='Longão'&&di!==constraints.longRunDay){
+    if(allowCoachOverrides)hasScheduleAdjustment=true;
+    else errors.push(`${date}: longão fora do dia escolhido.`);
+   }
    const discipline=sportOf(w.type,constraints.multisport);if(discipline==='corrida')total.runningKm+=km||0;if(discipline==='ciclismo')total.cyclingKm+=km||0;if(discipline==='natação')total.swimmingKm+=km||0;
    const hard=demanding.has(w.type)||w.type==='Maratona',strength=w.type==='Fortalecimento'||/\+.*fortalecimento|combinad.*força/i.test(w.customDescription||'');if(hard)total.demandingDays++;
    if(previous&&previous.date===offset(date,-1)&&previous.hard&&hard)warnings.push(`${date}: estímulos exigentes em dias consecutivos; conferir recuperação e prioridade.`);
@@ -69,7 +94,8 @@ export function inspectPrescription(plan:AthletePlan,constraints:PrescriptionCon
   if(total.demandingDays>2)warnings.push(`Semana ${wi+1}: ${total.demandingDays} dias classificados como exigentes (inclui longão); revisar distribuição, sem limite universal.`);
   total.runningKm=Number(total.runningKm.toFixed(2));total.cyclingKm=Number(total.cyclingKm.toFixed(2));total.swimmingKm=Number(total.swimmingKm.toFixed(2));totals.push(total);
  }
- if(constraints.raceDate){const raceDays=(plan.weeks||[]).flatMap(w=>w.workouts||[]).filter(w=>w.type==='Prova');const finalWeek=plan.weeks?.[constraints.weeks-1];if(raceDays.length!==1||!finalWeek?.workouts.some(w=>w.type==='Prova'&&getWorkoutDateString(constraints.startDate,constraints.weeks-1,prescriptionDays.indexOf(w.day))===constraints.raceDate))errors.push('A prova-alvo precisa ocorrer uma vez, na data definida e na última semana.');}
+ if(constraints.raceDate){const raceDays=(plan.weeks||[]).flatMap(w=>w.workouts||[]).filter(w=>w.type==='Prova');const finalWeek=plan.weeks?.[constraints.weeks-1];if(raceDays.length!==1||!finalWeek?.workouts.some(w=>w.type==='Prova'&&getWorkoutDateString(constraints.startDate,constraints.weeks-1,prescriptionDays.indexOf(w.day))===constraints.raceDate)){if(allowCoachOverrides)hasScheduleAdjustment=true;else errors.push('A prova-alvo precisa ocorrer uma vez, na data definida e na última semana.');}}
+ if(allowCoachOverrides&&hasScheduleAdjustment)warnings.push('Há sessões ajustadas manualmente pelo treinador fora dos dias ou datas originalmente selecionados.');
  if(constraints.multisport)warnings.push('Multiesporte: confirmar disponibilidade específica para natação, ciclismo e transições; o calendário atual usa os dias de corrida/academia informados.');
  if(context){if(context.baselineWindows<3)warnings.push('Histórico registrado insuficiente para uma referência estável de volume: confirmar a rotina real com o atleta.');if(context.dataQuality.missingDistance)warnings.push('Há sessões executadas sem distância real; o volume observado está incompleto.');if(!context.recentReadiness)warnings.push('Sem prontidão recente registrada; confirmar recuperação com o atleta.');
   const base=context.observedAverageRunningKm;if(base!==null&&totals[0]?.runningKm>base)warnings.push(`Semana inicial: ${totals[0].runningKm.toFixed(2)} km de corrida; média observada: ${base.toFixed(2)} km. Revisar a diferença e a qualidade do histórico; não é limite de segurança.`);

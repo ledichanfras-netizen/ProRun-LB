@@ -15,6 +15,8 @@ import { sanitizeInput } from '../utils/sanitization';
 import { getAppNow, getTodayDateString } from '../utils/time';
 import { DEFAULT_WORKOUTS } from '../data/defaultWorkouts';
 import { calculateShoeStats, formatShoeLabel, getNewShoeWearAlert } from '../utils/shoeUtils';
+import { swapWorkoutsInPlan } from '../utils/planSchedule';
+import { acceptPrescriptionReview, isPrescriptionReviewAccepted } from '../utils/prescriptionReviewAcceptance';
 
 interface AppContextType {
 // ... existing types ...
@@ -842,57 +844,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const currentPlan = athletePlans[athleteId];
     if (!currentPlan || !currentPlan.weeks) throw new Error("Plano inexistente.");
 
-    const newPlan = safeDeepClone(currentPlan);
-    if (!newPlan.weeks[fromWeekIndex]?.workouts?.[fromDayIndex] || !newPlan.weeks[toWeekIndex]?.workouts?.[toDayIndex]) {
-      throw new Error("Posição de treino inválida.");
+    const wasAccepted = isPrescriptionReviewAccepted(currentPlan, athleteId);
+    let newPlan = swapWorkoutsInPlan(
+      currentPlan,
+      fromWeekIndex,
+      fromDayIndex,
+      toWeekIndex,
+      toDayIndex,
+      newDateStr
+    );
+
+    if (currentPlan.prescriptionReview && (wasAccepted || currentPlan.prescriptionReviewAcceptance)) {
+      newPlan = acceptPrescriptionReview(newPlan, athleteId);
     }
-
-    const fromWorkout = { ...newPlan.weeks[fromWeekIndex].workouts[fromDayIndex] };
-    const toWorkout = { ...newPlan.weeks[toWeekIndex].workouts[toDayIndex] };
-
-    const diasSemana = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
-    const fromDayName = diasSemana[fromDayIndex] || fromWorkout.day;
-    const toDayName = diasSemana[toDayIndex] || toWorkout.day;
-
-    if (newDateStr) {
-      fromWorkout.date = newDateStr;
-    }
-
-    // Move fromWorkout to target slot, and toWorkout to origin slot (swapping)
-    newPlan.weeks[fromWeekIndex].workouts[fromDayIndex] = {
-      ...toWorkout,
-      day: fromDayName
-    };
-
-    newPlan.weeks[toWeekIndex].workouts[toDayIndex] = {
-      ...fromWorkout,
-      day: toDayName
-    };
-
-    // Recalculate volume for affected weeks
-    const affectedWeeks = Array.from(new Set([fromWeekIndex, toWeekIndex]));
-    affectedWeeks.forEach(wIdx => {
-      if (newPlan.weeks[wIdx]?.workouts) {
-        const plannedKm = newPlan.weeks[wIdx].workouts.reduce(
-          (acc: number, curr: any) => acc + (Number(curr.distance) || 0),
-          0
-        );
-        const realKm = newPlan.weeks[wIdx].workouts.reduce(
-          (acc: number, curr: any) => {
-            if (curr.completed) {
-              const d = curr.actualDistance !== undefined && curr.actualDistance !== null && curr.actualDistance !== ''
-                ? Number(String(curr.actualDistance).replace(',', '.'))
-                : (Number(curr.distance) || 0);
-              return acc + (isNaN(d) ? 0 : d);
-            }
-            return acc;
-          },
-          0
-        );
-        newPlan.weeks[wIdx].totalVolume = Math.round(plannedKm * 10) / 10;
-        newPlan.weeks[wIdx].actualVolume = Math.round(realKm * 10) / 10;
-      }
-    });
 
     await saveAthletePlan(athleteId, newPlan);
     return newPlan;

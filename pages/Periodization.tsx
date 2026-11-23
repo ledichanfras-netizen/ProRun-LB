@@ -10,6 +10,7 @@ import {savePrescriptionDraft,readPrescriptionDraft,clearPrescriptionDraft} from
 import {PrescriptionReview} from '../components/PrescriptionReview';
 import {acceptPrescriptionReview,isPrescriptionReviewAccepted} from '../utils/prescriptionReviewAcceptance';
 import {inspectPrescription} from '../utils/prescriptionIntelligence';
+import {syncPlanWorkoutDates,swapWorkoutsInPlan} from '../utils/planSchedule';
 import {AthletePhoto} from '../components/AthletePhoto';
 import { activityDistance, freeRunsInWeek } from '../utils/trainingActivities';
 
@@ -159,6 +160,26 @@ const Periodization: React.FC = () => {
   const handleConfirmReschedule = async () => {
     if (!reschedulingWorkout || !activeAthlete || !fullPlan) return;
     try {
+      const isLocalEditingFlow =
+        isEditing ||
+        aiProposalAthlete.current === activeAthlete.id ||
+        Boolean(fullPlan.editorDraft) ||
+        !athletePlans[activeAthlete.id];
+
+      if (isLocalEditingFlow) {
+        const updated = swapWorkoutsInPlan(
+          fullPlan,
+          reschedulingWorkout.weekIndex,
+          reschedulingWorkout.dayIndex,
+          rescheduleTargetWeek,
+          rescheduleTargetDay,
+          rescheduleTargetDate
+        );
+        setFullPlan(updated);
+        setReschedulingWorkout(null);
+        return;
+      }
+
       const updated = await rescheduleWorkout(
         activeAthlete.id,
         reschedulingWorkout.weekIndex,
@@ -260,7 +281,7 @@ const Periodization: React.FC = () => {
     const total = cleanedWorkouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
     newPlan.weeks[targetWeekForTemplate].totalVolume = total;
     
-    setFullPlan(newPlan);
+    setFullPlan(syncPlanWorkoutDates(newPlan));
     setShowTemplatesModal(false);
     setTargetWeekForTemplate(null);
   };
@@ -293,15 +314,16 @@ const Periodization: React.FC = () => {
     const draft=activeAthlete?readPrescriptionDraft(activeAthlete.id):null;
     if(draft&&activeAthlete){
       aiProposalAthlete.current=activeAthlete.id;
-      setFullPlan(draft);setWeeks(draft.weeks.length);setCyclePlanning(draft.cyclePlanning||emptyCyclePlanning());setIsEditing(true);setStartDate(draft.startDate||'');setRaceDate(draft.endDate||'');setRaceGoal(draft.specificGoal||'');setRaceDistance(draft.raceDistance||'10km');
-      if(Array.isArray(draft.runningDaysOfWeek)){setRunningDaysOfWeek(draft.runningDaysOfWeek);setRunningDays(draft.runningDaysOfWeek.length);}
-      if(Array.isArray(draft.gymDaysOfWeek)){setGymDaysOfWeek(draft.gymDaysOfWeek);setGymDays(draft.gymDaysOfWeek.length);}
-      if(typeof draft.longRunDayOfWeek==='number')setLongRunDayOfWeek(draft.longRunDayOfWeek);
-      if(Array.isArray(draft.trainingDays))setTrainingDays(draft.trainingDays);
+      const syncedDraft=syncPlanWorkoutDates(draft);
+      setFullPlan(syncedDraft);setWeeks(syncedDraft.weeks.length);setCyclePlanning(syncedDraft.cyclePlanning||emptyCyclePlanning());setIsEditing(true);setStartDate(syncedDraft.startDate||'');setRaceDate(syncedDraft.endDate||'');setRaceGoal(syncedDraft.specificGoal||'');setRaceDistance(syncedDraft.raceDistance||'10km');
+      if(Array.isArray(syncedDraft.runningDaysOfWeek)){setRunningDaysOfWeek(syncedDraft.runningDaysOfWeek);setRunningDays(syncedDraft.runningDaysOfWeek.length);}
+      if(Array.isArray(syncedDraft.gymDaysOfWeek)){setGymDaysOfWeek(syncedDraft.gymDaysOfWeek);setGymDays(syncedDraft.gymDaysOfWeek.length);}
+      if(typeof syncedDraft.longRunDayOfWeek==='number')setLongRunDayOfWeek(syncedDraft.longRunDayOfWeek);
+      if(Array.isArray(syncedDraft.trainingDays))setTrainingDays(syncedDraft.trainingDays);
       return;
     }
     if (activeAthlete && athletePlans[activeAthlete.id]) {
-      const plan = athletePlans[activeAthlete.id];
+      const plan = syncPlanWorkoutDates(athletePlans[activeAthlete.id]);
       setFullPlan(plan);setWeeks(plan.weeks.length||8);setRaceDate(plan.endDate||'');setRaceDistance(plan.raceDistance||'10km');
       setCyclePlanning(plan.cyclePlanning||emptyCyclePlanning());
       setRaceGoal(plan.specificGoal || '');
@@ -468,21 +490,42 @@ const Periodization: React.FC = () => {
         w.weekNumber = i + 1;
       });
       
-      setFullPlan(newPlan);
+      setFullPlan(syncPlanWorkoutDates(newPlan));
     }
   };
 
   const handleSave = async (weekToPublish?:number) => {
     if(publishing)return;
     if (activeAthlete && fullPlan) {
-      const selectedPlan=weekToPublish===undefined?fullPlan:publishTrainingWeek(fullPlan,weekToPublish);
-      let toPublish:AthletePlan={...selectedPlan,cyclePlanning,editorDraft:undefined};
+      const syncedFullPlan=syncPlanWorkoutDates(fullPlan);
+      const selectedPlan=weekToPublish===undefined?syncedFullPlan:publishTrainingWeek(syncedFullPlan,weekToPublish);
+      let toPublish:AthletePlan={
+        ...selectedPlan,
+        cyclePlanning,
+        editorDraft:undefined,
+        weeks:selectedPlan.weeks.map(w=>({
+          ...w,
+          workouts:(w.workouts||[]).map(s=>s.type==='Descanso'?{...s,distance:0}:s)
+        }))
+      };
       const planningErrors=validateCyclePlanning(cyclePlanning,toPublish.weeks.length);if(planningErrors.length){alert(planningErrors.join(' '));return;}
-      if(fullPlan.prescriptionReview){
-        const meta=fullPlan.prescriptionReview;
-        const report=inspectPrescription(fullPlan,{...meta.constraints,startDate:fullPlan.startDate||meta.constraints.startDate},meta.context);
+      if(syncedFullPlan.prescriptionReview){
+        const meta=syncedFullPlan.prescriptionReview;
+        const report=inspectPrescription(toPublish,{...meta.constraints,startDate:toPublish.startDate||meta.constraints.startDate},meta.context,{allowCoachOverrides:true});
         if(report.errors.length){alert('Corrija a revisão da periodização antes de publicar: '+report.errors.slice(0,3).join(' '));return;}
-        if(!prescriptionAccepted){alert('Confira a revisão da periodização e marque a confirmação antes de publicar.');return;}
+        const savedPlan=athletePlans[activeAthlete.id];
+        const previouslyPublishedAndAccepted=Boolean(
+          savedPlan?.weeks?.length &&
+          savedPlan?.prescriptionReview &&
+          savedPlan?.prescriptionReviewAcceptance &&
+          aiProposalAthlete.current!==activeAthlete.id
+        );
+        if(!prescriptionAccepted&&!previouslyPublishedAndAccepted){
+          setReviewExpanded(true);
+          document.getElementById('prescription-review-panel')?.scrollIntoView({behavior:'smooth',block:'center'});
+          alert('Confira a revisão da periodização e marque a confirmação antes de publicar.');
+          return;
+        }
         toPublish=acceptPrescriptionReview(toPublish,activeAthlete.id);
       }
       if(!toPublish.weeks.some(w=>w.isVisible)){alert('Selecione pelo menos uma semana para liberar antes de publicar.');return;}
@@ -576,30 +619,35 @@ const Periodization: React.FC = () => {
   const addWeek = () => {
     if (!fullPlan) return;
     const newPlan = safeDeepClone(fullPlan);
-    const nextNum = newPlan.weeks.length + 1;
+    const newWeekIdx = newPlan.weeks.length;
+    const nextNum = newWeekIdx + 1;
     newPlan.weeks.push({
       id: crypto.randomUUID(),
       weekNumber: nextNum,
       phase: 'Base',
       totalVolume: 0,
       isVisible: true,
-      workouts: diasSemanaFull.map(day => ({
+      workouts: diasSemanaFull.map((day, dIdx) => ({
         day,
+        ...(newPlan.startDate ? { date: getWorkoutDateString(newPlan.startDate, newWeekIdx, dIdx) } : {}),
         type: 'Descanso' as WorkoutType,
         customDescription: 'Descanso total.',
         distance: 0
       }))
     });
-    setFullPlan(newPlan);
+    setFullPlan(syncPlanWorkoutDates(newPlan));
   };
 
   const updateWorkout = (wIdx: number, dIdx: number, field: string, value: any) => {
     if (!fullPlan) return;
     const newPlan = safeDeepClone(fullPlan);
     newPlan.weeks[wIdx].workouts[dIdx][field] = value;
+    if (field === 'type' && value === 'Descanso') {
+      newPlan.weeks[wIdx].workouts[dIdx].distance = 0;
+    }
     
-    // Recalcular volumes da semana se qualquer campo de distância ou status mudou
-    if (field === 'distance' || field === 'actualDistance' || field === 'completed') {
+    // Recalcular volumes da semana se qualquer campo de distância, tipo ou status mudou
+    if (field === 'distance' || field === 'actualDistance' || field === 'completed' || (field === 'type' && value === 'Descanso')) {
       const plannedTotal = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => acc + (Number(curr.distance) || 0), 0);
       const realTotal = newPlan.weeks[wIdx].workouts.reduce((acc: number, curr: any) => {
         if (curr.completed) {
@@ -632,29 +680,17 @@ const Periodization: React.FC = () => {
       w.weekNumber = i + 1;
     });
     
-    setFullPlan(newPlan);
+    setFullPlan(syncPlanWorkoutDates(newPlan));
   };
 
   const handleMoveWorkout = (weekIdx: number, dayIdx: number, direction: 'up' | 'down') => {
     if (!fullPlan) return;
-    const newPlan = safeDeepClone(fullPlan);
     const targetIdx = direction === 'up' ? dayIdx - 1 : dayIdx + 1;
     
-    if (targetIdx < 0 || targetIdx >= newPlan.weeks[weekIdx].workouts.length) return;
+    if (targetIdx < 0 || targetIdx >= (fullPlan.weeks[weekIdx]?.workouts?.length || 0)) return;
     
-    // Trocamos os conteúdos, mas mantemos os nomes dos dias (day) fixos na ordem
-    const currentWorkout = { ...newPlan.weeks[weekIdx].workouts[dayIdx] };
-    const targetWorkout = { ...newPlan.weeks[weekIdx].workouts[targetIdx] };
-    
-    // Preservar o nome do dia original de cada posição
-    const currentDayName = currentWorkout.day;
-    const targetDayName = targetWorkout.day;
-    
-    // Trocar dados mas manter labels de dias
-    newPlan.weeks[weekIdx].workouts[dayIdx] = { ...targetWorkout, day: currentDayName };
-    newPlan.weeks[weekIdx].workouts[targetIdx] = { ...currentWorkout, day: targetDayName };
-    
-    setFullPlan(newPlan);
+    const updated = swapWorkoutsInPlan(fullPlan, weekIdx, dayIdx, weekIdx, targetIdx);
+    setFullPlan(updated);
   };
 
   const updateWeekPhase = (weekIdx: number, value: string) => {
@@ -823,6 +859,7 @@ const Periodization: React.FC = () => {
 
       newPlan.weeks[wIdx].workouts[dIdx] = {
         day: target.day,
+        ...(target.date ? { date: target.date } : {}),
         type: 'Descanso' as WorkoutType,
         customDescription: 'Descanso total.',
         distance: 0,

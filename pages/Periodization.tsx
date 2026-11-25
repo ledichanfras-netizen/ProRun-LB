@@ -68,6 +68,8 @@ import { WorkoutMap } from '../components/WorkoutMap';
 import { decodePolyline } from '../utils/gpsUtils';
 import { StructuredWorkoutModal } from '../components/StructuredWorkoutModal';
 import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure, formatStructuredWorkoutFullDescription } from '../utils/workoutParser';
+import { resolveIntervalMetricsForWorkout, type IntervalWorkoutMetricsReport } from '../utils/intervalMetrics';
+import { IntervalMetricsModal, IntervalMetricsTriggerCard } from '../components/IntervalMetricsModal';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 
@@ -116,6 +118,11 @@ const Periodization: React.FC = () => {
   const [targetDay, setTargetDay] = useState<{ weekIndex: number; dayIndex: number } | null>(null);
   const [targetWeekForTemplate, setTargetWeekForTemplate] = useState<number | null>(null);
   const [viewingWorkoutRoute, setViewingWorkoutRoute] = useState<any | null>(null);
+  const [viewingIntervalMetrics, setViewingIntervalMetrics] = useState<{
+    report: IntervalWorkoutMetricsReport;
+    workoutTitle?: string;
+    workoutDate?: string;
+  } | null>(null);
   const [editingStructuredWorkout, setEditingStructuredWorkout] = useState<{ wIdx: number; dIdx: number } | null>(null);
   const [shareModalData, setShareModalData] = useState<WorkoutShareData | null>(null);
 
@@ -1820,25 +1827,57 @@ const Periodization: React.FC = () => {
                                     {(workout.rpe || 0) > 0 && (
                                       <span className="text-[9px] font-black px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-md uppercase italic border border-amber-500/20">Percepção: {workout.rpe}/10</span>
                                     )}
-                                    {(workout.gpsRoute || workout.route) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const r = workout.gpsRoute || workout.route;
-                                          setViewingWorkoutRoute({
-                                            ...r,
-                                            workoutType: workout.type,
-                                            workoutDate: fullPlan?.startDate ? formatWorkoutDateShort(workout.date?parseDateString(workout.date):getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex)) : undefined,
-                                            shoeId: workout.shoeId || r?.shoeId,
-                                            shoeName: workout.shoeName || r?.shoeName
-                                          });
-                                        }}
-                                        className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-md uppercase italic border border-emerald-500/30 flex items-center gap-1 transition-all cursor-pointer"
-                                      >
-                                        <Navigation className="w-2.5 h-2.5" />
-                                        <span>Rota GPS ({formatDistance((workout.gpsRoute || workout.route)?.totalDistanceKm || workout.actualDistance || workout.distance)} km)</span>
-                                      </button>
-                                    )}
+                                    {(workout.gpsRoute || workout.route) && (() => {
+                                      const r = workout.gpsRoute || workout.route;
+                                      const formattedDateStr = fullPlan?.startDate
+                                        ? formatWorkoutDateShort(workout.date ? parseDateString(workout.date) : getWorkoutDate(fullPlan.startDate, weekIndex, dayIndex))
+                                        : undefined;
+                                      const coachIntervalReport = resolveIntervalMetricsForWorkout(
+                                        r,
+                                        workout.structuredWorkout,
+                                        workout.customDescription,
+                                        workout.type
+                                      );
+                                      return (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setViewingWorkoutRoute({
+                                                ...r,
+                                                workoutType: workout.type,
+                                                workoutTitle: workout.customDescription || workout.type,
+                                                workoutDescription: workout.customDescription,
+                                                structuredWorkout: workout.structuredWorkout,
+                                                workoutDate: formattedDateStr,
+                                                shoeId: workout.shoeId || r?.shoeId,
+                                                shoeName: workout.shoeName || r?.shoeName
+                                              });
+                                            }}
+                                            className="text-[9px] font-black px-2.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-md uppercase italic border border-emerald-500/30 flex items-center gap-1 transition-all cursor-pointer"
+                                          >
+                                            <Navigation className="w-2.5 h-2.5" />
+                                            <span>Rota GPS ({formatDistance(r?.totalDistanceKm || workout.actualDistance || workout.distance)} km)</span>
+                                          </button>
+                                          {coachIntervalReport && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setViewingIntervalMetrics({
+                                                  report: coachIntervalReport,
+                                                  workoutTitle: workout.customDescription || workout.type,
+                                                  workoutDate: formattedDateStr,
+                                                })
+                                              }
+                                              className="text-[9px] font-black px-2.5 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-md uppercase italic border border-amber-500/30 flex items-center gap-1 transition-all cursor-pointer"
+                                            >
+                                              <Timer className="w-2.5 h-2.5" />
+                                              <span>Métricas dos Tiros ({coachIntervalReport.intervals.length}x)</span>
+                                            </button>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
                                     {(workout.shoeId || workout.shoeName) && (() => {
                                       const matched = workout.shoeId
                                         ? (activeAthlete?.shoes || []).find(s => s.id === workout.shoeId)
@@ -2080,7 +2119,7 @@ const Periodization: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col"
+              className="bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto flex flex-col"
             >
               <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
                 <div className="flex items-center gap-3">
@@ -2144,6 +2183,24 @@ const Periodization: React.FC = () => {
                   </div>
                 </div>
 
+                {(() => {
+                  const modalIntervalReport = resolveIntervalMetricsForWorkout(
+                    viewingWorkoutRoute,
+                    viewingWorkoutRoute.structuredWorkout,
+                    viewingWorkoutRoute.workoutDescription,
+                    viewingWorkoutRoute.workoutType
+                  );
+                  return modalIntervalReport ? (
+                    <IntervalMetricsTriggerCard
+                      report={modalIntervalReport}
+                      workoutTitle={viewingWorkoutRoute.workoutTitle}
+                      workoutDate={viewingWorkoutRoute.workoutDate}
+                      athleteName={activeAthlete?.name}
+                      isLight={false}
+                    />
+                  ) : null;
+                })()}
+
                 <WorkoutMap
                   points={
                     viewingWorkoutRoute.points && viewingWorkoutRoute.points.length > 0
@@ -2187,6 +2244,17 @@ const Periodization: React.FC = () => {
               </div>
             </motion.div>
           </div>
+        )}
+
+        {viewingIntervalMetrics && (
+          <IntervalMetricsModal
+            report={viewingIntervalMetrics.report}
+            workoutTitle={viewingIntervalMetrics.workoutTitle}
+            workoutDate={viewingIntervalMetrics.workoutDate}
+            athleteName={activeAthlete?.name}
+            isLight={false}
+            onClose={() => setViewingIntervalMetrics(null)}
+          />
         )}
 
         {/* Modal de Compartilhamento Social de Treino */}

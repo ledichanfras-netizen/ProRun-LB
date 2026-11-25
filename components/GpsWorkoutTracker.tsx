@@ -43,6 +43,8 @@ import {
   Gauge
 } from 'lucide-react';
 import { WorkoutCompletionReview } from './WorkoutCompletionReview';
+import { resolveIntervalMetricsForWorkout } from '../utils/intervalMetrics';
+import { IntervalMetricsTriggerCard } from './IntervalMetricsModal';
 import { rollingPace, crossingSeconds, DistanceSample } from '../utils/runCalculations';
 import { WorkoutMap } from './WorkoutMap';
 import { 
@@ -173,6 +175,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
   const [stepDistanceMeters, setStepDistanceMeters] = useState(0);
   const [stepDurationSeconds, setStepDurationSeconds] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<CompletedStepRecord[]>([]);
+  const completedStepsRef = useRef<CompletedStepRecord[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showStepsList, setShowStepsList] = useState(false);
   const [shareModalData, setShareModalData] = useState<WorkoutShareData | null>(null);
@@ -512,6 +515,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     setActiveStepIndex(backup.activeStepIndex || 0);
     setStepDistanceMeters(backup.stepDistanceMeters || 0);
     setStepDurationSeconds(backup.stepDurationSeconds || 0);
+    completedStepsRef.current = backup.completedSteps || [];
     setCompletedSteps(backup.completedSteps || []);
     checkpointEnabledRef.current=true;
     const summary=restoredHeartRateSummary(backup);heartRateSummaryRef.current=summary;
@@ -620,11 +624,16 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
   // ADVANCE STEP / LAP FUNCTION WITH VOICE SYNTHESIS
   const advanceStep = (manualLap: boolean = false) => {
-    const { activeStructured: struct, activeStepIndex: curIdx, stepDistanceMeters: curDist, stepDurationSeconds: curDur, completedSteps: prevComp } = trackingRef.current;
+    const { activeStructured: struct, activeStepIndex: curIdx, stepDistanceMeters: curDist, stepDurationSeconds: curDur } = trackingRef.current;
     if (!struct || !struct.steps || struct.steps.length === 0) return;
 
     const currentStep = struct.steps[curIdx];
     if (!currentStep) return;
+
+    // Guard against duplicate auto-advances on the same step index
+    if (completedStepsRef.current.some((s) => s.stepId === currentStep.id) && !manualLap) {
+      return;
+    }
 
     // Record completed step metrics
     const stepAvgPace = formatPace(curDur, curDist / 1000);
@@ -639,9 +648,16 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
       avgPace: stepAvgPace
     };
 
-    setCompletedSteps(prev => [...prev, newRecord]);
+    const updatedCompleted = [...completedStepsRef.current, newRecord];
+    completedStepsRef.current = updatedCompleted;
+    trackingRef.current.completedSteps = updatedCompleted;
+    setCompletedSteps(updatedCompleted);
 
     const nextIndex = curIdx + 1;
+    trackingRef.current.activeStepIndex = nextIndex;
+    trackingRef.current.stepDistanceMeters = 0;
+    trackingRef.current.stepDurationSeconds = 0;
+
     if (nextIndex < struct.steps.length) {
       // Transition to next step
       const nextStep = struct.steps[nextIndex];
@@ -1096,19 +1112,24 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
     // If no GPS coordinates or very short, save as an indoor/manual workout (e.g. treadmill or lost signal)
     if (recordedGpsPoints.length < 2 && finalDistance < 0.05) {
-      let finalCompleted = [...completedSteps];
-      if (activeStructured && activeStructured.steps && activeStepIndex < activeStructured.steps.length && stepDurationSeconds > 5) {
-        const curStep = activeStructured.steps[activeStepIndex];
-        finalCompleted.push({
-          stepId: curStep.id,
-          name: curStep.name,
-          type: curStep.type,
-          targetType: curStep.targetType,
-          targetValue: curStep.targetValue,
-          completedDistanceMeters: Math.round(stepDistanceMeters),
-          completedDurationSeconds: stepDurationSeconds,
-          avgPace: "--:--"
-        });
+      const finalCompleted = [...completedStepsRef.current];
+      const curIdx = trackingRef.current.activeStepIndex;
+      const curStepDur = trackingRef.current.stepDurationSeconds;
+      const curStepDist = trackingRef.current.stepDistanceMeters;
+      if (activeStructured && activeStructured.steps && curIdx < activeStructured.steps.length && (curStepDur > 5 || curStepDist > 15)) {
+        const curStep = activeStructured.steps[curIdx];
+        if (!finalCompleted.some((s) => s.stepId === curStep.id)) {
+          finalCompleted.push({
+            stepId: curStep.id,
+            name: curStep.name,
+            type: curStep.type,
+            targetType: curStep.targetType,
+            targetValue: curStep.targetValue,
+            completedDistanceMeters: Math.round(curStepDist),
+            completedDurationSeconds: curStepDur,
+            avgPace: "--:--"
+          });
+        }
       }
 
       const fallbackPoints: [number, number][] = recordedGpsPoints.length === 1
@@ -1145,19 +1166,24 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
     const avgPace = formatPace(finalDuration, finalDistance);
 
     // Save final lap if unfinished
-    let finalCompleted = [...completedSteps];
-    if (activeStructured && activeStructured.steps && activeStepIndex < activeStructured.steps.length && stepDurationSeconds > 5) {
-      const curStep = activeStructured.steps[activeStepIndex];
-      finalCompleted.push({
-        stepId: curStep.id,
-        name: curStep.name,
-        type: curStep.type,
-        targetType: curStep.targetType,
-        targetValue: curStep.targetValue,
-        completedDistanceMeters: Math.round(stepDistanceMeters),
-        completedDurationSeconds: stepDurationSeconds,
-        avgPace: formatPace(stepDurationSeconds, stepDistanceMeters / 1000)
-      });
+    const finalCompleted = [...completedStepsRef.current];
+    const curIdx = trackingRef.current.activeStepIndex;
+    const curStepDur = trackingRef.current.stepDurationSeconds;
+    const curStepDist = trackingRef.current.stepDistanceMeters;
+    if (activeStructured && activeStructured.steps && curIdx < activeStructured.steps.length && (curStepDur > 5 || curStepDist > 15)) {
+      const curStep = activeStructured.steps[curIdx];
+      if (!finalCompleted.some((s) => s.stepId === curStep.id)) {
+        finalCompleted.push({
+          stepId: curStep.id,
+          name: curStep.name,
+          type: curStep.type,
+          targetType: curStep.targetType,
+          targetValue: curStep.targetValue,
+          completedDistanceMeters: Math.round(curStepDist),
+          completedDurationSeconds: curStepDur,
+          avgPace: formatPace(curStepDur, curStepDist / 1000)
+        });
+      }
     }
 
     const routeData: RouteData = {
@@ -1283,7 +1309,7 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
     try {
       const text = await file.text();
-      const parsed = parseGpxFile(text, athleteWeight);
+      const parsed = parseGpxFile(text, athleteWeight, activeStructured);
       setGpxParsedRoute(parsed);
     } catch (err: any) {
       console.error('GPX parse error:', err);
@@ -1457,6 +1483,8 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
         archivedPlans={archivedPlans}
         workoutType={workoutType}
         initialShoeId={initialShoeId}
+        structuredWorkout={activeStructured}
+        workoutDescription={workoutDescription}
         onBack={() => setPendingCompletion(null)}
         onConfirm={async reviewed => {
           saveUnsavedRouteBackup(reviewed, workoutContext);
@@ -2550,24 +2578,36 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
 
           {/* Histórico de Laps Concluídos */}
           {completedSteps.length > 0 && (
-            <div className={`space-y-2 p-3 rounded-2xl border ${
-              isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
-            }`}>
-              <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                isLight ? 'text-slate-800' : 'text-slate-300'
+            <div className="space-y-3">
+              {(() => {
+                const liveReport = resolveIntervalMetricsForWorkout({ completedSteps }, activeStructured, workoutDescription, workoutType);
+                return liveReport ? (
+                  <IntervalMetricsTriggerCard
+                    report={liveReport}
+                    workoutTitle={workoutDescription || workoutType}
+                    isLight={isLight}
+                  />
+                ) : null;
+              })()}
+              <div className={`space-y-2 p-3 rounded-2xl border ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
               }`}>
-                Histórico de Laps / Intervalos ({completedSteps.length})
-              </span>
-              <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
-                {completedSteps.map((rec, i) => (
-                  <div key={i} className={`flex justify-between items-center text-[10px] p-2 rounded-lg font-mono ${
-                    isLight ? 'bg-white border border-slate-200' : 'bg-black/20'
-                  }`}>
-                    <span className={`font-bold ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>{rec.name}</span>
-                    <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>{rec.completedDistanceMeters}m • {formatDuration(rec.completedDurationSeconds)}</span>
-                    <span className={`font-black ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{rec.avgPace}/km</span>
-                  </div>
-                ))}
+                <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                  isLight ? 'text-slate-800' : 'text-slate-300'
+                }`}>
+                  Histórico de Laps / Intervalos ({completedSteps.length})
+                </span>
+                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                  {completedSteps.map((rec, i) => (
+                    <div key={i} className={`flex justify-between items-center text-[10px] p-2 rounded-lg font-mono ${
+                      isLight ? 'bg-white border border-slate-200' : 'bg-black/20'
+                    }`}>
+                      <span className={`font-bold ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>{rec.name}</span>
+                      <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>{rec.completedDistanceMeters}m • {formatDuration(rec.completedDurationSeconds)}</span>
+                      <span className={`font-black ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{rec.avgPace}/km</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -2667,6 +2707,22 @@ export const GpsWorkoutTracker: React.FC<GpsWorkoutTrackerProps> = ({
                 elevationGainMeters={gpxParsedRoute.elevationGainMeters}
                 isLight={isLight}
               />
+
+              {(() => {
+                const gpxIntervalReport = resolveIntervalMetricsForWorkout(
+                  gpxParsedRoute,
+                  activeStructured,
+                  workoutDescription,
+                  workoutType
+                );
+                return gpxIntervalReport ? (
+                  <IntervalMetricsTriggerCard
+                    report={gpxIntervalReport}
+                    workoutTitle={workoutDescription || workoutType}
+                    isLight={isLight}
+                  />
+                ) : null;
+              })()}
 
               <div className="grid grid-cols-2 gap-2">
                 <button

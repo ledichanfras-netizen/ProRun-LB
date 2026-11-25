@@ -1,14 +1,16 @@
 import { RpeSelector } from './RpeSelector';
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RouteData, formatDuration, formatPace } from '../utils/gpsUtils';
-import type { Athlete, AthletePlan, RunningShoe } from '../types';
+import type { Athlete, AthletePlan, RunningShoe, StructuredWorkout } from '../types';
 import { formatShoeLabel, isRunningShoeWorkout, suggestShoeForWorkout } from '../utils/shoeUtils';
+import { resolveIntervalMetricsForWorkout } from '../utils/intervalMetrics';
+import { IntervalMetricsTriggerCard } from './IntervalMetricsModal';
 import { ShoeSelectorField } from './ShoeSelectorField';
 import { RunMetricsGrid } from './RunMetricsGrid';
 import { WorkoutMap } from './WorkoutMap';
 
-export function WorkoutCompletionReview({ route, onConfirm, onBack, shoes, plan, archivedPlans, workoutType, initialShoeId }: {
+export function WorkoutCompletionReview({ route, onConfirm, onBack, shoes, plan, archivedPlans, workoutType, initialShoeId, structuredWorkout, workoutDescription }: {
   route: RouteData;
   onConfirm: (reviewed: RouteData) => Promise<void>;
   onBack: () => void;
@@ -17,6 +19,8 @@ export function WorkoutCompletionReview({ route, onConfirm, onBack, shoes, plan,
   archivedPlans?: Athlete['archivedPlans'];
   workoutType?: string;
   initialShoeId?: string;
+  structuredWorkout?: StructuredWorkout | null;
+  workoutDescription?: string;
 }) {
   const [rpe, setRpe] = useState(route.completion ? String(route.completion.rpe) : '');
   const [observations, setObservations] = useState(route.completion?.observations || '');
@@ -33,6 +37,10 @@ export function WorkoutCompletionReview({ route, onConfirm, onBack, shoes, plan,
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const lock = useRef(false);
+  const intervalReport = useMemo(
+    () => resolveIntervalMetricsForWorkout(route, structuredWorkout, workoutDescription, workoutType),
+    [route, structuredWorkout, workoutDescription, workoutType]
+  );
   const km = route.totalDistanceKm > 0 ? route.totalDistanceKm : Number(distance.replace(',', '.'));
   const seconds = route.totalDurationSeconds > 0 ? route.totalDurationSeconds : (/^\d+:[0-5]\d$/.test(time) ? Number(time.split(':')[0]) * 60 + Number(time.split(':')[1]) : 0);
   const submit = async () => {
@@ -61,6 +69,13 @@ export function WorkoutCompletionReview({ route, onConfirm, onBack, shoes, plan,
         <p className="text-xs text-slate-400 mt-2">Confira as métricas, preencha sua PSE e registre como foi a corrida.</p></div>
       <RunMetricsGrid route={route} distanceKm={km} durationSeconds={seconds} />
       <p className="text-[10px] text-slate-400">{route.cadenceSource === 'phone_accelerometer' ? 'Cadência estimada pelo acelerômetro do celular.' : route.cadenceSource === 'gpx' ? 'Cadência importada; unidade conforme o arquivo GPX.' : 'Cadência não disponível: nenhum dado de passadas foi registrado.'} Pace atual é o ritmo recente; pace geral usa tempo ÷ distância. No GPS ao vivo, as pausas manuais são excluídas. Calorias e elevação são estimativas.</p>
+      {intervalReport && (
+        <IntervalMetricsTriggerCard
+          report={intervalReport}
+          workoutTitle={workoutDescription || workoutType}
+          isLight={false}
+        />
+      )}
       {!(route.totalDistanceKm > 0) && <label className="block text-xs font-bold text-slate-300">Distância real (km)<input aria-label="Distância real (km)" className="pro-input block w-full mt-2" inputMode="decimal" value={distance} onChange={e => setDistance(e.target.value)} /></label>}
       {!(route.totalDurationSeconds > 0) && <label className="block text-xs font-bold text-slate-300">Tempo real (minutos:segundos)<input aria-label="Tempo real (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={time} onChange={e => setTime(e.target.value)} /></label>}
       {!!route.points?.length && <WorkoutMap points={route.points} height="180px" />}

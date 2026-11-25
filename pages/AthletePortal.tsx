@@ -83,6 +83,8 @@ import {
   saveUnsavedRouteBackup
 } from '../utils/gpsUtils';
 import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure } from '../utils/workoutParser';
+import { resolveIntervalMetricsForWorkout } from '../utils/intervalMetrics';
+import { IntervalMetricsTriggerCard } from '../components/IntervalMetricsModal';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 import { normalizeGpsPoints, requestCurrentAthletePosition } from '../utils/socialCardUtils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -4863,7 +4865,18 @@ const AthletePortal: React.FC = () => {
                               </div>
                             </div>
 
-                            {activeRoute && <RunRouteDetails route={activeRoute} isLight={isLight} />}
+                            {activeRoute && (
+                              <RunRouteDetails
+                                route={activeRoute}
+                                isLight={isLight}
+                                structuredWorkout={resolveStructuredWorkoutForShare(selectedWorkout.data)}
+                                workoutDescription={selectedWorkout.data.customDescription || selectedWorkout.data.description}
+                                workoutType={selectedWorkout.data.type}
+                                workoutTitle={selectedWorkout.data.customDescription || selectedWorkout.data.type}
+                                workoutDate={selectedWorkout.data.date}
+                                athleteName={activeAthlete?.name}
+                              />
+                            )}
                           </div>
                         );
                       })()}
@@ -5331,6 +5344,33 @@ const AthletePortal: React.FC = () => {
                 </span>
               </div>
             </div>
+
+            {(() => {
+              const promptRoute =
+                completedWorkoutPrompt.route ||
+                completedWorkoutPrompt.workout.gpsRoute ||
+                completedWorkoutPrompt.workout.route;
+              const promptIntervalReport = resolveIntervalMetricsForWorkout(
+                promptRoute,
+                resolveStructuredWorkoutForShare(completedWorkoutPrompt.workout),
+                completedWorkoutPrompt.workout.customDescription || completedWorkoutPrompt.workout.description,
+                completedWorkoutPrompt.workout.type
+              );
+              return promptIntervalReport ? (
+                <div className="relative z-10">
+                  <IntervalMetricsTriggerCard
+                    report={promptIntervalReport}
+                    workoutTitle={
+                      completedWorkoutPrompt.workout.customDescription ||
+                      completedWorkoutPrompt.workout.type
+                    }
+                    workoutDate={completedWorkoutPrompt.workout.date}
+                    athleteName={activeAthlete?.name}
+                    isLight={false}
+                  />
+                </div>
+              ) : null;
+            })()}
 
             {/* Ações de Compartilhamento / Tirar Foto */}
             <div className="space-y-2.5 relative z-10 pt-1">

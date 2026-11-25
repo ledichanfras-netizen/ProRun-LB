@@ -35,7 +35,19 @@ export function FreeRunDetails({run,shoes,isLight,onClose,onEdit,onPost}:{run:Fr
         <div className="rounded-2xl bg-white/5 border border-white/10 p-3"><p className="pro-label">Carga da sessão</p><strong className="text-emerald-400">{calculateWorkoutTRIMP(run)} UA</strong></div>
       </div>
       <section className="rounded-2xl bg-white/5 border border-white/10 p-4"><h3 className="pro-label">Observações</h3><p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{run.feedback || 'Nenhuma observação registrada.'}</p></section>
-      {route ? <RunRouteDetails route={route} isLight={isLight}/> : <p className="text-xs text-slate-400">Registro manual: mapa, parciais e gráficos aparecem quando há dados GPS registrados.</p>}
+      {route ? (
+        <RunRouteDetails
+          route={route}
+          isLight={isLight}
+          structuredWorkout={run.structuredWorkout}
+          workoutDescription={run.customDescription}
+          workoutType={run.type}
+          workoutTitle={run.customDescription || run.type}
+          workoutDate={run.date}
+        />
+      ) : (
+        <p className="text-xs text-slate-400">Registro manual: mapa, parciais e gráficos aparecem quando há dados GPS registrados.</p>
+      )}
     </div>
   </div>,document.body);
 }

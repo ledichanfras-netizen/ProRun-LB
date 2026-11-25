@@ -479,17 +479,21 @@ export function parseWorkoutTextToStructure(
   }
 
   // 4. Recovery search (composite min+sec or single value with prefix or postfix)
-  // e.g.: "com 1min e 30seg. De Rec.", "rec 1min e 30s", "1'30\" de rec", "rec 90s", "rec 2min"
+  // Search text after the interval repeat first so "8x400m recuperação 200m" never matches 400m.
   let recoveryTargetType: 'distance' | 'time' = 'time';
   let recoveryValue = 90; // Default 90 seconds (1min 30s)
+
+  const repeatEndIdx = (repeatMatch.index ?? 0) + repeatMatch[0].length;
+  const textAfterRepeat = normalizedText.slice(repeatEndIdx);
 
   const compAfter = /(?:com|c\/)?\s*(\d{1,2})\s*(?:min|minutos|m|'|:)\s*(?:e|\+)?\s*(\d{1,2})\s*(?:seg|segundos|s|"|\.)*?\s*(?:de\s+)?(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\.?/i;
   const compBefore = /(?:com|c\/)?\s*(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\.?\s*(?:de|:)?\s*(\d{1,2})\s*(?:min|minutos|m|'|:)\s*(?:e|\+)?\s*(\d{1,2})\s*(?:seg|segundos|s|")?/i;
 
-  let recComp = normalizedText.match(compAfter);
-  if (!recComp) {
-    recComp = normalizedText.match(compBefore);
-  }
+  let recComp =
+    textAfterRepeat.match(compAfter) ||
+    textAfterRepeat.match(compBefore) ||
+    normalizedText.match(compAfter) ||
+    normalizedText.match(compBefore);
 
   if (recComp) {
     const mins = parseInt(recComp[1], 10);
@@ -500,10 +504,11 @@ export function parseWorkoutTextToStructure(
     const recSingleAfter = /(?:com|c\/)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|minutos|min|segundos|seg|metros|m|s|'|")?\s*(?:de\s+)?(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\.?/i;
     const recSingleBefore = /(?:com|c\/)?\s*(?:rec|r:|desc|recup|recuperação|intervalo|interval|pausa)\.?\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*(km|k|minutos|min|segundos|seg|metros|m|s|'|")?/i;
 
-    let recSingle = normalizedText.match(recSingleAfter);
-    if (!recSingle) {
-      recSingle = normalizedText.match(recSingleBefore);
-    }
+    const recSingle =
+      textAfterRepeat.match(recSingleAfter) ||
+      textAfterRepeat.match(recSingleBefore) ||
+      normalizedText.match(recSingleAfter) ||
+      normalizedText.match(recSingleBefore);
 
     if (recSingle) {
       const rawRecNum = parseFloat(recSingle[1].replace(',', '.'));

@@ -5,6 +5,7 @@
  * - GPX file parsing (XML parser extracts coordinates, time, elevation, speed)
  */
 
+import type { StructuredWorkout } from '../types';
 import { paceFromTotals, crossingSeconds } from './runCalculations';
 import { KmSplit, TelemetryPoint, calculateRunningCalories, compactWorkoutTelemetry } from './runningMetrics';
 
@@ -174,7 +175,7 @@ export function formatDuration(totalSeconds: number): string {
 /**
  * Parses GPX (GPS Exchange Format XML) from GPS watches, Strava, Apple Watch, Polar, Coros
  */
-export function parseGpxFile(gpxXmlText: string, weightKg = 70): RouteData {
+export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkout?: StructuredWorkout | null): RouteData {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(gpxXmlText, 'application/xml');
 
@@ -302,6 +303,83 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70): RouteData {
       pace: formatPace(duration, finalDistance), paceSeconds: Math.round(duration / finalDistance), calories: calculateRunningCalories(weightKg, finalDistance) });
   }
   const avgCadence = cadenceSeconds > 0 ? Math.round(cadenceWeighted / cadenceSeconds) : undefined;
+  let completedSteps: RouteData['completedSteps'];
+  if (structuredWorkout?.steps?.some((s) => s.type === 'interval') && telemetrySamples.length >= 2) {
+    const ordered = [{ distanceKm: 0, durationSeconds: 0 }, ...telemetrySamples];
+    const maxDistKm = ordered[ordered.length - 1].distanceKm;
+    const maxDurSec = ordered[ordered.length - 1].durationSeconds;
+    const steps: NonNullable<RouteData['completedSteps']> = [];
+    let cKm = 0;
+    let cSec = 0;
+    const interpTime = (targetKm: number) => {
+      if (targetKm <= ordered[0].distanceKm) return ordered[0].durationSeconds;
+      if (targetKm >= maxDistKm) return maxDurSec;
+      for (let idx = 1; idx < ordered.length; idx++) {
+        if (ordered[idx].distanceKm >= targetKm) {
+          return crossingSeconds(
+            { seconds: ordered[idx - 1].durationSeconds, kilometers: ordered[idx - 1].distanceKm },
+            { seconds: ordered[idx].durationSeconds, kilometers: ordered[idx].distanceKm },
+            targetKm
+          );
+        }
+      }
+      return maxDurSec;
+    };
+    const interpDist = (targetSec: number) => {
+      if (targetSec <= ordered[0].durationSeconds) return ordered[0].distanceKm;
+      if (targetSec >= maxDurSec) return maxDistKm;
+      for (let idx = 1; idx < ordered.length; idx++) {
+        if (ordered[idx].durationSeconds >= targetSec) {
+          const span = ordered[idx].durationSeconds - ordered[idx - 1].durationSeconds;
+          if (span <= 0) return ordered[idx].distanceKm;
+          const frac = Math.min(1, Math.max(0, (targetSec - ordered[idx - 1].durationSeconds) / span));
+          return ordered[idx - 1].distanceKm + (ordered[idx].distanceKm - ordered[idx - 1].distanceKm) * frac;
+        }
+      }
+      return maxDistKm;
+    };
+    for (const s of structuredWorkout.steps) {
+      if (s.targetType === 'distance' && s.targetValue > 0) {
+        const sKm = s.targetValue / 1000;
+        if (maxDistKm < cKm + sKm * 0.45) break;
+        const endKm = Math.min(cKm + sKm, maxDistKm);
+        const endSec = interpTime(endKm);
+        const meters = Math.max(0, Math.round((endKm - cKm) * 1000));
+        const secs = Math.max(1, Math.round(endSec - cSec));
+        steps.push({
+          stepId: s.id,
+          name: s.name,
+          type: s.type,
+          targetType: s.targetType,
+          targetValue: s.targetValue,
+          completedDistanceMeters: meters,
+          completedDurationSeconds: secs,
+          avgPace: formatPace(secs, meters / 1000),
+        });
+        cKm = endKm;
+        cSec = Math.max(cSec, endSec);
+      } else if (s.targetType === 'time' && s.targetValue > 0) {
+        if (maxDurSec < cSec + s.targetValue * 0.45) break;
+        const endSec = Math.min(cSec + s.targetValue, maxDurSec);
+        const endKm = interpDist(endSec);
+        const meters = Math.max(0, Math.round((endKm - cKm) * 1000));
+        const secs = Math.max(1, Math.round(endSec - cSec));
+        steps.push({
+          stepId: s.id,
+          name: s.name,
+          type: s.type,
+          targetType: s.targetType,
+          targetValue: s.targetValue,
+          completedDistanceMeters: meters,
+          completedDurationSeconds: secs,
+          avgPace: formatPace(secs, meters / 1000),
+        });
+        cKm = Math.max(cKm, endKm);
+        cSec = endSec;
+      }
+    }
+    if (steps.length > 0) completedSteps = steps;
+  }
   return {
     polyline, points: sampledPoints, totalDistanceKm, totalDurationSeconds, avgPace,
     avgCadence, maxCadence: cadences.length ? Math.max(...cadences) : undefined,
@@ -313,7 +391,8 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70): RouteData {
     elevationGainMeters: hasElevation ? Math.round(totalElevationGain) : undefined,
     elevationLossMeters: hasElevation ? Math.round(totalElevationLoss) : undefined,
     source: 'gpx_file',
-    recordedAt: new Date().toISOString()
+    recordedAt: new Date().toISOString(),
+    ...(completedSteps ? { completedSteps } : {})
   };
 }
 

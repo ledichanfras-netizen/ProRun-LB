@@ -161,3 +161,71 @@ test('resolveIntervalMetricsForWorkout segments recorded telemetrySamples when c
   assert.equal(report.withRecovery.avgPace, '05:00');
   assert.equal(report.withRecovery.avgSpeedKmh, 12.0);
 });
+
+test('resolveIntervalMetricsForWorkout enriches and summarizes per-step heart rate, cadence, calories, and cumulative time', () => {
+  const completedSteps: RawCompletedStep[] = [
+    {
+      stepId: 'warm',
+      name: 'Aquecimento',
+      type: 'warmup',
+      completedDistanceMeters: 1000,
+      completedDurationSeconds: 360,
+    },
+    {
+      stepId: 'int-1',
+      name: 'Tiro 1/2',
+      type: 'interval',
+      completedDistanceMeters: 200,
+      completedDurationSeconds: 40,
+    },
+    {
+      stepId: 'rec-1',
+      name: 'Recuperação 1/2',
+      type: 'recovery',
+      completedDistanceMeters: 200,
+      completedDurationSeconds: 80,
+    },
+    {
+      stepId: 'int-2',
+      name: 'Tiro 2/2',
+      type: 'interval',
+      completedDistanceMeters: 200,
+      completedDurationSeconds: 38,
+      avgHeartRate: 180,
+      maxHeartRate: 186,
+      avgCadence: 192,
+      calories: 16,
+      splitTimeSeconds: 518,
+    },
+  ];
+
+  // Telemetry samples covering warmup [0..360], tiro 1 [360..400], rec 1 [400..480]
+  const telemetrySamples = [
+    { distanceKm: 0.5, durationSeconds: 180, heartRate: 132, cadenceSpm: 164, calories: 35 },
+    { distanceKm: 1.0, durationSeconds: 360, heartRate: 138, cadenceSpm: 166, calories: 70 },
+    { distanceKm: 1.1, durationSeconds: 380, heartRate: 168, cadenceSpm: 186, calories: 78 },
+    { distanceKm: 1.2, durationSeconds: 400, heartRate: 174, cadenceSpm: 190, calories: 85 },
+    { distanceKm: 1.3, durationSeconds: 440, heartRate: 148, cadenceSpm: 158, calories: 92 },
+    { distanceKm: 1.4, durationSeconds: 480, heartRate: 140, cadenceSpm: 156, calories: 99 },
+  ];
+
+  const report = resolveIntervalMetricsForWorkout({ completedSteps, telemetrySamples });
+  assert.ok(report);
+  assert.equal(report.source, 'recorded_steps');
+  assert.equal(report.intervals[0].splitTimeSeconds, 400);
+  assert.equal(report.intervals[0].avgHeartRate, 160); // [360..400]: 138, 168, 174 -> avg 160
+  assert.equal(report.intervals[0].maxHeartRate, 174);
+  assert.equal(report.intervals[0].avgCadence, 181); // 166, 186, 190 -> 181
+  assert.equal(report.intervals[0].calories, 15); // 85 - 70
+
+  assert.equal(report.intervals[1].avgHeartRate, 180);
+  assert.equal(report.intervals[1].maxHeartRate, 186);
+  assert.equal(report.intervals[1].splitTimeSeconds, 518);
+
+  assert.equal(report.recoveries[0].splitTimeSeconds, 480);
+  assert.equal(report.recoveries[0].avgHeartRate, 154); // [400..480]: 174, 148, 140 -> 154
+  assert.equal(report.withoutRecovery.maxHeartRate, 186);
+  assert.ok(report.withoutRecovery.avgHeartRate && report.withoutRecovery.avgHeartRate >= 169);
+  assert.ok(report.withRecovery.avgHeartRate && report.withRecovery.avgHeartRate < report.withoutRecovery.avgHeartRate!);
+  assert.equal(report.withoutRecovery.totalCalories, 31);
+});

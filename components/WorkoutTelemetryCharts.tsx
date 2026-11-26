@@ -8,12 +8,16 @@ import {
   Trophy,
   TrendingUp,
   Layers,
+  Timer,
 } from 'lucide-react';
 import { KmSplit, TelemetryPoint } from '../utils/runningMetrics';
+import type { IntervalWorkoutMetricsReport } from '../utils/intervalMetrics';
+import { IntervalSplitsTable } from './IntervalSplitsTable';
 
 interface WorkoutTelemetryChartsProps {
   kmSplits?: KmSplit[];
   telemetrySamples?: TelemetryPoint[];
+  intervalReport?: IntervalWorkoutMetricsReport | null;
   avgPace?: string;
   avgHeartRate?: number;
   maxHeartRate?: number;
@@ -29,6 +33,7 @@ interface WorkoutTelemetryChartsProps {
 export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
   kmSplits = [],
   telemetrySamples = [],
+  intervalReport = null,
   avgPace = '--:--',
   avgHeartRate,
   maxHeartRate,
@@ -40,7 +45,10 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
   totalDurationSeconds = 0,
   isLight = false
 }) => {
-  const [activeTab, setActiveTab] = useState<'splits' | 'pace' | 'cadence' | 'elevation' | 'heartRate'>('splits');
+  const hasIntervals = !!(intervalReport && intervalReport.hasIntervals);
+  const [activeTab, setActiveTab] = useState<'tiros' | 'splits' | 'pace' | 'cadence' | 'elevation' | 'heartRate'>(
+    hasIntervals ? 'tiros' : 'splits'
+  );
 
   // Find best (fastest) split
   const bestSplitIndex = kmSplits.reduce((bestIdx, split, idx, arr) => {
@@ -97,6 +105,21 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
         <div className={`flex flex-wrap items-center p-1 rounded-xl border text-[11px] font-bold ${
           isLight ? 'bg-slate-100 border-slate-300' : 'bg-slate-950/60 border-white/10'
         }`}>
+          {hasIntervals && intervalReport && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('tiros')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'tiros'
+                  ? 'bg-emerald-500 text-white shadow-xs font-black'
+                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Timer className="w-3.5 h-3.5" />
+              <span>Tiros ({intervalReport.intervals.length}x)</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setActiveTab('splits')}
@@ -218,12 +241,27 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
         </div>
       </div>
 
-      <div className={`grid grid-cols-2 gap-2 p-3 sm:px-4 border-b ${isLight?'border-slate-200':'border-white/10'}`}>
-        {[['FC média',avgHeartRate],['FC máxima',maxHeartRate]].map(([label,value])=><div key={String(label)} className={`rounded-xl border p-2.5 min-w-0 ${isLight?'bg-rose-50 border-rose-100':'bg-rose-950/20 border-rose-500/20'}`}><span className="block text-[9px] font-black uppercase text-slate-400">{label}</span><strong className={`text-base font-mono ${isLight?'text-rose-700':'text-rose-300'}`}>{typeof value==='number'&&Number.isFinite(value)&&value>0?`${Math.round(value)} bpm`:'Não informada'}</strong></div>)}
-      </div>
+      {activeTab !== 'tiros' && (
+        <div className={`grid grid-cols-2 gap-2 p-3 sm:px-4 border-b ${isLight?'border-slate-200':'border-white/10'}`}>
+          {[['FC média',avgHeartRate],['FC máxima',maxHeartRate]].map(([label,value])=><div key={String(label)} className={`rounded-xl border p-2.5 min-w-0 ${isLight?'bg-rose-50 border-rose-100':'bg-rose-950/20 border-rose-500/20'}`}><span className="block text-[9px] font-black uppercase text-slate-400">{label}</span><strong className={`text-base font-mono ${isLight?'text-rose-700':'text-rose-300'}`}>{typeof value==='number'&&Number.isFinite(value)&&value>0?`${Math.round(value)} bpm`:'Não informada'}</strong></div>)}
+        </div>
+      )}
 
       {/* Conteúdo da Aba */}
       <div className="p-3 sm:p-4">
+        {/* ABA: TABELA DE PARCIAIS TIRO POR TIRO (ESTILO KM + FC) */}
+        {activeTab === 'tiros' && intervalReport && (
+          <IntervalSplitsTable
+            report={intervalReport}
+            isLight={isLight}
+            workoutAvgHeartRate={avgHeartRate}
+            workoutMaxHeartRate={maxHeartRate}
+            showHeartRateCards={true}
+            showModeToggle={true}
+            showSummaryStrip={true}
+          />
+        )}
+
         {/* ABA: TABELA DE PARCIAIS POR KM */}
         {activeTab === 'splits' && (
           <div className="space-y-3">
@@ -234,12 +272,13 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
                     <tr className={`text-[9px] font-black uppercase tracking-wider border-b ${
                       isLight ? 'text-slate-500 border-slate-200' : 'text-slate-400 border-white/10'
                     }`}>
-                      <th className="pb-2 pl-2">Quilômetro</th>
-                      <th className="pb-2">Tempo Parcial</th>
-                      <th className="pb-2">Ritmo (Pace)</th>
-                      <th className="pb-2">Cadência Média</th>
-                      <th className="pb-2">Calorias</th>
-                      <th className="pb-2 text-right pr-2">Tempo Total</th>
+                      <th className="pb-2 pl-2 pr-3 whitespace-nowrap">Quilômetro</th>
+                      <th className="pb-2 px-2 whitespace-nowrap">Tempo Parcial</th>
+                      <th className="pb-2 px-2 whitespace-nowrap">Ritmo (Pace)</th>
+                      <th className="pb-2 px-2 whitespace-nowrap">FC Média</th>
+                      <th className="pb-2 px-2 whitespace-nowrap">Cadência Média</th>
+                      <th className="pb-2 px-2 whitespace-nowrap">Calorias</th>
+                      <th className="pb-2 text-right pl-2 pr-2 whitespace-nowrap">Tempo Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-mono text-xs">
@@ -254,7 +293,7 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
                               : isLight ? 'hover:bg-slate-50' : 'hover:bg-white/[0.02]'
                           }`}
                         >
-                          <td className="py-2.5 pl-2 font-bold flex items-center gap-1.5">
+                          <td className="py-2.5 pl-2 pr-3 font-bold flex items-center gap-1.5 whitespace-nowrap">
                             <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] ${
                               isBest 
                                 ? 'bg-emerald-500 text-white' 
@@ -269,23 +308,26 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
                               </span>
                             )}
                           </td>
-                          <td className={`py-2.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                          <td className={`py-2.5 px-2 whitespace-nowrap ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                             {formatSecToMinSec(split.durationSeconds)}
                           </td>
-                          <td className={`py-2.5 font-bold ${
+                          <td className={`py-2.5 px-2 font-bold whitespace-nowrap ${
                             isBest 
                               ? isLight ? 'text-emerald-700' : 'text-emerald-400' 
                               : isLight ? 'text-amber-700' : 'text-amber-400'
                           }`}>
                             {split.pace} /km
                           </td>
-                          <td className={`py-2.5 ${isLight ? 'text-purple-700' : 'text-purple-400'}`}>
+                          <td className={`py-2.5 px-2 font-bold whitespace-nowrap ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>
+                            {split.avgHeartRate ? `${split.avgHeartRate} bpm` : '--'}
+                          </td>
+                          <td className={`py-2.5 px-2 whitespace-nowrap ${isLight ? 'text-purple-700' : 'text-purple-400'}`}>
                             {split.avgCadence ? `${split.avgCadence} SPM` : '--'}
                           </td>
-                          <td className={`py-2.5 ${isLight ? 'text-orange-700' : 'text-orange-400'}`}>
+                          <td className={`py-2.5 px-2 whitespace-nowrap ${isLight ? 'text-orange-700' : 'text-orange-400'}`}>
                             {split.calories ? `${split.calories} kcal` : '--'}
                           </td>
-                          <td className={`py-2.5 text-right pr-2 text-slate-400`}>
+                          <td className={`py-2.5 pl-2 pr-2 text-right text-slate-400 whitespace-nowrap`}>
                             {formatSecToMinSec(split.splitTimeSeconds)}
                           </td>
                         </tr>
@@ -306,7 +348,7 @@ export const WorkoutTelemetryCharts: React.FC<WorkoutTelemetryChartsProps> = ({
           </div>
         )}
 
-        {activeTab !== 'splits' && <TelemetryExplorer samples={telemetrySamples} metric={activeTab==='heartRate'?'heartRate':activeTab==='cadence'?'cadenceSpm':activeTab==='elevation'?'altitudeMeters':'paceSeconds'} isLight={isLight} totalDistanceKm={totalDistanceKm} totalDurationSeconds={totalDurationSeconds}/>}
+        {activeTab !== 'splits' && activeTab !== 'tiros' && <TelemetryExplorer samples={telemetrySamples} metric={activeTab==='heartRate'?'heartRate':activeTab==='cadence'?'cadenceSpm':activeTab==='elevation'?'altitudeMeters':'paceSeconds'} isLight={isLight} totalDistanceKm={totalDistanceKm} totalDurationSeconds={totalDurationSeconds}/>}
       </div>
     </div>
   );

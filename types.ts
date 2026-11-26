@@ -287,6 +287,7 @@ export interface TrainingWeek {
           pace: string;
           paceSeconds?: number;
           avgCadence?: number;
+          avgHeartRate?: number;
           calories?: number;
           elevationGainMeters?: number;
         }[];
@@ -310,7 +311,13 @@ export interface TrainingWeek {
           targetValue: number;
           completedDistanceMeters: number;
           completedDurationSeconds: number;
+          splitTimeSeconds?: number;
           avgPace: string;
+          avgSpeedKmh?: number;
+          avgHeartRate?: number;
+          maxHeartRate?: number;
+          avgCadence?: number;
+          calories?: number;
         }[];
       };
     }[];

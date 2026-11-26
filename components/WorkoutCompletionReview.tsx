@@ -6,6 +6,7 @@ import type { Athlete, AthletePlan, RunningShoe, StructuredWorkout } from '../ty
 import { formatShoeLabel, isRunningShoeWorkout, suggestShoeForWorkout } from '../utils/shoeUtils';
 import { resolveIntervalMetricsForWorkout } from '../utils/intervalMetrics';
 import { IntervalMetricsTriggerCard } from './IntervalMetricsModal';
+import { IntervalSplitsTable } from './IntervalSplitsTable';
 import { ShoeSelectorField } from './ShoeSelectorField';
 import { RunMetricsGrid } from './RunMetricsGrid';
 import { WorkoutMap } from './WorkoutMap';
@@ -70,16 +71,34 @@ export function WorkoutCompletionReview({ route, onConfirm, onBack, shoes, plan,
       <RunMetricsGrid route={route} distanceKm={km} durationSeconds={seconds} />
       <p className="text-[10px] text-slate-400">{route.cadenceSource === 'phone_accelerometer' ? 'Cadência estimada pelo acelerômetro do celular.' : route.cadenceSource === 'gpx' ? 'Cadência importada; unidade conforme o arquivo GPX.' : 'Cadência não disponível: nenhum dado de passadas foi registrado.'} Pace atual é o ritmo recente; pace geral usa tempo ÷ distância. No GPS ao vivo, as pausas manuais são excluídas. Calorias e elevação são estimativas.</p>
       {intervalReport && (
-        <IntervalMetricsTriggerCard
-          report={intervalReport}
-          workoutTitle={workoutDescription || workoutType}
-          isLight={false}
-        />
+        <div className="space-y-3">
+          <IntervalMetricsTriggerCard
+            report={intervalReport}
+            workoutTitle={workoutDescription || workoutType}
+            workoutAvgHeartRate={route.avgHeartRate}
+            workoutMaxHeartRate={route.maxHeartRate}
+            isLight={false}
+          />
+          <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-3 sm:p-4 space-y-2">
+            <p className="text-[10px] font-black uppercase italic tracking-wider text-emerald-400">
+              Parciais Tiro a Tiro ({intervalReport.intervals.length}x)
+            </p>
+            <IntervalSplitsTable
+              report={intervalReport}
+              isLight={false}
+              workoutAvgHeartRate={route.avgHeartRate}
+              workoutMaxHeartRate={route.maxHeartRate}
+              showHeartRateCards={true}
+              showModeToggle={true}
+              showSummaryStrip={true}
+            />
+          </div>
+        </div>
       )}
       {!(route.totalDistanceKm > 0) && <label className="block text-xs font-bold text-slate-300">Distância real (km)<input aria-label="Distância real (km)" className="pro-input block w-full mt-2" inputMode="decimal" value={distance} onChange={e => setDistance(e.target.value)} /></label>}
       {!(route.totalDurationSeconds > 0) && <label className="block text-xs font-bold text-slate-300">Tempo real (minutos:segundos)<input aria-label="Tempo real (minutos:segundos)" className="pro-input block w-full mt-2" placeholder="30:00" value={time} onChange={e => setTime(e.target.value)} /></label>}
       {!!route.points?.length && <WorkoutMap points={route.points} height="180px" />}
-      {!!route.kmSplits?.length && <details><summary className="pro-label cursor-pointer">Parciais da corrida</summary><div className="space-y-2">{route.kmSplits.map((split, index) => <p key={index} className="text-xs text-slate-300">Parcial {index + 1} · {split.pace}/km · {formatDuration(split.durationSeconds)}</p>)}</div></details>}
+      {!!route.kmSplits?.length && <details><summary className="pro-label cursor-pointer">Parciais por quilômetro ({route.kmSplits.length})</summary><div className="space-y-2">{route.kmSplits.map((split, index) => <p key={index} className="text-xs text-slate-300">KM {split.km} · {split.pace}/km · {formatDuration(split.durationSeconds)}{split.avgHeartRate ? ` · ${split.avgHeartRate} bpm` : ''}</p>)}</div></details>}
       {shoes && shoes.length > 0 && isRunningShoeWorkout(workoutType) && (
         <ShoeSelectorField
           shoes={shoes}

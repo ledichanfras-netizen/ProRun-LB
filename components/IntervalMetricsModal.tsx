@@ -7,14 +7,17 @@ import {
   formatSpeedKmh,
   formatStepDistance,
 } from '../utils/intervalMetrics';
+import { IntervalSplitsTable, type IntervalViewMode } from './IntervalSplitsTable';
 
-export type IntervalViewMode = 'with_recovery' | 'without_recovery';
+export type { IntervalViewMode };
 
 interface IntervalMetricsModalProps {
   report: IntervalWorkoutMetricsReport;
   workoutTitle?: string;
   workoutDate?: string;
   athleteName?: string;
+  workoutAvgHeartRate?: number;
+  workoutMaxHeartRate?: number;
   isLight?: boolean;
   initialMode?: IntervalViewMode;
   onClose: () => void;
@@ -25,6 +28,8 @@ export const IntervalMetricsModal: React.FC<IntervalMetricsModalProps> = ({
   workoutTitle,
   workoutDate,
   athleteName,
+  workoutAvgHeartRate,
+  workoutMaxHeartRate,
   isLight = false,
   initialMode = 'with_recovery',
   onClose,
@@ -308,6 +313,9 @@ export const IntervalMetricsModal: React.FC<IntervalMetricsModalProps> = ({
                     >
                       {formatStepDistance(report.withoutRecovery.totalDistanceMeters)} ·{' '}
                       {formatIntervalDuration(report.withoutRecovery.totalDurationSeconds)}
+                      {report.withoutRecovery.avgHeartRate
+                        ? ` · ${report.withoutRecovery.avgHeartRate} bpm`
+                        : ''}
                     </span>
                   </div>
                   <div className="text-right font-mono tabular-nums">
@@ -346,6 +354,9 @@ export const IntervalMetricsModal: React.FC<IntervalMetricsModalProps> = ({
                     >
                       {formatStepDistance(report.recoveryOnly.totalDistanceMeters)} ·{' '}
                       {formatIntervalDuration(report.recoveryOnly.totalDurationSeconds)}
+                      {report.recoveryOnly.avgHeartRate
+                        ? ` · ${report.recoveryOnly.avgHeartRate} bpm`
+                        : ''}
                     </span>
                   </div>
                   <div className="text-right font-mono tabular-nums">
@@ -386,132 +397,26 @@ export const IntervalMetricsModal: React.FC<IntervalMetricsModalProps> = ({
             )}
           </section>
 
-          {/* Detailed Per-Rep Breakdown Table */}
+          {/* Screenshot-2 Style Per-Rep Breakdown Table + HR Cards */}
           <section
             aria-label="Detalhamento por tiro e recuperação"
-            className={`rounded-2xl border overflow-hidden ${
+            className={`rounded-2xl border p-3 sm:p-4 ${
               isLight
                 ? 'bg-white border-slate-200'
                 : 'bg-slate-900 border-slate-800'
             }`}
           >
-            {/* Header Row */}
-            <div
-              className={`grid grid-cols-12 gap-2 px-4 py-3 text-xs font-semibold border-b ${
-                isLight
-                  ? 'bg-slate-100/80 border-slate-200 text-slate-600'
-                  : 'bg-slate-900 border-slate-800 text-slate-400'
-              }`}
-            >
-              <div className="col-span-5 sm:col-span-5">Etapa</div>
-              <div className="col-span-2 sm:col-span-2 text-right">Tempo</div>
-              <div className="col-span-2 sm:col-span-2 text-right">Pace</div>
-              <div className="col-span-3 sm:col-span-3 text-right">Vel. média</div>
-            </div>
-
-            <div
-              className={`divide-y ${
-                isLight ? 'divide-slate-200' : 'divide-slate-800'
-              }`}
-            >
-              {report.pairs.map((pair) => {
-                const isFastest =
-                  report.withoutRecovery.fastestRepNumber === pair.interval.index &&
-                  report.intervals.length > 1;
-                return (
-                  <div key={pair.interval.stepId + '-' + pair.repNumber}>
-                    {/* Tiro Row */}
-                    <div
-                      className={`grid grid-cols-12 gap-2 items-center px-4 py-3.5 ${
-                        isFastest
-                          ? isLight
-                            ? 'bg-emerald-50/60'
-                            : 'bg-emerald-950/25'
-                          : ''
-                      }`}
-                    >
-                      <div className="col-span-5 sm:col-span-5 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-sm font-semibold truncate">
-                            Tiro {pair.repNumber}
-                          </span>
-                          {isFastest && (
-                            <span className="text-[11px] font-semibold text-emerald-500 whitespace-nowrap">
-                              · Melhor
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className={`block text-xs font-mono tabular-nums ${
-                            isLight ? 'text-slate-500' : 'text-slate-400'
-                          }`}
-                        >
-                          {formatStepDistance(pair.interval.distanceMeters)}
-                        </span>
-                      </div>
-
-                      <div className="col-span-2 sm:col-span-2 text-right font-mono tabular-nums text-xs sm:text-sm font-semibold">
-                        {formatIntervalDuration(pair.interval.durationSeconds)}
-                      </div>
-
-                      <div className="col-span-2 sm:col-span-2 text-right font-mono tabular-nums text-xs sm:text-sm font-bold text-emerald-500">
-                        {pair.interval.pace}
-                        <span className="hidden sm:inline text-[11px] font-normal">
-                          /km
-                        </span>
-                      </div>
-
-                      <div className="col-span-3 sm:col-span-3 text-right font-mono tabular-nums text-xs sm:text-sm font-semibold">
-                        {formatSpeedKmh(pair.interval.avgSpeedKmh)}
-                      </div>
-                    </div>
-
-                    {/* Recovery Sub-Row (only when Com recuperação is selected) */}
-                    {mode === 'with_recovery' && pair.recovery && (
-                      <div
-                        className={`grid grid-cols-12 gap-2 items-center px-4 py-3 border-t ${
-                          isLight
-                            ? 'bg-slate-50/80 border-slate-100 text-slate-600'
-                            : 'bg-slate-950/50 border-slate-800/70 text-slate-300'
-                        }`}
-                      >
-                        <div className="col-span-5 sm:col-span-5 min-w-0 pl-3">
-                          <span className="text-xs sm:text-sm font-medium block truncate">
-                            Recuperação {pair.repNumber}
-                          </span>
-                          <span
-                            className={`block text-xs font-mono tabular-nums ${
-                              isLight ? 'text-slate-500' : 'text-slate-400'
-                            }`}
-                          >
-                            {pair.recovery.distanceMeters > 0
-                              ? formatStepDistance(pair.recovery.distanceMeters)
-                              : 'Pausa por tempo'}
-                          </span>
-                        </div>
-
-                        <div className="col-span-2 sm:col-span-2 text-right font-mono tabular-nums text-xs sm:text-sm">
-                          {formatIntervalDuration(pair.recovery.durationSeconds)}
-                        </div>
-
-                        <div className="col-span-2 sm:col-span-2 text-right font-mono tabular-nums text-xs sm:text-sm">
-                          {pair.recovery.pace}
-                          {pair.recovery.pace !== '--:--' && (
-                            <span className="hidden sm:inline text-[11px] opacity-75">
-                              /km
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="col-span-3 sm:col-span-3 text-right font-mono tabular-nums text-xs sm:text-sm">
-                          {formatSpeedKmh(pair.recovery.avgSpeedKmh)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <IntervalSplitsTable
+              report={report}
+              isLight={isLight}
+              mode={mode}
+              onModeChange={setMode}
+              workoutAvgHeartRate={workoutAvgHeartRate}
+              workoutMaxHeartRate={workoutMaxHeartRate}
+              showHeartRateCards={true}
+              showModeToggle={false}
+              showSummaryStrip={false}
+            />
           </section>
 
           {/* Transparent context footnotes */}
@@ -550,6 +455,8 @@ interface IntervalMetricsTriggerCardProps {
   workoutTitle?: string;
   workoutDate?: string;
   athleteName?: string;
+  workoutAvgHeartRate?: number;
+  workoutMaxHeartRate?: number;
   isLight?: boolean;
 }
 
@@ -558,6 +465,8 @@ export const IntervalMetricsTriggerCard: React.FC<IntervalMetricsTriggerCardProp
   workoutTitle,
   workoutDate,
   athleteName,
+  workoutAvgHeartRate,
+  workoutMaxHeartRate,
   isLight = false,
 }) => {
   const [open, setOpen] = useState(false);
@@ -582,7 +491,7 @@ export const IntervalMetricsTriggerCard: React.FC<IntervalMetricsTriggerCardProp
                 isLight ? 'text-slate-500' : 'text-slate-400'
               }`}
             >
-              Tempo, pace e velocidade média com e sem recuperação
+              Tempo, pace, velocidade média e FC com e sem recuperação
             </p>
           </div>
         </div>
@@ -613,6 +522,9 @@ export const IntervalMetricsTriggerCard: React.FC<IntervalMetricsTriggerCardProp
             >
               {formatIntervalDuration(report.withoutRecovery.totalDurationSeconds)} ·{' '}
               {formatStepDistance(report.withoutRecovery.totalDistanceMeters)}
+              {report.withoutRecovery.avgHeartRate
+                ? ` · ${report.withoutRecovery.avgHeartRate} bpm`
+                : ''}
             </p>
           </div>
 
@@ -642,6 +554,9 @@ export const IntervalMetricsTriggerCard: React.FC<IntervalMetricsTriggerCardProp
               >
                 {formatIntervalDuration(report.withRecovery.totalDurationSeconds)} ·{' '}
                 {formatStepDistance(report.withRecovery.totalDistanceMeters)}
+                {report.withRecovery.avgHeartRate
+                  ? ` · ${report.withRecovery.avgHeartRate} bpm`
+                  : ''}
               </p>
             </div>
           )}
@@ -662,6 +577,8 @@ export const IntervalMetricsTriggerCard: React.FC<IntervalMetricsTriggerCardProp
           workoutTitle={workoutTitle}
           workoutDate={workoutDate}
           athleteName={athleteName}
+          workoutAvgHeartRate={workoutAvgHeartRate}
+          workoutMaxHeartRate={workoutMaxHeartRate}
           isLight={isLight}
           onClose={() => setOpen(false)}
         />

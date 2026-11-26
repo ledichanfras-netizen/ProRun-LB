@@ -70,6 +70,7 @@ import { StructuredWorkoutModal } from '../components/StructuredWorkoutModal';
 import { formatStructuredWorkoutSummary, parseWorkoutTextToStructure, formatStructuredWorkoutFullDescription } from '../utils/workoutParser';
 import { resolveIntervalMetricsForWorkout, type IntervalWorkoutMetricsReport } from '../utils/intervalMetrics';
 import { IntervalMetricsModal, IntervalMetricsTriggerCard } from '../components/IntervalMetricsModal';
+import { WorkoutTelemetryCharts } from '../components/WorkoutTelemetryCharts';
 import { WorkoutShareModal, WorkoutShareData } from '../components/WorkoutShareModal';
 import { AthleteSelectorModal } from '../components/AthleteSelectorModal';
 
@@ -122,6 +123,8 @@ const Periodization: React.FC = () => {
     report: IntervalWorkoutMetricsReport;
     workoutTitle?: string;
     workoutDate?: string;
+    workoutAvgHeartRate?: number;
+    workoutMaxHeartRate?: number;
   } | null>(null);
   const [editingStructuredWorkout, setEditingStructuredWorkout] = useState<{ wIdx: number; dIdx: number } | null>(null);
   const [shareModalData, setShareModalData] = useState<WorkoutShareData | null>(null);
@@ -1867,6 +1870,8 @@ const Periodization: React.FC = () => {
                                                   report: coachIntervalReport,
                                                   workoutTitle: workout.customDescription || workout.type,
                                                   workoutDate: formattedDateStr,
+                                                  workoutAvgHeartRate: r?.avgHeartRate ?? workout.avgHeartRate,
+                                                  workoutMaxHeartRate: r?.maxHeartRate,
                                                 })
                                               }
                                               className="text-[9px] font-black px-2.5 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-md uppercase italic border border-amber-500/30 flex items-center gap-1 transition-all cursor-pointer"
@@ -2190,28 +2195,57 @@ const Periodization: React.FC = () => {
                     viewingWorkoutRoute.workoutDescription,
                     viewingWorkoutRoute.workoutType
                   );
-                  return modalIntervalReport ? (
-                    <IntervalMetricsTriggerCard
-                      report={modalIntervalReport}
-                      workoutTitle={viewingWorkoutRoute.workoutTitle}
-                      workoutDate={viewingWorkoutRoute.workoutDate}
-                      athleteName={activeAthlete?.name}
-                      isLight={false}
-                    />
-                  ) : null;
-                })()}
+                  const hasChartsData =
+                    !!modalIntervalReport ||
+                    !!viewingWorkoutRoute.kmSplits?.length ||
+                    !!viewingWorkoutRoute.telemetrySamples?.length ||
+                    !!viewingWorkoutRoute.telemetry?.length;
+                  return (
+                    <>
+                      {modalIntervalReport && (
+                        <IntervalMetricsTriggerCard
+                          report={modalIntervalReport}
+                          workoutTitle={viewingWorkoutRoute.workoutTitle}
+                          workoutDate={viewingWorkoutRoute.workoutDate}
+                          athleteName={activeAthlete?.name}
+                          workoutAvgHeartRate={viewingWorkoutRoute.avgHeartRate}
+                          workoutMaxHeartRate={viewingWorkoutRoute.maxHeartRate}
+                          isLight={false}
+                        />
+                      )}
 
-                <WorkoutMap
-                  points={
-                    viewingWorkoutRoute.points && viewingWorkoutRoute.points.length > 0
-                      ? viewingWorkoutRoute.points
-                      : viewingWorkoutRoute.polyline
-                      ? decodePolyline(viewingWorkoutRoute.polyline)
-                      : []
-                  }
-                  height="300px"
-                  interactive={true}
-                />
+                      <WorkoutMap
+                        points={
+                          viewingWorkoutRoute.points && viewingWorkoutRoute.points.length > 0
+                            ? viewingWorkoutRoute.points
+                            : viewingWorkoutRoute.polyline
+                            ? decodePolyline(viewingWorkoutRoute.polyline)
+                            : []
+                        }
+                        height="300px"
+                        interactive={true}
+                      />
+
+                      {hasChartsData && (
+                        <WorkoutTelemetryCharts
+                          kmSplits={viewingWorkoutRoute.kmSplits}
+                          telemetrySamples={viewingWorkoutRoute.telemetrySamples || viewingWorkoutRoute.telemetry}
+                          intervalReport={modalIntervalReport}
+                          avgHeartRate={viewingWorkoutRoute.avgHeartRate}
+                          maxHeartRate={viewingWorkoutRoute.maxHeartRate}
+                          avgPace={viewingWorkoutRoute.avgPace}
+                          avgCadence={viewingWorkoutRoute.avgCadence}
+                          maxCadence={viewingWorkoutRoute.maxCadence}
+                          calories={viewingWorkoutRoute.calories}
+                          elevationGainMeters={viewingWorkoutRoute.elevationGainMeters}
+                          totalDistanceKm={viewingWorkoutRoute.totalDistanceKm}
+                          totalDurationSeconds={viewingWorkoutRoute.totalDurationSeconds ?? viewingWorkoutRoute.durationSeconds}
+                          isLight={false}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="p-6 border-t border-white/5 flex justify-between items-center">
@@ -2252,6 +2286,8 @@ const Periodization: React.FC = () => {
             workoutTitle={viewingIntervalMetrics.workoutTitle}
             workoutDate={viewingIntervalMetrics.workoutDate}
             athleteName={activeAthlete?.name}
+            workoutAvgHeartRate={viewingIntervalMetrics.workoutAvgHeartRate}
+            workoutMaxHeartRate={viewingIntervalMetrics.workoutMaxHeartRate}
             isLight={false}
             onClose={() => setViewingIntervalMetrics(null)}
           />

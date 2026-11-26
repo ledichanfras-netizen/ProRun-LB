@@ -5366,6 +5366,8 @@ const AthletePortal: React.FC = () => {
                     }
                     workoutDate={completedWorkoutPrompt.workout.date}
                     athleteName={activeAthlete?.name}
+                    workoutAvgHeartRate={promptRoute?.avgHeartRate ?? completedWorkoutPrompt.workout.avgHeartRate}
+                    workoutMaxHeartRate={promptRoute?.maxHeartRate}
                     isLight={false}
                   />
                 </div>

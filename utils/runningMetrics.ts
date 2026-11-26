@@ -16,6 +16,7 @@ export interface KmSplit {
   pace: string; // "05:14" min/km
   paceSeconds: number;
   avgCadence?: number; // SPM in this km
+  avgHeartRate?: number; // bpm average in this km
   calories?: number; // kcal burned in this km
   elevationGainMeters?: number;
 }

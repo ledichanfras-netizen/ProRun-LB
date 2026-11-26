@@ -46,7 +46,13 @@ export interface RouteData {
     targetValue: number;
     completedDistanceMeters: number;
     completedDurationSeconds: number;
+    splitTimeSeconds?: number;
     avgPace: string;
+    avgSpeedKmh?: number;
+    avgHeartRate?: number;
+    maxHeartRate?: number;
+    avgCadence?: number;
+    calories?: number;
   }[];
 }
 
@@ -273,6 +279,10 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkou
   let nextKm = 1;
   let cadenceWeighted = 0;
   let cadenceSeconds = 0;
+  let splitHrSum = 0;
+  let splitHrCount = 0;
+  let splitCadSum = 0;
+  let splitCadCount = 0;
   const cadences = rawPoints.flatMap(point => point.cadence ? [point.cadence] : []);
   const heartRates = rawPoints.flatMap(point => point.heartRate ? [point.heartRate] : []);
   for (let i = 1; i < rawPoints.length; i++) {
@@ -283,11 +293,17 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkou
     const elapsed = (curr.time - firstTime) / 1000;
     const interval = prev.time ? (curr.time - prev.time) / 1000 : 0;
     if (curr.cadence && interval > 0) { cadenceWeighted += curr.cadence * interval; cadenceSeconds += interval; }
+    if (curr.heartRate && curr.heartRate > 0) { splitHrSum += curr.heartRate; splitHrCount++; }
+    if (curr.cadence && curr.cadence > 0) { splitCadSum += curr.cadence; splitCadCount++; }
     while (accDist >= nextKm) {
       const crossing = crossingSeconds({ seconds: previousSeconds, kilometers: before }, { seconds: elapsed, kilometers: accDist }, nextKm);
       const duration = crossing - lastCrossing;
       kmSplits.push({ km: nextKm, durationSeconds: duration, splitTimeSeconds: crossing,
-        pace: formatPace(duration, 1), paceSeconds: Math.round(duration), calories: calculateRunningCalories(weightKg, 1) });
+        pace: formatPace(duration, 1), paceSeconds: Math.round(duration),
+        avgCadence: splitCadCount > 0 ? Math.round(splitCadSum / splitCadCount) : undefined,
+        avgHeartRate: splitHrCount > 0 ? Math.round(splitHrSum / splitHrCount) : undefined,
+        calories: calculateRunningCalories(weightKg, 1) });
+      splitHrSum = 0; splitHrCount = 0; splitCadSum = 0; splitCadCount = 0;
       lastCrossing = crossing; nextKm++;
     }
     telemetrySamples.push({ distanceKm: accDist, durationSeconds: elapsed,
@@ -300,7 +316,10 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkou
   if (totalDurationSeconds > lastCrossing && finalDistance > 0.01) {
     const duration = totalDurationSeconds - lastCrossing;
     kmSplits.push({ km: nextKm, durationSeconds: duration, splitTimeSeconds: totalDurationSeconds,
-      pace: formatPace(duration, finalDistance), paceSeconds: Math.round(duration / finalDistance), calories: calculateRunningCalories(weightKg, finalDistance) });
+      pace: formatPace(duration, finalDistance), paceSeconds: Math.round(duration / finalDistance),
+      avgCadence: splitCadCount > 0 ? Math.round(splitCadSum / splitCadCount) : undefined,
+      avgHeartRate: splitHrCount > 0 ? Math.round(splitHrSum / splitHrCount) : undefined,
+      calories: calculateRunningCalories(weightKg, finalDistance) });
   }
   const avgCadence = cadenceSeconds > 0 ? Math.round(cadenceWeighted / cadenceSeconds) : undefined;
   let completedSteps: RouteData['completedSteps'];
@@ -338,6 +357,33 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkou
       }
       return maxDistKm;
     };
+    const extractStepBiometrics = (startSec: number, endSec: number, meters: number, secs: number) => {
+      const windowSamples = telemetrySamples.filter(
+        (pt) => pt.durationSeconds >= startSec && pt.durationSeconds <= endSec
+      );
+      const hrVals = windowSamples
+        .map((pt) => pt.heartRate)
+        .filter((hr): hr is number => typeof hr === 'number' && Number.isFinite(hr) && hr > 0);
+      const cadVals = windowSamples
+        .map((pt) => pt.cadenceSpm)
+        .filter((cad): cad is number => typeof cad === 'number' && Number.isFinite(cad) && cad > 0);
+      const avgSpeedKmh =
+        meters > 0 && secs > 0
+          ? Number((((meters / 1000) * 3600) / secs).toFixed(1))
+          : undefined;
+      return {
+        splitTimeSeconds: Math.round(endSec),
+        avgSpeedKmh: avgSpeedKmh && avgSpeedKmh <= 60 ? avgSpeedKmh : undefined,
+        avgHeartRate: hrVals.length
+          ? Math.round(hrVals.reduce((a, b) => a + b, 0) / hrVals.length)
+          : undefined,
+        maxHeartRate: hrVals.length ? Math.round(Math.max(...hrVals)) : undefined,
+        avgCadence: cadVals.length
+          ? Math.round(cadVals.reduce((a, b) => a + b, 0) / cadVals.length)
+          : undefined,
+        calories: meters > 10 ? calculateRunningCalories(weightKg, meters / 1000) : undefined,
+      };
+    };
     for (const s of structuredWorkout.steps) {
       if (s.targetType === 'distance' && s.targetValue > 0) {
         const sKm = s.targetValue / 1000;
@@ -346,6 +392,7 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkou
         const endSec = interpTime(endKm);
         const meters = Math.max(0, Math.round((endKm - cKm) * 1000));
         const secs = Math.max(1, Math.round(endSec - cSec));
+        const bio = extractStepBiometrics(cSec, endSec, meters, secs);
         steps.push({
           stepId: s.id,
           name: s.name,
@@ -355,6 +402,7 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkou
           completedDistanceMeters: meters,
           completedDurationSeconds: secs,
           avgPace: formatPace(secs, meters / 1000),
+          ...bio,
         });
         cKm = endKm;
         cSec = Math.max(cSec, endSec);
@@ -364,6 +412,7 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkou
         const endKm = interpDist(endSec);
         const meters = Math.max(0, Math.round((endKm - cKm) * 1000));
         const secs = Math.max(1, Math.round(endSec - cSec));
+        const bio = extractStepBiometrics(cSec, endSec, meters, secs);
         steps.push({
           stepId: s.id,
           name: s.name,
@@ -373,6 +422,7 @@ export function parseGpxFile(gpxXmlText: string, weightKg = 70, structuredWorkou
           completedDistanceMeters: meters,
           completedDurationSeconds: secs,
           avgPace: formatPace(secs, meters / 1000),
+          ...bio,
         });
         cKm = Math.max(cKm, endKm);
         cSec = endSec;
@@ -433,6 +483,9 @@ export interface ActiveWorkoutBackup {
   activeStepIndex: number;
   stepDistanceMeters: number;
   stepDurationSeconds: number;
+  stepHeartRateSummary?: { sum: number; count: number; max: number };
+  stepCadenceSummary?: { sum: number; count: number };
+  stepStartCalories?: number;
   completedSteps: any[];
   activeStructured?: any;
   savedAt: string; // ISO string

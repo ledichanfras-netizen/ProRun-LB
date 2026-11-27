@@ -29,7 +29,9 @@ import {
   Crop,
   Globe,
   Map as MapIcon,
-  LocateFixed
+  LocateFixed,
+  Trophy,
+  Zap
 } from 'lucide-react';
 import {shareMapMetrics} from '../utils/shareMapMetrics';
 import {projectShareMapPoint} from '../utils/socialCardUtils';
@@ -50,9 +52,17 @@ import {
 } from '../utils/socialCardUtils';
 import { formatDuration } from '../utils/gpsUtils';
 import { decodePolyline } from '../utils/gpsUtils';
+import {
+  resolveIntervalMetricsForWorkout,
+  formatStepDistance,
+  formatSpeedKmh,
+  formatIntervalDuration,
+  type IntervalWorkoutMetricsReport,
+} from '../utils/intervalMetrics';
 
 export interface WorkoutShareData {
   title?: string;
+  workoutDescription?: string;
   athleteName?: string;
   date?: string;
   distanceKm: number;
@@ -135,6 +145,7 @@ interface SocialWorkoutMapRendererProps {
   mapView: MapViewAdjustment;
   onGesture: (gesture: MapGesture) => void;
   fullBleed?: boolean;
+  compactHeight?: boolean;
   kmMetrics?: ReturnType<typeof shareMapMetrics>;
   showKm?: boolean;
   showKmPace?: boolean;
@@ -155,13 +166,15 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
   strokeMainColor,
   mapView,
   onGesture,
-  fullBleed = false, kmMetrics, showKm = true, showKmPace = false, colorKmPace = false
+  fullBleed = false, compactHeight = false, kmMetrics, showKm = true, showKmPace = false, colorKmPace = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const [dims, setDims] = useState<{ width: number; height: number }>({
     width: 250,
-    height: aspectRatio === 'square' ? 98 : aspectRatio === 'portrait' ? 145 : 190
+    height: compactHeight
+      ? (aspectRatio === 'square' ? 58 : aspectRatio === 'portrait' ? 76 : 104)
+      : (aspectRatio === 'square' ? 98 : aspectRatio === 'portrait' ? 145 : 190)
   });
 
   useEffect(() => {
@@ -227,11 +240,17 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
       onPointerCancel={event => { pointers.current.delete(event.pointerId); }}
       onLostPointerCapture={event => { pointers.current.delete(event.pointerId); }}
       className={fullBleed ? 'absolute inset-0 w-full h-full overflow-hidden' : `relative w-full rounded-2xl overflow-hidden border shadow-xl flex items-center justify-center ${
-        aspectRatio === 'square'
-          ? 'h-[82px] sm:h-[98px]'
-          : aspectRatio === 'portrait'
-          ? 'h-[125px] sm:h-[150px]'
-          : 'h-[160px] sm:h-[200px]'
+        compactHeight
+          ? (aspectRatio === 'square'
+              ? 'h-[56px] sm:h-[66px]'
+              : aspectRatio === 'portrait'
+              ? 'h-[74px] sm:h-[90px]'
+              : 'h-[98px] sm:h-[118px]')
+          : (aspectRatio === 'square'
+              ? 'h-[82px] sm:h-[98px]'
+              : aspectRatio === 'portrait'
+              ? 'h-[125px] sm:h-[150px]'
+              : 'h-[160px] sm:h-[200px]')
       }`}
       style={{
         touchAction: 'none',
@@ -372,19 +391,289 @@ const SocialWorkoutMapRenderer: React.FC<SocialWorkoutMapRendererProps> = ({
 
 const RouteVideoModal=React.lazy(()=>import('./RouteVideoModal'));
 
+interface IntervalShareMetricsBlockProps {
+  report: IntervalWorkoutMetricsReport;
+  includeRecovery: boolean;
+  showHeartRate: boolean;
+  isDarkText: boolean;
+  aspectRatio: AspectRatio;
+  hasMapInFlow: boolean;
+  isMapOverlay?: boolean;
+}
+
+const IntervalShareMetricsBlock: React.FC<IntervalShareMetricsBlockProps> = ({
+  report,
+  includeRecovery,
+  showHeartRate,
+  isDarkText,
+  aspectRatio,
+  hasMapInFlow,
+  isMapOverlay = false,
+}) => {
+  const useRecovery = includeRecovery && report.hasRecoveries;
+  const summary = useRecovery ? report.withRecovery : report.withoutRecovery;
+  const fastestRep = report.withoutRecovery.fastestRepNumber;
+  const pairs = report.pairs;
+
+  const useTwoCols =
+    aspectRatio === 'square' ||
+    (aspectRatio === 'portrait' && (pairs.length > 4 || hasMapInFlow || isMapOverlay || useRecovery)) ||
+    (aspectRatio === 'story' &&
+      (pairs.length > (hasMapInFlow || isMapOverlay ? 4 : 6) ||
+        (useRecovery && pairs.length > 4)));
+
+  const maxVisible = !useTwoCols
+    ? (hasMapInFlow || isMapOverlay ? 4 : 6)
+    : aspectRatio === 'story'
+    ? (hasMapInFlow || isMapOverlay ? (useRecovery ? 6 : 8) : (useRecovery ? 10 : 14))
+    : aspectRatio === 'portrait'
+    ? (hasMapInFlow || isMapOverlay ? (useRecovery ? 4 : 6) : (useRecovery ? 6 : 8))
+    : (hasMapInFlow || isMapOverlay ? 4 : (useRecovery ? 4 : 6));
+
+  const visiblePairs = pairs.slice(0, maxVisible);
+  const hiddenCount = Math.max(0, pairs.length - visiblePairs.length);
+
+  const darkSurface = isMapOverlay || !isDarkText;
+  const panelBg = isMapOverlay
+    ? 'rgba(2, 6, 23, 0.52)'
+    : darkSurface
+    ? 'rgba(2, 6, 23, 0.48)'
+    : 'rgba(255, 255, 255, 0.78)';
+  const rowBg = isMapOverlay
+    ? 'rgba(15, 23, 42, 0.52)'
+    : darkSurface
+    ? 'rgba(15, 23, 42, 0.48)'
+    : 'rgba(248, 250, 252, 0.85)';
+  const fastestBg = darkSurface
+    ? 'rgba(16, 185, 129, 0.24)'
+    : 'rgba(16, 185, 129, 0.16)';
+  const borderCol = darkSurface ? 'rgba(255, 255, 255, 0.16)' : 'rgba(15, 23, 42, 0.14)';
+  const fastestBorderCol = darkSurface ? 'rgba(52, 211, 153, 0.55)' : 'rgba(5, 150, 105, 0.45)';
+  const mainText = darkSurface ? '#ffffff' : '#0f172a';
+  const mutedText = darkSurface ? '#cbd5e1' : '#475569';
+  const paceAccent = darkSurface ? '#fbbf24' : '#b45309';
+  const bestAccent = darkSurface ? '#34d399' : '#047857';
+
+  return (
+    <div
+      className="w-full rounded-2xl border p-2 text-left"
+      style={{
+        backgroundColor: panelBg,
+        borderColor: borderCol,
+        color: mainText,
+      }}
+    >
+      {/* Resumo dos Tiros */}
+      <div
+        className="flex items-center justify-between gap-1.5 pb-1.5 mb-1.5 border-b"
+        style={{ borderColor: borderCol }}
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-1">
+            <span
+              className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+              style={{ backgroundColor: '#10b981', color: '#022c22' }}
+            >
+              TIROS ({report.intervals.length}x)
+            </span>
+            <span className="text-[7.5px] font-bold uppercase tracking-wide truncate" style={{ color: mutedText }}>
+              {useRecovery ? 'Com rec.' : 'Só tiros'}
+            </span>
+          </div>
+          <p className="text-[8px] font-bold mt-0.5 truncate" style={{ color: mutedText }}>
+            {formatIntervalDuration(summary.totalDurationSeconds)} · {formatStepDistance(summary.totalDistanceMeters)}
+            {summary.avgSpeedKmh ? ` · ${formatSpeedKmh(summary.avgSpeedKmh)}` : ''}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <span className="text-[7px] font-black uppercase tracking-wider block" style={{ color: mutedText }}>
+            Pace médio
+          </span>
+          <div className="flex items-baseline justify-end gap-1">
+            <span className="text-xs sm:text-sm font-black italic leading-none" style={{ color: bestAccent }}>
+              {summary.avgPace}<span className="text-[8px] font-bold">/km</span>
+            </span>
+            {showHeartRate && summary.avgHeartRate && (
+              <span className="text-[8px] font-black" style={{ color: darkSurface ? '#fda4af' : '#e11d48' }}>
+                ♥{summary.avgHeartRate}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Lista Tiro a Tiro */}
+      {!useTwoCols ? (
+        <div className="space-y-1">
+          <div
+            className="grid grid-cols-[1fr_auto_auto] gap-2 px-1 text-[6.5px] font-black uppercase tracking-wider"
+            style={{ color: mutedText }}
+          >
+            <span>Tiro / Dist.</span>
+            <span className="text-right">Parcial</span>
+            <span className="text-right min-w-[42px]">Ritmo</span>
+          </div>
+          {visiblePairs.map((pair) => {
+            const isBest = pair.repNumber === fastestRep;
+            return (
+              <div
+                key={pair.interval.stepId || pair.repNumber}
+                className="rounded-lg border px-1.5 py-1"
+                style={{
+                  backgroundColor: isBest ? fastestBg : rowBg,
+                  borderColor: isBest ? fastestBorderCol : borderCol,
+                }}
+              >
+                <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className="w-4 h-4 rounded flex items-center justify-center text-[8px] font-black shrink-0"
+                      style={{
+                        backgroundColor: isBest ? '#10b981' : darkSurface ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.1)',
+                        color: isBest ? '#022c22' : mainText,
+                      }}
+                    >
+                      {pair.repNumber}
+                    </span>
+                    <div className="min-w-0 leading-tight">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-black truncate">
+                          Tiro {pair.repNumber}
+                        </span>
+                        {isBest && (
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[6.5px] font-black uppercase px-1 py-0.2 rounded"
+                            style={{ backgroundColor: '#10b981', color: '#022c22' }}
+                          >
+                            <Trophy className="w-2 h-2" /> Melhor
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[7.5px] font-bold block" style={{ color: mutedText }}>
+                        {formatStepDistance(pair.interval.distanceMeters)}
+                        {showHeartRate && pair.interval.avgHeartRate ? ` · ♥${pair.interval.avgHeartRate}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[9.5px] font-black font-mono tabular-nums text-right">
+                    {formatIntervalDuration(pair.interval.durationSeconds)}
+                  </span>
+                  <span
+                    className="text-[9.5px] font-black font-mono tabular-nums text-right min-w-[42px]"
+                    style={{ color: isBest ? bestAccent : paceAccent }}
+                  >
+                    {pair.interval.pace}
+                  </span>
+                </div>
+                {useRecovery && pair.recovery && (
+                  <div
+                    className="mt-0.5 pt-0.5 border-t flex items-center justify-between text-[7px] font-bold"
+                    style={{ borderColor: borderCol, color: mutedText }}
+                  >
+                    <span>Rec. {formatStepDistance(pair.recovery.distanceMeters)}</span>
+                    <span className="font-mono tabular-nums">
+                      {formatIntervalDuration(pair.recovery.durationSeconds)} · {pair.recovery.pace}/km
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-1">
+          {visiblePairs.map((pair) => {
+            const isBest = pair.repNumber === fastestRep;
+            return (
+              <div
+                key={pair.interval.stepId || pair.repNumber}
+                className="rounded-lg border px-1.5 py-1 leading-tight"
+                style={{
+                  backgroundColor: isBest ? fastestBg : rowBg,
+                  borderColor: isBest ? fastestBorderCol : borderCol,
+                }}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="inline-flex items-center gap-1 min-w-0">
+                    <span
+                      className="px-1 rounded text-[7.5px] font-black shrink-0"
+                      style={{
+                        backgroundColor: isBest ? '#10b981' : darkSurface ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.1)',
+                        color: isBest ? '#022c22' : mainText,
+                      }}
+                    >
+                      #{pair.repNumber}
+                    </span>
+                    <span className="text-[7.5px] font-bold truncate" style={{ color: mutedText }}>
+                      {formatStepDistance(pair.interval.distanceMeters)}
+                    </span>
+                  </span>
+                  <span
+                    className="text-[8.5px] font-black font-mono tabular-nums shrink-0"
+                    style={{ color: isBest ? bestAccent : paceAccent }}
+                  >
+                    {pair.interval.pace}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-1 mt-0.5">
+                  <span className="text-[8px] font-black font-mono tabular-nums">
+                    {formatIntervalDuration(pair.interval.durationSeconds)}
+                  </span>
+                  <span className="text-[7px] font-bold truncate" style={{ color: isBest ? bestAccent : mutedText }}>
+                    {isBest
+                      ? '🏆 Melhor'
+                      : showHeartRate && pair.interval.avgHeartRate
+                      ? `♥${pair.interval.avgHeartRate}`
+                      : pair.interval.avgSpeedKmh
+                      ? `${pair.interval.avgSpeedKmh.toFixed(1).replace('.', ',')}km/h`
+                      : ''}
+                  </span>
+                </div>
+                {useRecovery && pair.recovery && (
+                  <div className="text-[6.5px] font-bold font-mono tabular-nums truncate mt-0.5" style={{ color: mutedText }}>
+                    Rec {formatIntervalDuration(pair.recovery.durationSeconds)} · {pair.recovery.pace}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {hiddenCount > 0 && (
+        <p className="text-[7px] font-bold text-center mt-1" style={{ color: mutedText }}>
+          +{hiddenCount} tiros · Média {summary.avgPace}/km · Melhor #{fastestRep} ({report.withoutRecovery.fastestPace}/km)
+        </p>
+      )}
+    </div>
+  );
+};
+
 export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onClose }) => {
-  // Theme and Styling State - DEFAULT TO TRANSPARENT BACKGROUND (Sticker PNG)
+  const hasInitialPhoto = Boolean(data.initialPhotoUrl);
+  // Theme and Styling State - DEFAULT TO TRANSPARENT BACKGROUND (Sticker PNG) or Photo when uploaded
   const [textTheme, setTextTheme] = useState<TextTheme>('white');
-  const [backgroundType, setBackgroundType] = useState<BackgroundType>(data.initialBackgroundType || 'transparent');
+  const [backgroundType, setBackgroundType] = useState<BackgroundType>(
+    data.initialBackgroundType || (hasInitialPhoto ? 'photo' : 'transparent')
+  );
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('story');
   const [logoStyle, setLogoStyle] = useState<LogoStyle>('original');
-  const [cardLayout, setCardLayout] = useState<CardLayout>(normalizeGpsPoints(data.route).length >= 2 ? 'map' : 'strava');
+  const [cardLayout, setCardLayout] = useState<CardLayout>(
+    hasInitialPhoto || data.initialBackgroundType === 'photo'
+      ? 'strava'
+      : normalizeGpsPoints(data.route).length >= 2
+      ? 'map'
+      : 'strava'
+  );
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [isVideoOpen,setIsVideoOpen]=useState(false);
   const [videoSceneInput,setVideoSceneInput]=useState<RouteVideoSceneInput|null>(null);
   const [stravaRouteColor, setStravaRouteColor] = useState<StravaRouteColor>('orange');
   const [stravaStatsAlign, setStravaStatsAlign] = useState<'vertical' | 'horizontal'>('vertical');
   const [activePhraseTab, setActivePhraseTab] = useState<number>(0);
+  const [metricsMode, setMetricsMode] = useState<'run' | 'intervals'>('run');
+  const [intervalIncludeRecovery, setIntervalIncludeRecovery] = useState<boolean>(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   
   // Custom Background Photo State (no default surfer photo, user uploads their own)
   const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(data.initialPhotoUrl || null);
@@ -467,6 +756,29 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   const kmMetrics=React.useMemo(()=>shareMapMetrics(points, savedRoute?.totalDistanceKm || data.distanceKm,Array.isArray(savedRoute?.kmSplits)?savedRoute.kmSplits:[]),[points,savedRoute,data.distanceKm]);
   const hasKmPaces=kmMetrics.markers.some(marker=>!!marker.pace);
 
+  const effectiveIntervalRoute = React.useMemo(() => {
+    const base = savedRoute && typeof savedRoute === 'object' ? savedRoute : {};
+    const completedSteps = (base as any).completedSteps || data.completedSteps;
+    if (!completedSteps && !(base as any).telemetrySamples && !(base as any).telemetry) {
+      return undefined;
+    }
+    return {
+      ...base,
+      completedSteps,
+    };
+  }, [savedRoute, data.completedSteps]);
+
+  const intervalReport = React.useMemo(() => {
+    return resolveIntervalMetricsForWorkout(
+      effectiveIntervalRoute,
+      data.structuredWorkout,
+      data.workoutDescription || data.title,
+      data.workoutType
+    );
+  }, [effectiveIntervalRoute, data.structuredWorkout, data.workoutDescription, data.title, data.workoutType]);
+  const hasIntervals = Boolean(intervalReport?.hasIntervals);
+  const showIntervalMetrics = metricsMode === 'intervals' && Boolean(intervalReport?.hasIntervals);
+
   // Se houver percurso real registrado e o fundo não for foto, inicializa no Modo Padrão (ruas reais)
   const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>(
     data.initialBackgroundType === 'photo' ? 'transparent' : (points.length >= 2 ? 'standard' : 'transparent')
@@ -518,6 +830,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
       if (event.target?.result) {
         setCustomPhotoUrl(event.target.result as string);
         setBackgroundType('photo');
+        setCardLayout(prev => (prev === 'map' ? 'strava' : prev));
       }
     };
     reader.readAsDataURL(file);
@@ -545,6 +858,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   // Handle Export Download
   const handleDownload = async () => {
     setIsExporting(true);
+    setExportError(null);
 
     try {
       // Pré-carrega e aguarda todas as imagens do card (especialmente tiles do mapa e foto)
@@ -587,7 +901,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
       setTimeout(() => setExportSuccess(false), 3000);
     } catch (e) {
       console.error('Falha ao exportar:', e);
-      alert('Não foi possível gerar a imagem. Tente novamente.');
+      setExportError('Não foi possível gerar a imagem. Tente novamente.');
     } finally {
       setIsExporting(false);
     }
@@ -596,6 +910,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
   // Handle Mobile Native Share
   const handleNativeShare = async () => {
     setIsExporting(true);
+    setExportError(null);
 
     try {
       const cardEl = document.getElementById(cardElementId);
@@ -635,11 +950,16 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
       if (navigator.share) {
         const file = new File([result.blob], `${filename}.png`, { type: 'image/png' });
+        const intervalShareSummary = showIntervalMetrics && intervalReport
+          ? (intervalIncludeRecovery && intervalReport.hasRecoveries ? intervalReport.withRecovery : intervalReport.withoutRecovery)
+          : null;
         await navigator.share({
           files: [file],
           title: isStrength ? `Treino ProRun - Fortalecimento` : `Treino ProRun - ${formatDistance(data.distanceKm)} km`,
           text: isStrength
             ? `💪 ${data.workoutType || 'Fortalecimento'} • Tempo ${formatDuration(strengthDurationSec)} • PSE ${strengthRpe}/10 (${strengthLoadUA} UA)${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
+            : intervalShareSummary && intervalReport
+            ? `⚡ ${intervalReport.intervals.length}x Tiros • Pace médio ${intervalShareSummary.avgPace}/km • Melhor tiro ${intervalReport.withoutRecovery.fastestPace}/km • Total ${formatDistance(data.distanceKm)} km`
             : `🏃‍♂️ ${formatDistance(data.distanceKm)} km • Pace ${data.avgPace}/km • Tempo ${formatDuration(data.durationSeconds)}${data.avgHeartRate ? ` • FC média ${data.avgHeartRate} bpm` : ''}`
         });
       } else {
@@ -830,19 +1150,48 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
               {cardLayout === 'map' && !isStrength ? (
                 <>
                   <SocialWorkoutMapRenderer fullBleed points={points} mapMode={mapDisplayMode === 'transparent' ? 'standard' : mapDisplayMode} aspectRatio={aspectRatio} routeColor={stravaRouteColor} isDarkText={false} strokeMainColor={strokeMainColor} mapView={mapView} onGesture={gestureMap} kmMetrics={kmMetrics} showKm={showKm} showKmPace={showKmPace} colorKmPace={colorKmPace} />
-                  <div className="absolute inset-0 pointer-events-none" style={{background: 'linear-gradient(to bottom, rgba(0,0,0,.15), transparent 28%, rgba(0,0,0,.12) 43%, rgba(0,0,0,.85) 100%)'}} />
-                  <div className="absolute inset-x-0 bottom-0 p-5 pointer-events-none text-white" style={{color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,.7)'}}>
-                    {showLogo && <img src={processedLogoUrl} alt="ProRun LB" className="w-24 h-12 object-contain object-left mb-2" />}
-                    <h3 className="font-black italic text-lg leading-tight mb-3 break-words">{customTitle}</h3>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                      <div><p className="text-[10px] opacity-90">Distância</p><p className="text-xl font-black italic">{data.distanceKm.toFixed(2).replace('.', ',')} <span className="text-xs">km</span></p></div>
-                      <div><p className="text-[10px] opacity-90">Pace geral</p><p className="text-xl font-black italic">{data.avgPace} <span className="text-xs">/km</span></p></div>
-                      <div><p className="text-[10px] opacity-90">Tempo</p><p className="text-lg font-black italic">{formatDuration(data.durationSeconds)}</p></div>
-                      {showHeartRate && !!data.avgHeartRate && <div><p className="text-[10px] opacity-90">FC média</p><p className="text-lg font-black italic">{data.avgHeartRate} <span className="text-xs">bpm</span></p></div>}
-                      {showElevation && data.elevationGainMeters != null && <div><p className="text-[10px] opacity-90">Elevação</p><p className="text-lg font-black italic">{Math.round(data.elevationGainMeters)} m</p></div>}
-                    </div>
-                    {data.athleteName && <p className="mt-3 text-[9px] font-bold uppercase tracking-wide">{data.athleteName}</p>}
-                    <p className="mt-2 text-[7px] opacity-70">Mapa: Esri · OpenStreetMap contributors</p>
+                  <div className="absolute inset-0 pointer-events-none" style={{background: showIntervalMetrics ? 'linear-gradient(to bottom, rgba(0,0,0,.15), transparent 24%, rgba(0,0,0,.45) 45%, rgba(0,0,0,.92) 100%)' : 'linear-gradient(to bottom, rgba(0,0,0,.15), transparent 28%, rgba(0,0,0,.12) 43%, rgba(0,0,0,.85) 100%)'}} />
+                  <div className={`absolute inset-x-0 bottom-0 pointer-events-none text-white ${showIntervalMetrics ? 'p-3 sm:p-4' : 'p-5'}`} style={{color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,.7)'}}>
+                    {showIntervalMetrics && intervalReport ? (
+                      <>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {showLogo && <img src={processedLogoUrl} alt="ProRun LB" className="w-10 h-6 object-contain object-left shrink-0" />}
+                            <h3 className="font-black italic text-xs sm:text-sm leading-tight truncate">{customTitle}</h3>
+                          </div>
+                          <span className="text-[9px] font-black uppercase tracking-wide shrink-0 text-emerald-300">
+                            {data.distanceKm.toFixed(2).replace('.', ',')} km · {formatDuration(data.durationSeconds)}
+                          </span>
+                        </div>
+                        <IntervalShareMetricsBlock
+                          report={intervalReport}
+                          includeRecovery={intervalIncludeRecovery}
+                          showHeartRate={showHeartRate}
+                          isDarkText={false}
+                          aspectRatio={aspectRatio}
+                          hasMapInFlow={false}
+                          isMapOverlay={true}
+                        />
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                          <p className="text-[8px] font-bold uppercase tracking-wide truncate">{data.athleteName || 'ProRun LB'}</p>
+                          <p className="text-[6.5px] opacity-70 shrink-0">Mapa: Esri · OSM</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {showLogo && <img src={processedLogoUrl} alt="ProRun LB" className="w-24 h-12 object-contain object-left mb-2" />}
+                        <h3 className="font-black italic text-lg leading-tight mb-3 break-words">{customTitle}</h3>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                          <div><p className="text-[10px] opacity-90">Distância</p><p className="text-xl font-black italic">{data.distanceKm.toFixed(2).replace('.', ',')} <span className="text-xs">km</span></p></div>
+                          <div><p className="text-[10px] opacity-90">Pace geral</p><p className="text-xl font-black italic">{data.avgPace} <span className="text-xs">/km</span></p></div>
+                          <div><p className="text-[10px] opacity-90">Tempo</p><p className="text-lg font-black italic">{formatDuration(data.durationSeconds)}</p></div>
+                          {showHeartRate && !!data.avgHeartRate && <div><p className="text-[10px] opacity-90">FC média</p><p className="text-lg font-black italic">{data.avgHeartRate} <span className="text-xs">bpm</span></p></div>}
+                          {showElevation && data.elevationGainMeters != null && <div><p className="text-[10px] opacity-90">Elevação</p><p className="text-lg font-black italic">{Math.round(data.elevationGainMeters)} m</p></div>}
+                        </div>
+                        {data.athleteName && <p className="mt-3 text-[9px] font-bold uppercase tracking-wide">{data.athleteName}</p>}
+                        <p className="mt-2 text-[7px] opacity-70">Mapa: Esri · OpenStreetMap contributors</p>
+                      </>
+                    )}
                   </div>
                 </>
               ) : cardLayout === 'strava' ? (
@@ -859,7 +1208,9 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                       <div className="relative flex items-center justify-center">
                         {logoStyle === 'original' ? (
                           <div className={`overflow-hidden rounded-2xl bg-black border border-white/25 shadow-2xl flex items-center justify-center ${
-                            aspectRatio === 'square' ? 'w-12 h-12 sm:w-14 sm:h-14 p-0.5' : 'w-16 h-16 sm:w-18 sm:h-18 p-1'
+                            showIntervalMetrics
+                              ? (aspectRatio === 'square' ? 'w-8 h-8 p-0.5' : 'w-10 h-10 sm:w-12 sm:h-12 p-0.5')
+                              : (aspectRatio === 'square' ? 'w-12 h-12 sm:w-14 sm:h-14 p-0.5' : 'w-16 h-16 sm:w-18 sm:h-18 p-1')
                           }`}>
                             <img 
                               src="/logo.png?v=11" 
@@ -874,7 +1225,9 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                             alt="ProRun Logo"
                             crossOrigin="anonymous"
                             className={`object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.65)] ${
-                              aspectRatio === 'square' ? 'w-12 h-12 sm:w-14 sm:h-14' : 'w-16 h-16 sm:w-20 sm:h-20'
+                              showIntervalMetrics
+                                ? (aspectRatio === 'square' ? 'w-8 h-8' : 'w-10 h-10 sm:w-12 sm:h-12')
+                                : (aspectRatio === 'square' ? 'w-12 h-12 sm:w-14 sm:h-14' : 'w-16 h-16 sm:w-20 sm:h-20')
                             }`}
                           />
                         )}
@@ -883,7 +1236,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
                     {customTitle && (
                       <p
-                        className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] italic pt-0.5"
+                        className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] italic pt-0.5 line-clamp-1 max-w-full"
                         style={{
                           color: isDarkText ? '#000000' : '#ffffff',
                           textShadow: isDarkText ? '0 1px 2px rgba(255,255,255,0.95)' : '0 2px 6px rgba(0,0,0,0.95)'
@@ -941,17 +1294,23 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     const activeRouteSvg = svgRoute.pathData ? svgRoute : SAMPLE_STRAVA_ROUTE;
 
                     return (
-                      <div className={`relative z-10 flex-1 min-h-0 w-full flex flex-col items-center justify-center overflow-hidden ${aspectRatio === 'square' ? 'my-0.5' : 'my-2'}`}>
+                      <div className={`relative z-10 flex-1 min-h-0 w-full flex flex-col items-center justify-center overflow-hidden ${showIntervalMetrics ? 'my-1' : (aspectRatio === 'square' ? 'my-0.5' : 'my-2')}`}>
                         {mapDisplayMode === 'transparent' ? (
                           /* MODO TRANSPARENTE: Apenas o Traçado Vetorial com Alto Contraste */
                           <svg 
                             viewBox={activeRouteSvg.viewBox} 
                             className={`w-full h-full filter drop-shadow-[0_6px_16px_rgba(0,0,0,0.65)] ${
-                              aspectRatio === 'square' 
-                                ? 'max-h-[78px] sm:max-h-[95px]' 
-                                : aspectRatio === 'portrait'
-                                ? 'max-h-[115px] sm:max-h-[140px]'
-                                : 'max-h-[155px] sm:max-h-[195px]'
+                              showIntervalMetrics
+                                ? (aspectRatio === 'square'
+                                    ? 'max-h-[48px] sm:max-h-[58px]'
+                                    : aspectRatio === 'portrait'
+                                    ? 'max-h-[68px] sm:max-h-[82px]'
+                                    : 'max-h-[90px] sm:max-h-[110px]')
+                                : (aspectRatio === 'square' 
+                                    ? 'max-h-[78px] sm:max-h-[95px]' 
+                                    : aspectRatio === 'portrait'
+                                    ? 'max-h-[115px] sm:max-h-[140px]'
+                                    : 'max-h-[155px] sm:max-h-[195px]')
                             }`}
                           >
                             {/* Sombra de Contraste do Traçado */}
@@ -1003,6 +1362,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                             mapView={mapView}
                             onGesture={gestureMap} kmMetrics={kmMetrics} showKm={showKm} showKmPace={showKmPace} colorKmPace={colorKmPace}
                             aspectRatio={aspectRatio}
+                            compactHeight={showIntervalMetrics}
                             routeColor={stravaRouteColor}
                             isDarkText={isDarkText}
                             strokeMainColor={strokeMainColor}
@@ -1152,6 +1512,17 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                           </div>
                         </div>
                       )
+                    ) : showIntervalMetrics && intervalReport ? (
+                      <div className="w-full">
+                        <IntervalShareMetricsBlock
+                          report={intervalReport}
+                          includeRecovery={intervalIncludeRecovery}
+                          showHeartRate={showHeartRate}
+                          isDarkText={isDarkText}
+                          aspectRatio={aspectRatio}
+                          hasMapInFlow={showRoute}
+                        />
+                      </div>
                     ) : stravaStatsAlign === 'vertical' && aspectRatio !== 'square' ? (
                       /* Coluna Centralizada Clássica Estilo Sticker Strava */
                       <div className="flex flex-col items-center justify-center space-y-1.5 sm:space-y-2">
@@ -1293,7 +1664,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                     )}
 
                     {/* Linha Extra Opcional Minimalista (FC ou Elevação se ativos) */}
-                    {((showHeartRate && data.avgHeartRate) || (showElevation && data.elevationGainMeters)) && (
+                    {!showIntervalMetrics && ((showHeartRate && data.avgHeartRate) || (showElevation && data.elevationGainMeters)) && (
                       <div className="flex items-center justify-center gap-3 pt-0.5">
                         {showHeartRate && data.avgHeartRate && (
                           <span
@@ -1416,11 +1787,15 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   </div>
                 ) : <div className="flex-1" />
               ) : showRoute && (svgRoute.pathData || tileLayout.pathData) ? (
-                <div className={`relative z-10 flex-1 min-h-0 flex items-center justify-center overflow-hidden ${aspectRatio === 'square' ? 'my-1' : 'my-3'}`}>
+                <div className={`relative z-10 flex-1 min-h-0 flex items-center justify-center overflow-hidden ${showIntervalMetrics ? 'my-1' : (aspectRatio === 'square' ? 'my-1' : 'my-3')}`}>
                   {mapDisplayMode === 'transparent' ? (
                     <svg 
                       viewBox={svgRoute.viewBox} 
-                      className={`w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)] ${aspectRatio === 'square' ? 'max-h-[85px] sm:max-h-[110px]' : 'max-h-[220px] sm:max-h-[260px]'}`}
+                      className={`w-full h-full filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)] ${
+                        showIntervalMetrics
+                          ? (aspectRatio === 'square' ? 'max-h-[50px] sm:max-h-[60px]' : aspectRatio === 'portrait' ? 'max-h-[70px] sm:max-h-[84px]' : 'max-h-[92px] sm:max-h-[112px]')
+                          : (aspectRatio === 'square' ? 'max-h-[85px] sm:max-h-[110px]' : 'max-h-[220px] sm:max-h-[260px]')
+                      }`}
                     >
                       {/* Shadow / Halo Line for Maximum Contrast */}
                       <path
@@ -1471,12 +1846,15 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                       mapView={mapView}
                       onGesture={gestureMap} kmMetrics={kmMetrics} showKm={showKm} showKmPace={showKmPace} colorKmPace={colorKmPace}
                       aspectRatio={aspectRatio}
+                      compactHeight={showIntervalMetrics}
                       routeColor={stravaRouteColor}
                       isDarkText={isDarkText}
                       strokeMainColor={strokeMainColor}
                     />
                   )}
                 </div>
+              ) : backgroundType === 'photo' || showIntervalMetrics ? (
+                <div className="flex-1 min-h-[8px]" />
               ) : (
                 <div className={`relative z-10 flex-1 min-h-0 flex items-center justify-center opacity-40 ${aspectRatio === 'square' ? 'my-1' : 'my-3'}`}>
                   <div 
@@ -1598,6 +1976,15 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                       </div>
                     </div>
                   </>
+                ) : showIntervalMetrics && intervalReport ? (
+                  <IntervalShareMetricsBlock
+                    report={intervalReport}
+                    includeRecovery={intervalIncludeRecovery}
+                    showHeartRate={showHeartRate}
+                    isDarkText={isDarkText}
+                    aspectRatio={aspectRatio}
+                    hasMapInFlow={showRoute}
+                  />
                 ) : (
                   <>
                 {/* Hero Distance */}
@@ -1713,7 +2100,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   </>
                 )}
 
-                {showHeartRate && data.avgHeartRate && (
+                {!showIntervalMetrics && showHeartRate && data.avgHeartRate && (
                   <div
                     className="mt-2 flex items-center justify-center gap-1.5 border-t pt-1.5"
                     style={{ borderColor: isDarkText ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.2)' }}
@@ -1850,7 +2237,152 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
             {/* Preview Status Pill & Quick Action Bar (Logo abaixo da Foto em Primeiro Plano) */}
             <div className="mt-3 flex flex-col items-center gap-2.5 w-full">
-              {!isStrength && <button type="button" onClick={() => {setCardLayout('map'); if (mapDisplayMode === 'transparent') setMapDisplayMode('standard');}} className={`w-full max-w-md py-3 rounded-xl text-xs font-black uppercase italic ${cardLayout === 'map' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Mapa completo + logo e métricas</button>}
+              {/* ESCOLHA DE MÉTRICAS NO CARD: CORRIDA GERAL vs TIROS */}
+              {!isStrength && hasIntervals && intervalReport && (
+                <div className="w-full max-w-md bg-slate-950 p-2 rounded-2xl border border-emerald-500/30 shadow-lg space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5" /> Métricas exibidas no Card
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-400">
+                      {intervalReport.intervals.length} tiros detectados
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setMetricsMode('run')}
+                      className={`py-2 px-2.5 rounded-xl text-[11px] font-black uppercase italic tracking-wide flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        !showIntervalMetrics
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-white/10'
+                      }`}
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>Métricas da Corrida</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMetricsMode('intervals')}
+                      className={`py-2 px-2.5 rounded-xl text-[11px] font-black uppercase italic tracking-wide flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        showIntervalMetrics
+                          ? 'bg-amber-500 text-slate-950 shadow-md'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-white/10'
+                      }`}
+                    >
+                      <Timer className="w-3.5 h-3.5" />
+                      <span>Métricas dos Tiros ({intervalReport.intervals.length}x)</span>
+                    </button>
+                  </div>
+                  {showIntervalMetrics && intervalReport.hasRecoveries && (
+                    <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => setIntervalIncludeRecovery(false)}
+                        className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${
+                          !intervalIncludeRecovery
+                            ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-300'
+                            : 'bg-slate-900/70 text-slate-400 hover:text-white border border-white/5'
+                        }`}
+                      >
+                        Só Tiros (Sem Rec.)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIntervalIncludeRecovery(true)}
+                        className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${
+                          intervalIncludeRecovery
+                            ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-300'
+                            : 'bg-slate-900/70 text-slate-400 hover:text-white border border-white/5'
+                        }`}
+                      >
+                        Tiros + Recuperação
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SELETOR RÁPIDO DE MÍDIA: MAPA, FOTO + MAPA, SÓ FOTO, STICKER PNG */}
+              {!isStrength && (
+                <div className="w-full max-w-md bg-slate-950 p-1.5 rounded-2xl border border-white/10 shadow-lg space-y-1.5">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCardLayout('map');
+                        setShowRoute(true);
+                        if (mapDisplayMode === 'transparent') setMapDisplayMode('standard');
+                      }}
+                      className={`py-2 px-1.5 rounded-xl text-[10px] font-black uppercase italic flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                        cardLayout === 'map'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <MapIcon className="w-3.5 h-3.5" />
+                      <span>Mapa</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBackgroundType('photo');
+                        setShowRoute(true);
+                        if (cardLayout === 'map') setCardLayout('strava');
+                        if (!customPhotoUrl && !photoSrc) {
+                          fileInputRef.current?.click();
+                        }
+                      }}
+                      className={`py-2 px-1.5 rounded-xl text-[10px] font-black uppercase italic flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                        cardLayout !== 'map' && backgroundType === 'photo' && showRoute
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      <span>Foto + Mapa</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBackgroundType('photo');
+                        setShowRoute(false);
+                        if (cardLayout === 'map') setCardLayout('classic');
+                        if (!customPhotoUrl && !photoSrc) {
+                          fileInputRef.current?.click();
+                        }
+                      }}
+                      className={`py-2 px-1.5 rounded-xl text-[10px] font-black uppercase italic flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                        cardLayout !== 'map' && backgroundType === 'photo' && !showRoute
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Só Foto</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBackgroundType('transparent');
+                        if (cardLayout === 'map') setCardLayout('strava');
+                      }}
+                      className={`py-2 px-1.5 rounded-xl text-[10px] font-black uppercase italic flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                        cardLayout !== 'map' && backgroundType === 'transparent'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Sticker</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* SELETOR RÁPIDO DE LAYOUT DO CARD: LOGO CENTRAL vs CLÁSSICO PRORUN */}
               <div className="grid grid-cols-2 gap-2 w-full max-w-md bg-slate-950 p-1.5 rounded-2xl border border-white/10 shadow-lg">
                 <button
@@ -1950,6 +2482,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   type="button"
                   onClick={() => {
                     setBackgroundType('photo');
+                    setCardLayout(prev => (prev === 'map' ? 'strava' : prev));
                     cameraInputRef.current?.click();
                   }}
                   className="py-2 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-black uppercase italic flex items-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95"
@@ -1963,6 +2496,7 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   type="button"
                   onClick={() => {
                     setBackgroundType('photo');
+                    setCardLayout(prev => (prev === 'map' ? 'strava' : prev));
                     fileInputRef.current?.click();
                   }}
                   className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-black uppercase italic flex items-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95"
@@ -2022,9 +2556,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   onClick={() => {
                     setBackgroundType('transparent');
                     setTextTheme('white');
+                    setCardLayout(prev => (prev === 'map' ? 'strava' : prev));
                   }}
                   className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
-                    backgroundType === 'transparent'
+                    cardLayout !== 'map' && backgroundType === 'transparent'
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/30 font-bold'
                       : 'bg-slate-900/70 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
                   }`}
@@ -2039,12 +2574,13 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   onClick={() => {
                     setBackgroundType('photo');
                     setTextTheme('white');
+                    setCardLayout(prev => (prev === 'map' ? 'strava' : prev));
                     if (!customPhotoUrl) {
                       fileInputRef.current?.click();
                     }
                   }}
                   className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
-                    backgroundType === 'photo'
+                    cardLayout !== 'map' && backgroundType === 'photo'
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/30 font-bold'
                       : 'bg-slate-900/70 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
                   }`}
@@ -2059,9 +2595,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   onClick={() => {
                     setBackgroundType('dark');
                     setTextTheme('white');
+                    setCardLayout(prev => (prev === 'map' ? 'strava' : prev));
                   }}
                   className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
-                    backgroundType === 'dark'
+                    cardLayout !== 'map' && backgroundType === 'dark'
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/30 font-bold'
                       : 'bg-slate-900/70 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
                   }`}
@@ -2076,9 +2613,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   onClick={() => {
                     setBackgroundType('light');
                     setTextTheme('black');
+                    setCardLayout(prev => (prev === 'map' ? 'strava' : prev));
                   }}
                   className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
-                    backgroundType === 'light'
+                    cardLayout !== 'map' && backgroundType === 'light'
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/30 font-bold'
                       : 'bg-slate-900/70 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
                   }`}
@@ -2093,9 +2631,10 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                   onClick={() => {
                     setBackgroundType('emerald');
                     setTextTheme('white');
+                    setCardLayout(prev => (prev === 'map' ? 'strava' : prev));
                   }}
                   className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
-                    backgroundType === 'emerald'
+                    cardLayout !== 'map' && backgroundType === 'emerald'
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md ring-2 ring-emerald-500/30 font-bold'
                       : 'bg-slate-900/70 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
                   }`}
@@ -2316,7 +2855,11 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowRoute(!showRoute)}
+                    onClick={() => {
+                      const next = !showRoute;
+                      setShowRoute(next);
+                      if (!next && cardLayout === 'map') setCardLayout('classic');
+                    }}
                     className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                       showRoute
                         ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
@@ -2501,6 +3044,11 @@ export const WorkoutShareModal: React.FC<WorkoutShareModalProps> = ({ data, onCl
 
             {/* ACTION BUTTONS */}
             <div className="pt-2 space-y-2">
+              {exportError && (
+                <div className="px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-bold text-center">
+                  {exportError}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleDownload}

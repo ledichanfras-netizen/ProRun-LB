@@ -345,11 +345,12 @@ const AthletePortal: React.FC = () => {
         avgHeartRate: completedWorkoutPrompt.route?.avgHeartRate,
         route: completedWorkoutPrompt.route,
         workoutType: completedWorkoutPrompt.workout.type,
+        workoutDescription: completedWorkoutPrompt.workout.customDescription || completedWorkoutPrompt.workout.description,
         initialPhotoUrl: photoUrl,
         rpe: completedWorkoutPrompt.rpe,
         exercisesCount: completedWorkoutPrompt.workout.exercises?.length || 0,
         structuredWorkout: resolveStructuredWorkoutForShare(completedWorkoutPrompt.workout),
-        completedSteps: completedWorkoutPrompt.route?.completedSteps
+        completedSteps: completedWorkoutPrompt.route?.completedSteps || completedWorkoutPrompt.workout.gpsRoute?.completedSteps || completedWorkoutPrompt.workout.route?.completedSteps
       });
       setCompletedWorkoutPrompt(null);
     };
@@ -880,12 +881,13 @@ const AthletePortal: React.FC = () => {
         avgHeartRate: heartRate,
         route: routeToSave,
         workoutType: effectiveType,
+        workoutDescription: editCustomDescription || currentSelected.data.customDescription || currentSelected.data.description,
         initialBackgroundType: 'transparent',
         initialPhotoUrl: (currentSelected.data as any).photoUrl || (currentSelected.data as any).imageUrl || undefined,
         rpe: effectiveRpe,
         exercisesCount: localExercises?.length || currentSelected.data.exercises?.length || 0,
         structuredWorkout: resolveStructuredWorkoutForShare(currentSelected.data),
-        completedSteps: routeToSave?.completedSteps || currentSelected.data.gpsRoute?.completedSteps
+        completedSteps: routeToSave?.completedSteps || currentSelected.data.gpsRoute?.completedSteps || currentSelected.data.route?.completedSteps
       });
 
       setSelectedWorkout(null);
@@ -1050,12 +1052,13 @@ const AthletePortal: React.FC = () => {
               avgHeartRate: completedWorkoutSnapshot.avgHeartRate || completedWorkoutSnapshot.route?.avgHeartRate,
               route: completedWorkoutSnapshot.route,
               workoutType: completedWorkoutSnapshot.workout.type,
+              workoutDescription: completedWorkoutSnapshot.workout.customDescription || completedWorkoutSnapshot.workout.description,
               initialBackgroundType: 'transparent',
               initialPhotoUrl: (completedWorkoutSnapshot.workout as any).photoUrl || (completedWorkoutSnapshot.workout as any).imageUrl || undefined,
               rpe: completedWorkoutSnapshot.rpe,
               exercisesCount: completedWorkoutSnapshot.workout.exercises?.length || 0,
               structuredWorkout: resolveStructuredWorkoutForShare(completedWorkoutSnapshot.workout),
-              completedSteps: completedWorkoutSnapshot.route?.completedSteps
+              completedSteps: completedWorkoutSnapshot.route?.completedSteps || completedWorkoutSnapshot.workout.gpsRoute?.completedSteps || completedWorkoutSnapshot.workout.route?.completedSteps
             });
           }
         }
@@ -2425,12 +2428,13 @@ const AthletePortal: React.FC = () => {
                         avgHeartRate: todayWorkout.workout.avgHeartRate || todayWorkout.workout.gpsRoute?.avgHeartRate || todayWorkout.workout.route?.avgHeartRate,
                         route: isStrength ? undefined : shareScheduledRoute(todayWorkout.workout.gpsRoute || todayWorkout.workout.route),
                         workoutType: todayWorkout.workout.type,
+                        workoutDescription: todayWorkout.workout.customDescription,
                         initialBackgroundType: 'transparent',
                         initialPhotoUrl: (todayWorkout.workout as any).photoUrl || (todayWorkout.workout as any).imageUrl || undefined,
                         rpe: todayWorkout.workout.rpe,
                         exercisesCount: todayWorkout.workout.exercises?.length || 0,
                         structuredWorkout: resolveStructuredWorkoutForShare(todayWorkout.workout),
-                        completedSteps: todayWorkout.workout.gpsRoute?.completedSteps
+                        completedSteps: todayWorkout.workout.gpsRoute?.completedSteps || todayWorkout.workout.route?.completedSteps
                       });
                     }}
                     className="w-full font-black py-4 rounded-2xl flex items-center justify-center gap-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.98] uppercase italic tracking-wider text-xs sm:text-sm cursor-pointer"
@@ -2615,12 +2619,13 @@ const AthletePortal: React.FC = () => {
                   avgHeartRate: yesterdayWorkout.workout.avgHeartRate || yesterdayWorkout.workout.gpsRoute?.avgHeartRate || yesterdayWorkout.workout.route?.avgHeartRate,
                   route: isStrength ? undefined : shareScheduledRoute(yesterdayWorkout.workout.gpsRoute || yesterdayWorkout.workout.route),
                   workoutType: yesterdayWorkout.workout.type,
+                  workoutDescription: yesterdayWorkout.workout.customDescription,
                   initialBackgroundType: 'transparent',
                   initialPhotoUrl: (yesterdayWorkout.workout as any).photoUrl || (yesterdayWorkout.workout as any).imageUrl || undefined,
                   rpe: yesterdayWorkout.workout.rpe,
                   exercisesCount: yesterdayWorkout.workout.exercises?.length || 0,
                   structuredWorkout: resolveStructuredWorkoutForShare(yesterdayWorkout.workout),
-                  completedSteps: yesterdayWorkout.workout.gpsRoute?.completedSteps
+                  completedSteps: yesterdayWorkout.workout.gpsRoute?.completedSteps || yesterdayWorkout.workout.route?.completedSteps
                 });
               }}
               className="w-full font-black py-3 rounded-xl flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md shadow-emerald-500/20 uppercase italic tracking-wider text-xs cursor-pointer active:scale-95 transition-all"
@@ -5094,12 +5099,13 @@ const AthletePortal: React.FC = () => {
                           avgHeartRate: heartRate,
                           route: isStrength ? undefined : (currentGpsRoute || selectedWorkout.data.gpsRoute || selectedWorkout.data.route),
                           workoutType: effectiveType,
+                          workoutDescription: editCustomDescription || selectedWorkout.data.customDescription || selectedWorkout.data.description,
                           initialBackgroundType: 'transparent',
                           initialPhotoUrl: (selectedWorkout.data as any).photoUrl || (selectedWorkout.data as any).imageUrl || undefined,
                           rpe: rpeValue || selectedWorkout.data.rpe || (isStrength ? 6 : undefined),
                           exercisesCount: localExercises?.length || selectedWorkout.data.exercises?.length || 0,
                           structuredWorkout: resolveStructuredWorkoutForShare(selectedWorkout.data),
-                          completedSteps: currentGpsRoute?.completedSteps || selectedWorkout.data.gpsRoute?.completedSteps
+                          completedSteps: currentGpsRoute?.completedSteps || selectedWorkout.data.gpsRoute?.completedSteps || selectedWorkout.data.route?.completedSteps
                         });
                         setSelectedWorkout(null);
                       }}
@@ -5419,9 +5425,10 @@ const AthletePortal: React.FC = () => {
                       avgHeartRate: completedWorkoutPrompt.route?.avgHeartRate || completedWorkoutPrompt.workout.avgHeartRate || completedWorkoutPrompt.workout.gpsRoute?.avgHeartRate,
                       route: completedWorkoutPrompt.route || completedWorkoutPrompt.workout.gpsRoute || completedWorkoutPrompt.workout.route,
                       workoutType: completedWorkoutPrompt.workout.type,
+                      workoutDescription: completedWorkoutPrompt.workout.customDescription || completedWorkoutPrompt.workout.description,
                       rpe: completedWorkoutPrompt.rpe,
                       structuredWorkout: resolveStructuredWorkoutForShare(completedWorkoutPrompt.workout),
-                      completedSteps: completedWorkoutPrompt.route?.completedSteps
+                      completedSteps: completedWorkoutPrompt.route?.completedSteps || completedWorkoutPrompt.workout.gpsRoute?.completedSteps || completedWorkoutPrompt.workout.route?.completedSteps
                     });
                     setCompletedWorkoutPrompt(null);
                   }}

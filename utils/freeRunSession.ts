@@ -17,7 +17,7 @@ export function freeRunRoute(run:FreeRun):RouteData|undefined {
 }
 export function freeRunShareData(run:FreeRun,athlete:Pick<Athlete,'name'>):WorkoutShareData {
   const km=activityDistance(run),seconds=freeRunDurationSeconds(run),route=freeRunRoute(run);
-  return {title:run.customDescription || 'Corrida livre',athleteName:athlete.name,date:run.date,distanceKm:km,durationSeconds:seconds,avgPace:formatPace(seconds,km),rpe:run.rpe,avgHeartRate:run.avgHeartRate ?? route?.avgHeartRate,elevationGainMeters:route?.elevationGainMeters,calories:route?.calories,
+  return {title:run.customDescription || 'Corrida livre',workoutDescription:run.customDescription,athleteName:athlete.name,date:run.date,distanceKm:km,durationSeconds:seconds,avgPace:formatPace(seconds,km),rpe:run.rpe,avgHeartRate:run.avgHeartRate ?? route?.avgHeartRate,elevationGainMeters:route?.elevationGainMeters,calories:route?.calories,completedSteps:route?.completedSteps,
     route:route?{...route,polyline:route.polyline||'',points:normalizeGpsPoints(route),totalDistanceKm:km,totalDurationSeconds:seconds,avgPace:formatPace(seconds,km)}:undefined};
 }
 export function applyFreeRunEdits(run:FreeRun,fields:{title:string;date:string;startTime:string;distance:string;duration:string;rpe:string;heartRate:string;observations:string;shoeId?:string;shoeName?:string}):FreeRun {

@@ -2253,14 +2253,19 @@ const Periodization: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setShareModalData({
-                      title: 'Treino com GPS',
+                      title: viewingWorkoutRoute.workoutDescription?.slice(0, 45) || viewingWorkoutRoute.workoutTitle || 'Treino com GPS',
                       athleteName: activeAthlete?.name,
+                      date: viewingWorkoutRoute.workoutDate,
                       distanceKm: viewingWorkoutRoute.totalDistanceKm,
                       durationSeconds: viewingWorkoutRoute.durationSeconds,
                       avgPace: viewingWorkoutRoute.avgPace,
                       elevationGainMeters: viewingWorkoutRoute.elevationGainMeters,
                       avgHeartRate: viewingWorkoutRoute.avgHeartRate,
-                      route: viewingWorkoutRoute
+                      route: viewingWorkoutRoute,
+                      workoutType: viewingWorkoutRoute.workoutType,
+                      workoutDescription: viewingWorkoutRoute.workoutDescription,
+                      structuredWorkout: viewingWorkoutRoute.structuredWorkout,
+                      completedSteps: viewingWorkoutRoute.completedSteps,
                     });
                   }}
                   className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black text-xs uppercase italic tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-emerald-950/40"
